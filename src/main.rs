@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use core::{array, iter, pin};
+use core::{array, cmp::min};
 
 use defmt::unwrap;
 use embassy_executor::{Executor, Spawner};
@@ -14,7 +14,7 @@ use embassy_rp::{
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_sync::mutex::Mutex;
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Instant, Timer};
 use embedded_hal::digital::OutputPin;
 use gpio::Level;
 use static_cell::StaticCell;
@@ -51,6 +51,7 @@ async fn main(_spawner0: Spawner) {
 
         // wait for the button to be pressed down and released
         pins.button.wait_for_rising_edge().await;
+        pins.button.wait_for_falling_edge().await;
         pins.led0.set_low();
         VIRTUAL_DISPLAY1.write_text("----").await;
 
@@ -58,20 +59,25 @@ async fn main(_spawner0: Spawner) {
         if let Either::First(()) =
             select(pins.button.wait_for_rising_edge(), Timer::after(two_sec)).await
         {
-            // say "TILT?"
+            VIRTUAL_DISPLAY1.write_text("TILT").await;
+            pins.button.wait_for_rising_edge().await;
+            pins.button.wait_for_falling_edge().await;
             continue;
         }
 
         // turn on the led and start counting while waiting for a button down
-        VIRTUAL_DISPLAY1.write_text("GO").await;
+        VIRTUAL_DISPLAY1.write_number(0, /*padding*/ 0).await;
         pins.led0.set_high();
-        for i in (1..=9999).chain(iter::repeat(9999)) {
+        let start = Instant::now();
+        loop {
             // if button is down leave loop
             if pins.button.is_high() {
                 break;
             }
             Timer::after(one_mill).await;
-            VIRTUAL_DISPLAY1.write_number(i, 0).await;
+            // milliseconds since start
+            let elapsed = min((Instant::now() - start).as_millis(), 9999) as u16;
+            VIRTUAL_DISPLAY1.write_number(elapsed, 0).await;
         }
 
         // Show score until they press the button again
