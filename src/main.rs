@@ -1,11 +1,11 @@
 #![no_std]
 #![no_main]
 
-use core::array;
+use core::{array, iter, pin};
 
 use defmt::unwrap;
 use embassy_executor::{Executor, Spawner};
-use embassy_futures::select::select;
+use embassy_futures::select::{select, Either};
 use embassy_rp::{
     gpio,
     multicore::{spawn_core1, Stack},
@@ -40,11 +40,44 @@ async fn main(_spawner0: Spawner) {
         },
     );
 
-    // Display "RUST" on the 4-digit 7-segment display while we render the movies
-    VIRTUAL_DISPLAY1.write_text("RUST").await;
-    // sleep forever
+    let two_sec = Duration::from_millis(2000);
+    let one_mill = Duration::from_millis(1);
+
+    // main loop
     loop {
-        Timer::after(Duration::from_millis(5000)).await;
+        // turn on the led and display 'PUSH'
+        pins.led0.set_high();
+        VIRTUAL_DISPLAY1.write_text("PUSH").await;
+
+        // wait for the button to be pressed down and released
+        pins.button.wait_for_rising_edge().await;
+        pins.led0.set_low();
+        VIRTUAL_DISPLAY1.write_text("----").await;
+
+        // sleep for 2 seconds (if a cheater pushes the button, start over)
+        if let Either::First(()) =
+            select(pins.button.wait_for_rising_edge(), Timer::after(two_sec)).await
+        {
+            // say "TILT?"
+            continue;
+        }
+
+        // turn on the led and start counting while waiting for a button down
+        VIRTUAL_DISPLAY1.write_text("GO").await;
+        pins.led0.set_high();
+        for i in (1..=9999).chain(iter::repeat(9999)) {
+            // if button is down leave loop
+            if pins.button.is_high() {
+                break;
+            }
+            Timer::after(one_mill).await;
+            VIRTUAL_DISPLAY1.write_number(i, 0).await;
+        }
+
+        // Show score until they press the button again
+        pins.led0.set_low();
+        pins.button.wait_for_falling_edge().await;
+        pins.button.wait_for_rising_edge().await;
     }
 }
 
