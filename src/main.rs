@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use core::{array, cmp::min};
+use core::array;
 
 use defmt::unwrap;
 use embassy_executor::{Executor, Spawner};
@@ -29,6 +29,21 @@ enum Mode {
     Minutes,
 }
 
+async fn display_time(start: Instant, offset: Duration) {
+    // Time since start in minutes
+    let elapsed_minutes = (Instant::now() + offset - start).as_secs() / 60;
+
+    // Calculate the number to display
+    let (hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
+    let hours = (hours + 11) % 12 + 1; // 1-12 instead of 0-11
+    let number = hours * 100 + minutes;
+
+    VIRTUAL_DISPLAY1.write_number(number, 0).await;
+}
+
+const ONE_MIN: Duration = Duration::from_secs(60);
+const ONE_HOUR: Duration = Duration::from_secs(60 * 60);
+
 #[embassy_executor::main]
 async fn main(_spawner0: Spawner) {
     let (pins, core1) = Pins::new_and_core1();
@@ -45,18 +60,11 @@ async fn main(_spawner0: Spawner) {
         },
     );
 
-    const ONE_MIN: Duration = Duration::from_secs(60);
     let start = Instant::now();
+    let mut mode = Mode::Hours;
+    let mut offset = Duration::default();
     loop {
-        // // Time since start in minutes
-        let elapsed_minutes = (Instant::now() - start).as_secs() / 60;
-
-        // // Calculate the number to display
-        let (hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
-        let hours = (hours + 11) % 12 + 1; // 1-12 instead of 0-11
-        let number = hours * 100 + minutes;
-
-        VIRTUAL_DISPLAY1.write_number(number, 0).await;
+        display_time(start, offset).await;
 
         // Sleep for 1 minute or until the button is pressed down
         if let Either::First(()) =
@@ -65,24 +73,33 @@ async fn main(_spawner0: Spawner) {
             continue;
         }
 
-        // // set led0 based on mode
-        // match mode {
-        //     Mode::Hours => {
-        //         loop {
-        //             offset += ONE_HOUR;
-        //             // sleep for 1 second or until the button is released
-        //             if let Either::First(()) =
-        //                 select(Timer::after(Duration::from_secs(1)), pins.button.wait_for_falling_edge())
-        //                     .await
-        //             {
-        //                 break;
-        //             }
-        //         }
-        //         pins.led0.set_high();
-        //     }
-        //     Mode::Minutes => {
-        //         pins.led0.set_low();
-        //     }
+        // set led0 based on mode
+        match mode {
+            Mode::Hours => {
+                loop {
+                    Timer::after(Duration::from_secs(1)).await;
+                    if pins.button.is_low() {
+                        break;
+                    }
+                    offset += ONE_HOUR;
+                    display_time(start, offset).await;
+                }
+                mode = Mode::Minutes;
+                pins.led0.set_high();
+            }
+            Mode::Minutes => {
+                loop {
+                    Timer::after(Duration::from_millis(250)).await;
+                    if pins.button.is_low() {
+                        break;
+                    }
+                    offset += ONE_MIN;
+                    display_time(start, offset).await;
+                }
+                mode = Mode::Hours;
+                pins.led0.set_low();
+            }
+        }
     }
 }
 
