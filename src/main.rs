@@ -24,6 +24,11 @@ static EXECUTOR1: StaticCell<Executor> = StaticCell::new();
 use heapless::{LinearMap, Vec};
 use {defmt_rtt as _, panic_probe as _}; // Adjust the import path according to your setup
 
+enum Mode {
+    Hours,
+    Minutes,
+}
+
 #[embassy_executor::main]
 async fn main(_spawner0: Spawner) {
     let (pins, core1) = Pins::new_and_core1();
@@ -40,50 +45,44 @@ async fn main(_spawner0: Spawner) {
         },
     );
 
-    let one_mill = Duration::from_millis(1);
-
-    // main loop
+    const ONE_MIN: Duration = Duration::from_secs(60);
+    let start = Instant::now();
     loop {
-        // turn on the led and display 'PUSH'
-        pins.led0.set_high();
-        let randomish = Duration::from_millis((Instant::now().as_ticks() % 3000) + 500);
-        VIRTUAL_DISPLAY1.write_text("PUSH").await;
+        // // Time since start in minutes
+        let elapsed_minutes = (Instant::now() - start).as_secs() / 60;
 
-        // wait for the button to be pressed down and released
-        pins.button.wait_for_rising_edge().await;
-        pins.button.wait_for_falling_edge().await;
-        pins.led0.set_low();
-        VIRTUAL_DISPLAY1.write_text("----").await;
+        // // Calculate the number to display
+        let (hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
+        let hours = (hours + 11) % 12 + 1; // 1-12 instead of 0-11
+        let number = hours * 100 + minutes;
 
-        // sleep for 2 seconds (if a cheater pushes the button, start over)
+        VIRTUAL_DISPLAY1.write_number(number, 0).await;
+
+        // Sleep for 1 minute or until the button is pressed down
         if let Either::First(()) =
-            select(pins.button.wait_for_rising_edge(), Timer::after(randomish)).await
+            select(Timer::after(ONE_MIN), pins.button.wait_for_rising_edge()).await
         {
-            VIRTUAL_DISPLAY1.write_text("TILT").await;
-            pins.button.wait_for_rising_edge().await;
-            pins.button.wait_for_falling_edge().await;
             continue;
         }
 
-        // turn on the led and start counting while waiting for a button down
-        VIRTUAL_DISPLAY1.write_number(0, /*padding*/ 0).await;
-        pins.led0.set_high();
-        let start = Instant::now();
-        loop {
-            // if button is down leave loop
-            if pins.button.is_high() {
-                break;
-            }
-            Timer::after(one_mill).await;
-            // milliseconds since start
-            let elapsed = min((Instant::now() - start).as_millis(), 9999) as u16;
-            VIRTUAL_DISPLAY1.write_number(elapsed, 0).await;
-        }
-
-        // Show score until they press the button again
-        pins.led0.set_low();
-        pins.button.wait_for_falling_edge().await;
-        pins.button.wait_for_rising_edge().await;
+        // // set led0 based on mode
+        // match mode {
+        //     Mode::Hours => {
+        //         loop {
+        //             offset += ONE_HOUR;
+        //             // sleep for 1 second or until the button is released
+        //             if let Either::First(()) =
+        //                 select(Timer::after(Duration::from_secs(1)), pins.button.wait_for_falling_edge())
+        //                     .await
+        //             {
+        //                 break;
+        //             }
+        //         }
+        //         pins.led0.set_high();
+        //     }
+        //     Mode::Minutes => {
+        //         pins.led0.set_low();
+        //     }
     }
 }
 
