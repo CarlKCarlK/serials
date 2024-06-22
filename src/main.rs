@@ -40,13 +40,13 @@ async fn main(_spawner0: Spawner) {
         },
     );
 
-    let two_sec = Duration::from_millis(2000);
     let one_mill = Duration::from_millis(1);
 
     // main loop
     loop {
         // turn on the led and display 'PUSH'
         pins.led0.set_high();
+        let randomish = Duration::from_millis((Instant::now().as_ticks() % 3000) + 500);
         VIRTUAL_DISPLAY1.write_text("PUSH").await;
 
         // wait for the button to be pressed down and released
@@ -57,7 +57,7 @@ async fn main(_spawner0: Spawner) {
 
         // sleep for 2 seconds (if a cheater pushes the button, start over)
         if let Either::First(()) =
-            select(pins.button.wait_for_rising_edge(), Timer::after(two_sec)).await
+            select(pins.button.wait_for_rising_edge(), Timer::after(randomish)).await
         {
             VIRTUAL_DISPLAY1.write_text("TILT").await;
             pins.button.wait_for_rising_edge().await;
