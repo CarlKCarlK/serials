@@ -20,11 +20,11 @@ cortex-m-rt = "0.7.3"
 cortex-m = { version = "0.7.7" }
 
 
-embassy-executor = { git = "https://github.com/embassy-rs/embassy.git",  version = "0.5.0", features = ["task-arena-size-1024", "arch-cortex-m", "executor-thread", "defmt", "integrated-timers", "executor-interrupt"] }
-embassy-sync = {  git = "https://github.com/embassy-rs/embassy.git", version = "0.6.0" }
-embassy-rp = {  git = "https://github.com/embassy-rs/embassy.git", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl"]}
-embassy-futures = { git = "https://github.com/embassy-rs/embassy.git", version="0.1.1"}
-embassy-time = { git = "https://github.com/embassy-rs/embassy.git", version = "0.3.0", features = ["defmt", "defmt-timestamp-uptime"] }
+embassy-executor = { git = "https://github.com/embassy-rs/embassy.git",  rev = "d5badb9", version = "0.5.0", features = ["task-arena-size-1024", "arch-cortex-m", "executor-thread", "defmt", "integrated-timers", "executor-interrupt"] }
+embassy-sync = {  git = "https://github.com/embassy-rs/embassy.git", rev = "d5badb9", version = "0.6.0" }
+embassy-rp = {  git = "https://github.com/embassy-rs/embassy.git", rev = "d5badb9", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl"]}
+embassy-futures = { git = "https://github.com/embassy-rs/embassy.git", rev = "d5badb9", version="0.1.1"}
+embassy-time = { git = "https://github.com/embassy-rs/embassy.git", rev = "d5badb9", version = "0.3.0", features = ["defmt", "defmt-timestamp-uptime"] }
 
 thiserror = { version = "1.0.50", package = "thiserror-core", default-features = false }
 
