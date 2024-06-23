@@ -27,6 +27,7 @@ use {defmt_rtt as _, panic_probe as _}; // Adjust the import path according to y
 enum Mode {
     Hours,
     Minutes,
+    Seconds,
 }
 
 async fn display_time(start: Instant, offset: Duration) {
@@ -95,6 +96,24 @@ async fn main(_spawner0: Spawner) {
                     }
                     offset += ONE_MIN;
                     display_time(start, offset).await;
+                }
+                mode = Mode::Seconds;
+                pins.led0.set_low();
+            }
+            Mode::Seconds => {
+                let mut led_state = false;
+                loop {
+                    pins.led0.set_state(led_state.into()).unwrap();
+                    display_time(start, offset).await;
+                    Timer::after(Duration::from_millis(100)).await;
+                    if pins.button.is_low() {
+                        // find seconds mod 60
+                        let seconds = (Instant::now() + offset - start).as_secs() % 60;
+                        // shift offset to the next minute
+                        offset += Duration::from_secs(60 - seconds);
+                        break;
+                    }
+                    led_state = !led_state;
                 }
                 mode = Mode::Hours;
                 pins.led0.set_low();
