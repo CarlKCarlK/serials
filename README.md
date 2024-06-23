@@ -1,8 +1,13 @@
 # Clock
 
-To set the time
+Use a quick press to switch between:
 
-* Hold the button down until the correct hours are showing.
-* The LED will turn on tell you that you are now in minutes mode.
-* Hold the button down until the correct minutes are showing.
-* Very quick presses are ignored.
+* HH:MM
+* MM:SS
+* Edit seconds
+* Edit minutes
+* Edit hours
+
+When editing seconds, hold and then at "00" seconds, release.
+When editing minutes, hold and then release at the current minutes.
+When editing hours, hold and then release at the current hour.

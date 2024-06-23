@@ -24,14 +24,20 @@ static EXECUTOR1: StaticCell<Executor> = StaticCell::new();
 use heapless::{LinearMap, Vec};
 use {defmt_rtt as _, panic_probe as _}; // Adjust the import path according to your setup
 
-enum Mode {
-    Hours,
-    Minutes,
+enum State {
+    DisplayHoursMinutes,
+    DisplayMinutesSeconds,
+    ShowHours,
+    EditHours,
+    ShowMinutes,
+    EditMinutes,
+    ShowSeconds,
+    EditSeconds,
 }
 
-async fn display_time(start: Instant, offset: Duration) {
+async fn display_time(start: Instant, offset: &Duration) {
     // Time since start in minutes
-    let elapsed_minutes = (Instant::now() + offset - start).as_secs() / 60;
+    let elapsed_minutes = (Instant::now() + *offset - start).as_secs() / 60;
 
     // Calculate the number to display
     let (hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
@@ -43,6 +49,209 @@ async fn display_time(start: Instant, offset: Duration) {
 
 const ONE_MIN: Duration = Duration::from_secs(60);
 const ONE_HOUR: Duration = Duration::from_secs(60 * 60);
+
+async fn display_hours_minutes_state(
+    button: &mut gpio::Input<'_>,
+    start: Instant,
+    offset: &Duration,
+) -> State {
+    loop {
+        display_time(start, offset).await;
+
+        // Sleep until the top of the next minute or until the button is pressed
+        let seconds: u64 = (Instant::now() + *offset - start).as_secs() % 60;
+        let till_next_minute = ONE_MIN - Duration::from_secs(seconds);
+        if let Either::Second(()) = select(
+            Timer::after(till_next_minute),
+            button.wait_for_rising_edge(),
+        )
+        .await
+        {
+            return State::DisplayMinutesSeconds;
+        }
+    }
+}
+
+async fn display_minutes_seconds_state(
+    button: &mut gpio::Input<'_>,
+    start: Instant,
+    offset: &Duration,
+) -> State {
+    loop {
+        let now = Instant::now();
+        let elapsed_minutes = (now + *offset - start).as_secs() / 60;
+        let seconds: u64 = (now + *offset - start).as_secs() % 60;
+        let (_hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
+        let d1 = (minutes / 10) as u8 + b'0';
+        let d2 = (minutes % 10) as u8 + b'0';
+        let d3 = (seconds / 10) as u8 + b'0';
+        let d4 = (seconds % 10) as u8 + b'0';
+        let text = [d1, d2, d3, d4];
+        let text_str: &str = core::str::from_utf8(&text).unwrap();
+        VIRTUAL_DISPLAY1.write_text(text_str).await;
+
+        // cmk Sleep until the top of the next minute or until the button is pressed
+        if let Either::Second(()) = select(
+            Timer::after(Duration::from_secs(1)),
+            button.wait_for_rising_edge(),
+        )
+        .await
+        {
+            return State::ShowSeconds;
+        }
+    }
+}
+
+async fn show_hours_state(
+    button: &mut gpio::Input<'_>,
+    start: Instant,
+    offset: &mut Duration,
+) -> State {
+    let elapsed_minutes = (Instant::now() + *offset - start).as_secs() / 60;
+    let (hours, _minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
+    let hours = (hours + 11) % 12 + 1; // 1-12 instead of 0-11
+    let d1 = if hours >= 10 { b'1' } else { b' ' };
+    let d2 = (hours % 10) as u8 + b'0';
+    let text = [d1, d2, b' ', b' '];
+    let text_str: &str = core::str::from_utf8(&text).unwrap();
+    VIRTUAL_DISPLAY1.write_text(text_str).await;
+    let _ = select(
+        Timer::after(Duration::from_secs(1)),
+        button.wait_for_rising_edge(),
+    )
+    .await;
+    // if button is up, return to display_hours_minutes
+    if button.is_high() {
+        return State::EditHours;
+    }
+    button.wait_for_rising_edge().await;
+    State::EditHours
+}
+
+async fn edit_hours_state(
+    button: &mut gpio::Input<'_>,
+    start: Instant,
+    offset: &mut Duration,
+) -> State {
+    loop {
+        // wait for 1 second or for rising edge of button
+        let _ = select(
+            Timer::after(Duration::from_secs(1)),
+            button.wait_for_any_edge(),
+        )
+        .await;
+        // if button is up, return to display_hours_minutes
+        if button.is_low() {
+            return State::DisplayHoursMinutes;
+        }
+        *offset += ONE_HOUR;
+        let elapsed_minutes = (Instant::now() + *offset - start).as_secs() / 60;
+        let (hours, _minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
+        let hours = (hours + 11) % 12 + 1; // 1-12 instead of 0-11
+        let d1 = if hours >= 10 { b'1' } else { b' ' };
+        let d2 = (hours % 10) as u8 + b'0';
+        let text = [d1, d2, b' ', b' '];
+        let text_str: &str = core::str::from_utf8(&text).unwrap();
+        VIRTUAL_DISPLAY1.write_text(text_str).await;
+    }
+}
+
+async fn show_minutes_state(
+    button: &mut gpio::Input<'_>,
+    start: Instant,
+    offset: &mut Duration,
+) -> State {
+    let elapsed_minutes = (Instant::now() + *offset - start).as_secs() / 60;
+    let (_hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
+    let d1 = (minutes / 10) as u8 + b'0';
+    let d2 = (minutes % 10) as u8 + b'0';
+    let text = [b' ', b' ', d1, d2];
+    let text_str: &str = core::str::from_utf8(&text).unwrap();
+    VIRTUAL_DISPLAY1.write_text(text_str).await;
+    let _ = select(
+        Timer::after(Duration::from_secs(1)),
+        button.wait_for_rising_edge(),
+    )
+    .await;
+    // if button is up, return to display_hours_minutes
+    if button.is_high() {
+        return State::EditMinutes;
+    }
+    button.wait_for_rising_edge().await;
+    State::EditMinutes
+}
+
+async fn edit_minutes_state(
+    button: &mut gpio::Input<'_>,
+    start: Instant,
+    offset: &mut Duration,
+) -> State {
+    loop {
+        // wait for a time or for rising edge of button
+        let _ = select(
+            Timer::after(Duration::from_millis(250)),
+            button.wait_for_any_edge(),
+        )
+        .await;
+        // if button is up, return to display_hours_minutes
+        if button.is_low() {
+            return State::ShowHours;
+        }
+        *offset += ONE_MIN;
+        let elapsed_minutes = (Instant::now() + *offset - start).as_secs() / 60;
+        let (_hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
+        let d1 = (minutes / 10) as u8 + b'0';
+        let d2 = (minutes % 10) as u8 + b'0';
+        let text = [b' ', b' ', d1, d2];
+        let text_str: &str = core::str::from_utf8(&text).unwrap();
+        VIRTUAL_DISPLAY1.write_text(text_str).await;
+    }
+}
+
+async fn show_seconds_state(
+    button: &mut gpio::Input<'_>,
+    start: Instant,
+    offset: &mut Duration,
+) -> State {
+    let seconds: u64 = (Instant::now() + *offset - start).as_secs() % 60;
+    let d1 = (seconds / 10) as u8 + b'0';
+    let d2 = (seconds % 10) as u8 + b'0';
+    let text = [b' ', d1, d2, b' '];
+    let text_str: &str = core::str::from_utf8(&text).unwrap();
+    VIRTUAL_DISPLAY1.write_text(text_str).await;
+    let _ = select(
+        Timer::after(Duration::from_secs(1)),
+        button.wait_for_rising_edge(),
+    )
+    .await;
+    // if button is up, return to display_hours_minutes
+    if button.is_high() {
+        return State::EditSeconds;
+    }
+    button.wait_for_rising_edge().await;
+    State::EditSeconds
+}
+
+async fn edit_seconds_state(
+    button: &mut gpio::Input<'_>,
+    start: Instant,
+    offset: &mut Duration,
+) -> State {
+    VIRTUAL_DISPLAY1.write_text(" 00 ").await;
+    let _ = select(
+        Timer::after(Duration::from_millis(100)),
+        button.wait_for_any_edge(),
+    )
+    .await;
+    // if button is up, return to display_hours_minutes
+    if button.is_low() {
+        return State::ShowMinutes;
+    }
+    button.wait_for_any_edge().await;
+    let seconds: u64 = (Instant::now() + *offset - start).as_secs() % 60;
+    *offset += ONE_MIN - Duration::from_secs(seconds);
+    State::ShowMinutes
+}
 
 #[embassy_executor::main]
 async fn main(_spawner0: Spawner) {
@@ -61,59 +270,23 @@ async fn main(_spawner0: Spawner) {
     );
 
     let start = Instant::now();
-    let mut mode = Mode::Hours;
+    let mut state = State::DisplayHoursMinutes;
     let mut offset = Duration::default();
+
+    let button = pins.button;
     loop {
-        display_time(start, offset).await;
-
-        // Sleep for 1 minute or until the button is pressed down
-        if let Either::First(()) =
-            select(Timer::after(ONE_MIN), pins.button.wait_for_rising_edge()).await
-        {
-            continue;
-        }
-
-        // set led0 based on mode
-        match mode {
-            Mode::Hours => {
-                loop {
-                    Timer::after(Duration::from_secs(1)).await;
-                    if pins.button.is_low() {
-                        break;
-                    }
-                    offset += ONE_HOUR;
-                    display_time(start, offset).await;
-                }
-                mode = Mode::Minutes;
-                pins.led0.set_high();
+        state = match state {
+            State::DisplayHoursMinutes => display_hours_minutes_state(button, start, &offset).await,
+            State::DisplayMinutesSeconds => {
+                display_minutes_seconds_state(button, start, &offset).await
             }
-            Mode::Minutes => {
-                loop {
-                    Timer::after(Duration::from_millis(250)).await;
-                    if pins.button.is_low() {
-                        break;
-                    }
-                    offset += ONE_MIN;
-                    display_time(start, offset).await;
-                }
-                let mut led_state = false;
-                loop {
-                    pins.led0.set_state(led_state.into()).unwrap();
-                    display_time(start, offset).await;
-                    Timer::after(Duration::from_millis(100)).await;
-                    if pins.button.is_high() {
-                        // find seconds mod 60
-                        let seconds = (Instant::now() + offset - start).as_secs() % 60;
-                        // shift offset to the next minute
-                        offset += Duration::from_secs(60 - seconds);
-                        break;
-                    }
-                    led_state = !led_state;
-                }
-                mode = Mode::Hours;
-                pins.led0.set_low();
-            }
-        }
+            State::ShowHours => show_hours_state(button, start, &mut offset).await,
+            State::EditHours => edit_hours_state(button, start, &mut offset).await,
+            State::ShowMinutes => show_minutes_state(button, start, &mut offset).await,
+            State::EditMinutes => edit_minutes_state(button, start, &mut offset).await,
+            State::ShowSeconds => show_seconds_state(button, start, &mut offset).await,
+            State::EditSeconds => edit_seconds_state(button, start, &mut offset).await,
+        };
     }
 }
 
