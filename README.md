@@ -4,10 +4,12 @@ Use a quick press to switch between:
 
 * HH:MM
 * MM:SS
-* Edit seconds
-* Edit minutes
-* Edit hours
+* View/edit seconds
+* View/edit minutes
+* View/edit hours
 
-When editing seconds, hold and then at "00" seconds, release.
-When editing minutes, hold and then release at the current minutes.
-When editing hours, hold and then release at the current hour.
+Do a long hold to start editing.
+
+With seconds, it will display "00". Release at the top of the minute.
+With minutes, it will change the value. Release when the minutes is right.
+With hours, it will change the value. Release when the hour is right.
