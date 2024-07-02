@@ -25,14 +25,19 @@ use heapless::{LinearMap, Vec};
 use {defmt_rtt as _, panic_probe as _}; // Adjust the import path according to your setup
 
 enum State {
+    First,
     DisplayHoursMinutes,
     DisplayMinutesSeconds,
-    ShowHours,
-    EditHours,
-    ShowMinutes,
-    EditMinutes,
     ShowSeconds,
     EditSeconds,
+    ShowMinutes,
+    EditMinutes,
+    ShowHours,
+    EditHours,
+    DisplayOff,
+    PowerHog8888,
+    PowerHog1204,
+    Last,
 }
 
 async fn display_time(start: Instant, offset: &Duration) {
@@ -209,7 +214,7 @@ async fn show_hours_state(
     )
     .await
     {
-        State::DisplayHoursMinutes
+        State::DisplayOff
     } else {
         State::EditHours
     }
@@ -227,7 +232,7 @@ async fn edit_hours_state(
         )
         .await
         {
-            return State::DisplayHoursMinutes;
+            return State::DisplayOff;
         }
         *offset += ONE_HOUR;
         let elapsed_minutes = (Instant::now() + *offset - start).as_secs() / 60;
@@ -239,6 +244,39 @@ async fn edit_hours_state(
         let text_str: &str = core::str::from_utf8(&text).unwrap();
         VIRTUAL_DISPLAY1.write_text(text_str).await;
     }
+}
+
+async fn display_off_state(
+    button: &mut gpio::Input<'_>,
+    _start: Instant,
+    _offset: &Duration,
+) -> State {
+    VIRTUAL_DISPLAY1.write_text("    ").await;
+    button.wait_for_rising_edge().await;
+    button.wait_for_falling_edge().await;
+    State::PowerHog8888
+}
+
+async fn power_hog_state_8888(
+    button: &mut gpio::Input<'_>,
+    _start: Instant,
+    _offset: &Duration,
+) -> State {
+    VIRTUAL_DISPLAY1.write_text("8888").await;
+    while button.is_low() {}
+    while button.is_high() {}
+    State::PowerHog1204
+}
+
+async fn power_hog_state_1204(
+    button: &mut gpio::Input<'_>,
+    _start: Instant,
+    _offset: &Duration,
+) -> State {
+    VIRTUAL_DISPLAY1.write_text("1204").await;
+    while button.is_low() {}
+    while button.is_high() {}
+    State::Last
 }
 
 #[embassy_executor::main]
@@ -258,22 +296,27 @@ async fn main(_spawner0: Spawner) {
     );
 
     let start = Instant::now();
-    let mut state = State::DisplayHoursMinutes;
+    let mut state = State::First;
     let mut offset = Duration::default();
 
     let button = pins.button;
     loop {
         state = match state {
+            State::First => State::DisplayHoursMinutes,
             State::DisplayHoursMinutes => display_hours_minutes_state(button, start, &offset).await,
             State::DisplayMinutesSeconds => {
                 display_minutes_seconds_state(button, start, &offset).await
             }
-            State::ShowHours => show_hours_state(button, start, &mut offset).await,
-            State::EditHours => edit_hours_state(button, start, &mut offset).await,
-            State::ShowMinutes => show_minutes_state(button, start, &mut offset).await,
-            State::EditMinutes => edit_minutes_state(button, start, &mut offset).await,
             State::ShowSeconds => show_seconds_state(button, start, &mut offset).await,
             State::EditSeconds => edit_seconds_state(button, start, &mut offset).await,
+            State::ShowMinutes => show_minutes_state(button, start, &mut offset).await,
+            State::EditMinutes => edit_minutes_state(button, start, &mut offset).await,
+            State::ShowHours => show_hours_state(button, start, &mut offset).await,
+            State::EditHours => edit_hours_state(button, start, &mut offset).await,
+            State::DisplayOff => display_off_state(button, start, &offset).await,
+            State::PowerHog8888 => power_hog_state_8888(button, start, &offset).await,
+            State::PowerHog1204 => power_hog_state_1204(button, start, &offset).await,
+            State::Last => State::First,
         };
     }
 }
@@ -328,6 +371,7 @@ impl Pins {
     }
 }
 
+// cmk why not have the channel send the bytes directly?
 pub struct VirtualDisplay<const DIGIT_COUNT: usize> {
     mutex_digits: Mutex<CriticalSectionRawMutex, [u8; DIGIT_COUNT]>,
     update_display_channel: Channel<CriticalSectionRawMutex, (), 1>,
@@ -349,6 +393,8 @@ async fn monitor_display1(
     VIRTUAL_DISPLAY1.monitor(digit_pins, segment_pins).await;
 }
 
+// cmk would be nice to have a seprate way to turn on decimal points
+// cmk would be nice to have a way to pass in 4 chars
 impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
     pub async fn write_text(&'static self, text: &str) {
         let bytes = line_to_u8_array(text);
@@ -450,11 +496,8 @@ impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
                             for digit_index in indexes.iter() {
                                 digit_pins[*digit_index].set_low(); // Assuming common cathode setup
                             }
-                            // cmk improve overflow, scaling, avoiding 1, etc.
-                            // let mut sleep = scale_adc_value(VIRTUAL_POTENTIOMETER1.read().await);
-                            // sleep = sleep * DIGIT_COUNT as u64 / map.len() as u64;
-                            let sleep = 3;
-                            // Sleep (but wake up early if the display should be updated)
+                            let sleep = 3; // cmk maybe this should depend on the # of digits
+                                           // Sleep (but wake up early if the display should be updated)
                             select(
                                 Timer::after(Duration::from_millis(sleep)),
                                 self.update_display_channel.receive(),
@@ -463,6 +506,15 @@ impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
                             for digit_index in indexes.iter() {
                                 digit_pins[*digit_index].set_high();
                             }
+
+                            // // cmk sleep for a bit with all off
+                            // let sleep = 3; // cmk 3 is too long
+                            // // Sleep (but wake up early if the display should be updated)
+                            // select(
+                            //     Timer::after(Duration::from_millis(sleep)),
+                            //     self.update_display_channel.receive(),
+                            // )
+                            // .await;
                         }
                         // break out of multiplexing loop if the display should be updated
                         if self.update_display_channel.try_receive().is_err() {
