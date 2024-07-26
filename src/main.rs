@@ -296,10 +296,10 @@ async fn main(_spawner0: Spawner) {
     );
 
     let start = Instant::now();
-    let mut state = State::First;
     let mut offset = Duration::default();
-
     let button = pins.button;
+
+    let mut state = State::First;
     loop {
         state = match state {
             State::First => State::DisplayHoursMinutes,
