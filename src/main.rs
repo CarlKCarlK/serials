@@ -164,22 +164,29 @@ async fn display_analog_hm_state(
         let now = Instant::now();
         let elapsed_second = (now + *offset - start).as_secs();
         let elapsed_minutes = elapsed_second / 60;
-        const SECONDS_PER_FIVE_MINUTES: u64 = 5 * 60;
-        let seconds_to_five_minutes =
-            SECONDS_PER_FIVE_MINUTES - (elapsed_second % SECONDS_PER_FIVE_MINUTES);
-        let (hours, minutes) = (
+        // const SECONDS_PER_FIVE_MINUTES: u64 = 5 * 60;
+        // let seconds_to_five_minutes =
+        //     SECONDS_PER_FIVE_MINUTES - (elapsed_second % SECONDS_PER_FIVE_MINUTES);
+        const SECONDS_PER_FIVE_SECONDS: u64 = 5;
+        let seconds_to_five_seconds =
+            SECONDS_PER_FIVE_SECONDS - (elapsed_second % SECONDS_PER_FIVE_SECONDS);
+
+        let (hours, minutes, seconds) = (
             (elapsed_minutes / 60 % 12) as usize,
             (elapsed_minutes % 60) as usize,
+            (elapsed_second % 60) as usize,
         );
         let mut bytes = [0u8; DIGIT_COUNT1];
         let (digit_index, byte) = TWELVE_TO_OUTSIDE_DIGIT_INDEX_AND_BYTE[hours];
         bytes[digit_index] |= byte;
         let (digit_index, byte) = TWELVE_TO_INSIDE_DIGIT_INDEX_AND_BYTE[minutes / 5];
         bytes[digit_index] |= byte;
+        let (digit_index, byte) = TWELVE_TO_DASH_DIGIT_INDEX_AND_BYTE[seconds / 5];
+        bytes[digit_index] |= byte;
         VIRTUAL_DISPLAY1.write_bytes(&bytes).await;
 
         if let Either::Second(()) = select(
-            Timer::after(Duration::from_secs(seconds_to_five_minutes)), // cmk change to type to next tick
+            Timer::after(Duration::from_secs(seconds_to_five_seconds)), // cmk change to type to next tick
             button.wait_for_rising_edge(),
         )
         .await
