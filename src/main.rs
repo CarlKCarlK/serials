@@ -126,18 +126,33 @@ const TWELVE_TO_OUTSIDE_DIGIT_INDEX_AND_BYTE: [(usize, u8); 12] = [
 ];
 
 const TWELVE_TO_INSIDE_DIGIT_INDEX_AND_BYTE: [(usize, u8); 12] = [
-    (0, Leds::SEG_B), // 0
-    (0, Leds::SEG_G), // 5
-    (0, Leds::SEG_C), // 10
-    (1, Leds::SEG_B), // 15
-    (1, Leds::SEG_G), // 20
-    (1, Leds::SEG_C), // 25
-    (2, Leds::SEG_F), // 30
-    (2, Leds::SEG_G), // 35
-    (2, Leds::SEG_E), // 40
-    (3, Leds::SEG_F), // 45
-    (3, Leds::SEG_G), // 50
-    (3, Leds::SEG_E), // 55
+    (2, Leds::SEG_F), // 0
+    (2, Leds::SEG_B), // 5
+    (3, Leds::SEG_F), // 10
+    (3, Leds::SEG_E), // 15
+    (2, Leds::SEG_C), // 20
+    (2, Leds::SEG_E), // 25
+    (1, Leds::SEG_C), // 30
+    (1, Leds::SEG_E), // 35
+    (0, Leds::SEG_C), // 40
+    (0, Leds::SEG_B), // 45
+    (1, Leds::SEG_F), // 50
+    (1, Leds::SEG_B), // 55
+];
+
+const TWELVE_TO_DASH_DIGIT_INDEX_AND_BYTE: [(usize, u8); 12] = [
+    (2, Leds::SEG_G), // 0
+    (3, Leds::SEG_G), // 5
+    (3, Leds::SEG_G), // 10
+    (3, Leds::SEG_G), // 15
+    (3, Leds::SEG_G), // 20
+    (2, Leds::SEG_G), // 25
+    (1, Leds::SEG_G), // 30
+    (0, Leds::SEG_G), // 35
+    (0, Leds::SEG_G), // 40
+    (0, Leds::SEG_G), // 45
+    (0, Leds::SEG_G), // 50
+    (1, Leds::SEG_G), // 55
 ];
 
 async fn display_analog_hm_state(
