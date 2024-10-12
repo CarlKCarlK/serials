@@ -28,7 +28,8 @@ enum State {
     First,
     DisplayHoursMinutes,
     DisplayMinutesSeconds,
-    DisplayAnalog,
+    DisplayAnalogHM,
+    DisplayAnalogMS,
     ShowSeconds,
     EditSeconds,
     ShowMinutes,
@@ -104,62 +105,101 @@ async fn display_minutes_seconds_state(
         .await
         {
             button.wait_for_falling_edge().await;
-            return State::DisplayAnalog;
+            return State::DisplayAnalogHM;
         }
     }
 }
 
-async fn display_analog_state(
+const TWELVE_TO_OUTSIDE_DIGIT_INDEX_AND_BYTE: [(usize, u8); 12] = [
+    (2, Leds::SEG_A), // 12
+    (3, Leds::SEG_A), // 1
+    (3, Leds::SEG_B), // 2
+    (3, Leds::SEG_C), // 3
+    (3, Leds::SEG_D), // 4
+    (2, Leds::SEG_D), // 5
+    (1, Leds::SEG_D), // 6
+    (0, Leds::SEG_D), // 7
+    (0, Leds::SEG_E), // 8
+    (0, Leds::SEG_F), // 9
+    (0, Leds::SEG_A), // 10
+    (1, Leds::SEG_A), // 11
+];
+
+const TWELVE_TO_INSIDE_DIGIT_INDEX_AND_BYTE: [(usize, u8); 12] = [
+    (0, Leds::SEG_B), // 0
+    (0, Leds::SEG_G), // 5
+    (0, Leds::SEG_C), // 10
+    (1, Leds::SEG_B), // 15
+    (1, Leds::SEG_G), // 20
+    (1, Leds::SEG_C), // 25
+    (2, Leds::SEG_F), // 30
+    (2, Leds::SEG_G), // 35
+    (2, Leds::SEG_E), // 40
+    (3, Leds::SEG_F), // 45
+    (3, Leds::SEG_G), // 50
+    (3, Leds::SEG_E), // 55
+];
+
+async fn display_analog_hm_state(
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &Duration,
 ) -> State {
-    const HOUR_TO_DIGIT_INDEX_AND_BYTE: [(usize, u8); 12] = [
-        (2, Leds::SEG_A), // 12
-        (3, Leds::SEG_A), // 1
-        (3, Leds::SEG_B), // 2
-        (3, Leds::SEG_C), // 3
-        (3, Leds::SEG_D), // 4
-        (2, Leds::SEG_D), // 5
-        (1, Leds::SEG_D), // 6
-        (0, Leds::SEG_D), // 7
-        (0, Leds::SEG_E), // 8
-        (0, Leds::SEG_F), // 9
-        (0, Leds::SEG_A), // 10
-        (1, Leds::SEG_A), // 11
-    ];
-
-    const FIVE_MINUTES_TO_DIGIT_INDEX_AND_BYTE: [(usize, u8); 12] = [
-        (0, Leds::SEG_B), // 0
-        (0, Leds::SEG_G), // 5
-        (0, Leds::SEG_C), // 10
-        (1, Leds::SEG_B), // 15
-        (1, Leds::SEG_G), // 20
-        (1, Leds::SEG_C), // 25
-        (2, Leds::SEG_F), // 30
-        (2, Leds::SEG_G), // 35
-        (2, Leds::SEG_E), // 40
-        (3, Leds::SEG_F), // 45
-        (3, Leds::SEG_G), // 50
-        (3, Leds::SEG_E), // 55
-    ];
-
     loop {
         let now = Instant::now();
-        let elapsed_minutes = (now + *offset - start).as_secs() / 60;
+        let elapsed_second = (now + *offset - start).as_secs();
+        let elapsed_minutes = elapsed_second / 60;
+        const SECONDS_PER_FIVE_MINUTES: u64 = 5 * 60;
+        let seconds_to_five_minutes =
+            SECONDS_PER_FIVE_MINUTES - (elapsed_second % SECONDS_PER_FIVE_MINUTES);
         let (hours, minutes) = (
             (elapsed_minutes / 60 % 12) as usize,
             (elapsed_minutes % 60) as usize,
         );
         let mut bytes = [0u8; DIGIT_COUNT1];
-        let (digit_index, byte) = HOUR_TO_DIGIT_INDEX_AND_BYTE[hours];
+        let (digit_index, byte) = TWELVE_TO_OUTSIDE_DIGIT_INDEX_AND_BYTE[hours];
         bytes[digit_index] |= byte;
-        let (digit_index, byte) = FIVE_MINUTES_TO_DIGIT_INDEX_AND_BYTE[minutes / 5];
+        let (digit_index, byte) = TWELVE_TO_INSIDE_DIGIT_INDEX_AND_BYTE[minutes / 5];
         bytes[digit_index] |= byte;
         VIRTUAL_DISPLAY1.write_bytes(&bytes).await;
 
         if let Either::Second(()) = select(
-            Timer::after(Duration::from_secs(1)), // cmk change to type to next tick
+            Timer::after(Duration::from_secs(seconds_to_five_minutes)), // cmk change to type to next tick
+            button.wait_for_rising_edge(),
+        )
+        .await
+        {
+            button.wait_for_falling_edge().await;
+            return State::DisplayAnalogMS;
+        }
+    }
+}
+
+async fn display_analog_ms_state(
+    button: &mut gpio::Input<'_>,
+    start: Instant,
+    offset: &Duration,
+) -> State {
+    loop {
+        let now = Instant::now();
+        let elapsed_second = (now + *offset - start).as_secs();
+        let elapsed_minutes = elapsed_second / 60;
+        const SECONDS_PER_FIVE_SECONDS: u64 = 5;
+        let seconds_to_five_seconds =
+            SECONDS_PER_FIVE_SECONDS - (elapsed_second % SECONDS_PER_FIVE_SECONDS);
+        let (minutes, seconds) = (
+            (elapsed_minutes % 60) as usize,
+            (elapsed_second % 60) as usize,
+        );
+        let mut bytes = [0u8; DIGIT_COUNT1];
+        let (digit_index, byte) = TWELVE_TO_OUTSIDE_DIGIT_INDEX_AND_BYTE[minutes / 5];
+        bytes[digit_index] |= byte;
+        let (digit_index, byte) = TWELVE_TO_INSIDE_DIGIT_INDEX_AND_BYTE[seconds / 5];
+        bytes[digit_index] |= byte;
+        VIRTUAL_DISPLAY1.write_bytes(&bytes).await;
+
+        if let Either::Second(()) = select(
+            Timer::after(Duration::from_secs(seconds_to_five_seconds)), // cmk change to type to next tick
             button.wait_for_rising_edge(),
         )
         .await
@@ -369,7 +409,8 @@ async fn main(_spawner0: Spawner) {
             State::DisplayMinutesSeconds => {
                 display_minutes_seconds_state(button, start, &offset).await
             }
-            State::DisplayAnalog => display_analog_state(button, start, &offset).await,
+            State::DisplayAnalogHM => display_analog_hm_state(button, start, &offset).await,
+            State::DisplayAnalogMS => display_analog_ms_state(button, start, &offset).await,
             State::ShowSeconds => show_seconds_state(button, start, &mut offset).await,
             State::EditSeconds => edit_seconds_state(button, start, &mut offset).await,
             State::ShowMinutes => show_minutes_state(button, start, &mut offset).await,
