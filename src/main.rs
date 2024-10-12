@@ -28,6 +28,7 @@ enum State {
     First,
     DisplayHoursMinutes,
     DisplayMinutesSeconds,
+    DisplayAnalog,
     ShowSeconds,
     EditSeconds,
     ShowMinutes,
@@ -98,6 +99,67 @@ async fn display_minutes_seconds_state(
 
         if let Either::Second(()) = select(
             Timer::after(Duration::from_secs(1)),
+            button.wait_for_rising_edge(),
+        )
+        .await
+        {
+            button.wait_for_falling_edge().await;
+            return State::DisplayAnalog;
+        }
+    }
+}
+
+async fn display_analog_state(
+    button: &mut gpio::Input<'_>,
+    start: Instant,
+    offset: &Duration,
+) -> State {
+    const HOUR_TO_DIGIT_INDEX_AND_BYTE: [(usize, u8); 12] = [
+        (2, Leds::SEG_A), // 12
+        (3, Leds::SEG_A), // 1
+        (3, Leds::SEG_B), // 2
+        (3, Leds::SEG_C), // 3
+        (3, Leds::SEG_D), // 4
+        (2, Leds::SEG_D), // 5
+        (1, Leds::SEG_D), // 6
+        (0, Leds::SEG_D), // 7
+        (0, Leds::SEG_E), // 8
+        (0, Leds::SEG_F), // 9
+        (0, Leds::SEG_A), // 10
+        (1, Leds::SEG_A), // 11
+    ];
+
+    const FIVE_MINUTES_TO_DIGIT_INDEX_AND_BYTE: [(usize, u8); 12] = [
+        (0, Leds::SEG_B), // 0
+        (0, Leds::SEG_G), // 5
+        (0, Leds::SEG_C), // 10
+        (1, Leds::SEG_B), // 15
+        (1, Leds::SEG_G), // 20
+        (1, Leds::SEG_C), // 25
+        (2, Leds::SEG_F), // 30
+        (2, Leds::SEG_G), // 35
+        (2, Leds::SEG_E), // 40
+        (3, Leds::SEG_F), // 45
+        (3, Leds::SEG_G), // 50
+        (3, Leds::SEG_E), // 55
+    ];
+
+    loop {
+        let now = Instant::now();
+        let elapsed_minutes = (now + *offset - start).as_secs() / 60;
+        let (hours, minutes) = (
+            (elapsed_minutes / 60 % 12) as usize,
+            (elapsed_minutes % 60) as usize,
+        );
+        let mut bytes = [0u8; DIGIT_COUNT1];
+        let (digit_index, byte) = HOUR_TO_DIGIT_INDEX_AND_BYTE[hours];
+        bytes[digit_index] |= byte;
+        let (digit_index, byte) = FIVE_MINUTES_TO_DIGIT_INDEX_AND_BYTE[minutes / 5];
+        bytes[digit_index] |= byte;
+        VIRTUAL_DISPLAY1.write_bytes(&bytes).await;
+
+        if let Either::Second(()) = select(
+            Timer::after(Duration::from_secs(1)), // cmk change to type to next tick
             button.wait_for_rising_edge(),
         )
         .await
@@ -307,6 +369,7 @@ async fn main(_spawner0: Spawner) {
             State::DisplayMinutesSeconds => {
                 display_minutes_seconds_state(button, start, &offset).await
             }
+            State::DisplayAnalog => display_analog_state(button, start, &offset).await,
             State::ShowSeconds => show_seconds_state(button, start, &mut offset).await,
             State::EditSeconds => edit_seconds_state(button, start, &mut offset).await,
             State::ShowMinutes => show_minutes_state(button, start, &mut offset).await,
@@ -325,7 +388,7 @@ struct Pins {
     digits1: &'static mut [gpio::Output<'static>; DIGIT_COUNT1],
     segments1: &'static mut [gpio::Output<'static>; 8],
     button: &'static mut gpio::Input<'static>,
-    led0: &'static mut gpio::Output<'static>,
+    _led0: &'static mut gpio::Output<'static>,
 }
 
 impl Pins {
@@ -364,7 +427,7 @@ impl Pins {
                 digits1,
                 segments1,
                 button,
-                led0,
+                _led0: led0,
             },
             core1,
         )
@@ -393,7 +456,7 @@ async fn monitor_display1(
     VIRTUAL_DISPLAY1.monitor(digit_pins, segment_pins).await;
 }
 
-// cmk would be nice to have a seprate way to turn on decimal points
+// cmk would be nice to have a separate way to turn on decimal points
 // cmk would be nice to have a way to pass in 4 chars
 impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
     pub async fn write_text(&'static self, text: &str) {

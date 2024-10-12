@@ -1,6 +1,6 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
 #runner = "probe-rs run --chip RP2040"
-runner = "elf2uf2-rs -ds target/thumbv6m-none-eabi/debug/led_game"
+runner = "elf2uf2-rs -ds target/thumbv6m-none-eabi/debug/clock"
 
 [build]
 target = "thumbv6m-none-eabi"
