@@ -29,11 +29,7 @@ embassy-time = { version = "0.3.2", features = [
 ] }
 
 embedded-hal = "1.0.0"                                                                   # cmk needed?
-embedded-hal-async = "1.0.0"
-embedded-io = "0.6.1"
-embedded-io-async = "0.6.1"
-embedded-storage = "0.3.1"
 thiserror = { version = "1.0.50", package = "thiserror-core", default-features = false }
 static_cell = "2"
-portable-atomic = { version = "1.5", features = ["critical-section"] }
+portable-atomic = { version = "1.9", features = ["critical-section"] }
 heapless = "0.8"
