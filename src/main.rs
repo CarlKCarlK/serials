@@ -513,8 +513,8 @@ static VIRTUAL_DISPLAY1: VirtualDisplay<DIGIT_COUNT1> = VirtualDisplay {
 
 #[embassy_executor::task]
 async fn monitor_display1(
-    digit_pins: &'static mut [gpio::Output<'_>; DIGIT_COUNT1],
-    segment_pins: &'static mut [gpio::Output<'_>; 8],
+    digit_pins: &'static mut [gpio::Output<'static>; DIGIT_COUNT1],
+    segment_pins: &'static mut [gpio::Output<'static>; 8],
 ) {
     VIRTUAL_DISPLAY1.monitor(digit_pins, segment_pins).await;
 }
