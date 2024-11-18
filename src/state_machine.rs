@@ -2,7 +2,10 @@ use embassy_futures::select::{select, Either};
 use embassy_rp::gpio;
 use embassy_time::{Duration, Instant, Timer};
 
-use crate::{Leds, DIGIT_COUNT1, VIRTUAL_DISPLAY1};
+use crate::{
+    virtual_led::{DIGIT_COUNT1, VIRTUAL_DISPLAY1},
+    Leds,
+};
 
 #[derive(Debug, defmt::Format)]
 pub(crate) enum State {
