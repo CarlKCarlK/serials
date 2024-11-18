@@ -13,12 +13,16 @@ pub(crate) struct Pins {
     _led0: &'static mut gpio::Output<'static>,
 }
 
+static DIGIT_PINS1: StaticCell<[gpio::Output; DIGIT_COUNT1]> = StaticCell::new();
+static SEGMENT_PINS1: StaticCell<[gpio::Output; 8]> = StaticCell::new();
+static BUTTON_PIN: StaticCell<gpio::Input> = StaticCell::new();
+static LED0_PIN: StaticCell<gpio::Output> = StaticCell::new();
+
 impl Pins {
     pub(crate) fn new_and_core1() -> (Self, CORE1) {
-        let p: embassy_rp::Peripherals = embassy_rp::init(Default::default());
+        let p: embassy_rp::Peripherals = embassy_rp::init(embassy_rp::config::Config::default());
         let core1 = p.CORE1;
 
-        static DIGIT_PINS1: StaticCell<[gpio::Output; DIGIT_COUNT1]> = StaticCell::new();
         let digits1 = DIGIT_PINS1.init([
             gpio::Output::new(p.PIN_1, Level::High),
             gpio::Output::new(p.PIN_2, Level::High),
@@ -26,7 +30,6 @@ impl Pins {
             gpio::Output::new(p.PIN_4, Level::High),
         ]);
 
-        static SEGMENT_PINS1: StaticCell<[gpio::Output; 8]> = StaticCell::new();
         let segments1 = SEGMENT_PINS1.init([
             gpio::Output::new(p.PIN_5, Level::Low),
             gpio::Output::new(p.PIN_6, Level::Low),
@@ -38,10 +41,8 @@ impl Pins {
             gpio::Output::new(p.PIN_12, Level::Low),
         ]);
 
-        static BUTTON_PIN: StaticCell<gpio::Input> = StaticCell::new();
         let button = BUTTON_PIN.init(gpio::Input::new(p.PIN_13, gpio::Pull::Down));
 
-        static LED0_PIN: StaticCell<gpio::Output> = StaticCell::new();
         let led0 = LED0_PIN.init(gpio::Output::new(p.PIN_0, Level::Low));
 
         (

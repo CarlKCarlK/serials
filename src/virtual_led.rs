@@ -66,7 +66,7 @@ impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
 
         // If the original number was out of range, turn on all decimal points
         if number > 0 {
-            for byte in bytes.iter_mut() {
+            for byte in &mut bytes {
                 *byte |= Leds::DECIMAL;
             }
         }
@@ -113,18 +113,18 @@ impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
                         },
                     );
                     // activate the digits, wait for the next update, and deactivate the digits
-                    for digit_index in indexes.iter() {
+                    for digit_index in indexes {
                         digit_pins[*digit_index].set_low(); // Assuming common cathode setup
                     }
                     self.update_display_channel.receive().await;
-                    for digit_index in indexes.iter() {
+                    for digit_index in indexes {
                         digit_pins[*digit_index].set_high();
                     }
                 }
                 // If multiple patterns should be displayed, multiplex them until the next update
                 _ => {
                     loop {
-                        for (byte, indexes) in map.iter() {
+                        for (byte, indexes) in &map {
                             // Set the segment pins with the bool iterator
                             bool_iter(*byte).zip(segment_pins.iter_mut()).for_each(
                                 |(state, segment_pin)| {
@@ -132,7 +132,7 @@ impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
                                 },
                             );
                             // Activate, pause, and deactivate the digits
-                            for digit_index in indexes.iter() {
+                            for digit_index in indexes {
                                 digit_pins[*digit_index].set_low(); // Assuming common cathode setup
                             }
                             let sleep = 3; // cmk maybe this should depend on the # of digits
@@ -142,7 +142,7 @@ impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
                                 self.update_display_channel.receive(),
                             )
                             .await;
-                            for digit_index in indexes.iter() {
+                            for digit_index in indexes {
                                 digit_pins[*digit_index].set_high();
                             }
 
@@ -183,7 +183,7 @@ impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
 pub fn bool_iter(mut byte: u8) -> array::IntoIter<bool, 8> {
     // turn a u8 into an iterator of bool
     let mut bools_out = [false; 8];
-    for bool_out in bools_out.iter_mut() {
+    for bool_out in &mut bools_out {
         *bool_out = byte & 1 == 1;
         byte >>= 1;
     }
@@ -196,7 +196,7 @@ fn line_to_u8_array<const DIGIT_COUNT: usize>(line: &str) -> [u8; DIGIT_COUNT] {
         result[i] = Leds::ASCII_TABLE[c as usize];
     });
     if line.len() > DIGIT_COUNT {
-        for byte in result.iter_mut() {
+        for byte in &mut result {
             *byte |= Leds::DECIMAL;
         }
     }

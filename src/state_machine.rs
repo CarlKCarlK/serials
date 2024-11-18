@@ -57,6 +57,7 @@ async fn display_time(start: Instant, offset: &Duration) {
     let elapsed_minutes = (Instant::now() + *offset - start).as_secs() / 60;
 
     // Calculate the number to display
+    #[allow(clippy::cast_possible_truncation)]
     let (hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
     let hours = (hours + 11) % 12 + 1; // 1-12 instead of 0-11
     let number = hours * 100 + minutes;
@@ -99,7 +100,9 @@ async fn display_minutes_seconds_state(
         let now = Instant::now();
         let elapsed_minutes = (now + *offset - start).as_secs() / 60;
         let seconds: u64 = (now + *offset - start).as_secs() % 60;
+        #[allow(clippy::cast_possible_truncation)]
         let (_hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
+        #[allow(clippy::cast_possible_truncation)]
         let d1 = (minutes / 10) as u8 + b'0';
         let d2 = (minutes % 10) as u8 + b'0';
         let d3 = (seconds / 10) as u8 + b'0';
@@ -165,6 +168,8 @@ const TWELVE_TO_DASH_DIGIT_INDEX_AND_BYTE: [(usize, u8); 12] = [
     (1, Leds::SEG_G), // 55
 ];
 
+const SECONDS_PER_FIVE_SECONDS: u64 = 5;
+
 async fn display_analog_hm_state(
     button: &mut gpio::Input<'_>,
     start: Instant,
@@ -177,7 +182,6 @@ async fn display_analog_hm_state(
         // const SECONDS_PER_FIVE_MINUTES: u64 = 5 * 60;
         // let seconds_to_five_minutes =
         //     SECONDS_PER_FIVE_MINUTES - (elapsed_second % SECONDS_PER_FIVE_MINUTES);
-        const SECONDS_PER_FIVE_SECONDS: u64 = 5;
         let seconds_to_five_seconds =
             SECONDS_PER_FIVE_SECONDS - (elapsed_second % SECONDS_PER_FIVE_SECONDS);
 
@@ -216,7 +220,6 @@ async fn display_analog_ms_state(
         let now = Instant::now();
         let elapsed_second = (now + *offset - start).as_secs();
         let elapsed_minutes = elapsed_second / 60;
-        const SECONDS_PER_FIVE_SECONDS: u64 = 5;
         let seconds_to_five_seconds =
             SECONDS_PER_FIVE_SECONDS - (elapsed_second % SECONDS_PER_FIVE_SECONDS);
         let (minutes, seconds) = (
@@ -278,12 +281,14 @@ async fn edit_seconds_state(
     State::ShowMinutes
 }
 
+#[allow(clippy::cast_possible_truncation)]
 async fn show_minutes_state(
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &mut Duration,
 ) -> State {
     let elapsed_minutes = (Instant::now() + *offset - start).as_secs() / 60;
+
     let (_hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
     let d1 = (minutes / 10) as u8 + b'0';
     let d2 = (minutes % 10) as u8 + b'0';
@@ -303,6 +308,7 @@ async fn show_minutes_state(
     }
 }
 
+#[allow(clippy::cast_possible_truncation)]
 async fn edit_minutes_state(
     button: &mut gpio::Input<'_>,
     start: Instant,
@@ -328,6 +334,7 @@ async fn edit_minutes_state(
     }
 }
 
+#[allow(clippy::cast_possible_truncation)]
 async fn show_hours_state(
     button: &mut gpio::Input<'_>,
     start: Instant,
@@ -370,6 +377,7 @@ async fn edit_hours_state(
         }
         *offset += ONE_HOUR;
         let elapsed_minutes = (Instant::now() + *offset - start).as_secs() / 60;
+        #[allow(clippy::cast_possible_truncation)]
         let (hours, _minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
         let hours = (hours + 11) % 12 + 1; // 1-12 instead of 0-11
         let d1 = if hours >= 10 { b'1' } else { b' ' };
