@@ -24,6 +24,7 @@ static EXECUTOR1: StaticCell<Executor> = StaticCell::new();
 use heapless::{LinearMap, Vec};
 use {defmt_rtt as _, panic_probe as _}; // Adjust the import path according to your setup
 
+#[derive(Debug, defmt::Format)]
 enum State {
     First,
     DisplayHoursMinutes,
@@ -425,6 +426,7 @@ async fn main(_spawner0: Spawner) {
 
     let mut state = State::First;
     loop {
+        defmt::info!("State: {:?}", state);
         state = match state {
             State::First => State::DisplayHoursMinutes,
             State::DisplayHoursMinutes => display_hours_minutes_state(button, start, &offset).await,

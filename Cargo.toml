@@ -1,5 +1,6 @@
 [package]
 edition = "2021"
+# if this changes, update .vscode/launch.json and .cargo/config.toml
 name = "clock"
 version = "0.1.1"
 
