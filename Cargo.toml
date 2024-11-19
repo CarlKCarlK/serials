@@ -10,7 +10,7 @@ defmt-rtt = "0.4.1"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
 cortex-m-rt = "0.7.5"
 cortex-m = "0.7.7"
-embassy-executor = { version = "0.6.1", features = [
+embassy-executor = { version = "0.6.3", features = [
     "arch-cortex-m",
     "executor-thread",
     "defmt",
@@ -30,6 +30,5 @@ embassy-time = { version = "0.3.2", features = [
 
 embedded-hal = "1.0.0"                                                                   # cmk needed?
 thiserror = { version = "1.0.50", package = "thiserror-core", default-features = false }
-static_cell = "2"
 portable-atomic = { version = "1.9", features = ["critical-section"] }
 heapless = "0.8"

@@ -1,4 +1,5 @@
 use core::array;
+use embassy_executor::task;
 use embassy_futures::select::select;
 use embassy_rp::gpio;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -24,14 +25,15 @@ pub static VIRTUAL_DISPLAY1: VirtualDisplay<DIGIT_COUNT1> = VirtualDisplay {
     update_display_channel: Channel::new(),
 };
 
-#[embassy_executor::task]
-pub(crate) async fn monitor_display1(
-    digit_pins: &'static mut [gpio::Output<'static>; DIGIT_COUNT1],
-    segment_pins: &'static mut [gpio::Output<'static>; 8],
+#[task]
+pub async fn monitor_display1(
+    mut digit_pins: [gpio::Output<'static>; DIGIT_COUNT1],
+    mut segment_pins: [gpio::Output<'static>; 8],
 ) {
-    VIRTUAL_DISPLAY1.monitor(digit_pins, segment_pins).await;
+    VIRTUAL_DISPLAY1
+        .monitor(&mut digit_pins, &mut segment_pins)
+        .await;
 }
-
 // cmk would be nice to have a separate way to turn on decimal points
 // cmk would be nice to have a way to pass in 4 chars
 impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
@@ -75,9 +77,9 @@ impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
 
     #[allow(clippy::needless_range_loop)]
     async fn monitor(
-        &'static self,
-        digit_pins: &'static mut [gpio::Output<'_>; DIGIT_COUNT],
-        segment_pins: &'static mut [gpio::Output<'_>; 8],
+        &self,
+        digit_pins: &mut [gpio::Output<'static>; DIGIT_COUNT],
+        segment_pins: &mut [gpio::Output<'static>; 8],
     ) {
         loop {
             // How many unique, non-blank digits?
