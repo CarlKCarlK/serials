@@ -1,4 +1,4 @@
-use crate::virtual_led::DIGIT_COUNT1;
+use crate::virtual_display::DIGIT_COUNT1;
 use embassy_rp::{
     gpio::{self, Level},
     peripherals::CORE1,

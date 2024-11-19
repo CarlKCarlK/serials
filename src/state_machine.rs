@@ -3,7 +3,7 @@ use embassy_rp::gpio;
 use embassy_time::{Duration, Instant, Timer};
 
 use crate::{
-    virtual_led::{DIGIT_COUNT1, VIRTUAL_DISPLAY1},
+    virtual_display::{self, VirtualDisplay, DIGIT_COUNT1},
     Leds,
 };
 
@@ -28,31 +28,44 @@ pub(crate) enum State {
 
 pub(crate) async fn state_to_state(
     mut state: State,
+    virtual_display: &mut virtual_display::VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     mut offset: Duration,
 ) -> (State, Duration) {
     state = match state {
         State::First => State::DisplayHoursMinutes,
-        State::DisplayHoursMinutes => display_hours_minutes_state(button, start, &offset).await,
-        State::DisplayMinutesSeconds => display_minutes_seconds_state(button, start, &offset).await,
-        State::DisplayAnalogHM => display_analog_hm_state(button, start, &offset).await,
-        State::DisplayAnalogMS => display_analog_ms_state(button, start, &offset).await,
-        State::ShowSeconds => show_seconds_state(button, start, &mut offset).await,
-        State::EditSeconds => edit_seconds_state(button, start, &mut offset).await,
-        State::ShowMinutes => show_minutes_state(button, start, &mut offset).await,
-        State::EditMinutes => edit_minutes_state(button, start, &mut offset).await,
-        State::ShowHours => show_hours_state(button, start, &mut offset).await,
-        State::EditHours => edit_hours_state(button, start, &mut offset).await,
-        State::DisplayOff => display_off_state(button, start, &offset).await,
-        State::PowerHog8888 => power_hog_state_8888(button, start, &offset).await,
-        State::PowerHog1204 => power_hog_state_1204(button, start, &offset).await,
+        State::DisplayHoursMinutes => {
+            display_hours_minutes_state(virtual_display, button, start, &offset).await
+        }
+        State::DisplayMinutesSeconds => {
+            display_minutes_seconds_state(virtual_display, button, start, &offset).await
+        }
+        State::DisplayAnalogHM => {
+            display_analog_hm_state(virtual_display, button, start, &offset).await
+        }
+        State::DisplayAnalogMS => {
+            display_analog_ms_state(virtual_display, button, start, &offset).await
+        }
+        State::ShowSeconds => show_seconds_state(virtual_display, button, start, &mut offset).await,
+        State::EditSeconds => edit_seconds_state(virtual_display, button, start, &mut offset).await,
+        State::ShowMinutes => show_minutes_state(virtual_display, button, start, &mut offset).await,
+        State::EditMinutes => edit_minutes_state(virtual_display, button, start, &mut offset).await,
+        State::ShowHours => show_hours_state(virtual_display, button, start, &mut offset).await,
+        State::EditHours => edit_hours_state(virtual_display, button, start, &mut offset).await,
+        State::DisplayOff => display_off_state(virtual_display, button, start, &offset).await,
+        State::PowerHog8888 => power_hog_state_8888(virtual_display, button, start, &offset),
+        State::PowerHog1204 => power_hog_state_1204(virtual_display, button, start, &offset),
         State::Last => State::First,
     };
     (state, offset) // cmk any way to avoid returning offset?
 }
 
-async fn display_time(start: Instant, offset: &Duration) {
+fn display_time(
+    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
+    start: Instant,
+    offset: &Duration, // #cmk remove '&'
+) {
     // Time since start in minutes
     let elapsed_minutes = (Instant::now() + *offset - start).as_secs() / 60;
 
@@ -62,19 +75,20 @@ async fn display_time(start: Instant, offset: &Duration) {
     let hours = (hours + 11) % 12 + 1; // 1-12 instead of 0-11
     let number = hours * 100 + minutes;
 
-    VIRTUAL_DISPLAY1.write_number(number, 0).await;
+    virtual_display.write_number(number, 0);
 }
 
 const ONE_MIN: Duration = Duration::from_secs(60);
 const ONE_HOUR: Duration = Duration::from_secs(60 * 60);
 
 async fn display_hours_minutes_state(
+    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &Duration,
 ) -> State {
     loop {
-        display_time(start, offset).await;
+        display_time(virtual_display, start, offset);
 
         // Sleep until the top of the next minute or until the button is pressed
         let seconds: u64 = (Instant::now() + *offset - start).as_secs() % 60;
@@ -92,6 +106,7 @@ async fn display_hours_minutes_state(
 }
 
 async fn display_minutes_seconds_state(
+    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &Duration,
@@ -109,7 +124,7 @@ async fn display_minutes_seconds_state(
         let d4 = (seconds % 10) as u8 + b'0';
         let text = [d1, d2, d3, d4];
         let text_str: &str = core::str::from_utf8(&text).unwrap();
-        VIRTUAL_DISPLAY1.write_text(text_str).await;
+        virtual_display.write_text(text_str);
 
         if let Either::Second(()) = select(
             Timer::after(Duration::from_secs(1)),
@@ -171,6 +186,7 @@ const TWELVE_TO_DASH_DIGIT_INDEX_AND_BYTE: [(usize, u8); 12] = [
 const SECONDS_PER_FIVE_SECONDS: u64 = 5;
 
 async fn display_analog_hm_state(
+    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &Duration,
@@ -197,7 +213,7 @@ async fn display_analog_hm_state(
         bytes[digit_index] |= byte;
         let (digit_index, byte) = TWELVE_TO_DASH_DIGIT_INDEX_AND_BYTE[seconds / 5];
         bytes[digit_index] |= byte;
-        VIRTUAL_DISPLAY1.write_bytes(&bytes).await;
+        virtual_display.write_bytes(&bytes);
 
         if let Either::Second(()) = select(
             Timer::after(Duration::from_secs(seconds_to_five_seconds)), // cmk change to type to next tick
@@ -212,6 +228,7 @@ async fn display_analog_hm_state(
 }
 
 async fn display_analog_ms_state(
+    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &Duration,
@@ -231,7 +248,7 @@ async fn display_analog_ms_state(
         bytes[digit_index] |= byte;
         let (digit_index, byte) = TWELVE_TO_INSIDE_DIGIT_INDEX_AND_BYTE[seconds / 5];
         bytes[digit_index] |= byte;
-        VIRTUAL_DISPLAY1.write_bytes(&bytes).await;
+        virtual_display.write_bytes(&bytes);
 
         if let Either::Second(()) = select(
             Timer::after(Duration::from_secs(seconds_to_five_seconds)), // cmk change to type to next tick
@@ -246,6 +263,7 @@ async fn display_analog_ms_state(
 }
 
 async fn show_seconds_state(
+    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &mut Duration,
@@ -255,7 +273,7 @@ async fn show_seconds_state(
     let d2 = (seconds % 10) as u8 + b'0';
     let text = [b' ', d1, d2, b' '];
     let text_str: &str = core::str::from_utf8(&text).unwrap();
-    VIRTUAL_DISPLAY1.write_text(text_str).await;
+    virtual_display.write_text(text_str);
     button.wait_for_rising_edge().await;
     if let Either::Second(()) = select(
         Timer::after(Duration::from_secs(1)),
@@ -270,11 +288,12 @@ async fn show_seconds_state(
 }
 
 async fn edit_seconds_state(
+    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &mut Duration,
 ) -> State {
-    VIRTUAL_DISPLAY1.write_text(" 00 ").await;
+    virtual_display.write_text(" 00 ");
     button.wait_for_rising_edge().await;
     let seconds: u64 = (Instant::now() + *offset - start).as_secs() % 60;
     *offset += ONE_MIN - Duration::from_secs(seconds);
@@ -283,6 +302,7 @@ async fn edit_seconds_state(
 
 #[allow(clippy::cast_possible_truncation)]
 async fn show_minutes_state(
+    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &mut Duration,
@@ -294,7 +314,7 @@ async fn show_minutes_state(
     let d2 = (minutes % 10) as u8 + b'0';
     let text = [b' ', b' ', d1, d2];
     let text_str: &str = core::str::from_utf8(&text).unwrap();
-    VIRTUAL_DISPLAY1.write_text(text_str).await;
+    virtual_display.write_text(text_str);
     button.wait_for_rising_edge().await;
     if let Either::Second(()) = select(
         Timer::after(Duration::from_secs(1)),
@@ -310,6 +330,7 @@ async fn show_minutes_state(
 
 #[allow(clippy::cast_possible_truncation)]
 async fn edit_minutes_state(
+    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &mut Duration,
@@ -330,12 +351,13 @@ async fn edit_minutes_state(
         let d2 = (minutes % 10) as u8 + b'0';
         let text = [b' ', b' ', d1, d2];
         let text_str: &str = core::str::from_utf8(&text).unwrap();
-        VIRTUAL_DISPLAY1.write_text(text_str).await;
+        virtual_display.write_text(text_str);
     }
 }
 
 #[allow(clippy::cast_possible_truncation)]
 async fn show_hours_state(
+    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &mut Duration,
@@ -347,7 +369,7 @@ async fn show_hours_state(
     let d2 = (hours % 10) as u8 + b'0';
     let text = [d1, d2, b' ', b' '];
     let text_str: &str = core::str::from_utf8(&text).unwrap();
-    VIRTUAL_DISPLAY1.write_text(text_str).await;
+    virtual_display.write_text(text_str);
     button.wait_for_rising_edge().await;
     if let Either::Second(()) = select(
         Timer::after(Duration::from_secs(1)),
@@ -362,6 +384,7 @@ async fn show_hours_state(
 }
 
 async fn edit_hours_state(
+    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &mut Duration,
@@ -384,38 +407,41 @@ async fn edit_hours_state(
         let d2 = (hours % 10) as u8 + b'0';
         let text = [d1, d2, b' ', b' '];
         let text_str: &str = core::str::from_utf8(&text).unwrap();
-        VIRTUAL_DISPLAY1.write_text(text_str).await;
+        virtual_display.write_text(text_str);
     }
 }
 
 async fn display_off_state(
+    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     _start: Instant,
     _offset: &Duration,
 ) -> State {
-    VIRTUAL_DISPLAY1.write_text("    ").await;
+    virtual_display.write_text("    ");
     button.wait_for_rising_edge().await;
     button.wait_for_falling_edge().await;
     State::PowerHog8888
 }
 
-async fn power_hog_state_8888(
+fn power_hog_state_8888(
+    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     _start: Instant,
     _offset: &Duration,
 ) -> State {
-    VIRTUAL_DISPLAY1.write_text("8888").await;
+    virtual_display.write_text("8888");
     while button.is_low() {}
     while button.is_high() {}
     State::PowerHog1204
 }
 
-async fn power_hog_state_1204(
+fn power_hog_state_1204(
+    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     _start: Instant,
     _offset: &Duration,
 ) -> State {
-    VIRTUAL_DISPLAY1.write_text("1204").await;
+    virtual_display.write_text("1204");
     while button.is_low() {}
     while button.is_high() {}
     State::Last
