@@ -2,18 +2,13 @@ use embassy_futures::select::{select, Either};
 use embassy_rp::gpio;
 use embassy_time::{Duration, Instant, Timer};
 
-use crate::{
-    virtual_display::{self, VirtualDisplay, DIGIT_COUNT1},
-    Leds,
-};
+use crate::virtual_display::{self, VirtualDisplay, DIGIT_COUNT1};
 
 #[derive(Debug, defmt::Format)]
 pub(crate) enum State {
     First,
     DisplayHoursMinutes,
     DisplayMinutesSeconds,
-    DisplayAnalogHM,
-    DisplayAnalogMS,
     ShowSeconds,
     EditSeconds,
     ShowMinutes,
@@ -36,16 +31,10 @@ pub(crate) async fn state_to_state(
     state = match state {
         State::First => State::DisplayHoursMinutes,
         State::DisplayHoursMinutes => {
-            display_hours_minutes_state(virtual_display, button, start, &offset).await
+            display_hours_minutes_state(virtual_display, button, start, offset).await
         }
         State::DisplayMinutesSeconds => {
-            display_minutes_seconds_state(virtual_display, button, start, &offset).await
-        }
-        State::DisplayAnalogHM => {
-            display_analog_hm_state(virtual_display, button, start, &offset).await
-        }
-        State::DisplayAnalogMS => {
-            display_analog_ms_state(virtual_display, button, start, &offset).await
+            display_minutes_seconds_state(virtual_display, button, start, offset).await
         }
         State::ShowSeconds => show_seconds_state(virtual_display, button, start, &mut offset).await,
         State::EditSeconds => edit_seconds_state(virtual_display, button, start, &mut offset).await,
@@ -53,9 +42,9 @@ pub(crate) async fn state_to_state(
         State::EditMinutes => edit_minutes_state(virtual_display, button, start, &mut offset).await,
         State::ShowHours => show_hours_state(virtual_display, button, start, &mut offset).await,
         State::EditHours => edit_hours_state(virtual_display, button, start, &mut offset).await,
-        State::DisplayOff => display_off_state(virtual_display, button, start, &offset).await,
-        State::PowerHog8888 => power_hog_state_8888(virtual_display, button, start, &offset),
-        State::PowerHog1204 => power_hog_state_1204(virtual_display, button, start, &offset),
+        State::DisplayOff => display_off_state(virtual_display, button, start, offset).await,
+        State::PowerHog8888 => power_hog_state_8888(virtual_display, button, start, offset).await,
+        State::PowerHog1204 => power_hog_state_1204(virtual_display, button, start, offset).await,
         State::Last => State::First,
     };
     (state, offset) // cmk any way to avoid returning offset?
@@ -64,10 +53,10 @@ pub(crate) async fn state_to_state(
 fn display_time(
     virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     start: Instant,
-    offset: &Duration, // #cmk remove '&'
+    offset: Duration,
 ) {
     // Time since start in minutes
-    let elapsed_minutes = (Instant::now() + *offset - start).as_secs() / 60;
+    let elapsed_minutes = (Instant::now() + offset - start).as_secs() / 60;
 
     // Calculate the number to display
     #[allow(clippy::cast_possible_truncation)]
@@ -85,13 +74,13 @@ async fn display_hours_minutes_state(
     virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
-    offset: &Duration,
+    offset: Duration,
 ) -> State {
     loop {
         display_time(virtual_display, start, offset);
 
         // Sleep until the top of the next minute or until the button is pressed
-        let seconds: u64 = (Instant::now() + *offset - start).as_secs() % 60;
+        let seconds: u64 = (Instant::now() + offset - start).as_secs() % 60;
         let till_next_minute = ONE_MIN - Duration::from_secs(seconds);
         if let Either::Second(()) = select(
             Timer::after(till_next_minute),
@@ -109,12 +98,12 @@ async fn display_minutes_seconds_state(
     virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
-    offset: &Duration,
+    offset: Duration,
 ) -> State {
     loop {
         let now = Instant::now();
-        let elapsed_minutes = (now + *offset - start).as_secs() / 60;
-        let seconds: u64 = (now + *offset - start).as_secs() % 60;
+        let elapsed_minutes = (now + offset - start).as_secs() / 60;
+        let seconds: u64 = (now + offset - start).as_secs() % 60;
         #[allow(clippy::cast_possible_truncation)]
         let (_hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
         #[allow(clippy::cast_possible_truncation)]
@@ -128,130 +117,6 @@ async fn display_minutes_seconds_state(
 
         if let Either::Second(()) = select(
             Timer::after(Duration::from_secs(1)),
-            button.wait_for_rising_edge(),
-        )
-        .await
-        {
-            button.wait_for_falling_edge().await;
-            return State::DisplayAnalogHM;
-        }
-    }
-}
-
-const TWELVE_TO_OUTSIDE_DIGIT_INDEX_AND_BYTE: [(usize, u8); 12] = [
-    (2, Leds::SEG_A), // 12
-    (3, Leds::SEG_A), // 1
-    (3, Leds::SEG_B), // 2
-    (3, Leds::SEG_C), // 3
-    (3, Leds::SEG_D), // 4
-    (2, Leds::SEG_D), // 5
-    (1, Leds::SEG_D), // 6
-    (0, Leds::SEG_D), // 7
-    (0, Leds::SEG_E), // 8
-    (0, Leds::SEG_F), // 9
-    (0, Leds::SEG_A), // 10
-    (1, Leds::SEG_A), // 11
-];
-
-const TWELVE_TO_INSIDE_DIGIT_INDEX_AND_BYTE: [(usize, u8); 12] = [
-    (2, Leds::SEG_F), // 0
-    (2, Leds::SEG_B), // 5
-    (3, Leds::SEG_F), // 10
-    (3, Leds::SEG_E), // 15
-    (2, Leds::SEG_C), // 20
-    (2, Leds::SEG_E), // 25
-    (1, Leds::SEG_C), // 30
-    (1, Leds::SEG_E), // 35
-    (0, Leds::SEG_C), // 40
-    (0, Leds::SEG_B), // 45
-    (1, Leds::SEG_F), // 50
-    (1, Leds::SEG_B), // 55
-];
-
-const TWELVE_TO_DASH_DIGIT_INDEX_AND_BYTE: [(usize, u8); 12] = [
-    (2, Leds::SEG_G), // 0
-    (3, Leds::SEG_G), // 5
-    (3, Leds::SEG_G), // 10
-    (3, Leds::SEG_G), // 15
-    (3, Leds::SEG_G), // 20
-    (2, Leds::SEG_G), // 25
-    (1, Leds::SEG_G), // 30
-    (0, Leds::SEG_G), // 35
-    (0, Leds::SEG_G), // 40
-    (0, Leds::SEG_G), // 45
-    (0, Leds::SEG_G), // 50
-    (1, Leds::SEG_G), // 55
-];
-
-const SECONDS_PER_FIVE_SECONDS: u64 = 5;
-
-async fn display_analog_hm_state(
-    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
-    button: &mut gpio::Input<'_>,
-    start: Instant,
-    offset: &Duration,
-) -> State {
-    loop {
-        let now = Instant::now();
-        let elapsed_second = (now + *offset - start).as_secs();
-        let elapsed_minutes = elapsed_second / 60;
-        // const SECONDS_PER_FIVE_MINUTES: u64 = 5 * 60;
-        // let seconds_to_five_minutes =
-        //     SECONDS_PER_FIVE_MINUTES - (elapsed_second % SECONDS_PER_FIVE_MINUTES);
-        let seconds_to_five_seconds =
-            SECONDS_PER_FIVE_SECONDS - (elapsed_second % SECONDS_PER_FIVE_SECONDS);
-
-        let (hours, minutes, seconds) = (
-            (elapsed_minutes / 60 % 12) as usize,
-            (elapsed_minutes % 60) as usize,
-            (elapsed_second % 60) as usize,
-        );
-        let mut bytes = [0u8; DIGIT_COUNT1];
-        let (digit_index, byte) = TWELVE_TO_OUTSIDE_DIGIT_INDEX_AND_BYTE[hours];
-        bytes[digit_index] |= byte;
-        let (digit_index, byte) = TWELVE_TO_INSIDE_DIGIT_INDEX_AND_BYTE[minutes / 5];
-        bytes[digit_index] |= byte;
-        let (digit_index, byte) = TWELVE_TO_DASH_DIGIT_INDEX_AND_BYTE[seconds / 5];
-        bytes[digit_index] |= byte;
-        virtual_display.write_bytes(&bytes);
-
-        if let Either::Second(()) = select(
-            Timer::after(Duration::from_secs(seconds_to_five_seconds)), // cmk change to type to next tick
-            button.wait_for_rising_edge(),
-        )
-        .await
-        {
-            button.wait_for_falling_edge().await;
-            return State::DisplayAnalogMS;
-        }
-    }
-}
-
-async fn display_analog_ms_state(
-    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
-    button: &mut gpio::Input<'_>,
-    start: Instant,
-    offset: &Duration,
-) -> State {
-    loop {
-        let now = Instant::now();
-        let elapsed_second = (now + *offset - start).as_secs();
-        let elapsed_minutes = elapsed_second / 60;
-        let seconds_to_five_seconds =
-            SECONDS_PER_FIVE_SECONDS - (elapsed_second % SECONDS_PER_FIVE_SECONDS);
-        let (minutes, seconds) = (
-            (elapsed_minutes % 60) as usize,
-            (elapsed_second % 60) as usize,
-        );
-        let mut bytes = [0u8; DIGIT_COUNT1];
-        let (digit_index, byte) = TWELVE_TO_OUTSIDE_DIGIT_INDEX_AND_BYTE[minutes / 5];
-        bytes[digit_index] |= byte;
-        let (digit_index, byte) = TWELVE_TO_INSIDE_DIGIT_INDEX_AND_BYTE[seconds / 5];
-        bytes[digit_index] |= byte;
-        virtual_display.write_bytes(&bytes);
-
-        if let Either::Second(()) = select(
-            Timer::after(Duration::from_secs(seconds_to_five_seconds)), // cmk change to type to next tick
             button.wait_for_rising_edge(),
         )
         .await
@@ -415,34 +280,35 @@ async fn display_off_state(
     virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     _start: Instant,
-    _offset: &Duration,
+    _offset: Duration,
 ) -> State {
     virtual_display.write_text("    ");
     button.wait_for_rising_edge().await;
     button.wait_for_falling_edge().await;
-    State::PowerHog8888
+    State::Last
 }
 
-fn power_hog_state_8888(
+async fn power_hog_state_8888(
     virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     _start: Instant,
-    _offset: &Duration,
+    _offset: Duration,
 ) -> State {
     virtual_display.write_text("8888");
-    while button.is_low() {}
-    while button.is_high() {}
+    button.wait_for_rising_edge().await;
+    button.wait_for_falling_edge().await;
     State::PowerHog1204
 }
 
-fn power_hog_state_1204(
+// cmk not really a power hog anymore
+async fn power_hog_state_1204(
     virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
     button: &mut gpio::Input<'_>,
     _start: Instant,
-    _offset: &Duration,
+    _offset: Duration,
 ) -> State {
     virtual_display.write_text("1204");
-    while button.is_low() {}
-    while button.is_high() {}
+    button.wait_for_rising_edge().await;
+    button.wait_for_falling_edge().await;
     State::Last
 }

@@ -5,7 +5,6 @@
 use embassy_executor::Spawner;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Instant};
-use leds::Leds;
 use pins::Pins;
 use state_machine::{state_to_state, State};
 use virtual_display::{VirtualDisplay, DIGIT_COUNT1};

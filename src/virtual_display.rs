@@ -175,7 +175,7 @@ async fn monitor(
                         info!(
                             "byte: {:?}, indexes: {:?},{:?},{:?},{:?}",
                             byte,
-                            if indexes.len() > 0 { indexes[0] } else { 10 },
+                            if !indexes.is_empty() { indexes[0] } else { 10 },
                             if indexes.len() > 1 { indexes[1] } else { 10 },
                             if indexes.len() > 2 { indexes[2] } else { 10 },
                             if indexes.len() > 3 { indexes[3] } else { 10 }
@@ -200,6 +200,9 @@ async fn monitor(
                                 digit_pins[*digit_index].set_high();
                             }
                             break 'outer;
+                        }
+                        for digit_index in indexes {
+                            digit_pins[*digit_index].set_high();
                         }
                     }
                 }
