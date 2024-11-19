@@ -1,11 +1,11 @@
-use crate::virtual_display::DIGIT_COUNT1;
+use crate::virtual_display::CELL_COUNT1;
 use embassy_rp::{
     gpio::{self, Level},
     peripherals::CORE1,
 };
 
 pub(crate) struct Pins {
-    pub(crate) digits1: [gpio::Output<'static>; DIGIT_COUNT1],
+    pub(crate) digits1: [gpio::Output<'static>; CELL_COUNT1],
     pub(crate) segments1: [gpio::Output<'static>; 8],
     pub(crate) button: gpio::Input<'static>,
     _led0: gpio::Output<'static>,

@@ -2,7 +2,7 @@ use embassy_futures::select::{select, Either};
 use embassy_rp::gpio;
 use embassy_time::{Duration, Instant, Timer};
 
-use crate::virtual_display::{self, VirtualDisplay, DIGIT_COUNT1};
+use crate::virtual_display::{self, VirtualDisplay, CELL_COUNT1};
 
 #[derive(Debug, defmt::Format)]
 pub(crate) enum State {
@@ -16,14 +16,12 @@ pub(crate) enum State {
     ShowHours,
     EditHours,
     DisplayOff,
-    PowerHog8888,
-    PowerHog1204,
     Last,
 }
 
 pub(crate) async fn state_to_state(
     mut state: State,
-    virtual_display: &mut virtual_display::VirtualDisplay<DIGIT_COUNT1>,
+    virtual_display: &mut virtual_display::VirtualDisplay<CELL_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     mut offset: Duration,
@@ -43,15 +41,13 @@ pub(crate) async fn state_to_state(
         State::ShowHours => show_hours_state(virtual_display, button, start, &mut offset).await,
         State::EditHours => edit_hours_state(virtual_display, button, start, &mut offset).await,
         State::DisplayOff => display_off_state(virtual_display, button, start, offset).await,
-        State::PowerHog8888 => power_hog_state_8888(virtual_display, button, start, offset).await,
-        State::PowerHog1204 => power_hog_state_1204(virtual_display, button, start, offset).await,
         State::Last => State::First,
     };
     (state, offset) // cmk any way to avoid returning offset?
 }
 
 fn display_time(
-    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
+    virtual_display: &mut VirtualDisplay<CELL_COUNT1>,
     start: Instant,
     offset: Duration,
 ) {
@@ -71,7 +67,7 @@ const ONE_MIN: Duration = Duration::from_secs(60);
 const ONE_HOUR: Duration = Duration::from_secs(60 * 60);
 
 async fn display_hours_minutes_state(
-    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
+    virtual_display: &mut VirtualDisplay<CELL_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: Duration,
@@ -88,6 +84,8 @@ async fn display_hours_minutes_state(
         )
         .await
         {
+            // cmk virtualize the button everywhere
+            // cmk make the button work as soon as its held long enough
             button.wait_for_falling_edge().await;
             return State::DisplayMinutesSeconds;
         }
@@ -95,7 +93,7 @@ async fn display_hours_minutes_state(
 }
 
 async fn display_minutes_seconds_state(
-    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
+    virtual_display: &mut VirtualDisplay<CELL_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: Duration,
@@ -128,7 +126,7 @@ async fn display_minutes_seconds_state(
 }
 
 async fn show_seconds_state(
-    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
+    virtual_display: &mut VirtualDisplay<CELL_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &mut Duration,
@@ -153,7 +151,7 @@ async fn show_seconds_state(
 }
 
 async fn edit_seconds_state(
-    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
+    virtual_display: &mut VirtualDisplay<CELL_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &mut Duration,
@@ -167,7 +165,7 @@ async fn edit_seconds_state(
 
 #[allow(clippy::cast_possible_truncation)]
 async fn show_minutes_state(
-    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
+    virtual_display: &mut VirtualDisplay<CELL_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &mut Duration,
@@ -195,7 +193,7 @@ async fn show_minutes_state(
 
 #[allow(clippy::cast_possible_truncation)]
 async fn edit_minutes_state(
-    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
+    virtual_display: &mut VirtualDisplay<CELL_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &mut Duration,
@@ -222,7 +220,7 @@ async fn edit_minutes_state(
 
 #[allow(clippy::cast_possible_truncation)]
 async fn show_hours_state(
-    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
+    virtual_display: &mut VirtualDisplay<CELL_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &mut Duration,
@@ -249,7 +247,7 @@ async fn show_hours_state(
 }
 
 async fn edit_hours_state(
-    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
+    virtual_display: &mut VirtualDisplay<CELL_COUNT1>,
     button: &mut gpio::Input<'_>,
     start: Instant,
     offset: &mut Duration,
@@ -277,37 +275,12 @@ async fn edit_hours_state(
 }
 
 async fn display_off_state(
-    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
+    virtual_display: &mut VirtualDisplay<CELL_COUNT1>,
     button: &mut gpio::Input<'_>,
     _start: Instant,
     _offset: Duration,
 ) -> State {
     virtual_display.write_text("    ");
-    button.wait_for_rising_edge().await;
-    button.wait_for_falling_edge().await;
-    State::Last
-}
-
-async fn power_hog_state_8888(
-    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
-    button: &mut gpio::Input<'_>,
-    _start: Instant,
-    _offset: Duration,
-) -> State {
-    virtual_display.write_text("8888");
-    button.wait_for_rising_edge().await;
-    button.wait_for_falling_edge().await;
-    State::PowerHog1204
-}
-
-// cmk not really a power hog anymore
-async fn power_hog_state_1204(
-    virtual_display: &mut VirtualDisplay<DIGIT_COUNT1>,
-    button: &mut gpio::Input<'_>,
-    _start: Instant,
-    _offset: Duration,
-) -> State {
-    virtual_display.write_text("1204");
     button.wait_for_rising_edge().await;
     button.wait_for_falling_edge().await;
     State::Last

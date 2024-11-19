@@ -10,18 +10,17 @@ use heapless::{LinearMap, Vec};
 
 use crate::leds::Leds;
 
-// cmk why not have the channel send the bytes directly?
 pub struct VirtualDisplay<const DIGIT_COUNT: usize> {
     signal: &'static Signal<CriticalSectionRawMutex, [u8; DIGIT_COUNT]>,
 }
 
 // cmk only DIGIT_COUNT1
-impl VirtualDisplay<DIGIT_COUNT1> {
+impl VirtualDisplay<CELL_COUNT1> {
     pub fn new(
-        digit_pins: [gpio::Output<'static>; DIGIT_COUNT1],
+        digit_pins: [gpio::Output<'static>; CELL_COUNT1],
         segment_pins: [gpio::Output<'static>; 8],
         spawner: Spawner,
-        signal: &'static Signal<CriticalSectionRawMutex, [u8; DIGIT_COUNT1]>,
+        signal: &'static Signal<CriticalSectionRawMutex, [u8; CELL_COUNT1]>,
     ) -> Self {
         let virtual_display = Self { signal };
         unwrap!(spawner.spawn(monitor(digit_pins, segment_pins, signal)));
@@ -30,27 +29,12 @@ impl VirtualDisplay<DIGIT_COUNT1> {
 }
 
 // Display #1 is a 4-digit 7-segment display
-pub const DIGIT_COUNT1: usize = 4;
+pub const CELL_COUNT1: usize = 4;
 
-// pub static VIRTUAL_DISPLAY1: VirtualDisplay<DIGIT_COUNT1> = VirtualDisplay {
-//     signal: Signal::new(),
-//     digits: [0; DIGIT_COUNT1],
-// };
-
-// #[task]
-// pub async fn monitor_display1(
-//     mut digit_pins: [gpio::Output<'static>; DIGIT_COUNT1],
-//     mut segment_pins: [gpio::Output<'static>; 8],
-//     signal: &Signal<CriticalSectionRawMutex, [u8; DIGIT_COUNT1]>,
-// ) {
-//     monitor(&mut VIRTUAL_DISPLAY1, &mut digit_pins, &mut segment_pins).await;
-// }
-// cmk would be nice to have a separate way to turn on decimal points
-// cmk would be nice to have a way to pass in 4 chars
 impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
     pub fn write_text(&self, text: &str) {
         info!("write_text: {}", text);
-        let bytes = line_to_u8_array(text);
+        let bytes = Self::line_to_u8_array(text);
         self.write_bytes(&bytes);
     }
     pub fn write_bytes(&self, bytes_in: &[u8; DIGIT_COUNT]) {
@@ -69,7 +53,6 @@ impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
                 break;
             }
         }
-
         // If the original number was out of range, turn on all decimal points
         if number > 0 {
             for byte in &mut bytes {
@@ -79,21 +62,22 @@ impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
         self.write_bytes(&bytes);
     }
 
-    // cmk remove
-    // /// Turn a u8 into an iterator of bool
-    // pub async fn bool_iter(&self, digit_index: usize) -> array::IntoIter<bool, 8> {
-    //     // inner scope to release the lock
-    //     let byte: u8;
-    //     {
-    //         let digit_array = self.mutex_digits.lock().await;
-    //         byte = digit_array[digit_index];
-    //     }
-    //     bool_iter(byte)
-    // }
+    fn line_to_u8_array(line: &str) -> [u8; DIGIT_COUNT] {
+        let mut result = [0; DIGIT_COUNT];
+        (0..DIGIT_COUNT).zip(line.chars()).for_each(|(i, c)| {
+            result[i] = Leds::ASCII_TABLE[c as usize];
+        });
+        if line.len() > DIGIT_COUNT {
+            for byte in &mut result {
+                *byte |= Leds::DECIMAL;
+            }
+        }
+        result
+    }
 }
 
-#[inline]
 /// Turn a u8 into an iterator of bool
+#[inline]
 pub fn bool_iter(mut byte: u8) -> array::IntoIter<bool, 8> {
     // turn a u8 into an iterator of bool
     let mut bools_out = [false; 8];
@@ -104,109 +88,95 @@ pub fn bool_iter(mut byte: u8) -> array::IntoIter<bool, 8> {
     bools_out.into_iter()
 }
 
-fn line_to_u8_array<const DIGIT_COUNT: usize>(line: &str) -> [u8; DIGIT_COUNT] {
-    let mut result = [0; DIGIT_COUNT];
-    (0..DIGIT_COUNT).zip(line.chars()).for_each(|(i, c)| {
-        result[i] = Leds::ASCII_TABLE[c as usize];
-    });
-    if line.len() > DIGIT_COUNT {
-        for byte in &mut result {
-            *byte |= Leds::DECIMAL;
-        }
-    }
-    result
-}
-
 #[embassy_executor::task]
 #[allow(clippy::needless_range_loop)]
 async fn monitor(
-    mut digit_pins: [gpio::Output<'static>; DIGIT_COUNT1],
+    // cmk does this need 'static? What does it mean?
+    mut cell_pins: [gpio::Output<'static>; CELL_COUNT1],
     mut segment_pins: [gpio::Output<'static>; 8],
-    signal: &'static Signal<CriticalSectionRawMutex, [u8; DIGIT_COUNT1]>,
+    signal: &'static Signal<CriticalSectionRawMutex, [u8; CELL_COUNT1]>,
 ) -> ! {
-    let mut digits: [u8; DIGIT_COUNT1] = [0; DIGIT_COUNT1];
+    let mut cell_bits: [u8; CELL_COUNT1] = [0; CELL_COUNT1];
     loop {
-        info!("received_bytes: {:?}", digits);
-        // How many unique, non-blank digits?
-        let mut map: LinearMap<u8, Vec<usize, DIGIT_COUNT1>, DIGIT_COUNT1> = LinearMap::new();
-        {
-            // inner scope to release the lock
-            for (index, byte) in digits.iter().enumerate() {
-                if *byte != 0 {
-                    if let Some(vec) = map.get_mut(byte) {
-                        vec.push(index).unwrap();
-                    } else {
-                        let mut vec = Vec::default();
-                        vec.push(index).unwrap();
-                        map.insert(*byte, vec).unwrap();
-                    }
-                }
-            }
-        }
-        info!("map.len(): {:?}", map.len());
-        match map.len() {
+        info!("cell_bits: {:?}", cell_bits);
+        let bits_to_indexes = bits_to_indexes(&cell_bits);
+        info!("# of unique cell bits: {:?}", bits_to_indexes.len());
+        match bits_to_indexes.iter().next() {
             // If the display should be empty, then just wait for the next update
-            0 => digits = signal.wait().await,
+            None => cell_bits = signal.wait().await,
 
-            // If only one pattern should be displayed (even on multiple digits), display it
+            // If only one bit pattern should be displayed (even on multiple cells), display it
             // and wait for the next update
-            1 => {
-                // get one and only key and value
-                let (byte, indexes) = map.iter().next().unwrap();
+            Some((&bits, indexes)) if bits_to_indexes.len() == 1 => {
                 // Set the segment pins with the bool iterator
-                bool_iter(*byte)
+
+                // cmk refactor
+                bool_iter(bits)
                     .zip(segment_pins.iter_mut())
                     .for_each(|(state, segment_pin)| {
                         segment_pin.set_state(state.into()).unwrap();
                     });
                 // activate the digits, wait for the next update, and deactivate the digits
+
+                // cmk refactor
                 for digit_index in indexes {
-                    digit_pins[*digit_index].set_low(); // Assuming common cathode setup
+                    cell_pins[*digit_index].set_low(); // Assuming common cathode setup
                 }
-                digits = signal.wait().await;
+                cell_bits = signal.wait().await;
                 for digit_index in indexes {
-                    digit_pins[*digit_index].set_high();
+                    cell_pins[*digit_index].set_high();
                 }
             }
             // If multiple patterns should be displayed, multiplex them until the next update
             _ => {
                 'outer: loop {
-                    for (byte, indexes) in &map {
-                        info!(
-                            "byte: {:?}, indexes: {:?},{:?},{:?},{:?}",
-                            byte,
-                            if !indexes.is_empty() { indexes[0] } else { 10 },
-                            if indexes.len() > 1 { indexes[1] } else { 10 },
-                            if indexes.len() > 2 { indexes[2] } else { 10 },
-                            if indexes.len() > 3 { indexes[3] } else { 10 }
-                        );
+                    for (bits, indexes) in &bits_to_indexes {
                         // Set the segment pins with the bool iterator
-                        bool_iter(*byte).zip(segment_pins.iter_mut()).for_each(
+                        bool_iter(*bits).zip(segment_pins.iter_mut()).for_each(
                             |(state, segment_pin)| {
                                 segment_pin.set_state(state.into()).unwrap();
                             },
                         );
                         // Activate, pause, and deactivate the digits
                         for digit_index in indexes {
-                            digit_pins[*digit_index].set_low(); // Assuming common cathode setup
+                            cell_pins[*digit_index].set_low(); // Assuming common cathode setup
                         }
                         let sleep = 3; // cmk maybe this should depend on the # of digits
-                                       // Sleep (but wake up early if the display should be updated)
-                        if let Either::Second(new_digits) =
-                            select(Timer::after(Duration::from_millis(sleep)), signal.wait()).await
-                        {
-                            digits = new_digits;
-                            for digit_index in indexes {
-                                digit_pins[*digit_index].set_high();
-                            }
-                            break 'outer;
-                        }
+
+                        // Sleep (but wake up early if the display should be updated)
+                        let what_happened =
+                            select(Timer::after(Duration::from_millis(sleep)), signal.wait()).await;
                         for digit_index in indexes {
-                            digit_pins[*digit_index].set_high();
+                            cell_pins[*digit_index].set_high();
+                        }
+                        if let Either::Second(new_digits) = what_happened {
+                            cell_bits = new_digits;
+                            break 'outer;
                         }
                     }
                 }
             }
         }
     }
+}
+
+fn bits_to_indexes<const CELL_COUNT: usize>(
+    cell_bits: &[u8; CELL_COUNT],
+) -> LinearMap<u8, Vec<usize, CELL_COUNT>, CELL_COUNT> {
+    cell_bits
+        .iter()
+        .filter(|&bits| *bits != 0) // Filter out zero bits
+        .enumerate()
+        .fold(
+            LinearMap::new(),
+            |mut acc: LinearMap<u8, Vec<usize, CELL_COUNT>, CELL_COUNT>, (index, &bits)| {
+                if let Some(vec) = acc.get_mut(&bits) {
+                    vec.push(index).unwrap();
+                } else {
+                    let vec = Vec::from_slice(&[index]).unwrap();
+                    acc.insert(bits, vec).unwrap();
+                }
+                acc
+            },
+        )
 }
