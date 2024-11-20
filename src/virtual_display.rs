@@ -1,14 +1,12 @@
-use core::array;
 use defmt::{info, unwrap};
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
-use embassy_rp::gpio;
+use embassy_rp::gpio::Level;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Timer};
-use embedded_hal::digital::OutputPin; // cmk needed?
 use heapless::{LinearMap, Vec};
 
-use crate::leds::Leds;
+use crate::{leds::Leds, pins::OutputArray};
 
 pub struct VirtualDisplay<const DIGIT_COUNT: usize> {
     signal: &'static Signal<CriticalSectionRawMutex, [u8; DIGIT_COUNT]>,
@@ -17,8 +15,8 @@ pub struct VirtualDisplay<const DIGIT_COUNT: usize> {
 // cmk only DIGIT_COUNT1
 impl VirtualDisplay<CELL_COUNT1> {
     pub fn new(
-        digit_pins: [gpio::Output<'static>; CELL_COUNT1],
-        segment_pins: [gpio::Output<'static>; 8],
+        digit_pins: OutputArray<CELL_COUNT1>,
+        segment_pins: OutputArray<SEGMENT_COUNT1>,
         spawner: Spawner,
         signal: &'static Signal<CriticalSectionRawMutex, [u8; CELL_COUNT1]>,
     ) -> Self {
@@ -28,8 +26,9 @@ impl VirtualDisplay<CELL_COUNT1> {
     }
 }
 
-// Display #1 is a 4-digit 7-segment display
+// Display #1 is a 4-digit 8s-segment display
 pub const CELL_COUNT1: usize = 4;
+pub const SEGMENT_COUNT1: usize = 8;
 
 impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
     pub fn write_text(&self, text: &str) {
@@ -76,24 +75,12 @@ impl<const DIGIT_COUNT: usize> VirtualDisplay<DIGIT_COUNT> {
     }
 }
 
-/// Turn a u8 into an iterator of bool
-#[inline]
-pub fn bool_iter(mut byte: u8) -> array::IntoIter<bool, 8> {
-    // turn a u8 into an iterator of bool
-    let mut bools_out = [false; 8];
-    for bool_out in &mut bools_out {
-        *bool_out = byte & 1 == 1;
-        byte >>= 1;
-    }
-    bools_out.into_iter()
-}
-
 #[embassy_executor::task]
 #[allow(clippy::needless_range_loop)]
 async fn monitor(
     // cmk does this need 'static? What does it mean?
-    mut cell_pins: [gpio::Output<'static>; CELL_COUNT1],
-    mut segment_pins: [gpio::Output<'static>; 8],
+    mut cell_pins: OutputArray<CELL_COUNT1>,
+    mut segment_pins: OutputArray<SEGMENT_COUNT1>,
     signal: &'static Signal<CriticalSectionRawMutex, [u8; CELL_COUNT1]>,
 ) -> ! {
     let mut cell_bits: [u8; CELL_COUNT1] = [0; CELL_COUNT1];
@@ -108,47 +95,21 @@ async fn monitor(
             // If only one bit pattern should be displayed (even on multiple cells), display it
             // and wait for the next update
             Some((&bits, indexes)) if bits_to_indexes.len() == 1 => {
-                // Set the segment pins with the bool iterator
-
-                // cmk refactor
-                bool_iter(bits)
-                    .zip(segment_pins.iter_mut())
-                    .for_each(|(state, segment_pin)| {
-                        segment_pin.set_state(state.into()).unwrap();
-                    });
-                // activate the digits, wait for the next update, and deactivate the digits
-
-                // cmk refactor
-                for digit_index in indexes {
-                    cell_pins[*digit_index].set_low(); // Assuming common cathode setup
-                }
-                cell_bits = signal.wait().await;
-                for digit_index in indexes {
-                    cell_pins[*digit_index].set_high();
-                }
+                segment_pins.set_from_u8(bits);
+                cell_pins.set_levels_at_indexes(indexes, Level::Low);
+                cell_bits = signal.wait().await; // cmk rename signal
+                cell_pins.set_levels_at_indexes(indexes, Level::High);
             }
             // If multiple patterns should be displayed, multiplex them until the next update
             _ => {
                 'outer: loop {
                     for (bits, indexes) in &bits_to_indexes {
-                        // Set the segment pins with the bool iterator
-                        bool_iter(*bits).zip(segment_pins.iter_mut()).for_each(
-                            |(state, segment_pin)| {
-                                segment_pin.set_state(state.into()).unwrap();
-                            },
-                        );
-                        // Activate, pause, and deactivate the digits
-                        for digit_index in indexes {
-                            cell_pins[*digit_index].set_low(); // Assuming common cathode setup
-                        }
-                        let sleep = 3; // cmk maybe this should depend on the # of digits
-
-                        // Sleep (but wake up early if the display should be updated)
+                        segment_pins.set_from_u8(*bits);
+                        cell_pins.set_levels_at_indexes(indexes, Level::Low);
+                        let sleep = 3; // cmk maybe this should depend on the # of digits and not be defined here
                         let what_happened =
                             select(Timer::after(Duration::from_millis(sleep)), signal.wait()).await;
-                        for digit_index in indexes {
-                            cell_pins[*digit_index].set_high();
-                        }
+                        cell_pins.set_levels_at_indexes(indexes, Level::High);
                         if let Either::Second(new_digits) = what_happened {
                             cell_bits = new_digits;
                             break 'outer;
@@ -165,8 +126,8 @@ fn bits_to_indexes<const CELL_COUNT: usize>(
 ) -> LinearMap<u8, Vec<usize, CELL_COUNT>, CELL_COUNT> {
     cell_bits
         .iter()
-        .filter(|&bits| *bits != 0) // Filter out zero bits
         .enumerate()
+        .filter(|(_, &bits)| bits != 0) // Filter out zero bits
         .fold(
             LinearMap::new(),
             |mut acc: LinearMap<u8, Vec<usize, CELL_COUNT>, CELL_COUNT>, (index, &bits)| {
