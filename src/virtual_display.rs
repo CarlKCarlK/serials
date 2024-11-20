@@ -8,9 +8,10 @@ use heapless::{LinearMap, Vec};
 
 use crate::{bit_matrix::BitMatrix, pins::OutputArray};
 
-pub struct VirtualDisplay<const CELL_COUNT: usize> {
-    signal: &'static Signal<CriticalSectionRawMutex, BitMatrix<CELL_COUNT>>,
-}
+pub struct VirtualDisplay<const CELL_COUNT: usize>(
+    &'static Signal<CriticalSectionRawMutex, BitMatrix<CELL_COUNT>>,
+);
+
 // Display #1 is a 4-digit 8s-segment display
 pub const CELL_COUNT1: usize = 4;
 pub const SEGMENT_COUNT1: usize = 8;
@@ -24,13 +25,14 @@ impl VirtualDisplay<CELL_COUNT1> {
         spawner: Spawner,
         signal: &'static Signal<CriticalSectionRawMutex, BitMatrix<CELL_COUNT1>>,
     ) -> Self {
-        let virtual_display = Self { signal };
+        let virtual_display = Self(signal);
         unwrap!(spawner.spawn(monitor(digit_pins, segment_pins, signal)));
         virtual_display
     }
 }
 
 impl<const CELL_COUNT: usize> VirtualDisplay<CELL_COUNT> {
+    // cmk write_, print_, display_, ????
     pub fn write_text(&self, text: &str) {
         info!("write_text: {}", text);
         self.write_bit_matrix(BitMatrix::from_str(text));
@@ -38,7 +40,7 @@ impl<const CELL_COUNT: usize> VirtualDisplay<CELL_COUNT> {
     // cmk make bit_matrix a type
     pub fn write_bit_matrix(&self, bit_matrix: BitMatrix<CELL_COUNT>) {
         info!("write_bit_matrix: {:?}", bit_matrix);
-        self.signal.signal(bit_matrix);
+        self.0.signal(bit_matrix);
     }
     pub fn write_number(&self, number: u16, padding: u8) {
         info!("write_number: {}", number);
@@ -52,12 +54,13 @@ async fn monitor(
     // cmk does this need 'static? What does it mean?
     mut cell_pins: OutputArray<CELL_COUNT1>,
     mut segment_pins: OutputArray<SEGMENT_COUNT1>,
+    // cmk rename or re-type
     signal: &'static Signal<CriticalSectionRawMutex, BitMatrix<CELL_COUNT1>>,
 ) -> ! {
     let mut bit_matrix: BitMatrix<CELL_COUNT1> = BitMatrix::default();
     'outer: loop {
         info!("bit_matrix: {:?}", bit_matrix);
-        let bits_to_indexes = bit_matrix_to_indexes(&bit_matrix);
+        let bits_to_indexes = bit_matrix_to_indexes(&bit_matrix); // cmk move to be method?
         info!("# of unique cell bit_matrix: {:?}", bits_to_indexes.len());
         match bits_to_indexes.iter().next() {
             // If the display should be empty, then just wait for the next update
