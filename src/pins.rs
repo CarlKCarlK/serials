@@ -5,6 +5,7 @@ use embassy_rp::{
 };
 use embedded_hal::digital::OutputPin; // cmk why doesn't Brad's code need this?
 
+//cmk #[derive(Debug, defmt::Format)]
 pub struct OutputArray<const N: usize>([gpio::Output<'static>; N]);
 
 impl<const N: usize> OutputArray<N> {
@@ -22,7 +23,7 @@ impl<const N: usize> OutputArray<N> {
 
 impl OutputArray<{ u8::BITS as usize }> {
     #[inline]
-    pub fn set_from_u8(&mut self, mut bits: u8) {
+    pub fn set_from_bits(&mut self, mut bits: u8) {
         for output in &mut self.0 {
             let state = (bits & 1) == 1;
             output.set_state(state.into()).unwrap();
