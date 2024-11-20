@@ -2,14 +2,16 @@
 #![no_main]
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
+use bit_matrix::BitMatrix;
 use embassy_executor::Spawner;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Instant};
 use pins::Pins;
 use state_machine::{state_to_state, State};
-use virtual_display::{BitMatrix, VirtualDisplay, CELL_COUNT1};
+use virtual_display::{VirtualDisplay, CELL_COUNT1};
 use {defmt_rtt as _, panic_probe as _};
 
+mod bit_matrix;
 mod leds;
 mod pins;
 mod state_machine;

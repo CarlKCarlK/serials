@@ -6,76 +6,7 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal}
 use embassy_time::{Duration, Timer};
 use heapless::{LinearMap, Vec};
 
-use crate::{leds::Leds, pins::OutputArray};
-
-// cmk #[derive(Debug, defmt::Format)]
-#[derive(defmt::Format)]
-pub struct BitMatrix<const CELL_COUNT: usize>([u8; CELL_COUNT]);
-
-impl<const CELL_COUNT: usize> BitMatrix<CELL_COUNT> {
-    pub fn new(bits: [u8; CELL_COUNT]) -> Self {
-        Self(bits)
-    }
-    pub fn from_bits(bits: u8) -> Self {
-        Self([bits; CELL_COUNT])
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &u8> {
-        self.0.iter()
-    }
-}
-
-// default
-impl<const CELL_COUNT: usize> Default for BitMatrix<CELL_COUNT> {
-    fn default() -> Self {
-        Self([0; CELL_COUNT])
-    }
-}
-
-// implement into_iter for BitMatrix and &BitMatrix
-impl<const CELL_COUNT: usize> IntoIterator for BitMatrix<CELL_COUNT> {
-    type Item = u8;
-    type IntoIter = core::array::IntoIter<u8, CELL_COUNT>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-impl<'a, const CELL_COUNT: usize> IntoIterator for &'a BitMatrix<CELL_COUNT> {
-    type Item = &'a u8;
-    type IntoIter = core::slice::Iter<'a, u8>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
-}
-
-// and &mut BitMatrix
-impl<'a, const CELL_COUNT: usize> IntoIterator for &'a mut BitMatrix<CELL_COUNT> {
-    type Item = &'a mut u8;
-    type IntoIter = core::slice::IterMut<'a, u8>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter_mut()
-    }
-}
-
-// implement index for BitMatrix and &BitMatrix
-impl<const CELL_COUNT: usize> core::ops::Index<usize> for BitMatrix<CELL_COUNT> {
-    type Output = u8;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-// index that you can assign to
-impl<const CELL_COUNT: usize> core::ops::IndexMut<usize> for BitMatrix<CELL_COUNT> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.0[index]
-    }
-}
+use crate::{bit_matrix::BitMatrix, leds::Leds, pins::OutputArray};
 
 pub struct VirtualDisplay<const CELL_COUNT: usize> {
     signal: &'static Signal<CriticalSectionRawMutex, BitMatrix<CELL_COUNT>>,
@@ -103,8 +34,7 @@ pub const MULTIPLEX_SLEEP: Duration = Duration::from_millis(3);
 impl<const CELL_COUNT: usize> VirtualDisplay<CELL_COUNT> {
     pub fn write_text(&self, text: &str) {
         info!("write_text: {}", text);
-        let bit_matrix = Self::text_to_bit_matrix(text);
-        self.write_bit_matrix(bit_matrix);
+        self.write_bit_matrix(BitMatrix::from_str(text));
     }
     // cmk make bit_matrix a type
     pub fn write_bit_matrix(&self, bit_matrix: BitMatrix<CELL_COUNT>) {
@@ -113,37 +43,8 @@ impl<const CELL_COUNT: usize> VirtualDisplay<CELL_COUNT> {
     }
     pub fn write_number(&self, mut number: u16, padding: u8) {
         info!("write_number: {}", number);
-        let mut bit_matrix = BitMatrix::from_bits(padding);
-
-        for i in (0..CELL_COUNT).rev() {
-            let digit = (number % 10) as usize; // Get the last digit
-            bit_matrix[i] = Leds::DIGITS[digit];
-            number /= 10; // Remove the last digit
-            if number == 0 {
-                break;
-            }
-        }
-        // If the original number was out of range, turn on all decimal points
-        if number > 0 {
-            for bits in &mut bit_matrix {
-                *bits |= Leds::DECIMAL;
-            }
-        }
-        self.write_bit_matrix(bit_matrix);
-    }
-
-    // If too long, turn on all decimal points
-    fn text_to_bit_matrix(text: &str) -> BitMatrix<CELL_COUNT> {
-        let mut result = BitMatrix::default();
-        (0..CELL_COUNT).zip(text.chars()).for_each(|(i, c)| {
-            result[i] = Leds::ASCII_TABLE[c as usize];
-        });
-        if text.len() > CELL_COUNT {
-            for byte in &mut result {
-                *byte |= Leds::DECIMAL;
-            }
-        }
-        result
+        self.write_bit_matrix(BitMatrix::from_number(number, padding));
+        ks
     }
 }
 
