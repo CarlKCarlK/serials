@@ -1,5 +1,7 @@
 use core::ops::BitOrAssign;
 
+use heapless::{LinearMap, Vec};
+
 use crate::leds::Leds;
 
 #[derive(defmt::Format, Debug)]
@@ -56,6 +58,24 @@ impl<const CELL_COUNT: usize> BitMatrix<CELL_COUNT> {
         }
 
         bit_matrix
+    }
+
+    pub fn bits_to_indexes(&self) -> LinearMap<u8, Vec<usize, CELL_COUNT>, CELL_COUNT> {
+        self.iter()
+            .enumerate()
+            .filter(|(_, &bits)| bits != 0) // Filter out zero bits
+            .fold(
+                LinearMap::new(),
+                |mut acc: LinearMap<u8, Vec<usize, CELL_COUNT>, CELL_COUNT>, (index, &bits)| {
+                    if let Some(vec) = acc.get_mut(&bits) {
+                        vec.push(index).unwrap();
+                    } else {
+                        let vec = Vec::from_slice(&[index]).unwrap();
+                        acc.insert(bits, vec).unwrap();
+                    }
+                    acc
+                },
+            )
     }
 }
 

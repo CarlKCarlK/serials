@@ -1,4 +1,4 @@
-use crate::virtual_display::{CELL_COUNT1, SEGMENT_COUNT1};
+use crate::virtual_display::{CELL_COUNT0, SEGMENT_COUNT0};
 use embassy_rp::{
     gpio::{self, Level},
     peripherals::CORE1,
@@ -33,11 +33,13 @@ impl OutputArray<{ u8::BITS as usize }> {
 }
 
 pub(crate) struct Pins {
-    pub(crate) digits1: OutputArray<CELL_COUNT1>,
-    pub(crate) segments1: OutputArray<SEGMENT_COUNT1>,
+    pub(crate) cells0: OutputArray<CELL_COUNT0>,
+    pub(crate) segments0: OutputArray<SEGMENT_COUNT0>,
     pub(crate) button: gpio::Input<'static>,
     _led0: gpio::Output<'static>,
 }
+// cmk pub(crate) vs pub
+// why is _led0 underscored?
 
 impl Pins {
     pub(crate) fn new_and_core1() -> (Self, CORE1) {
@@ -45,14 +47,14 @@ impl Pins {
             embassy_rp::init(embassy_rp::config::Config::default());
         let core1 = peripherals.CORE1;
 
-        let digits1 = OutputArray::new([
+        let cells0 = OutputArray::new([
             gpio::Output::new(peripherals.PIN_1, Level::High),
             gpio::Output::new(peripherals.PIN_2, Level::High),
             gpio::Output::new(peripherals.PIN_3, Level::High),
             gpio::Output::new(peripherals.PIN_4, Level::High),
         ]);
 
-        let segments1 = OutputArray::new([
+        let segments0 = OutputArray::new([
             gpio::Output::new(peripherals.PIN_5, Level::Low),
             gpio::Output::new(peripherals.PIN_6, Level::Low),
             gpio::Output::new(peripherals.PIN_7, Level::Low),
@@ -69,8 +71,8 @@ impl Pins {
 
         (
             Self {
-                digits1,
-                segments1,
+                cells0,
+                segments0,
                 button,
                 _led0: led0,
             },
