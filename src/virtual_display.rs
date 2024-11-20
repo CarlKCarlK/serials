@@ -6,11 +6,15 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal}
 use embassy_time::{Duration, Timer};
 use heapless::{LinearMap, Vec};
 
-use crate::{bit_matrix::BitMatrix, leds::Leds, pins::OutputArray};
+use crate::{bit_matrix::BitMatrix, pins::OutputArray};
 
 pub struct VirtualDisplay<const CELL_COUNT: usize> {
     signal: &'static Signal<CriticalSectionRawMutex, BitMatrix<CELL_COUNT>>,
 }
+// Display #1 is a 4-digit 8s-segment display
+pub const CELL_COUNT1: usize = 4;
+pub const SEGMENT_COUNT1: usize = 8;
+pub const MULTIPLEX_SLEEP: Duration = Duration::from_millis(3);
 
 // cmk only CELL_COUNT1
 impl VirtualDisplay<CELL_COUNT1> {
@@ -26,11 +30,6 @@ impl VirtualDisplay<CELL_COUNT1> {
     }
 }
 
-// Display #1 is a 4-digit 8s-segment display
-pub const CELL_COUNT1: usize = 4;
-pub const SEGMENT_COUNT1: usize = 8;
-pub const MULTIPLEX_SLEEP: Duration = Duration::from_millis(3);
-
 impl<const CELL_COUNT: usize> VirtualDisplay<CELL_COUNT> {
     pub fn write_text(&self, text: &str) {
         info!("write_text: {}", text);
@@ -41,10 +40,9 @@ impl<const CELL_COUNT: usize> VirtualDisplay<CELL_COUNT> {
         info!("write_bit_matrix: {:?}", bit_matrix);
         self.signal.signal(bit_matrix);
     }
-    pub fn write_number(&self, mut number: u16, padding: u8) {
+    pub fn write_number(&self, number: u16, padding: u8) {
         info!("write_number: {}", number);
         self.write_bit_matrix(BitMatrix::from_number(number, padding));
-        ks
     }
 }
 
