@@ -3,9 +3,8 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 use embassy_executor::Spawner;
-use embassy_time::{Duration, Instant};
 use pins::Pins;
-use state_machine::{state_to_state, State};
+use state_machine::{state_to_state, AdjustableClock, State};
 use virtual_display::{Notifier, VirtualDisplay, CELL_COUNT0};
 use {defmt_rtt as _, panic_probe as _};
 
@@ -27,11 +26,15 @@ async fn main(#[allow(clippy::used_underscore_binding)] spawner0: Spawner) {
 
     let mut state = State::First;
     let mut button = pins.button;
-    let start = Instant::now();
-    let mut offset = Duration::default(); // cmk should offset me a virtual thing
+    let mut adjustable_clock = AdjustableClock::default();
     loop {
         defmt::info!("State: {:?}", state);
-        (state, offset) =
-            state_to_state(state, &mut virtual_display, &mut button, start, offset).await;
+        state = state_to_state(
+            state,
+            &mut virtual_display,
+            &mut button,
+            &mut adjustable_clock,
+        )
+        .await;
     }
 }

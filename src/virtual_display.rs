@@ -25,7 +25,7 @@ impl VirtualDisplay<CELL_COUNT0> {
         spawner: Spawner,
     ) -> Self {
         let virtual_display = Self(notifier);
-        unwrap!(spawner.spawn(monitor(digit_pins, segment_pins, notifier)));
+        unwrap!(spawner.spawn(virtual_display_task(digit_pins, segment_pins, notifier)));
         virtual_display
     }
 
@@ -53,7 +53,7 @@ impl<const CELL_COUNT: usize> VirtualDisplay<CELL_COUNT> {
 
 #[embassy_executor::task]
 #[allow(clippy::needless_range_loop)]
-async fn monitor(
+async fn virtual_display_task(
     // cmk does this need 'static? What does it mean?
     mut cell_pins: OutputArray<CELL_COUNT0>,
     mut segment_pins: OutputArray<SEGMENT_COUNT0>,
