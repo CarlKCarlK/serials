@@ -44,23 +44,7 @@ pub(crate) async fn state_to_state(
         State::DisplayOff => display_off_state(virtual_display, button, adjustable_clock).await,
         State::Last => State::First,
     };
-    state // cmk any way to avoid returning offset?
-}
-
-fn display_time(
-    virtual_display: &mut VirtualDisplay<CELL_COUNT0>,
-    adjustable_clock: &AdjustableClock,
-) {
-    // Time since start in minutes
-    let elapsed_minutes = adjustable_clock.now().as_secs() / 60;
-
-    // Calculate the number to display
-    #[allow(clippy::cast_possible_truncation)]
-    let (hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
-    let hours = (hours + 11) % 12 + 1; // 1-12 instead of 0-11
-    let number = hours * 100 + minutes;
-
-    virtual_display.write_number(number, 0);
+    state
 }
 
 const ONE_MIN: Duration = Duration::from_secs(60);
@@ -72,11 +56,17 @@ async fn display_hours_minutes_state(
     adjustable_clock: &AdjustableClock,
 ) -> State {
     loop {
-        display_time(virtual_display, adjustable_clock);
+        let (hours, minutes, seconds) = adjustable_clock.h_m_s();
+
+        virtual_display.write_chars([
+            tens_digit(hours),
+            ones_digit(hours),
+            tens_digit(minutes),
+            ones_digit(minutes),
+        ]);
 
         // Sleep until the top of the next minute or until the button is pressed
-        let seconds: u64 = adjustable_clock.now().as_secs() % 60;
-        let till_next_minute = ONE_MIN - Duration::from_secs(seconds);
+        let till_next_minute = ONE_MIN - Duration::from_secs(seconds.into());
         if let Either::Second(()) = select(
             Timer::after(till_next_minute),
             button.wait_for_rising_edge(),
@@ -91,25 +81,30 @@ async fn display_hours_minutes_state(
     }
 }
 
+#[inline]
+fn tens_digit(value: u8) -> char {
+    ((value / 10) + b'0') as char
+}
+
+#[inline]
+fn ones_digit(value: u8) -> char {
+    ((value % 10) + b'0') as char
+}
+
 async fn display_minutes_seconds_state(
     virtual_display: &mut VirtualDisplay<CELL_COUNT0>,
     button: &mut gpio::Input<'_>,
     adjustable_clock: &AdjustableClock,
 ) -> State {
     loop {
-        let now = adjustable_clock.now();
-        let elapsed_minutes = now.as_secs() / 60;
-        let seconds: u64 = now.as_secs() % 60;
-        #[allow(clippy::cast_possible_truncation)]
-        let (_hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
-        #[allow(clippy::cast_possible_truncation)]
-        let d1 = (minutes / 10) as u8 + b'0';
-        let d2 = (minutes % 10) as u8 + b'0';
-        let d3 = (seconds / 10) as u8 + b'0';
-        let d4 = (seconds % 10) as u8 + b'0';
-        let text = [d1, d2, d3, d4];
-        let text_str: &str = core::str::from_utf8(&text).unwrap();
-        virtual_display.write_text(text_str);
+        let (_, minutes, seconds) = adjustable_clock.h_m_s();
+
+        virtual_display.write_chars([
+            tens_digit(minutes),
+            ones_digit(minutes),
+            tens_digit(seconds),
+            ones_digit(seconds),
+        ]);
 
         if let Either::Second(()) = select(
             Timer::after(Duration::from_secs(1)),
@@ -128,12 +123,10 @@ async fn show_seconds_state(
     button: &mut gpio::Input<'_>,
     adjustable_clock: &AdjustableClock,
 ) -> State {
-    let seconds: u64 = adjustable_clock.now().as_secs() % 60;
-    let d1 = (seconds / 10) as u8 + b'0';
-    let d2 = (seconds % 10) as u8 + b'0';
-    let text = [b' ', d1, d2, b' '];
-    let text_str: &str = core::str::from_utf8(&text).unwrap();
-    virtual_display.write_text(text_str);
+    let (_, _, seconds) = adjustable_clock.h_m_s();
+
+    virtual_display.write_chars([' ', tens_digit(seconds), ones_digit(seconds), ' ']);
+
     button.wait_for_rising_edge().await;
     if let Either::Second(()) = select(
         Timer::after(Duration::from_secs(1)),
@@ -152,27 +145,23 @@ async fn edit_seconds_state(
     button: &mut gpio::Input<'_>,
     adjustable_clock: &mut AdjustableClock,
 ) -> State {
-    virtual_display.write_text(" 00 ");
+    virtual_display.write_chars([' ', '0', '0', ' ']);
     button.wait_for_rising_edge().await;
-    let seconds: u64 = adjustable_clock.now().as_secs() % 60;
-    *adjustable_clock += ONE_MIN - Duration::from_secs(seconds);
+    let (_, _, seconds) = adjustable_clock.h_m_s();
+    let till_next_minute = ONE_MIN - Duration::from_secs(seconds.into());
+    *adjustable_clock += till_next_minute;
     State::ShowMinutes
 }
 
-#[allow(clippy::cast_possible_truncation)]
 async fn show_minutes_state(
     virtual_display: &mut VirtualDisplay<CELL_COUNT0>,
     button: &mut gpio::Input<'_>,
     adjustable_clock: &AdjustableClock,
 ) -> State {
-    let elapsed_minutes = adjustable_clock.now().as_secs() / 60;
+    let (_, minutes, _) = adjustable_clock.h_m_s();
 
-    let (_hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
-    let d1 = (minutes / 10) as u8 + b'0';
-    let d2 = (minutes % 10) as u8 + b'0';
-    let text = [b' ', b' ', d1, d2];
-    let text_str: &str = core::str::from_utf8(&text).unwrap();
-    virtual_display.write_text(text_str);
+    virtual_display.write_chars([' ', ' ', tens_digit(minutes), ones_digit(minutes)]);
+
     button.wait_for_rising_edge().await;
     if let Either::Second(()) = select(
         Timer::after(Duration::from_secs(1)),
@@ -186,7 +175,6 @@ async fn show_minutes_state(
     }
 }
 
-#[allow(clippy::cast_possible_truncation)]
 async fn edit_minutes_state(
     virtual_display: &mut VirtualDisplay<CELL_COUNT0>,
     button: &mut gpio::Input<'_>,
@@ -202,30 +190,26 @@ async fn edit_minutes_state(
             return State::ShowHours;
         }
         *adjustable_clock += ONE_MIN;
-        let elapsed_minutes = adjustable_clock.now().as_secs() / 60;
-        let (_hours, minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
-        let d1 = (minutes / 10) as u8 + b'0';
-        let d2 = (minutes % 10) as u8 + b'0';
-        let text = [b' ', b' ', d1, d2];
-        let text_str: &str = core::str::from_utf8(&text).unwrap();
-        virtual_display.write_text(text_str);
+        let (_, minutes, _) = adjustable_clock.h_m_s();
+
+        virtual_display.write_chars([' ', ' ', tens_digit(minutes), ones_digit(minutes)]);
     }
 }
 
-#[allow(clippy::cast_possible_truncation)]
 async fn show_hours_state(
     virtual_display: &mut VirtualDisplay<CELL_COUNT0>,
     button: &mut gpio::Input<'_>,
     adjustable_clock: &AdjustableClock,
 ) -> State {
-    let elapsed_minutes = adjustable_clock.now().as_secs() / 60;
-    let (hours, _minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
-    let hours = (hours + 11) % 12 + 1; // 1-12 instead of 0-11
-    let d1 = if hours >= 10 { b'1' } else { b' ' };
-    let d2 = (hours % 10) as u8 + b'0';
-    let text = [d1, d2, b' ', b' '];
-    let text_str: &str = core::str::from_utf8(&text).unwrap();
-    virtual_display.write_text(text_str);
+    let (hours, _, _) = adjustable_clock.h_m_s();
+
+    virtual_display.write_chars([
+        if hours >= 10 { '1' } else { ' ' },
+        ones_digit(hours),
+        ' ',
+        ' ',
+    ]);
+
     button.wait_for_rising_edge().await;
     if let Either::Second(()) = select(
         Timer::after(Duration::from_secs(1)),
@@ -254,15 +238,14 @@ async fn edit_hours_state(
             return State::DisplayOff;
         }
         *adjustable_clock += ONE_HOUR;
-        let elapsed_minutes = adjustable_clock.now().as_secs() / 60;
-        #[allow(clippy::cast_possible_truncation)]
-        let (hours, _minutes) = ((elapsed_minutes / 60) as u16, (elapsed_minutes % 60) as u16);
-        let hours = (hours + 11) % 12 + 1; // 1-12 instead of 0-11
-        let d1 = if hours >= 10 { b'1' } else { b' ' };
-        let d2 = (hours % 10) as u8 + b'0';
-        let text = [d1, d2, b' ', b' '];
-        let text_str: &str = core::str::from_utf8(&text).unwrap();
-        virtual_display.write_text(text_str);
+        let (hours, _, _) = adjustable_clock.h_m_s();
+
+        virtual_display.write_chars([
+            if hours >= 10 { '1' } else { ' ' },
+            ones_digit(hours),
+            ' ',
+            ' ',
+        ]);
     }
 }
 
@@ -271,7 +254,7 @@ async fn display_off_state(
     button: &mut gpio::Input<'_>,
     _adjustable_clock: &AdjustableClock,
 ) -> State {
-    virtual_display.write_text("    ");
+    virtual_display.write_chars([' ', ' ', ' ', ' ']);
     button.wait_for_rising_edge().await;
     button.wait_for_falling_edge().await;
     State::Last
@@ -292,8 +275,20 @@ impl Default for AdjustableClock {
 }
 
 impl AdjustableClock {
-    pub fn now(&self) -> Duration {
-        Instant::now() + self.offset - self.start
+    #[inline]
+    fn now(&self) -> Duration {
+        Instant::now() - self.start + self.offset
+    }
+
+    // If only one or two of the components (e.g., hours or minutes) are used, the compiler can eliminate the unused calculations during inlining
+    #[inline]
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn h_m_s(&self) -> (u8, u8, u8) {
+        let elapsed_seconds = self.now().as_secs();
+        let hours = ((elapsed_seconds / 3600) + 11) % 12 + 1; // 1-12 instead of 0-11
+        let minutes = (elapsed_seconds % 3600) / 60;
+        let seconds = elapsed_seconds % 60;
+        (hours as u8, minutes as u8, seconds as u8)
     }
 }
 

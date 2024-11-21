@@ -35,19 +35,9 @@ impl VirtualDisplay<CELL_COUNT0> {
 }
 
 impl<const CELL_COUNT: usize> VirtualDisplay<CELL_COUNT> {
-    // cmk write_, print_, display_, ????
-    pub fn write_text(&self, text: &str) {
-        info!("write_text: {}", text);
-        self.write_bit_matrix(BitMatrix::from_str(text));
-    }
-    // cmk make bit_matrix a type
-    pub fn write_bit_matrix(&self, bit_matrix: BitMatrix<CELL_COUNT>) {
-        info!("write_bit_matrix: {:?}", bit_matrix);
-        self.0.signal(bit_matrix);
-    }
-    pub fn write_number(&self, number: u16, padding: u8) {
-        info!("write_number: {}", number);
-        self.write_bit_matrix(BitMatrix::from_number(number, padding));
+    pub fn write_chars(&self, chars: [char; CELL_COUNT]) {
+        info!("write_chars: {:?}", chars);
+        self.0.signal(BitMatrix::from_chars(&chars));
     }
 }
 

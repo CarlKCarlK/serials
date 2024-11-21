@@ -24,22 +24,24 @@ impl<const CELL_COUNT: usize> BitMatrix<CELL_COUNT> {
     }
 
     // If too long, turn on all decimal points
-    pub fn from_str<S: AsRef<str>>(text: S) -> Self {
-        let text = text.as_ref(); // Get a `&str` reference
+    pub fn from_str<S: AsRef<str>>(str: S) -> Self {
+        let str = str.as_ref();
+
         let mut bit_matrix = BitMatrix::default();
+        for (bits, c) in bit_matrix.iter_mut().zip(str.chars()) {
+            *bits = Leds::ASCII_TABLE[c as usize];
+        }
 
-        bit_matrix
-            .iter_mut()
-            .zip(text.chars())
-            .for_each(|(bits, c)| {
-                *bits = Leds::ASCII_TABLE[c as usize];
-            });
-
-        if text.len() > CELL_COUNT {
+        if str.len() > CELL_COUNT {
             bit_matrix |= Leds::DECIMAL;
         }
 
         bit_matrix
+    }
+
+    pub fn from_chars(chars: &[char; CELL_COUNT]) -> Self {
+        let bytes = chars.map(|c| Leds::ASCII_TABLE[c as usize]);
+        Self::new(bytes)
     }
 
     pub fn from_number(mut number: u16, padding: u8) -> Self {
