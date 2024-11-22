@@ -2,42 +2,47 @@
 
 use embassy_futures::select::{select, Either};
 use embassy_rp::gpio::Input;
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Instant, Timer};
 
 // cmk why does brad pass AnyPin to the button constructor while I pass Input that was created in the pins module?
 
 // cmk must this be static?
-pub struct Button(pub Input<'static>); // cmk remove this 'pub'
+pub struct Button {
+    pub inner: Input<'static>, // cmk remove this 'pub'
+    time_down: Option<Instant>,
+}
+
 impl Button {
     #[must_use]
     pub fn new(button: Input<'static>) -> Self {
-        Self(button)
+        Self {
+            inner: button,
+            time_down: None,
+        }
+    }
+
+    pub fn is_up(&self) -> bool {
+        self.inner.is_low()
     }
 
     pub async fn wait_for_press(&mut self) -> PressDuration {
-        // wait for the button to be released
-        self.wait_for_button_up().await;
-        self.debounce_delay().await;
+        let how_much_longer = if self.is_up() {
+            self.wait_for_down().await;
+            self.debounce_delay().await; // cmk
+            self.time_down = Some(Instant::now());
+            LONG_PRESS_DURATION
+        } else {
+            // How long has the button been down so far?
+            let how_long_so_far = self.time_down.map_or(Duration::from_secs(0), |time_down| {
+                Instant::now() - time_down
+            });
 
-        // Wait for the voltage level on this pin to go high (button has been pressed)
-        self.wait_for_button_down().await;
-
-        // Sometimes the start (and end) of a press can be "noisy" (fluctuations between
-        // "pressed" and "unpressed" states on the microsecond time scale as the physical
-        // contacts change from "not touching" through "almost touching" to "touching" (or
-        // vice-versa)).  We're going to ignore the button's state during the noisy, fluctuating
-        // "almost touching" state.  This is called "debouncing".
-        self.debounce_delay().await;
-
-        // The button is now fully depressed.
-
-        // Wait for the button to be released or to be a "LONG" press.
-        match select(
-            self.wait_for_down_press(),
-            Timer::after(LONG_PRESS_DURATION),
-        )
-        .await
-        {
+            // Calculate remaining time for a long press, ensuring it's not negative
+            LONG_PRESS_DURATION
+                .checked_sub(how_long_so_far)
+                .unwrap_or_default()
+        };
+        match select(self.wait_for_release(), Timer::after(how_much_longer)).await {
             Either::First(_) => PressDuration::Short,
             Either::Second(()) => PressDuration::Long,
         }
@@ -50,20 +55,19 @@ impl Button {
     }
 
     /// Pause until voltage is present on the input pin.
-    async fn wait_for_button_down(&mut self) -> &mut Self {
-        self.0.wait_for_high().await;
+    async fn wait_for_down(&mut self) -> &mut Self {
+        self.inner.wait_for_high().await;
         self
     }
 
     // wait for the button to be released
-    async fn wait_for_button_up(&mut self) -> &mut Self {
-        self.0.wait_for_low().await;
+    pub async fn wait_for_up(&mut self) -> &mut Self {
+        self.inner.wait_for_low().await;
         self
     }
 
-    /// Pause until voltage on the input pin begins to go away.
-    async fn wait_for_down_press(&mut self) -> &mut Self {
-        self.0.wait_for_falling_edge().await;
+    async fn wait_for_release(&mut self) -> &mut Self {
+        self.inner.wait_for_falling_edge().await;
         self
     }
 }
@@ -91,4 +95,4 @@ impl From<Duration> for PressDuration {
 }
 
 pub const BUTTON_DEBOUNCE_DELAY: Duration = Duration::from_millis(10);
-pub const LONG_PRESS_DURATION: Duration = Duration::from_millis(500);
+pub const LONG_PRESS_DURATION: Duration = Duration::from_millis(2000);

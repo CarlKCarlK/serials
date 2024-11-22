@@ -1,5 +1,25 @@
 # Clock
 
+## State Diagram
+
+```mermaid
+stateDiagram-v2
+    Display_HH_MM --> Display_MM_SS : Tap
+    Display_MM_SS --> Display_HH_MM : Tap
+    Display_HH_MM --> Display_SS : Hold_&_Release
+    Display_MM_SS --> Display_SS : Hold_&_Release
+    Display_SS --> Display_MM : Tap
+    Display_SS --> SS_To_00 : Hold
+    SS_To_00 --> Display_SS : Release
+    Display_MM --> Display_HH : Tap
+    Display_MM --> MM_Increment : Hold
+    MM_Increment --> Display_MM : Release
+    Display_HH --> Display_HH_MM : Tap
+    Display_HH --> HH_Increment : Hold
+    HH_Increment --> Display_HH : Release
+    
+```
+
 Use a quick press to switch between:
 
 * HH:MM
