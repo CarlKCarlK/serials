@@ -1,12 +1,15 @@
 use defmt::{info, unwrap};
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Timer};
+
+const BLINK_OFF_DELAY: Duration = Duration::from_millis(50); // const cmk
+const BLINK_ON_DELAY: Duration = Duration::from_millis(150); // const cmk
 
 use crate::{
     adjustable_clock::AdjustableClock,
-    state_machine::{ones_digit, tens_digit, tens_hours},
+    state_machine::{ones_digit, tens_digit, tens_hours, ONE_MINUTE},
     virtual_display::{VirtualDisplay, CELL_COUNT0},
 };
 
@@ -14,7 +17,7 @@ use crate::{
 pub struct VirtualClock(&'static ClockNotifier);
 
 // cmk we need to distinguish between the notifier for the clock and the display
-pub type ClockNotifier = Signal<CriticalSectionRawMutex, (ClockMode, BlinkMode)>;
+pub type ClockNotifier = Channel<CriticalSectionRawMutex, ClockUpdate, 4>;
 
 // cmk only CELL_COUNT0
 impl VirtualClock {
@@ -33,21 +36,41 @@ impl VirtualClock {
     // cmk is this the standard way to create a new notifier?
     // cmk it will be annoying to have to create a new display before creating a new clock
     pub const fn new_notifier() -> ClockNotifier {
-        Signal::new()
+        Channel::new()
+    }
+
+    pub async fn set_mode(&self, clock_mode: ClockMode, blink_mode: BlinkMode) {
+        self.0
+            .send(ClockUpdate::SetMode {
+                clock_mode,
+                blink_mode,
+            })
+            .await;
+    }
+
+    pub async fn adjust_offset(&self, delta: Duration) {
+        self.0.send(ClockUpdate::AdjustOffset(delta)).await;
+    }
+
+    pub async fn reset_seconds(&self) {
+        self.0.send(ClockUpdate::ResetSeconds).await;
     }
 }
 
-// impl VirtualClock {
-//     pub fn write_chars(&self, chars: [char; CELL_COUNT]) {
-//         info!("write_chars: {:?}", chars);
-//         self.0.signal(BitMatrix::from_chars(&chars));
-//     }
-// }
+pub enum ClockUpdate {
+    SetMode {
+        clock_mode: ClockMode,
+        blink_mode: BlinkMode,
+    },
+    AdjustOffset(Duration),
+    ResetSeconds,
+}
 
 pub enum ClockMode {
     HhMm,
     MmSs,
     Ss,
+    SsIs00,
     Mm,
     Hh,
 }
@@ -58,6 +81,7 @@ pub enum BlinkMode {
     BlinkingButOff,
 }
 
+#[allow(clippy::too_many_lines)] // cmk
 #[embassy_executor::task]
 #[allow(clippy::needless_range_loop)]
 async fn virtual_clock_task(
@@ -69,8 +93,6 @@ async fn virtual_clock_task(
     let mut adjustable_clock = AdjustableClock::default();
     let mut clock_mode = ClockMode::MmSs;
     let mut blink_mode = BlinkMode::NoBlink;
-    const BLINK_OFF_DELAY: Duration = Duration::from_millis(50); // const cmk
-    const BLINK_ON_DELAY: Duration = Duration::from_millis(150); // const cmk
     loop {
         let update = match blink_mode {
             BlinkMode::BlinkingButOff => {
@@ -114,6 +136,10 @@ async fn virtual_clock_task(
                         ]);
                         update
                     }
+                    ClockMode::SsIs00 => {
+                        virtual_display.write_chars([' ', '0', '0', ' ']);
+                        Duration::from_secs(60 * 60 * 24) // cmk const
+                    }
                     ClockMode::Mm => {
                         let (_, minutes, _, update) =
                             adjustable_clock.h_m_s_update(Duration::from_secs(60)); // const
@@ -146,11 +172,27 @@ async fn virtual_clock_task(
         };
 
         info!("Sleep for {:?}", update);
-        if let Either::Second((new_clock_mode, new_blink_mode)) =
-            select(Timer::after(update), clock_notifier.wait()).await
+        if let Either::Second(clock_update) =
+            select(Timer::after(update), clock_notifier.receive()).await
         {
-            clock_mode = new_clock_mode;
-            blink_mode = new_blink_mode;
+            match clock_update {
+                ClockUpdate::AdjustOffset(delta) => {
+                    adjustable_clock += delta;
+                }
+                ClockUpdate::SetMode {
+                    clock_mode: new_clock_mode,
+                    blink_mode: new_blink_mode,
+                } => {
+                    clock_mode = new_clock_mode;
+                    blink_mode = new_blink_mode;
+                }
+                ClockUpdate::ResetSeconds => {
+                    let now_mod_minute = Duration::from_ticks(
+                        adjustable_clock.now().as_ticks() % ONE_MINUTE.as_ticks(),
+                    );
+                    adjustable_clock += ONE_MINUTE - now_mod_minute;
+                }
+            }
             continue;
         }
     }
