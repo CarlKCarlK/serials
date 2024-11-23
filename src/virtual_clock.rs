@@ -5,27 +5,34 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channe
 use embassy_time::{Duration, Timer};
 
 use crate::{
-    blinkable_display::{BlinkMode, BlinkableDisplay},
+    blinkable_display::{BlinkMode, BlinkableDisplay, BlinkableNotifier},
     offset_time::OffsetTime,
+    pins::OutputArray,
     state_machine::{ones_digit, tens_digit, tens_hours, ONE_MINUTE},
+    virtual_display::{CELL_COUNT0, SEGMENT_COUNT0},
 };
 
 // cmk the virtual prefix is annoying
-pub struct VirtualClock(&'static ClockNotifier);
+pub struct VirtualClock(&'static Channel<CriticalSectionRawMutex, ClockUpdate, 4>);
 
 // cmk we need to distinguish between the notifier for the clock and the display
-pub type ClockNotifier = Channel<CriticalSectionRawMutex, ClockUpdate, 4>;
+pub type ClockNotifier = (
+    Channel<CriticalSectionRawMutex, ClockUpdate, 4>,
+    BlinkableNotifier,
+);
 
 // cmk only CELL_COUNT0
 impl VirtualClock {
     pub fn new(
-        blinkable_display: BlinkableDisplay,
+        digit_pins: OutputArray<CELL_COUNT0>,
+        segment_pins: OutputArray<SEGMENT_COUNT0>,
         clock_notifier: &'static ClockNotifier,
         spawner: Spawner,
     ) -> Self {
-        // cmk000 start the virtualDisplay, too
-        let virtual_clock = Self(clock_notifier);
-        unwrap!(spawner.spawn(virtual_clock_task(blinkable_display, clock_notifier)));
+        let blinkable_display =
+            BlinkableDisplay::new(digit_pins, segment_pins, &clock_notifier.1, spawner);
+        let virtual_clock = Self(&clock_notifier.0);
+        unwrap!(spawner.spawn(virtual_clock_task(blinkable_display, &clock_notifier.0)));
         virtual_clock
     }
 
@@ -33,7 +40,7 @@ impl VirtualClock {
     // cmk is this the standard way to create a new notifier?
     // cmk it will be annoying to have to create a new display before creating a new clock
     pub const fn new_notifier() -> ClockNotifier {
-        Channel::new()
+        (Channel::new(), BlinkableDisplay::new_notifier())
     }
 
     pub async fn set_mode(&self, clock_mode: ClockMode) {
@@ -71,7 +78,7 @@ pub enum ClockMode {
 async fn virtual_clock_task(
     // cmk does this need 'static? What does it mean?
     blinkable_display: BlinkableDisplay,
-    clock_notifier: &'static ClockNotifier,
+    clock_notifier: &'static Channel<CriticalSectionRawMutex, ClockUpdate, 4>,
 ) -> ! {
     let mut offset_time = OffsetTime::default();
     let mut clock_mode = ClockMode::MmSs;

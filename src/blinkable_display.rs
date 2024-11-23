@@ -4,27 +4,38 @@ use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Timer};
 
-use crate::virtual_display::{VirtualDisplay, CELL_COUNT0};
+use crate::{
+    pins::OutputArray,
+    virtual_display::{Notifier, VirtualDisplay, CELL_COUNT0, SEGMENT_COUNT0},
+};
 
 const BLINK_OFF_DELAY: Duration = Duration::from_millis(50); // const cmk
 const BLINK_ON_DELAY: Duration = Duration::from_millis(150); // const cmk
 
-pub struct BlinkableDisplay(&'static BlinkableNotifier);
-pub type BlinkableNotifier = Signal<CriticalSectionRawMutex, (BlinkMode, [char; CELL_COUNT0])>;
+pub struct BlinkableDisplay(
+    &'static Signal<CriticalSectionRawMutex, (BlinkMode, [char; CELL_COUNT0])>,
+);
+pub type BlinkableNotifier = (
+    Signal<CriticalSectionRawMutex, (BlinkMode, [char; CELL_COUNT0])>,
+    Notifier<CELL_COUNT0>,
+);
 
 impl BlinkableDisplay {
     pub fn new(
-        virtual_display: VirtualDisplay<CELL_COUNT0>,
+        digit_pins: OutputArray<CELL_COUNT0>,
+        segment_pins: OutputArray<SEGMENT_COUNT0>,
         notifier: &'static BlinkableNotifier,
         spawner: Spawner,
     ) -> Self {
-        let blinkable_display = Self(notifier);
-        unwrap!(spawner.spawn(blinkable_display_task(virtual_display, notifier)));
+        let virtual_display = VirtualDisplay::new(digit_pins, segment_pins, &notifier.1, spawner);
+
+        let blinkable_display = Self(&notifier.0);
+        unwrap!(spawner.spawn(blinkable_display_task(virtual_display, &notifier.0)));
         blinkable_display
     }
 
     pub const fn new_notifier() -> BlinkableNotifier {
-        Signal::new()
+        (Signal::new(), VirtualDisplay::new_notifier())
     }
 }
 
@@ -32,7 +43,7 @@ impl BlinkableDisplay {
 #[allow(clippy::needless_range_loop)]
 async fn blinkable_display_task(
     virtual_display: VirtualDisplay<CELL_COUNT0>,
-    notifier: &'static BlinkableNotifier,
+    notifier: &'static Signal<CriticalSectionRawMutex, (BlinkMode, [char; CELL_COUNT0])>,
 ) -> ! {
     let mut blink_mode = BlinkMode::Solid;
     let mut chars = [' '; CELL_COUNT0];
