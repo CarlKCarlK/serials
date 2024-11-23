@@ -2,6 +2,7 @@
 #![no_main]
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
+use blinkable_display::{BlinkableDisplay, BlinkableNotifier};
 use button::Button;
 use defmt::info;
 use embassy_executor::Spawner;
@@ -12,6 +13,7 @@ use virtual_display::{Notifier, VirtualDisplay, CELL_COUNT0};
 use {defmt_rtt as _, panic_probe as _};
 
 mod bit_matrix;
+mod blinkable_display;
 mod button;
 mod leds;
 mod offset_time;
@@ -31,8 +33,10 @@ async fn main(#[allow(clippy::used_underscore_binding)] spawner0: Spawner) {
     static NOTIFIER0: Notifier<CELL_COUNT0> = VirtualDisplay::new_notifier();
     let virtual_display = VirtualDisplay::new(pins.cells0, pins.segments0, &NOTIFIER0, spawner0);
     info!("VirtualDisplay created");
+    static BLINKABLE_NOTIFIER0: BlinkableNotifier = BlinkableDisplay::new_notifier();
+    let blinkable_display = BlinkableDisplay::new(virtual_display, &BLINKABLE_NOTIFIER0, spawner0);
     static CLOCK_NOTIFIER0: ClockNotifier = VirtualClock::new_notifier();
-    let mut virtual_clock = VirtualClock::new(virtual_display, &CLOCK_NOTIFIER0, spawner0);
+    let mut virtual_clock = VirtualClock::new(blinkable_display, &CLOCK_NOTIFIER0, spawner0);
     info!("VirtualClock created");
 
     let mut button = Button::new(pins.button);

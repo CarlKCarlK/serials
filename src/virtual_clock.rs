@@ -5,9 +5,9 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channe
 use embassy_time::{Duration, Timer};
 
 use crate::{
+    blinkable_display::{BlinkMode, BlinkableDisplay},
     offset_time::OffsetTime,
     state_machine::{ones_digit, tens_digit, tens_hours, ONE_MINUTE},
-    virtual_display::{BlinkMode, VirtualDisplay, CELL_COUNT0},
 };
 
 // cmk the virtual prefix is annoying
@@ -19,13 +19,13 @@ pub type ClockNotifier = Channel<CriticalSectionRawMutex, ClockUpdate, 4>;
 // cmk only CELL_COUNT0
 impl VirtualClock {
     pub fn new(
-        virtual_display: VirtualDisplay<CELL_COUNT0>,
+        blinkable_display: BlinkableDisplay,
         clock_notifier: &'static ClockNotifier,
         spawner: Spawner,
     ) -> Self {
         // cmk000 start the virtualDisplay, too
         let virtual_clock = Self(clock_notifier);
-        unwrap!(spawner.spawn(virtual_clock_task(virtual_display, clock_notifier)));
+        unwrap!(spawner.spawn(virtual_clock_task(blinkable_display, clock_notifier)));
         virtual_clock
     }
 
@@ -70,7 +70,7 @@ pub enum ClockMode {
 #[allow(clippy::needless_range_loop)]
 async fn virtual_clock_task(
     // cmk does this need 'static? What does it mean?
-    virtual_display: VirtualDisplay<CELL_COUNT0>,
+    blinkable_display: BlinkableDisplay,
     clock_notifier: &'static ClockNotifier,
 ) -> ! {
     let mut offset_time = OffsetTime::default();
@@ -90,18 +90,7 @@ async fn virtual_clock_task(
         };
 
         // Update the display
-        virtual_display.write_chars(chars, blink_mode);
-
-        // // Update blinking state and update the sleep duration.
-        // blink_mode = match blink_mode {
-        //     BlinkMode::BlinkingAndOn => {
-        //         sleep_duration = BLINK_ON_DELAY.min(sleep_duration);
-        //         BlinkMode::BlinkingButOff
-        //     }
-        //     BlinkMode::BlinkingButOff => BlinkMode::BlinkingAndOn,
-        //     BlinkMode::NoBlink => BlinkMode::NoBlink,
-        // };
-        // cmk00000 move blink mode into the virtual display
+        blinkable_display.write_chars(chars, blink_mode);
 
         // Wait for a notification or for the sleep duration to elapse
         info!("Sleep for {:?}", sleep_duration);
