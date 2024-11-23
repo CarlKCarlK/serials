@@ -24,6 +24,7 @@ mod virtual_display;
 
 #[embassy_executor::main]
 async fn main(#[allow(clippy::used_underscore_binding)] spawner0: Spawner) {
+    info!("build time: {}", env!("BUILD_TIME"));
     let (pins, _core1) = Pins::new_and_core1();
 
     // cmk what would it look like to have another virtual display? Do we need CellCount0 here? should define a macro?

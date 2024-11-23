@@ -7,6 +7,8 @@
 
 use std::{env, fs::File, io::Write, path::PathBuf};
 
+use chrono::{Local, Timelike};
+
 fn main() -> Result<(), Box<dyn core::error::Error>> {
     // Put `memory.x` in our output directory and ensure it's on the linker search path.
     let out =
@@ -16,6 +18,19 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
 
     // Tell `cargo` to rebuild project if `memory.x` linker script file changes
     println!("cargo:rerun-if-changed=memory.x");
+
+    println!("cargo:rerun-if-changed=build.rs"); // Re-run if this file changes
+    println!("cargo:rerun-if-changed=*"); // Re-run if any file in the project changes
+
+    // Put the current millis since the Epoch into an environment variable
+    let now = Local::now();
+    // Calculate the time since local midnight
+    let millis_since_midnight = now.hour() as u64 * 60 * 60 * 1000  // Hours to milliseconds
+        + now.minute() as u64 * 60 * 1000                          // Minutes to milliseconds
+        + now.second() as u64 * 1000                              // Seconds to milliseconds
+        + now.timestamp_subsec_millis() as u64 // Milliseconds
+        + 4000; // Add 4 seconds to the time to allow for the build process
+    println!("cargo:rustc-env=BUILD_TIME={}", millis_since_midnight);
 
     Ok(())
 }

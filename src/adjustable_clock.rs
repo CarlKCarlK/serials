@@ -1,5 +1,6 @@
 use core::ops::AddAssign;
 
+use defmt::info;
 use embassy_time::{Duration, Instant};
 
 pub struct AdjustableClock {
@@ -9,9 +10,14 @@ pub struct AdjustableClock {
 
 impl Default for AdjustableClock {
     fn default() -> Self {
+        let build_time_millis = option_env!("BUILD_TIME")
+            .and_then(|val| val.parse::<u64>().ok())
+            .unwrap_or(0);
+        info!("Now: {:?}", Instant::now());
+        // Convert build time (Unix epoch) to an offset Duration
         Self {
             start: Instant::now(),
-            offset: Duration::default(),
+            offset: Duration::from_millis(build_time_millis),
         }
     }
 }
@@ -38,5 +44,11 @@ impl AdjustableClock {
 impl AddAssign<Duration> for AdjustableClock {
     fn add_assign(&mut self, duration: Duration) {
         self.offset += duration;
+        info!(
+            "Now: {:?}, start: {:?}, Offset: {:?}",
+            Instant::now().as_millis(),
+            self.start.as_millis(),
+            self.offset.as_millis()
+        );
     }
 }
