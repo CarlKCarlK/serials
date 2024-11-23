@@ -9,7 +9,7 @@ use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use pins::Pins;
 use state_machine::State;
-use virtual_clock::{ClockMode, ClockNotifier, VirtualClock};
+use virtual_clock::{BlinkMode, ClockMode, ClockNotifier, VirtualClock};
 use virtual_display::{Notifier, VirtualDisplay, CELL_COUNT0};
 use {defmt_rtt as _, panic_probe as _};
 
@@ -39,9 +39,15 @@ async fn main(#[allow(clippy::used_underscore_binding)] spawner0: Spawner) {
     // sleep forever
     loop {
         Timer::after(Duration::from_secs(5)).await;
-        CLOCK_NOTIFIER0.signal(ClockMode::HhMm);
+        CLOCK_NOTIFIER0.signal((ClockMode::HhMm, BlinkMode::NoBlink));
         Timer::after(Duration::from_secs(3)).await;
-        CLOCK_NOTIFIER0.signal(ClockMode::MmSs);
+        CLOCK_NOTIFIER0.signal((ClockMode::MmSs, BlinkMode::NoBlink));
+        Timer::after(Duration::from_secs(5)).await;
+        CLOCK_NOTIFIER0.signal((ClockMode::Ss, BlinkMode::BlinkingAndOn));
+        Timer::after(Duration::from_secs(3)).await;
+        CLOCK_NOTIFIER0.signal((ClockMode::Mm, BlinkMode::BlinkingAndOn));
+        Timer::after(Duration::from_secs(5)).await;
+        CLOCK_NOTIFIER0.signal((ClockMode::Hh, BlinkMode::BlinkingAndOn));
     }
 }
 
