@@ -1,4 +1,4 @@
-// cmk what is this just button, but the display is 'virtual_display'?
+// cmk why is this just button, but the display is 'virtual_display'?
 
 use defmt::info;
 use embassy_futures::select::{select, Either};
