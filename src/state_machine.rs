@@ -1,6 +1,6 @@
 use crate::{
     button::{Button, PressDuration},
-    virtual_clock::{BlinkMode, ClockMode, VirtualClock},
+    virtual_clock::{ClockMode, VirtualClock},
 };
 use embassy_futures::select::{select, Either};
 use embassy_time::{Duration, Timer};
@@ -52,9 +52,7 @@ async fn display_hours_minutes_state(
     virtual_clock: &mut VirtualClock,
     button: &mut Button,
 ) -> State {
-    virtual_clock
-        .set_mode(ClockMode::HhMm, BlinkMode::NoBlink)
-        .await;
+    virtual_clock.set_mode(ClockMode::HhMm).await;
     match button.wait_for_press().await {
         PressDuration::Short => State::DisplayMinutesSeconds,
         PressDuration::Long => State::ShowSeconds,
@@ -65,9 +63,7 @@ async fn display_minutes_seconds_state(
     virtual_clock: &mut VirtualClock,
     button: &mut Button,
 ) -> State {
-    virtual_clock
-        .set_mode(ClockMode::MmSs, BlinkMode::NoBlink)
-        .await;
+    virtual_clock.set_mode(ClockMode::MmSs).await;
     match button.wait_for_press().await {
         PressDuration::Short => State::DisplayHoursMinutes,
         PressDuration::Long => State::ShowSeconds,
@@ -75,9 +71,7 @@ async fn display_minutes_seconds_state(
 }
 
 async fn show_seconds_state(virtual_clock: &mut VirtualClock, button: &mut Button) -> State {
-    virtual_clock
-        .set_mode(ClockMode::Ss, BlinkMode::BlinkingAndOn)
-        .await;
+    virtual_clock.set_mode(ClockMode::SsBlink).await;
     button.wait_for_up().await;
     match button.wait_for_press().await {
         PressDuration::Short => State::ShowMinutes,
@@ -86,18 +80,14 @@ async fn show_seconds_state(virtual_clock: &mut VirtualClock, button: &mut Butto
 }
 
 async fn edit_seconds_state(virtual_clock: &mut VirtualClock, button: &mut Button) -> State {
-    virtual_clock
-        .set_mode(ClockMode::SsIs00, BlinkMode::NoBlink)
-        .await;
+    virtual_clock.set_mode(ClockMode::SsIs00).await;
     button.inner.wait_for_rising_edge().await; // cmk raising edge?
     virtual_clock.reset_seconds().await;
     State::ShowSeconds
 }
 
 async fn show_minutes_state(virtual_clock: &mut VirtualClock, button: &mut Button) -> State {
-    virtual_clock
-        .set_mode(ClockMode::Mm, BlinkMode::BlinkingAndOn)
-        .await;
+    virtual_clock.set_mode(ClockMode::MmBlink).await;
     match button.wait_for_press().await {
         PressDuration::Short => State::ShowHours,
         PressDuration::Long => State::EditMinutes,
@@ -115,16 +105,12 @@ async fn edit_minutes_state(virtual_clock: &mut VirtualClock, button: &mut Butto
             return State::ShowMinutes;
         }
         virtual_clock.adjust_offset(ONE_MINUTE).await;
-        virtual_clock
-            .set_mode(ClockMode::Mm, BlinkMode::NoBlink)
-            .await;
+        virtual_clock.set_mode(ClockMode::MmSolid).await;
     }
 }
 
 async fn show_hours_state(virtual_clock: &mut VirtualClock, button: &mut Button) -> State {
-    virtual_clock
-        .set_mode(ClockMode::Hh, BlinkMode::BlinkingAndOn)
-        .await;
+    virtual_clock.set_mode(ClockMode::HhBlink).await;
     match button.wait_for_press().await {
         PressDuration::Short => State::Last,
         PressDuration::Long => State::EditHours,
@@ -142,9 +128,7 @@ async fn edit_hours_state(virtual_clock: &mut VirtualClock, button: &mut Button)
             return State::ShowHours;
         }
         virtual_clock.adjust_offset(ONE_HOUR).await;
-        virtual_clock
-            .set_mode(ClockMode::Hh, BlinkMode::NoBlink)
-            .await;
+        virtual_clock.set_mode(ClockMode::HhSolid).await;
     }
 }
 

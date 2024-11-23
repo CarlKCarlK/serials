@@ -4,13 +4,10 @@ use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Timer};
 
-const BLINK_OFF_DELAY: Duration = Duration::from_millis(50); // const cmk
-const BLINK_ON_DELAY: Duration = Duration::from_millis(150); // const cmk
-
 use crate::{
     offset_time::OffsetTime,
     state_machine::{ones_digit, tens_digit, tens_hours, ONE_MINUTE},
-    virtual_display::{VirtualDisplay, CELL_COUNT0},
+    virtual_display::{BlinkMode, VirtualDisplay, CELL_COUNT0},
 };
 
 // cmk the virtual prefix is annoying
@@ -39,13 +36,8 @@ impl VirtualClock {
         Channel::new()
     }
 
-    pub async fn set_mode(&self, clock_mode: ClockMode, blink_mode: BlinkMode) {
-        self.0
-            .send(ClockUpdate::SetMode {
-                clock_mode,
-                blink_mode,
-            })
-            .await;
+    pub async fn set_mode(&self, clock_mode: ClockMode) {
+        self.0.send(ClockUpdate::SetMode { clock_mode }).await;
     }
 
     pub async fn adjust_offset(&self, delta: Duration) {
@@ -58,10 +50,7 @@ impl VirtualClock {
 }
 
 pub enum ClockUpdate {
-    SetMode {
-        clock_mode: ClockMode,
-        blink_mode: BlinkMode,
-    },
+    SetMode { clock_mode: ClockMode },
     AdjustOffset(Duration),
     ResetSeconds,
 }
@@ -69,16 +58,12 @@ pub enum ClockUpdate {
 pub enum ClockMode {
     HhMm,
     MmSs,
-    Ss,
+    SsBlink,
     SsIs00,
-    Mm,
-    Hh,
-}
-
-pub enum BlinkMode {
-    NoBlink,
-    BlinkingAndOn,
-    BlinkingButOff,
+    MmBlink,
+    MmSolid,
+    HhBlink,
+    HhSolid,
 }
 
 #[embassy_executor::task]
@@ -90,31 +75,32 @@ async fn virtual_clock_task(
 ) -> ! {
     let mut offset_time = OffsetTime::default();
     let mut clock_mode = ClockMode::MmSs;
-    let mut blink_mode = BlinkMode::NoBlink;
     loop {
         // Compute the display and time until the display change.
-        let (chars, mut sleep_duration) = match (&blink_mode, &clock_mode) {
-            (BlinkMode::BlinkingButOff, _) => handle_off(&offset_time),
-            (_, ClockMode::HhMm) => handle_hh_mm(&offset_time),
-            (_, ClockMode::MmSs) => handle_mm_ss(&offset_time),
-            (_, ClockMode::Ss) => handle_ss(&offset_time),
-            (_, ClockMode::SsIs00) => handle_ss_is00(&offset_time),
-            (_, ClockMode::Mm) => handle_mm(&offset_time),
-            (_, ClockMode::Hh) => handle_hh(&offset_time),
+        // cmk0000 make a helper function for this match???
+        let (chars, blink_mode, sleep_duration) = match &clock_mode {
+            ClockMode::HhMm => handle_hh_mm(&offset_time),
+            ClockMode::MmSs => handle_mm_ss(&offset_time),
+            ClockMode::SsBlink => handle_ss_blink(&offset_time),
+            ClockMode::SsIs00 => handle_ss_is00(&offset_time),
+            ClockMode::MmBlink => handle_mm_blink(&offset_time),
+            ClockMode::MmSolid => handle_mm_solid(&offset_time),
+            ClockMode::HhBlink => handle_hh_blink(&offset_time),
+            ClockMode::HhSolid => handle_hh_solid(&offset_time),
         };
 
         // Update the display
-        virtual_display.write_chars(chars);
+        virtual_display.write_chars(chars, blink_mode);
 
-        // Update blinking state and update the sleep duration.
-        blink_mode = match blink_mode {
-            BlinkMode::BlinkingAndOn => {
-                sleep_duration = BLINK_ON_DELAY.min(sleep_duration);
-                BlinkMode::BlinkingButOff
-            }
-            BlinkMode::BlinkingButOff => BlinkMode::BlinkingAndOn,
-            BlinkMode::NoBlink => BlinkMode::NoBlink,
-        };
+        // // Update blinking state and update the sleep duration.
+        // blink_mode = match blink_mode {
+        //     BlinkMode::BlinkingAndOn => {
+        //         sleep_duration = BLINK_ON_DELAY.min(sleep_duration);
+        //         BlinkMode::BlinkingButOff
+        //     }
+        //     BlinkMode::BlinkingButOff => BlinkMode::BlinkingAndOn,
+        //     BlinkMode::NoBlink => BlinkMode::NoBlink,
+        // };
         // cmk00000 move blink mode into the virtual display
 
         // Wait for a notification or for the sleep duration to elapse
@@ -122,17 +108,12 @@ async fn virtual_clock_task(
         if let Either::First(notification) =
             select(clock_notifier.receive(), Timer::after(sleep_duration)).await
         {
-            handle_notification(
-                notification,
-                &mut offset_time,
-                &mut clock_mode,
-                &mut blink_mode,
-            );
+            handle_notification(notification, &mut offset_time, &mut clock_mode);
         }
     }
 }
 
-fn handle_hh_mm(offset_time: &OffsetTime) -> ([char; 4], Duration) {
+fn handle_hh_mm(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
     let (hours, minutes, _, update) = offset_time.h_m_s_update(Duration::from_secs(60));
     (
         [
@@ -141,11 +122,12 @@ fn handle_hh_mm(offset_time: &OffsetTime) -> ([char; 4], Duration) {
             tens_digit(minutes),
             ones_digit(minutes),
         ],
+        BlinkMode::Solid,
         update,
     )
 }
 
-fn handle_mm_ss(offset_time: &OffsetTime) -> ([char; 4], Duration) {
+fn handle_mm_ss(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
     let (_, minutes, seconds, update) = offset_time.h_m_s_update(Duration::from_secs(1));
     (
         [
@@ -154,38 +136,68 @@ fn handle_mm_ss(offset_time: &OffsetTime) -> ([char; 4], Duration) {
             tens_digit(seconds),
             ones_digit(seconds),
         ],
+        BlinkMode::Solid,
         update,
     )
 }
 
-fn handle_ss(offset_time: &OffsetTime) -> ([char; 4], Duration) {
+fn handle_ss_blink(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
     let (_, _, seconds, update) = offset_time.h_m_s_update(Duration::from_secs(1));
-    ([' ', tens_digit(seconds), ones_digit(seconds), ' '], update)
+    (
+        [' ', tens_digit(seconds), ones_digit(seconds), ' '],
+        BlinkMode::BlinkingAndOn,
+        update,
+    )
 }
 
-fn handle_ss_is00(_offset_time: &OffsetTime) -> ([char; 4], Duration) {
-    ([' ', '0', '0', ' '], Duration::from_secs(60 * 60 * 24))
+fn handle_ss_is00(_offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
+    (
+        [' ', '0', '0', ' '],
+        BlinkMode::Solid,
+        Duration::from_secs(60 * 60 * 24),
+    )
 }
 
-fn handle_mm(offset_time: &OffsetTime) -> ([char; 4], Duration) {
+fn handle_mm_blink(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
     let (_, minutes, _, update) = offset_time.h_m_s_update(Duration::from_secs(60));
-    ([' ', ' ', tens_digit(minutes), ones_digit(minutes)], update)
+    (
+        [' ', ' ', tens_digit(minutes), ones_digit(minutes)],
+        BlinkMode::BlinkingAndOn,
+        update,
+    )
 }
 
-fn handle_hh(offset_time: &OffsetTime) -> ([char; 4], Duration) {
+fn handle_mm_solid(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
+    let (_, minutes, _, update) = offset_time.h_m_s_update(Duration::from_secs(60));
+    (
+        [' ', ' ', tens_digit(minutes), ones_digit(minutes)],
+        BlinkMode::Solid,
+        update,
+    )
+}
+
+fn handle_hh_blink(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
     let (hours, _, _, update) = offset_time.h_m_s_update(Duration::from_secs(60 * 60));
-    ([tens_hours(hours), ones_digit(hours), ' ', ' '], update)
+    (
+        [tens_hours(hours), ones_digit(hours), ' ', ' '],
+        BlinkMode::BlinkingAndOn,
+        update,
+    )
 }
 
-fn handle_off(_offset_time: &OffsetTime) -> ([char; 4], Duration) {
-    ([' ', ' ', ' ', ' '], BLINK_OFF_DELAY)
+fn handle_hh_solid(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
+    let (hours, _, _, update) = offset_time.h_m_s_update(Duration::from_secs(60 * 60));
+    (
+        [tens_hours(hours), ones_digit(hours), ' ', ' '],
+        BlinkMode::Solid,
+        update,
+    )
 }
 
 fn handle_notification(
     clock_update: ClockUpdate,
     offset_time: &mut OffsetTime,
     clock_mode: &mut ClockMode,
-    blink_mode: &mut BlinkMode,
 ) {
     match clock_update {
         ClockUpdate::AdjustOffset(delta) => {
@@ -193,10 +205,8 @@ fn handle_notification(
         }
         ClockUpdate::SetMode {
             clock_mode: new_clock_mode,
-            blink_mode: new_blink_mode,
         } => {
             *clock_mode = new_clock_mode;
-            *blink_mode = new_blink_mode;
         }
         ClockUpdate::ResetSeconds => {
             let now_mod_minute =
