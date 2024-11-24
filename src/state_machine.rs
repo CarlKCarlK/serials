@@ -42,7 +42,7 @@ impl State {
 
     async fn display_hours_minutes(clock: &mut Clock, button: &mut Button) -> State {
         clock.set_mode(ClockMode::HoursMinutes).await;
-        match button.wait_for_press().await {
+        match button.press_duration().await {
             PressDuration::Short => State::DisplayMinutesSeconds,
             PressDuration::Long => State::ShowSeconds,
         }
@@ -50,7 +50,7 @@ impl State {
 
     async fn display_minutes_seconds(clock: &mut Clock, button: &mut Button) -> State {
         clock.set_mode(ClockMode::MinutesSeconds).await;
-        match button.wait_for_press().await {
+        match button.press_duration().await {
             PressDuration::Short => State::DisplayHoursMinutes,
             PressDuration::Long => State::ShowSeconds,
         }
@@ -59,7 +59,7 @@ impl State {
     async fn show_seconds(clock: &mut Clock, button: &mut Button) -> State {
         clock.set_mode(ClockMode::BlinkingSeconds).await;
         button.wait_for_up().await;
-        match button.wait_for_press().await {
+        match button.press_duration().await {
             PressDuration::Short => State::ShowMinutes,
             PressDuration::Long => State::EditSeconds,
         }
@@ -67,14 +67,14 @@ impl State {
 
     async fn edit_seconds(clock: &mut Clock, button: &mut Button) -> State {
         clock.set_mode(ClockMode::SecondsZero).await;
-        button.inner.wait_for_rising_edge().await; // cmk raising edge?
+        button.wait_for_press().await;
         clock.reset_seconds().await;
         State::ShowSeconds
     }
 
     async fn show_minutes(clock: &mut Clock, button: &mut Button) -> State {
         clock.set_mode(ClockMode::BlinkingMinutes).await;
-        match button.wait_for_press().await {
+        match button.press_duration().await {
             PressDuration::Short => State::ShowHours,
             PressDuration::Long => State::EditMinutes,
         }
@@ -82,9 +82,9 @@ impl State {
 
     async fn edit_minutes(clock: &mut Clock, button: &mut Button) -> State {
         loop {
-            if let Either::Second(()) = select(
+            if let Either::Second(_) = select(
                 Timer::after(Duration::from_millis(250)),
-                button.inner.wait_for_rising_edge(),
+                button.wait_for_press(),
             )
             .await
             {
@@ -97,7 +97,7 @@ impl State {
 
     async fn show_hours(clock: &mut Clock, button: &mut Button) -> State {
         clock.set_mode(ClockMode::BlinkingHours).await;
-        match button.wait_for_press().await {
+        match button.press_duration().await {
             PressDuration::Short => State::Last,
             PressDuration::Long => State::EditHours,
         }
@@ -105,9 +105,9 @@ impl State {
 
     async fn edit_hours(clock: &mut Clock, button: &mut Button) -> State {
         loop {
-            if let Either::Second(()) = select(
+            if let Either::Second(_) = select(
                 Timer::after(Duration::from_millis(500)),
-                button.inner.wait_for_rising_edge(),
+                button.wait_for_press(),
             )
             .await
             {

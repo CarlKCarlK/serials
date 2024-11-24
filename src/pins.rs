@@ -5,7 +5,6 @@ use embassy_rp::{
 };
 use embedded_hal::digital::OutputPin; // cmk why doesn't Brad's code need this?
 
-//cmk #[derive(Debug, defmt::Format)]
 pub struct OutputArray<const N: usize>([gpio::Output<'static>; N]);
 
 impl<const N: usize> OutputArray<N> {

@@ -1,5 +1,3 @@
-// cmk why is this just button, but the display is 'display'?
-
 use defmt::info;
 use embassy_futures::select::{select, Either};
 use embassy_rp::gpio::Input;
@@ -9,7 +7,7 @@ use embassy_time::{Duration, Timer};
 
 // cmk must this be static?
 pub struct Button {
-    pub inner: Input<'static>, // cmk remove this 'pub'
+    inner: Input<'static>,
 }
 
 impl Button {
@@ -18,7 +16,7 @@ impl Button {
         Self { inner: button }
     }
 
-    pub async fn wait_for_press(&mut self) -> PressDuration {
+    pub async fn press_duration(&mut self) -> PressDuration {
         // wait for the button to be released
         self.wait_for_button_up().await;
         self.debounce_delay().await;
@@ -78,6 +76,11 @@ impl Button {
 
     async fn wait_for_release(&mut self) -> &mut Self {
         self.inner.wait_for_falling_edge().await;
+        self
+    }
+
+    pub async fn wait_for_press(&mut self) -> &mut Self {
+        self.inner.wait_for_rising_edge().await;
         self
     }
 }

@@ -26,7 +26,7 @@ impl Blinker {
         let (notifier_inner, display_notifier) = notifier;
         let blinker = Self(notifier_inner);
         let display = Display::new(digit_pins, segment_pins, display_notifier, spawner);
-        unwrap!(spawner.spawn(task(display, notifier_inner)));
+        unwrap!(spawner.spawn(device_loop(display, notifier_inner)));
         blinker
     }
 
@@ -36,7 +36,7 @@ impl Blinker {
 }
 
 #[embassy_executor::task]
-async fn task(display: Display<CELL_COUNT0>, notifier: &'static NotifierInner) -> ! {
+async fn device_loop(display: Display<CELL_COUNT0>, notifier: &'static NotifierInner) -> ! {
     let mut blink_mode = BlinkMode::Solid;
     let mut chars = [' '; CELL_COUNT0];
     loop {

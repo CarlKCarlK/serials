@@ -4,35 +4,59 @@
 
 ```mermaid
 stateDiagram-v2
-    Live_HH_MM --> Display_MM_SS : Tap
-    Display_MM_SS --> Live_HH_MM : Tap
-    Live_HH_MM --> Display_SS : Hold_&_Release
-    Display_MM_SS --> Display_SS : Hold_&_Release
-    Display_SS --> Display_MM : Tap
-    Display_SS --> SS_To_00 : Hold
-    SS_To_00 --> Display_SS : Release
-    Display_MM --> Display_HH : Tap
-    Display_MM --> MM_Increment : Hold
-    MM_Increment --> Display_MM : Release
-    Display_HH --> Live_HH_MM : Tap
-    Display_HH --> HH_Increment : Hold
-    HH_Increment --> Display_HH : Release
+
+   %% Style overrides
+
+    style DisplayHoursMinutes fill:#000,stroke:#333,stroke-width:2px,color:#ff4444,font-family:"Courier New",font-size:18px,font-weight:bold
+    style DisplayMinutesSeconds fill:#000,stroke:#333,stroke-width:2px,color:#ff4444,font-family:"Courier New",font-size:18px,font-weight:bold
+    style ShowSeconds fill:#000,stroke:#333,stroke-width:2px,color:#ff4444,font-family:"Courier New",font-size:18px,font-weight:bold
+    style ShowMinutes fill:#000,stroke:#333,stroke-width:2px,color:#ff4444,font-family:"Courier New",font-size:18px,font-weight:bold    
+    style ShowHours fill:#000,stroke:#333,stroke-width:2px,color:#ff4444,font-family:"Courier New",font-size:18px,font-weight:bold
     
+
+    DisplayHoursMinutes --> DisplayMinutesSeconds : Tap
+    DisplayMinutesSeconds --> DisplayHoursMinutes : Tap
+    DisplayHoursMinutes --> ShowSeconds : Press & Release
+    DisplayMinutesSeconds --> ShowSeconds : Press & Release
+    ShowSeconds --> ShowMinutes : Tap
+    ShowSeconds --> EditSeconds : Press
+    EditSeconds --> ShowSeconds : Release
+    ShowMinutes --> ShowHours : Tap
+    ShowMinutes --> EditMinutes : Press
+    EditMinutes --> ShowMinutes : Release
+    ShowHours --> DisplayHoursMinutes : Tap
+    ShowHours --> EditHours : Press
+    EditHours --> ShowHours : Release
+
+    DisplayHoursMinutes: HHMM
+    DisplayMinutesSeconds: MMSS
+    state "&nbsp;&nbsp;✨SS✨&nbsp;&nbsp;" as ShowSeconds
+    EditSeconds: *to 00*
+    state "&nbsp;&nbsp;&nbsp;&nbsp;✨MM✨" as ShowMinutes    
+    EditMinutes: *increments*
+    state "✨HH✨&nbsp;&nbsp;&nbsp;&nbsp;" as ShowHours
+    EditHours: *increments*
+
 ```
 
-Use a quick press to switch between:
+Note: ✨ indicates blinking.
 
-* HH:MM
-* MM:SS
-* View/edit seconds
-* View/edit minutes
-* View/edit hours
+### Display Modes
 
-Do a long hold to start editing.
+* HHMM
+* MMSS
 
-With seconds, it will display "00". Release at the top of the minute.
-With minutes, it will change the value. Release when the minutes is right.
-With hours, it will change the value. Release when the hour is right.
+Tap: Switch between the two display modes.
+Press & Release: Move to the edit modes.
+
+### Edit Modes
+
+* SS (blinking)
+* MM (blinking)
+* HH (blinking)
+
+Tap: Move through the three edit modes and then return to the display modes.
+Press: Change the value. Release when the value is right. Seconds go to 00. Minutes and hours increment quickly.
 
 ## Tools & Debugging
 

@@ -27,13 +27,10 @@ impl Clock {
         let (notifier_inner, blinker_notifier) = notifier;
         let clock = Self(notifier_inner);
         let blinkable_display = Blinker::new(digit_pins, segment_pins, blinker_notifier, spawner);
-        unwrap!(spawner.spawn(task(blinkable_display, notifier_inner)));
+        unwrap!(spawner.spawn(device_loop(blinkable_display, notifier_inner)));
         clock
     }
 
-    // cmk 000 return the Signal for the VirtualDisplay, too.
-    // cmk is this the standard way to create a new notifier?
-    // cmk it will be annoying to have to create a new display before creating a new clock
     pub const fn notifier() -> ClockNotifier {
         (Channel::new(), Blinker::notifier())
     }
@@ -91,11 +88,7 @@ pub enum ClockMode {
 
 #[embassy_executor::task]
 #[allow(clippy::needless_range_loop)]
-async fn task(
-    // cmk does this need 'static? What does it mean?
-    blinkable_display: Blinker,
-    clock_notifier: &'static NotifierInner,
-) -> ! {
+async fn device_loop(blinkable_display: Blinker, clock_notifier: &'static NotifierInner) -> ! {
     let mut offset_time = OffsetTime::default();
     let mut clock_mode = ClockMode::MinutesSeconds;
 
@@ -210,7 +203,7 @@ impl ClockMode {
 
     fn solid_hours(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
         let (hours, _, _, sleep_duration) =
-            offset_time.h_m_s_sleep_duration(Duration::from_secs(60 * 60));
+            offset_time.h_m_s_sleep_duration(Duration::from_secs(60 * 60)); // cmk const
         (
             [tens_hours(hours), ones_digit(hours), ' ', ' '],
             BlinkMode::Solid,
@@ -219,14 +212,13 @@ impl ClockMode {
     }
 }
 
-// cmk make a method?
 #[inline]
-pub fn tens_digit(value: u8) -> char {
+fn tens_digit(value: u8) -> char {
     ((value / 10) + b'0') as char
 }
 
 #[inline]
-pub fn tens_hours(value: u8) -> char {
+fn tens_hours(value: u8) -> char {
     if value >= 10 {
         '1'
     } else {
@@ -235,6 +227,6 @@ pub fn tens_hours(value: u8) -> char {
 }
 
 #[inline]
-pub fn ones_digit(value: u8) -> char {
+fn ones_digit(value: u8) -> char {
     ((value % 10) + b'0') as char
 }

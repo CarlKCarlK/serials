@@ -28,7 +28,6 @@ async fn main(#[allow(clippy::used_underscore_binding)] spawner0: Spawner) {
     let (pins, _core1) = Pins::new_and_core1();
 
     // cmk what would it look like to have another virtual display? Do we need CellCount0 here? should define a macro?
-    // cmk00000000 the worst thing now is the name of the notifier types.
     static NOTIFIER0: ClockNotifier = Clock::notifier();
     let mut clock = Clock::new(pins.cells0, pins.segments0, &NOTIFIER0, spawner0);
     info!("Clock created");

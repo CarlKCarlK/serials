@@ -25,7 +25,7 @@ impl Display<CELL_COUNT0> {
         spawner: Spawner,
     ) -> Self {
         let display = Self(notifier);
-        unwrap!(spawner.spawn(task(digit_pins, segment_pins, notifier)));
+        unwrap!(spawner.spawn(device_loop(digit_pins, segment_pins, notifier)));
         display
     }
 
@@ -43,8 +43,7 @@ impl<const CELL_COUNT: usize> Display<CELL_COUNT> {
 
 #[embassy_executor::task]
 #[allow(clippy::needless_range_loop)]
-async fn task(
-    // cmk does this need 'static? What does it mean?
+async fn device_loop(
     mut cell_pins: OutputArray<CELL_COUNT0>,
     mut segment_pins: OutputArray<SEGMENT_COUNT0>,
     notifier: &'static DisplayNotifier<CELL_COUNT0>,
