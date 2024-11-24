@@ -1,4 +1,4 @@
-use crate::virtual_display::{CELL_COUNT0, SEGMENT_COUNT0};
+use crate::display::{CELL_COUNT0, SEGMENT_COUNT0};
 use embassy_rp::{
     gpio::{self, Level},
     peripherals::CORE1,

@@ -168,7 +168,6 @@ dependencies = [
  "embedded-hal 1.0.0",
  "heapless",
  "panic-probe",
- "portable-atomic",
  "thiserror-core",
 ]
 
@@ -1015,15 +1014,6 @@ dependencies = [
  "quote",
  "regex-syntax 0.6.29",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "portable-atomic"
-version = "1.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc9c68a3f6da06753e9335d63e27f6b9754dd1920d941135b7ea8224f141adb2"
-dependencies = [
- "critical-section",
 ]
 
 [[package]]

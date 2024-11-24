@@ -3,22 +3,22 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 use button::Button;
+use clock::{Clock, ClockNotifier};
 use defmt::info;
 use embassy_executor::Spawner;
 use pins::Pins;
 use state_machine::State;
-use virtual_clock::{ClockNotifier, VirtualClock};
 use {defmt_rtt as _, panic_probe as _};
 
 mod bit_matrix;
-mod blinkable_display;
+mod blinker;
 mod button;
+mod clock;
+mod display;
 mod leds;
 mod offset_time;
 mod pins;
 mod state_machine;
-mod virtual_clock;
-mod virtual_display;
 
 // cmk put in Brad's err catcher in place of unwrap!
 
@@ -28,15 +28,15 @@ async fn main(#[allow(clippy::used_underscore_binding)] spawner0: Spawner) {
     let (pins, _core1) = Pins::new_and_core1();
 
     // cmk what would it look like to have another virtual display? Do we need CellCount0 here? should define a macro?
-    static CLOCK_NOTIFIER0: ClockNotifier = VirtualClock::new_notifier();
-    let mut virtual_clock =
-        VirtualClock::new(pins.cells0, pins.segments0, &CLOCK_NOTIFIER0, spawner0);
-    info!("VirtualClock created");
+    // cmk00000000 the worst thing now is the name of the notifier types.
+    static NOTIFIER0: ClockNotifier = Clock::notifier();
+    let mut clock = Clock::new(pins.cells0, pins.segments0, &NOTIFIER0, spawner0);
+    info!("Clock created");
 
     let mut button = Button::new(pins.button);
     let mut state = State::default();
     loop {
         defmt::info!("State: {:?}", state);
-        state = state.next_state(&mut virtual_clock, &mut button).await;
+        state = state.next_state(&mut clock, &mut button).await;
     }
 }

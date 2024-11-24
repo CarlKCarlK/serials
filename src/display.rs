@@ -7,9 +7,9 @@ use embassy_time::{Duration, Timer};
 
 use crate::{bit_matrix::BitMatrix, pins::OutputArray};
 
-pub struct VirtualDisplay<const CELL_COUNT: usize>(&'static Notifier<CELL_COUNT>);
-
-pub type Notifier<const CELL_COUNT: usize> = Signal<CriticalSectionRawMutex, BitMatrix<CELL_COUNT>>;
+pub struct Display<const CELL_COUNT: usize>(&'static DisplayNotifier<CELL_COUNT>);
+pub type DisplayNotifier<const CELL_COUNT: usize> =
+    Signal<CriticalSectionRawMutex, BitMatrix<CELL_COUNT>>;
 
 // Display #1 is a 4-digit 8s-segment display
 pub const CELL_COUNT0: usize = 4;
@@ -17,24 +17,24 @@ pub const SEGMENT_COUNT0: usize = 8;
 pub const MULTIPLEX_SLEEP: Duration = Duration::from_millis(3);
 
 // cmk only CELL_COUNT0
-impl VirtualDisplay<CELL_COUNT0> {
+impl Display<CELL_COUNT0> {
     pub fn new(
         digit_pins: OutputArray<CELL_COUNT0>,
         segment_pins: OutputArray<SEGMENT_COUNT0>,
-        notifier: &'static Notifier<CELL_COUNT0>,
+        notifier: &'static DisplayNotifier<CELL_COUNT0>,
         spawner: Spawner,
     ) -> Self {
-        let virtual_display = Self(notifier);
-        unwrap!(spawner.spawn(virtual_display_task(digit_pins, segment_pins, notifier)));
-        virtual_display
+        let display = Self(notifier);
+        unwrap!(spawner.spawn(task(digit_pins, segment_pins, notifier)));
+        display
     }
 
-    pub const fn new_notifier() -> Notifier<CELL_COUNT0> {
+    pub const fn notifier() -> DisplayNotifier<CELL_COUNT0> {
         Signal::new()
     }
 }
 
-impl<const CELL_COUNT: usize> VirtualDisplay<CELL_COUNT> {
+impl<const CELL_COUNT: usize> Display<CELL_COUNT> {
     pub fn write_chars(&self, chars: [char; CELL_COUNT]) {
         info!("write_chars: {:?}", chars);
         self.0.signal(BitMatrix::from_chars(&chars));
@@ -43,12 +43,11 @@ impl<const CELL_COUNT: usize> VirtualDisplay<CELL_COUNT> {
 
 #[embassy_executor::task]
 #[allow(clippy::needless_range_loop)]
-async fn virtual_display_task(
+async fn task(
     // cmk does this need 'static? What does it mean?
     mut cell_pins: OutputArray<CELL_COUNT0>,
     mut segment_pins: OutputArray<SEGMENT_COUNT0>,
-    // cmk rename or re-type
-    notifier: &'static Notifier<CELL_COUNT0>,
+    notifier: &'static DisplayNotifier<CELL_COUNT0>,
 ) -> ! {
     let mut bit_matrix: BitMatrix<CELL_COUNT0> = BitMatrix::default();
     'outer: loop {

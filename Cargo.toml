@@ -30,7 +30,6 @@ embassy-time = { version = "0.3.2", features = [
 
 embedded-hal = "1.0.0"                                                                   # cmk needed?
 thiserror = { version = "1.0.50", package = "thiserror-core", default-features = false }
-portable-atomic = { version = "1.9", features = ["critical-section"] }
 heapless = "0.8"
 
 [build-dependencies]
