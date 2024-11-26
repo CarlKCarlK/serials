@@ -7,7 +7,7 @@ use embassy_time::{Duration, Timer};
 
 use crate::{bit_matrix::BitMatrix, pins::OutputArray};
 
-pub struct Display<const CELL_COUNT: usize>(&'static DisplayNotifier<CELL_COUNT>);
+pub struct Display<'a, const CELL_COUNT: usize>(&'a DisplayNotifier<CELL_COUNT>);
 pub type DisplayNotifier<const CELL_COUNT: usize> =
     Signal<CriticalSectionRawMutex, BitMatrix<CELL_COUNT>>;
 
@@ -17,10 +17,10 @@ pub const SEGMENT_COUNT0: usize = 8;
 pub const MULTIPLEX_SLEEP: Duration = Duration::from_millis(3);
 
 // cmk only CELL_COUNT0
-impl Display<CELL_COUNT0> {
+impl Display<'_, CELL_COUNT0> {
     pub fn new(
-        digit_pins: OutputArray<CELL_COUNT0>,
-        segment_pins: OutputArray<SEGMENT_COUNT0>,
+        digit_pins: OutputArray<'static, CELL_COUNT0>,
+        segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
         notifier: &'static DisplayNotifier<CELL_COUNT0>,
         spawner: Spawner,
     ) -> Self {
@@ -34,7 +34,7 @@ impl Display<CELL_COUNT0> {
     }
 }
 
-impl<const CELL_COUNT: usize> Display<CELL_COUNT> {
+impl<const CELL_COUNT: usize> Display<'_, CELL_COUNT> {
     pub fn write_chars(&self, chars: [char; CELL_COUNT]) {
         info!("write_chars: {:?}", chars);
         self.0.signal(BitMatrix::from_chars(&chars));
@@ -44,8 +44,8 @@ impl<const CELL_COUNT: usize> Display<CELL_COUNT> {
 #[embassy_executor::task]
 #[allow(clippy::needless_range_loop)]
 async fn device_loop(
-    mut cell_pins: OutputArray<CELL_COUNT0>,
-    mut segment_pins: OutputArray<SEGMENT_COUNT0>,
+    mut cell_pins: OutputArray<'static, CELL_COUNT0>,
+    mut segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
     notifier: &'static DisplayNotifier<CELL_COUNT0>,
 ) -> ! {
     let mut bit_matrix: BitMatrix<CELL_COUNT0> = BitMatrix::default();

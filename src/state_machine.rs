@@ -25,7 +25,7 @@ impl Default for State {
     }
 }
 impl State {
-    pub(crate) async fn next_state(self, clock: &mut Clock, button: &mut Button) -> State {
+    pub(crate) async fn next_state(self, clock: &mut Clock<'_>, button: &mut Button<'_>) -> State {
         match self {
             State::First => State::DisplayHoursMinutes,
             State::DisplayHoursMinutes => State::display_hours_minutes(clock, button).await,
@@ -40,7 +40,7 @@ impl State {
         }
     }
 
-    async fn display_hours_minutes(clock: &mut Clock, button: &mut Button) -> State {
+    async fn display_hours_minutes(clock: &mut Clock<'_>, button: &mut Button<'_>) -> State {
         clock.set_mode(ClockMode::HoursMinutes).await;
         match button.press_duration().await {
             PressDuration::Short => State::DisplayMinutesSeconds,
@@ -48,7 +48,7 @@ impl State {
         }
     }
 
-    async fn display_minutes_seconds(clock: &mut Clock, button: &mut Button) -> State {
+    async fn display_minutes_seconds(clock: &mut Clock<'_>, button: &mut Button<'_>) -> State {
         clock.set_mode(ClockMode::MinutesSeconds).await;
         match button.press_duration().await {
             PressDuration::Short => State::DisplayHoursMinutes,
@@ -56,7 +56,7 @@ impl State {
         }
     }
 
-    async fn show_seconds(clock: &mut Clock, button: &mut Button) -> State {
+    async fn show_seconds(clock: &mut Clock<'_>, button: &mut Button<'_>) -> State {
         clock.set_mode(ClockMode::BlinkingSeconds).await;
         button.wait_for_up().await;
         match button.press_duration().await {
@@ -65,14 +65,14 @@ impl State {
         }
     }
 
-    async fn edit_seconds(clock: &mut Clock, button: &mut Button) -> State {
+    async fn edit_seconds(clock: &mut Clock<'_>, button: &mut Button<'_>) -> State {
         clock.set_mode(ClockMode::SecondsZero).await;
         button.wait_for_press().await;
         clock.reset_seconds().await;
         State::ShowSeconds
     }
 
-    async fn show_minutes(clock: &mut Clock, button: &mut Button) -> State {
+    async fn show_minutes(clock: &mut Clock<'_>, button: &mut Button<'_>) -> State {
         clock.set_mode(ClockMode::BlinkingMinutes).await;
         match button.press_duration().await {
             PressDuration::Short => State::ShowHours,
@@ -80,7 +80,7 @@ impl State {
         }
     }
 
-    async fn edit_minutes(clock: &mut Clock, button: &mut Button) -> State {
+    async fn edit_minutes(clock: &mut Clock<'_>, button: &mut Button<'_>) -> State {
         loop {
             if let Either::Second(_) = select(
                 Timer::after(Duration::from_millis(250)),
@@ -95,7 +95,7 @@ impl State {
         }
     }
 
-    async fn show_hours(clock: &mut Clock, button: &mut Button) -> State {
+    async fn show_hours(clock: &mut Clock<'_>, button: &mut Button<'_>) -> State {
         clock.set_mode(ClockMode::BlinkingHours).await;
         match button.press_duration().await {
             PressDuration::Short => State::Last,
@@ -103,7 +103,7 @@ impl State {
         }
     }
 
-    async fn edit_hours(clock: &mut Clock, button: &mut Button) -> State {
+    async fn edit_hours(clock: &mut Clock<'_>, button: &mut Button<'_>) -> State {
         loop {
             if let Either::Second(_) = select(
                 Timer::after(Duration::from_millis(500)),

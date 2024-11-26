@@ -6,13 +6,13 @@ use embassy_time::{Duration, Timer};
 // cmk why does brad pass AnyPin to the button constructor while I pass Input that was created in the pins module?
 
 // cmk must this be static?
-pub struct Button {
-    inner: Input<'static>,
+pub struct Button<'a> {
+    inner: Input<'a>,
 }
 
-impl Button {
+impl<'a> Button<'a> {
     #[must_use]
-    pub fn new(button: Input<'static>) -> Self {
+    pub fn new(button: Input<'a>) -> Self {
         Self { inner: button }
     }
 

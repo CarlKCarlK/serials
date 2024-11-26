@@ -43,20 +43,25 @@ Note: ✨ indicates blinking.
 
 ### Display Modes
 
-* HHMM
-* MMSS
+* `HHMM`
+* `MMSS`
 
-Tap: Switch between the two display modes.
-Press & Release: Move to the edit modes.
+**Tap**: Switch between the two display modes.
 
-### Edit Modes
+**Press & Release**: Move to the edit modes.
 
-* SS (blinking)
-* MM (blinking)
-* HH (blinking)
+### Edit Modes (blinking)
 
-Tap: Move through the three edit modes and then return to the display modes.
-Press: Change the value. Release when the value is right. Seconds go to 00. Minutes and hours increment quickly.
+<!-- markdownlint-disable MD038 -->
+* ✨` SS `✨
+* ✨`  MM`✨
+* ✨`HH  `✨
+
+**Tap**: Move through the three edit modes and then return to the display modes.
+
+**Press**: Change the value. Seconds go to `00`. Minutes and hours increment quickly.
+
+**Release**: When the value is right.
 
 ## Tools & Debugging
 

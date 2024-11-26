@@ -5,10 +5,10 @@ use embassy_rp::{
 };
 use embedded_hal::digital::OutputPin; // cmk why doesn't Brad's code need this?
 
-pub struct OutputArray<const N: usize>([gpio::Output<'static>; N]);
+pub struct OutputArray<'a, const N: usize>([gpio::Output<'a>; N]);
 
-impl<const N: usize> OutputArray<N> {
-    pub fn new(outputs: [gpio::Output<'static>; N]) -> Self {
+impl<'a, const N: usize> OutputArray<'a, N> {
+    pub fn new(outputs: [gpio::Output<'a>; N]) -> Self {
         Self(outputs)
     }
 
@@ -20,7 +20,7 @@ impl<const N: usize> OutputArray<N> {
     }
 }
 
-impl OutputArray<{ u8::BITS as usize }> {
+impl OutputArray<'_, { u8::BITS as usize }> {
     #[inline]
     pub fn set_from_bits(&mut self, mut bits: u8) {
         for output in &mut self.0 {
@@ -32,8 +32,8 @@ impl OutputArray<{ u8::BITS as usize }> {
 }
 
 pub(crate) struct Pins {
-    pub(crate) cells0: OutputArray<CELL_COUNT0>,
-    pub(crate) segments0: OutputArray<SEGMENT_COUNT0>,
+    pub(crate) cells0: OutputArray<'static, CELL_COUNT0>,
+    pub(crate) segments0: OutputArray<'static, SEGMENT_COUNT0>,
     pub(crate) button: gpio::Input<'static>,
     _led0: gpio::Output<'static>,
 }

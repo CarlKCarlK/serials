@@ -12,14 +12,14 @@ use crate::{
 const BLINK_OFF_DELAY: Duration = Duration::from_millis(50); // const cmk
 const BLINK_ON_DELAY: Duration = Duration::from_millis(150); // const cmk
 
-pub struct Blinker(&'static NotifierInner);
+pub struct Blinker<'a>(&'a NotifierInner);
 pub type BlinkerNotifier = (NotifierInner, DisplayNotifier<CELL_COUNT0>);
 type NotifierInner = Signal<CriticalSectionRawMutex, (BlinkMode, [char; CELL_COUNT0])>;
 
-impl Blinker {
+impl Blinker<'_> {
     pub fn new(
-        digit_pins: OutputArray<CELL_COUNT0>,
-        segment_pins: OutputArray<SEGMENT_COUNT0>,
+        digit_pins: OutputArray<'static, CELL_COUNT0>,
+        segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
         notifier: &'static BlinkerNotifier,
         spawner: Spawner,
     ) -> Self {
@@ -36,7 +36,10 @@ impl Blinker {
 }
 
 #[embassy_executor::task]
-async fn device_loop(display: Display<CELL_COUNT0>, notifier: &'static NotifierInner) -> ! {
+async fn device_loop(
+    display: Display<'static, CELL_COUNT0>,
+    notifier: &'static NotifierInner,
+) -> ! {
     let mut blink_mode = BlinkMode::Solid;
     let mut chars = [' '; CELL_COUNT0];
     loop {
@@ -69,7 +72,7 @@ async fn device_loop(display: Display<CELL_COUNT0>, notifier: &'static NotifierI
     }
 }
 
-impl Blinker {
+impl Blinker<'_> {
     pub fn write_chars(&self, chars: [char; CELL_COUNT0], blink_mode: BlinkMode) {
         info!("write_chars: {:?}, blink_mode: {:?}", chars, blink_mode);
         self.0.signal((blink_mode, chars));

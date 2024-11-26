@@ -12,15 +12,15 @@ use crate::{
     state_machine::ONE_MINUTE,
 };
 
-pub struct Clock(&'static NotifierInner);
+pub struct Clock<'a>(&'a NotifierInner);
 type NotifierInner = Channel<CriticalSectionRawMutex, ClockNotice, 4>;
 pub type ClockNotifier = (NotifierInner, BlinkerNotifier);
 
 // cmk only CELL_COUNT0
-impl Clock {
+impl Clock<'_> {
     pub fn new(
-        digit_pins: OutputArray<CELL_COUNT0>,
-        segment_pins: OutputArray<SEGMENT_COUNT0>,
+        digit_pins: OutputArray<'static, CELL_COUNT0>,
+        segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
         notifier: &'static ClockNotifier,
         spawner: Spawner,
     ) -> Self {
@@ -31,6 +31,7 @@ impl Clock {
         clock
     }
 
+    #[must_use]
     pub const fn notifier() -> ClockNotifier {
         (Channel::new(), Blinker::notifier())
     }
@@ -88,7 +89,10 @@ pub enum ClockMode {
 
 #[embassy_executor::task]
 #[allow(clippy::needless_range_loop)]
-async fn device_loop(blinkable_display: Blinker, clock_notifier: &'static NotifierInner) -> ! {
+async fn device_loop(
+    blinkable_display: Blinker<'static>,
+    clock_notifier: &'static NotifierInner,
+) -> ! {
     let mut offset_time = OffsetTime::default();
     let mut clock_mode = ClockMode::MinutesSeconds;
 
