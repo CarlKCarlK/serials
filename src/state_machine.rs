@@ -1,10 +1,10 @@
 use crate::{
     button::{Button, PressDuration},
     clock::{Clock, ClockMode},
-    shared_constants::{ONE_HOUR, ONE_MINUTE},
+    shared_constants::{HOUR_EDIT_SPEED, MINUTE_EDIT_SPEED, ONE_HOUR, ONE_MINUTE},
 };
 use embassy_futures::select::{select, Either};
-use embassy_time::{Duration, Timer};
+use embassy_time::Timer;
 
 // cmk understand pub(crate) vs crate
 #[derive(Debug, defmt::Format)]
@@ -84,11 +84,8 @@ impl State {
 
     async fn edit_minutes(clock: &mut Clock<'_>, button: &mut Button<'_>) -> State {
         loop {
-            if let Either::Second(_) = select(
-                Timer::after(Duration::from_millis(250)),
-                button.wait_for_press(),
-            )
-            .await
+            if let Either::Second(_) =
+                select(Timer::after(MINUTE_EDIT_SPEED), button.wait_for_press()).await
             {
                 return State::ShowMinutes;
             }
@@ -107,11 +104,8 @@ impl State {
 
     async fn edit_hours(clock: &mut Clock<'_>, button: &mut Button<'_>) -> State {
         loop {
-            if let Either::Second(_) = select(
-                Timer::after(Duration::from_millis(500)),
-                button.wait_for_press(),
-            )
-            .await
+            if let Either::Second(_) =
+                select(Timer::after(HOUR_EDIT_SPEED), button.wait_for_press()).await
             {
                 return State::ShowHours;
             }

@@ -8,7 +8,7 @@ use crate::{
     blinker::{BlinkMode, Blinker, BlinkerNotifier},
     offset_time::OffsetTime,
     pins::OutputArray,
-    shared_constants::{CELL_COUNT0, ONE_MINUTE, SEGMENT_COUNT0},
+    shared_constants::{CELL_COUNT0, ONE_DAY, ONE_HOUR, ONE_MINUTE, ONE_SECOND, SEGMENT_COUNT0},
 };
 
 pub struct Clock<'a>(&'a NotifierInner);
@@ -67,9 +67,8 @@ impl ClockNotice {
                 *clock_mode = new_clock_mode;
             }
             ClockNotice::ResetSeconds => {
-                let now_mod_minute =
-                    Duration::from_ticks(offset_time.now().as_ticks() % ONE_MINUTE.as_ticks());
-                *offset_time += ONE_MINUTE - now_mod_minute;
+                let sleep_duration = OffsetTime::till_next(offset_time.now(), ONE_MINUTE);
+                *offset_time += sleep_duration;
             }
         }
     }
@@ -127,8 +126,7 @@ impl ClockMode {
 
     /// Helper functions for each mode
     fn hours_minutes(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
-        let (hours, minutes, _, sleep_duration) =
-            offset_time.h_m_s_sleep_duration(Duration::from_secs(60));
+        let (hours, minutes, _, sleep_duration) = offset_time.h_m_s_sleep_duration(ONE_MINUTE);
         (
             [
                 tens_hours(hours),
@@ -142,8 +140,7 @@ impl ClockMode {
     }
 
     fn minutes_seconds(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
-        let (_, minutes, seconds, sleep_duration) =
-            offset_time.h_m_s_sleep_duration(Duration::from_secs(1));
+        let (_, minutes, seconds, sleep_duration) = offset_time.h_m_s_sleep_duration(ONE_SECOND);
         (
             [
                 tens_digit(minutes),
@@ -157,8 +154,7 @@ impl ClockMode {
     }
 
     fn blinking_seconds(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
-        let (_, _, seconds, sleep_duration) =
-            offset_time.h_m_s_sleep_duration(Duration::from_secs(1));
+        let (_, _, seconds, sleep_duration) = offset_time.h_m_s_sleep_duration(ONE_SECOND);
         (
             [' ', tens_digit(seconds), ones_digit(seconds), ' '],
             BlinkMode::BlinkingAndOn,
@@ -167,16 +163,12 @@ impl ClockMode {
     }
 
     fn seconds_zero() -> ([char; 4], BlinkMode, Duration) {
-        (
-            [' ', '0', '0', ' '],
-            BlinkMode::Solid,
-            Duration::from_secs(60 * 60 * 24),
-        )
+        // cmk000 oneday???
+        ([' ', '0', '0', ' '], BlinkMode::Solid, ONE_DAY)
     }
 
     fn blinking_minutes(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
-        let (_, minutes, _, sleep_duration) =
-            offset_time.h_m_s_sleep_duration(Duration::from_secs(60));
+        let (_, minutes, _, sleep_duration) = offset_time.h_m_s_sleep_duration(ONE_MINUTE);
         (
             [' ', ' ', tens_digit(minutes), ones_digit(minutes)],
             BlinkMode::BlinkingAndOn,
@@ -185,8 +177,7 @@ impl ClockMode {
     }
 
     fn solid_minutes(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
-        let (_, minutes, _, sleep_duration) =
-            offset_time.h_m_s_sleep_duration(Duration::from_secs(60));
+        let (_, minutes, _, sleep_duration) = offset_time.h_m_s_sleep_duration(ONE_MINUTE);
         (
             [' ', ' ', tens_digit(minutes), ones_digit(minutes)],
             BlinkMode::Solid,
@@ -195,8 +186,7 @@ impl ClockMode {
     }
 
     fn blinking_hours(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
-        let (hours, _, _, sleep_duration) =
-            offset_time.h_m_s_sleep_duration(Duration::from_secs(60 * 60));
+        let (hours, _, _, sleep_duration) = offset_time.h_m_s_sleep_duration(ONE_HOUR);
         (
             [tens_hours(hours), ones_digit(hours), ' ', ' '],
             BlinkMode::BlinkingAndOn,
@@ -205,8 +195,7 @@ impl ClockMode {
     }
 
     fn solid_hours(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
-        let (hours, _, _, sleep_duration) =
-            offset_time.h_m_s_sleep_duration(Duration::from_secs(60 * 60)); // cmk const
+        let (hours, _, _, sleep_duration) = offset_time.h_m_s_sleep_duration(ONE_HOUR);
         (
             [tens_hours(hours), ones_digit(hours), ' ', ' '],
             BlinkMode::Solid,
