@@ -6,9 +6,8 @@ use crate::{
 use embassy_futures::select::{select, Either};
 use embassy_time::Timer;
 
-// cmk understand pub(crate) vs crate
 #[derive(Debug, defmt::Format)]
-pub(crate) enum State {
+pub enum State {
     First,
     DisplayHoursMinutes,
     DisplayMinutesSeconds,
@@ -27,7 +26,7 @@ impl Default for State {
     }
 }
 impl State {
-    pub(crate) async fn next_state(self, clock: &mut Clock<'_>, button: &mut Button<'_>) -> State {
+    pub async fn next_state(self, clock: &mut Clock<'_>, button: &mut Button<'_>) -> State {
         match self {
             State::First => State::DisplayHoursMinutes,
             State::DisplayHoursMinutes => State::display_hours_minutes(clock, button).await,

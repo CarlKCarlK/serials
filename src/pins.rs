@@ -38,15 +38,15 @@ impl OutputArray<'_, { u8::BITS as usize }> {
 }
 
 #[allow(dead_code)] // We aren't using led0 in this example
-pub(crate) struct Pins {
-    pub(crate) cells0: OutputArray<'static, CELL_COUNT0>,
-    pub(crate) segments0: OutputArray<'static, SEGMENT_COUNT0>,
-    pub(crate) button: gpio::Input<'static>,
+pub struct Pins {
+    pub cells0: OutputArray<'static, CELL_COUNT0>,
+    pub segments0: OutputArray<'static, SEGMENT_COUNT0>,
+    pub button: gpio::Input<'static>,
     led0: gpio::Output<'static>,
 }
 
 impl Pins {
-    pub(crate) fn new_and_core1() -> (Self, CORE1) {
+    pub fn new_and_core1() -> (Self, CORE1) {
         let peripherals: embassy_rp::Peripherals =
             embassy_rp::init(embassy_rp::config::Config::default());
         let core1 = peripherals.CORE1;

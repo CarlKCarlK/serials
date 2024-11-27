@@ -163,7 +163,9 @@ impl ClockMode {
     }
 
     fn seconds_zero() -> ([char; 4], BlinkMode, Duration) {
-        // cmk000 oneday???
+        // We don't really need to wake up even once a day to update
+        // the constant "00:00" display, but Duration::MAX causes an overflow
+        // and this is simple.
         ([' ', '0', '0', ' '], BlinkMode::Solid, ONE_DAY)
     }
 

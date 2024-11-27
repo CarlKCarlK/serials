@@ -1,4 +1,4 @@
-pub(crate) struct Leds;
+pub struct Leds;
 
 #[allow(dead_code)]
 impl Leds {
