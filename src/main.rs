@@ -2,11 +2,11 @@
 #![no_main]
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
-// cmk what other clippys to turn on? (record in notes)
+// cmk what other clippy's to turn on? (record in notes)
 use defmt::info;
 use embassy_executor::Spawner;
-// Importing from our internal `lib` module
-use lib::{Button, Clock, ClockNotifier, Never, Pins, Result, State};
+// Importing from our own internal `lib` module
+use lib::{Button, Clock, ClockNotifier, Never, Result, State};
 
 use {defmt_rtt as _, panic_probe as _};
 
@@ -18,14 +18,15 @@ async fn main(#[allow(clippy::used_underscore_binding)] spawner0: Spawner) -> ! 
 }
 
 #[allow(clippy::items_after_statements)]
-async fn inner_main(spawner0: Spawner) -> Result<Never> {
-    let (pins, _core1) = Pins::new_and_core1(); // cmk good or bad?
+async fn inner_main(spawner: Spawner) -> Result<Never> {
+    let hardware = lib::Hardware::default();
 
-    static NOTIFIER0: ClockNotifier = Clock::notifier();
-    let mut clock = Clock::new(pins.cells0, pins.segments0, &NOTIFIER0, spawner0)?;
-    info!("Clock created");
+    static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
+    let mut clock = Clock::new(hardware.cells, hardware.segments, &CLOCK_NOTIFIER, spawner)?;
+    let mut button = Button::new(hardware.button);
+    info!("Clock and button created");
 
-    let mut button = Button::new(pins.button);
+    // Run the state machine
     let mut state = State::default();
     loop {
         defmt::info!("State: {:?}", state);

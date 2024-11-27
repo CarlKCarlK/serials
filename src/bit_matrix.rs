@@ -1,6 +1,6 @@
 use crate::{
     error::Error::BitsToIndexesNotEnoughSpace,
-    shared_constants::{BitsToIndexes, CELL_COUNT0},
+    shared_constants::{BitsToIndexes, CELL_COUNT},
 };
 use core::{array, ops::BitOrAssign, slice};
 
@@ -9,14 +9,14 @@ use heapless::{LinearMap, Vec};
 use crate::{error::Error, leds::Leds};
 
 #[derive(defmt::Format, Debug)]
-pub struct BitMatrix([u8; CELL_COUNT0]);
+pub struct BitMatrix([u8; CELL_COUNT]);
 
 impl BitMatrix {
-    pub fn new(bits: [u8; CELL_COUNT0]) -> Self {
+    pub fn new(bits: [u8; CELL_COUNT]) -> Self {
         Self(bits)
     }
     pub fn from_bits(bits: u8) -> Self {
-        Self([bits; CELL_COUNT0])
+        Self([bits; CELL_COUNT])
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &u8> {
@@ -27,7 +27,7 @@ impl BitMatrix {
         self.0.iter_mut()
     }
 
-    pub fn from_chars(chars: &[char; CELL_COUNT0]) -> Self {
+    pub fn from_chars(chars: &[char; CELL_COUNT]) -> Self {
         let bytes = chars.map(|c| Leds::ASCII_TABLE[c as usize]);
         Self::new(bytes)
     }
@@ -76,7 +76,7 @@ impl core::str::FromStr for BitMatrix {
             *bits = Leds::ASCII_TABLE.get(c as usize).copied().ok_or(())?;
         }
 
-        if s.len() > CELL_COUNT0 {
+        if s.len() > CELL_COUNT {
             bit_matrix |= Leds::DECIMAL;
         }
 
@@ -85,7 +85,7 @@ impl core::str::FromStr for BitMatrix {
 }
 impl Default for BitMatrix {
     fn default() -> Self {
-        Self([0; CELL_COUNT0])
+        Self([0; CELL_COUNT])
     }
 }
 
@@ -98,7 +98,7 @@ impl BitOrAssign<u8> for BitMatrix {
 
 impl IntoIterator for BitMatrix {
     type Item = u8;
-    type IntoIter = array::IntoIter<u8, CELL_COUNT0>;
+    type IntoIter = array::IntoIter<u8, CELL_COUNT>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()

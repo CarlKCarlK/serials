@@ -7,8 +7,8 @@ use embassy_time::{Duration, Timer};
 use crate::{
     blinker::{BlinkMode, Blinker, BlinkerNotifier},
     offset_time::OffsetTime,
-    pins::OutputArray,
-    shared_constants::{CELL_COUNT0, ONE_DAY, ONE_HOUR, ONE_MINUTE, ONE_SECOND, SEGMENT_COUNT0},
+    output_array::OutputArray,
+    shared_constants::{CELL_COUNT, ONE_DAY, ONE_HOUR, ONE_MINUTE, ONE_SECOND, SEGMENT_COUNT},
 };
 
 pub struct Clock<'a>(&'a NotifierInner);
@@ -18,14 +18,14 @@ pub type ClockNotifier = (NotifierInner, BlinkerNotifier);
 impl Clock<'_> {
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
-        digit_pins: OutputArray<'static, CELL_COUNT0>,
-        segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
+        cell_pins: OutputArray<'static, CELL_COUNT>,
+        segment_pins: OutputArray<'static, SEGMENT_COUNT>,
         notifier: &'static ClockNotifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
         let (notifier_inner, blinker_notifier) = notifier;
         let clock = Self(notifier_inner);
-        let blinkable_display = Blinker::new(digit_pins, segment_pins, blinker_notifier, spawner)?;
+        let blinkable_display = Blinker::new(cell_pins, segment_pins, blinker_notifier, spawner)?;
         spawner.spawn(device_loop(blinkable_display, notifier_inner))?;
         Ok(clock)
     }

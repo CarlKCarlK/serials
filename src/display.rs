@@ -8,8 +8,8 @@ use embassy_time::Timer;
 use crate::{
     bit_matrix::BitMatrix,
     error, never,
-    pins::OutputArray,
-    shared_constants::{CELL_COUNT0, MULTIPLEX_SLEEP, SEGMENT_COUNT0},
+    output_array::OutputArray,
+    shared_constants::{CELL_COUNT, MULTIPLEX_SLEEP, SEGMENT_COUNT},
 };
 use error::Result;
 use never::Never;
@@ -20,13 +20,13 @@ pub type DisplayNotifier = Signal<CriticalSectionRawMutex, BitMatrix>;
 impl Display<'_> {
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
-        digit_pins: OutputArray<'static, CELL_COUNT0>,
-        segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
+        cell_pins: OutputArray<'static, CELL_COUNT>,
+        segment_pins: OutputArray<'static, SEGMENT_COUNT>,
         notifier: &'static DisplayNotifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
         let display = Self(notifier);
-        spawner.spawn(device_loop(digit_pins, segment_pins, notifier))?;
+        spawner.spawn(device_loop(cell_pins, segment_pins, notifier))?;
         Ok(display)
     }
 
@@ -36,7 +36,7 @@ impl Display<'_> {
 }
 
 impl Display<'_> {
-    pub fn write_chars(&self, chars: [char; CELL_COUNT0]) {
+    pub fn write_chars(&self, chars: [char; CELL_COUNT]) {
         info!("write_chars: {:?}", chars);
         self.0.signal(BitMatrix::from_chars(&chars));
     }
@@ -45,8 +45,8 @@ impl Display<'_> {
 #[embassy_executor::task]
 #[allow(clippy::needless_range_loop)]
 async fn device_loop(
-    cell_pins: OutputArray<'static, CELL_COUNT0>,
-    segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
+    cell_pins: OutputArray<'static, CELL_COUNT>,
+    segment_pins: OutputArray<'static, SEGMENT_COUNT>,
     notifier: &'static DisplayNotifier,
 ) -> ! {
     // should never return
@@ -55,8 +55,8 @@ async fn device_loop(
 }
 
 async fn inner_device_loop(
-    mut cell_pins: OutputArray<'static, CELL_COUNT0>,
-    mut segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
+    mut cell_pins: OutputArray<'static, CELL_COUNT>,
+    mut segment_pins: OutputArray<'static, SEGMENT_COUNT>,
     notifier: &'static DisplayNotifier,
 ) -> Result<Never> {
     let mut bit_matrix: BitMatrix = BitMatrix::default();

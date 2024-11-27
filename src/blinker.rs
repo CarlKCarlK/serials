@@ -6,19 +6,19 @@ use embassy_time::Timer;
 
 use crate::{
     display::{Display, DisplayNotifier},
-    pins::OutputArray,
-    shared_constants::{BLINK_OFF_DELAY, BLINK_ON_DELAY, CELL_COUNT0, SEGMENT_COUNT0},
+    output_array::OutputArray,
+    shared_constants::{BLINK_OFF_DELAY, BLINK_ON_DELAY, CELL_COUNT, SEGMENT_COUNT},
 };
 
 pub struct Blinker<'a>(&'a NotifierInner);
 pub type BlinkerNotifier = (NotifierInner, DisplayNotifier);
-type NotifierInner = Signal<CriticalSectionRawMutex, (BlinkMode, [char; CELL_COUNT0])>;
+type NotifierInner = Signal<CriticalSectionRawMutex, (BlinkMode, [char; CELL_COUNT])>;
 
 impl Blinker<'_> {
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
-        digit_pins: OutputArray<'static, CELL_COUNT0>,
-        segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
+        digit_pins: OutputArray<'static, CELL_COUNT>,
+        segment_pins: OutputArray<'static, SEGMENT_COUNT>,
         notifier: &'static BlinkerNotifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
@@ -37,7 +37,7 @@ impl Blinker<'_> {
 #[embassy_executor::task]
 async fn device_loop(display: Display<'static>, notifier: &'static NotifierInner) -> ! {
     let mut blink_mode = BlinkMode::Solid;
-    let mut chars = [' '; CELL_COUNT0];
+    let mut chars = [' '; CELL_COUNT];
     loop {
         (blink_mode, chars) = match blink_mode {
             BlinkMode::Solid => {
@@ -55,7 +55,7 @@ async fn device_loop(display: Display<'static>, notifier: &'static NotifierInner
                 }
             }
             BlinkMode::BlinkingButOff => {
-                display.write_chars([' '; CELL_COUNT0]);
+                display.write_chars([' '; CELL_COUNT]);
                 if let Either::First((new_blink_mode, new_chars)) =
                     select(notifier.wait(), Timer::after(BLINK_OFF_DELAY)).await
                 {
@@ -69,7 +69,7 @@ async fn device_loop(display: Display<'static>, notifier: &'static NotifierInner
 }
 
 impl Blinker<'_> {
-    pub fn write_chars(&self, chars: [char; CELL_COUNT0], blink_mode: BlinkMode) {
+    pub fn write_chars(&self, chars: [char; CELL_COUNT], blink_mode: BlinkMode) {
         info!("write_chars: {:?}, blink_mode: {:?}", chars, blink_mode);
         self.0.signal((blink_mode, chars));
     }

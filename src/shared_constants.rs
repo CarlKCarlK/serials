@@ -2,8 +2,8 @@ use embassy_time::Duration;
 use heapless::{LinearMap, Vec};
 
 // Display #1 is a 4-digit 8s-segment display
-pub const CELL_COUNT0: usize = 4;
-pub const SEGMENT_COUNT0: usize = 8;
+pub const CELL_COUNT: usize = 4;
+pub const SEGMENT_COUNT: usize = 8;
 
 pub const ONE_SECOND: Duration = Duration::from_secs(1);
 pub const ONE_MINUTE: Duration = Duration::from_secs(60);
@@ -18,4 +18,4 @@ pub const BLINK_ON_DELAY: Duration = Duration::from_millis(150);
 pub const MINUTE_EDIT_SPEED: Duration = Duration::from_millis(250);
 pub const HOUR_EDIT_SPEED: Duration = Duration::from_millis(500);
 
-pub type BitsToIndexes = LinearMap<u8, Vec<usize, CELL_COUNT0>, CELL_COUNT0>;
+pub type BitsToIndexes = LinearMap<u8, Vec<usize, CELL_COUNT>, CELL_COUNT>;
