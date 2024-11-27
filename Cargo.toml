@@ -28,9 +28,14 @@ embassy-time = { version = "0.3.2", features = [
     "defmt-timestamp-uptime",
 ] }
 
-embedded-hal = "1.0.0"                                                                   # cmk needed?
+embedded-hal = "1.0.0" # cmk needed?
 thiserror = { version = "1.0.50", package = "thiserror-core", default-features = false }
 heapless = "0.8"
-
+derive_more = { version = "1.0.0", default-features = false, features = [
+    "debug",
+    "display",
+    "error",
+    "from",
+] }
 [build-dependencies]
 chrono = "0.4.19"

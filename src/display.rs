@@ -1,11 +1,13 @@
-use defmt::{info, unwrap};
-use embassy_executor::Spawner;
+use defmt::info;
+use embassy_executor::{SpawnError, Spawner};
 use embassy_futures::select::{select, Either};
 use embassy_rp::gpio::Level;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Timer};
 
-use crate::{bit_matrix::BitMatrix, pins::OutputArray};
+use crate::{bit_matrix::BitMatrix, error, never, pins::OutputArray};
+use error::Result;
+use never::Never;
 
 pub struct Display<'a, const CELL_COUNT: usize>(&'a DisplayNotifier<CELL_COUNT>);
 pub type DisplayNotifier<const CELL_COUNT: usize> =
@@ -18,15 +20,16 @@ pub const MULTIPLEX_SLEEP: Duration = Duration::from_millis(3);
 
 // cmk only CELL_COUNT0
 impl Display<'_, CELL_COUNT0> {
+    #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
         digit_pins: OutputArray<'static, CELL_COUNT0>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
         notifier: &'static DisplayNotifier<CELL_COUNT0>,
         spawner: Spawner,
-    ) -> Self {
+    ) -> Result<Self, SpawnError> {
         let display = Self(notifier);
-        unwrap!(spawner.spawn(device_loop(digit_pins, segment_pins, notifier)));
-        display
+        spawner.spawn(device_loop(digit_pins, segment_pins, notifier))?;
+        Ok(display)
     }
 
     pub const fn notifier() -> DisplayNotifier<CELL_COUNT0> {
@@ -44,14 +47,24 @@ impl<const CELL_COUNT: usize> Display<'_, CELL_COUNT> {
 #[embassy_executor::task]
 #[allow(clippy::needless_range_loop)]
 async fn device_loop(
+    cell_pins: OutputArray<'static, CELL_COUNT0>,
+    segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
+    notifier: &'static DisplayNotifier<CELL_COUNT0>,
+) -> ! {
+    // should never return
+    let err = inner_device_loop(cell_pins, segment_pins, notifier).await;
+    panic!("{:?}", err);
+}
+
+async fn inner_device_loop(
     mut cell_pins: OutputArray<'static, CELL_COUNT0>,
     mut segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
     notifier: &'static DisplayNotifier<CELL_COUNT0>,
-) -> ! {
+) -> Result<Never> {
     let mut bit_matrix: BitMatrix<CELL_COUNT0> = BitMatrix::default();
     'outer: loop {
         info!("bit_matrix: {:?}", bit_matrix);
-        let bits_to_indexes = bit_matrix.bits_to_indexes();
+        let bits_to_indexes = bit_matrix.bits_to_indexes()?;
         info!("# of unique cell bit_matrix: {:?}", bits_to_indexes.len());
 
         match bits_to_indexes.iter().next() {
@@ -60,7 +73,7 @@ async fn device_loop(
             // If only one bit pattern should be displayed (even on multiple cells), display it
             // and wait for the next notification
             Some((&bits, indexes)) if bits_to_indexes.len() == 1 => {
-                segment_pins.set_from_bits(bits);
+                segment_pins.set_from_bits(bits)?;
                 cell_pins.set_levels_at_indexes(indexes, Level::Low);
                 bit_matrix = notifier.wait().await;
                 cell_pins.set_levels_at_indexes(indexes, Level::High);
@@ -68,7 +81,7 @@ async fn device_loop(
             // If multiple patterns should be displayed, multiplex them until the next notification
             _ => loop {
                 for (bytes, indexes) in &bits_to_indexes {
-                    segment_pins.set_from_bits(*bytes);
+                    segment_pins.set_from_bits(*bytes)?;
                     cell_pins.set_levels_at_indexes(indexes, Level::Low);
                     let timeout_or_signal =
                         select(Timer::after(MULTIPLEX_SLEEP), notifier.wait()).await;

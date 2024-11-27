@@ -1,5 +1,5 @@
-use defmt::{info, unwrap};
-use embassy_executor::Spawner;
+use defmt::info;
+use embassy_executor::{SpawnError, Spawner};
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Timer};
@@ -17,17 +17,18 @@ pub type BlinkerNotifier = (NotifierInner, DisplayNotifier<CELL_COUNT0>);
 type NotifierInner = Signal<CriticalSectionRawMutex, (BlinkMode, [char; CELL_COUNT0])>;
 
 impl Blinker<'_> {
+    #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
         digit_pins: OutputArray<'static, CELL_COUNT0>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
         notifier: &'static BlinkerNotifier,
         spawner: Spawner,
-    ) -> Self {
+    ) -> Result<Self, SpawnError> {
         let (notifier_inner, display_notifier) = notifier;
         let blinker = Self(notifier_inner);
-        let display = Display::new(digit_pins, segment_pins, display_notifier, spawner);
-        unwrap!(spawner.spawn(device_loop(display, notifier_inner)));
-        blinker
+        let display = Display::new(digit_pins, segment_pins, display_notifier, spawner)?;
+        spawner.spawn(device_loop(display, notifier_inner))?;
+        Ok(blinker)
     }
 
     pub const fn notifier() -> BlinkerNotifier {

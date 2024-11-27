@@ -1,5 +1,5 @@
-use defmt::{info, unwrap};
-use embassy_executor::Spawner;
+use defmt::info;
+use embassy_executor::{SpawnError, Spawner};
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Timer};
@@ -18,17 +18,18 @@ pub type ClockNotifier = (NotifierInner, BlinkerNotifier);
 
 // cmk only CELL_COUNT0
 impl Clock<'_> {
+    #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
         digit_pins: OutputArray<'static, CELL_COUNT0>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
         notifier: &'static ClockNotifier,
         spawner: Spawner,
-    ) -> Self {
+    ) -> Result<Self, SpawnError> {
         let (notifier_inner, blinker_notifier) = notifier;
         let clock = Self(notifier_inner);
-        let blinkable_display = Blinker::new(digit_pins, segment_pins, blinker_notifier, spawner);
-        unwrap!(spawner.spawn(device_loop(blinkable_display, notifier_inner)));
-        clock
+        let blinkable_display = Blinker::new(digit_pins, segment_pins, blinker_notifier, spawner)?;
+        spawner.spawn(device_loop(blinkable_display, notifier_inner))?;
+        Ok(clock)
     }
 
     #[must_use]

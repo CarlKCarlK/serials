@@ -1,8 +1,9 @@
+use crate::error::Error::BitsToIndexesNotEnoughSpace;
 use core::ops::BitOrAssign;
 
 use heapless::{LinearMap, Vec};
 
-use crate::leds::Leds;
+use crate::{error::Error, leds::Leds};
 
 #[derive(defmt::Format, Debug)]
 pub struct BitMatrix<const CELL_COUNT: usize>([u8; CELL_COUNT]);
@@ -62,22 +63,18 @@ impl<const CELL_COUNT: usize> BitMatrix<CELL_COUNT> {
         bit_matrix
     }
 
-    pub fn bits_to_indexes(&self) -> LinearMap<u8, Vec<usize, CELL_COUNT>, CELL_COUNT> {
-        self.iter()
-            .enumerate()
-            .filter(|(_, &bits)| bits != 0) // Filter out zero bits
-            .fold(
-                LinearMap::new(),
-                |mut acc: LinearMap<u8, Vec<usize, CELL_COUNT>, CELL_COUNT>, (index, &bits)| {
-                    if let Some(vec) = acc.get_mut(&bits) {
-                        vec.push(index).unwrap();
-                    } else {
-                        let vec = Vec::from_slice(&[index]).unwrap();
-                        acc.insert(bits, vec).unwrap();
-                    }
-                    acc
-                },
-            )
+    pub fn bits_to_indexes(&self) -> Result<BitsToIndexes<CELL_COUNT>, Error> {
+        let mut acc: BitsToIndexes<CELL_COUNT> = LinearMap::new();
+        for (index, &bits) in self.iter().enumerate().filter(|(_, &bits)| bits != 0) {
+            if let Some(vec) = acc.get_mut(&bits) {
+                vec.push(index).map_err(|_| BitsToIndexesNotEnoughSpace)?;
+            } else {
+                let vec = Vec::from_slice(&[index]).map_err(|()| BitsToIndexesNotEnoughSpace)?;
+                acc.insert(bits, vec)
+                    .map_err(|_| BitsToIndexesNotEnoughSpace)?;
+            }
+        }
+        Ok(acc)
     }
 }
 
@@ -136,3 +133,6 @@ impl<const CELL_COUNT: usize> core::ops::IndexMut<usize> for BitMatrix<CELL_COUN
         &mut self.0[index]
     }
 }
+
+// cmk move
+type BitsToIndexes<const CELL_COUNT: usize> = LinearMap<u8, Vec<usize, CELL_COUNT>, CELL_COUNT>;

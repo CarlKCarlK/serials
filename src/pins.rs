@@ -1,3 +1,5 @@
+use core::convert::Infallible;
+
 use crate::display::{CELL_COUNT0, SEGMENT_COUNT0};
 use embassy_rp::{
     gpio::{self, Level},
@@ -22,23 +24,25 @@ impl<'a, const N: usize> OutputArray<'a, N> {
 
 impl OutputArray<'_, { u8::BITS as usize }> {
     #[inline]
-    pub fn set_from_bits(&mut self, mut bits: u8) {
+    #[must_use = "Possible error result should not be ignored"]
+    // on some hardware (but not here), setting a bit can fail, so we return a Result
+    pub fn set_from_bits(&mut self, mut bits: u8) -> Result<(), Infallible> {
         for output in &mut self.0 {
             let state = (bits & 1) == 1;
-            output.set_state(state.into()).unwrap();
+            output.set_state(state.into())?;
             bits >>= 1;
         }
+        Ok(())
     }
 }
 
+#[allow(dead_code)] // We aren't using led0 in this example
 pub(crate) struct Pins {
     pub(crate) cells0: OutputArray<'static, CELL_COUNT0>,
     pub(crate) segments0: OutputArray<'static, SEGMENT_COUNT0>,
     pub(crate) button: gpio::Input<'static>,
-    _led0: gpio::Output<'static>,
+    led0: gpio::Output<'static>,
 }
-// cmk pub(crate) vs pub
-// why is _led0 underscored?
 
 impl Pins {
     pub(crate) fn new_and_core1() -> (Self, CORE1) {
@@ -73,7 +77,7 @@ impl Pins {
                 cells0,
                 segments0,
                 button,
-                _led0: led0,
+                led0,
             },
             core1,
         )
