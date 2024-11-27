@@ -1,4 +1,3 @@
-// cmk remove all crate::'s
 use crate::{
     error::Error::BitsToIndexesNotEnoughSpace,
     shared_constants::{BitsToIndexes, CELL_COUNT0},

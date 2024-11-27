@@ -2,9 +2,10 @@
 #![no_main]
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
-// cmk what other's to turn on? (record in notes)
+// cmk what other clippys to turn on? (record in notes)
 use defmt::info;
 use embassy_executor::Spawner;
+// Importing from our internal `lib` module
 use lib::{Button, Clock, ClockNotifier, Never, Pins, Result, State};
 
 use {defmt_rtt as _, panic_probe as _};

@@ -6,7 +6,7 @@ use embassy_rp::{
 };
 use embedded_hal::digital::OutputPin;
 
-use crate::shared_constants::{CELL_COUNT0, SEGMENT_COUNT0}; // cmk why doesn't Brad's code need this?
+use crate::shared_constants::{CELL_COUNT0, SEGMENT_COUNT0};
 
 pub struct OutputArray<'a, const N: usize>([gpio::Output<'a>; N]);
 
