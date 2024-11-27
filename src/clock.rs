@@ -110,7 +110,7 @@ async fn device_loop(
 }
 
 impl ClockMode {
-    /// Main helper method to compute display characters, blink mode, and sleep duration.
+    /// Given a `ClockMode`, compute the characters to display, the blink mode, and the sleep duration.
     pub fn display_info(&self, offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
         match self {
             ClockMode::HoursMinutes => Self::hours_minutes(offset_time),

@@ -1,7 +1,5 @@
 use core::convert::Infallible;
-
 use embassy_rp::gpio::{self, Level};
-use embedded_hal::digital::OutputPin;
 
 pub struct OutputArray<'a, const N: usize>([gpio::Output<'a>; N]);
 
@@ -21,11 +19,11 @@ impl<'a, const N: usize> OutputArray<'a, N> {
 impl OutputArray<'_, { u8::BITS as usize }> {
     #[inline]
     #[must_use = "Possible error result should not be ignored"]
-    // on some hardware (but not here), setting a bit can fail, so we return a Result
+    // On some hardware (but not here), setting a bit can fail, so we return a Result
     pub fn set_from_bits(&mut self, mut bits: u8) -> Result<(), Infallible> {
         for output in &mut self.0 {
-            let state = (bits & 1) == 1;
-            output.set_state(state.into())?;
+            let level: Level = ((bits & 1) == 1).into();
+            output.set_level(level);
             bits >>= 1;
         }
         Ok(())
