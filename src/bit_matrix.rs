@@ -1,19 +1,19 @@
-use crate::error::Error::BitsToIndexesNotEnoughSpace;
-use core::ops::BitOrAssign;
+use crate::{display::CELL_COUNT0, error::Error::BitsToIndexesNotEnoughSpace};
+use core::{array, ops::BitOrAssign};
 
 use heapless::{LinearMap, Vec};
 
 use crate::{error::Error, leds::Leds};
 
 #[derive(defmt::Format, Debug)]
-pub struct BitMatrix<const CELL_COUNT: usize>([u8; CELL_COUNT]);
+pub struct BitMatrix([u8; CELL_COUNT0]);
 
-impl<const CELL_COUNT: usize> BitMatrix<CELL_COUNT> {
-    pub fn new(bits: [u8; CELL_COUNT]) -> Self {
+impl BitMatrix {
+    pub fn new(bits: [u8; CELL_COUNT0]) -> Self {
         Self(bits)
     }
     pub fn from_bits(bits: u8) -> Self {
-        Self([bits; CELL_COUNT])
+        Self([bits; CELL_COUNT0])
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &u8> {
@@ -33,14 +33,14 @@ impl<const CELL_COUNT: usize> BitMatrix<CELL_COUNT> {
             *bits = Leds::ASCII_TABLE[c as usize];
         }
 
-        if str.len() > CELL_COUNT {
+        if str.len() > CELL_COUNT0 {
             bit_matrix |= Leds::DECIMAL;
         }
 
         bit_matrix
     }
 
-    pub fn from_chars(chars: &[char; CELL_COUNT]) -> Self {
+    pub fn from_chars(chars: &[char; CELL_COUNT0]) -> Self {
         let bytes = chars.map(|c| Leds::ASCII_TABLE[c as usize]);
         Self::new(bytes)
     }
@@ -63,8 +63,8 @@ impl<const CELL_COUNT: usize> BitMatrix<CELL_COUNT> {
         bit_matrix
     }
 
-    pub fn bits_to_indexes(&self) -> Result<BitsToIndexes<CELL_COUNT>, Error> {
-        let mut acc: BitsToIndexes<CELL_COUNT> = LinearMap::new();
+    pub fn bits_to_indexes(&self) -> Result<BitsToIndexes, Error> {
+        let mut acc: BitsToIndexes = LinearMap::new();
         for (index, &bits) in self.iter().enumerate().filter(|(_, &bits)| bits != 0) {
             if let Some(vec) = acc.get_mut(&bits) {
                 vec.push(index).map_err(|_| BitsToIndexesNotEnoughSpace)?;
@@ -78,29 +78,29 @@ impl<const CELL_COUNT: usize> BitMatrix<CELL_COUNT> {
     }
 }
 
-impl<const CELL_COUNT: usize> Default for BitMatrix<CELL_COUNT> {
+impl Default for BitMatrix {
     fn default() -> Self {
-        Self([0; CELL_COUNT])
+        Self([0; CELL_COUNT0])
     }
 }
 
 // Implement `|=` for `BitMatrix`
-impl<const CELL_COUNT: usize> BitOrAssign<u8> for BitMatrix<CELL_COUNT> {
+impl BitOrAssign<u8> for BitMatrix {
     fn bitor_assign(&mut self, rhs: u8) {
         self.0.iter_mut().for_each(|bits| *bits |= rhs);
     }
 }
 
-impl<const CELL_COUNT: usize> IntoIterator for BitMatrix<CELL_COUNT> {
+impl IntoIterator for BitMatrix {
     type Item = u8;
-    type IntoIter = core::array::IntoIter<u8, CELL_COUNT>;
+    type IntoIter = array::IntoIter<u8, CELL_COUNT0>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }
 
-impl<'a, const CELL_COUNT: usize> IntoIterator for &'a BitMatrix<CELL_COUNT> {
+impl<'a> IntoIterator for &'a BitMatrix {
     type Item = &'a u8;
     type IntoIter = core::slice::Iter<'a, u8>;
 
@@ -109,7 +109,7 @@ impl<'a, const CELL_COUNT: usize> IntoIterator for &'a BitMatrix<CELL_COUNT> {
     }
 }
 
-impl<'a, const CELL_COUNT: usize> IntoIterator for &'a mut BitMatrix<CELL_COUNT> {
+impl<'a> IntoIterator for &'a mut BitMatrix {
     type Item = &'a mut u8;
     type IntoIter = core::slice::IterMut<'a, u8>;
 
@@ -119,7 +119,7 @@ impl<'a, const CELL_COUNT: usize> IntoIterator for &'a mut BitMatrix<CELL_COUNT>
 }
 
 // implement index for BitMatrix and &BitMatrix
-impl<const CELL_COUNT: usize> core::ops::Index<usize> for BitMatrix<CELL_COUNT> {
+impl core::ops::Index<usize> for BitMatrix {
     type Output = u8;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -128,11 +128,11 @@ impl<const CELL_COUNT: usize> core::ops::Index<usize> for BitMatrix<CELL_COUNT> 
 }
 
 // index that you can assign to
-impl<const CELL_COUNT: usize> core::ops::IndexMut<usize> for BitMatrix<CELL_COUNT> {
+impl core::ops::IndexMut<usize> for BitMatrix {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.0[index]
     }
 }
 
 // cmk move
-type BitsToIndexes<const CELL_COUNT: usize> = LinearMap<u8, Vec<usize, CELL_COUNT>, CELL_COUNT>;
+type BitsToIndexes = LinearMap<u8, Vec<usize, CELL_COUNT0>, CELL_COUNT0>;

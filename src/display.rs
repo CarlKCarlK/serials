@@ -9,22 +9,22 @@ use crate::{bit_matrix::BitMatrix, error, never, pins::OutputArray};
 use error::Result;
 use never::Never;
 
-pub struct Display<'a, const CELL_COUNT: usize>(&'a DisplayNotifier<CELL_COUNT>);
-pub type DisplayNotifier<const CELL_COUNT: usize> =
-    Signal<CriticalSectionRawMutex, BitMatrix<CELL_COUNT>>;
+pub struct Display<'a>(&'a DisplayNotifier);
+pub type DisplayNotifier = Signal<CriticalSectionRawMutex, BitMatrix>;
 
 // Display #1 is a 4-digit 8s-segment display
 pub const CELL_COUNT0: usize = 4;
 pub const SEGMENT_COUNT0: usize = 8;
 pub const MULTIPLEX_SLEEP: Duration = Duration::from_millis(3);
+// cmk remove constant generics
 
 // cmk only CELL_COUNT0
-impl Display<'_, CELL_COUNT0> {
+impl Display<'_> {
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
         digit_pins: OutputArray<'static, CELL_COUNT0>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
-        notifier: &'static DisplayNotifier<CELL_COUNT0>,
+        notifier: &'static DisplayNotifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
         let display = Self(notifier);
@@ -32,13 +32,13 @@ impl Display<'_, CELL_COUNT0> {
         Ok(display)
     }
 
-    pub const fn notifier() -> DisplayNotifier<CELL_COUNT0> {
+    pub const fn notifier() -> DisplayNotifier {
         Signal::new()
     }
 }
 
-impl<const CELL_COUNT: usize> Display<'_, CELL_COUNT> {
-    pub fn write_chars(&self, chars: [char; CELL_COUNT]) {
+impl Display<'_> {
+    pub fn write_chars(&self, chars: [char; CELL_COUNT0]) {
         info!("write_chars: {:?}", chars);
         self.0.signal(BitMatrix::from_chars(&chars));
     }
@@ -49,7 +49,7 @@ impl<const CELL_COUNT: usize> Display<'_, CELL_COUNT> {
 async fn device_loop(
     cell_pins: OutputArray<'static, CELL_COUNT0>,
     segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
-    notifier: &'static DisplayNotifier<CELL_COUNT0>,
+    notifier: &'static DisplayNotifier,
 ) -> ! {
     // should never return
     let err = inner_device_loop(cell_pins, segment_pins, notifier).await;
@@ -59,9 +59,9 @@ async fn device_loop(
 async fn inner_device_loop(
     mut cell_pins: OutputArray<'static, CELL_COUNT0>,
     mut segment_pins: OutputArray<'static, SEGMENT_COUNT0>,
-    notifier: &'static DisplayNotifier<CELL_COUNT0>,
+    notifier: &'static DisplayNotifier,
 ) -> Result<Never> {
-    let mut bit_matrix: BitMatrix<CELL_COUNT0> = BitMatrix::default();
+    let mut bit_matrix: BitMatrix = BitMatrix::default();
     'outer: loop {
         info!("bit_matrix: {:?}", bit_matrix);
         let bits_to_indexes = bit_matrix.bits_to_indexes()?;

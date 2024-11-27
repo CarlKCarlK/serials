@@ -35,7 +35,7 @@ async fn main(#[allow(clippy::used_underscore_binding)] spawner0: Spawner) -> ! 
 #[allow(clippy::items_after_statements)]
 async fn inner_main(spawner0: Spawner) -> Result<Never> {
     info!("build time: {}", env!("BUILD_TIME"));
-    let (pins, _core1) = Pins::new_and_core1();
+    let (pins, _core1) = Pins::new_and_core1(); // cmk good or bad?
 
     // cmk what would it look like to have another virtual display? Do we need CellCount0 here? should define a macro?
     static NOTIFIER0: ClockNotifier = Clock::notifier();

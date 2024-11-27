@@ -13,7 +13,7 @@ const BLINK_OFF_DELAY: Duration = Duration::from_millis(50); // const cmk
 const BLINK_ON_DELAY: Duration = Duration::from_millis(150); // const cmk
 
 pub struct Blinker<'a>(&'a NotifierInner);
-pub type BlinkerNotifier = (NotifierInner, DisplayNotifier<CELL_COUNT0>);
+pub type BlinkerNotifier = (NotifierInner, DisplayNotifier);
 type NotifierInner = Signal<CriticalSectionRawMutex, (BlinkMode, [char; CELL_COUNT0])>;
 
 impl Blinker<'_> {
@@ -37,10 +37,7 @@ impl Blinker<'_> {
 }
 
 #[embassy_executor::task]
-async fn device_loop(
-    display: Display<'static, CELL_COUNT0>,
-    notifier: &'static NotifierInner,
-) -> ! {
+async fn device_loop(display: Display<'static>, notifier: &'static NotifierInner) -> ! {
     let mut blink_mode = BlinkMode::Solid;
     let mut chars = [' '; CELL_COUNT0];
     loop {
