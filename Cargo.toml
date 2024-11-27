@@ -1,8 +1,15 @@
-[package]
+[package] # cmk update this
 edition = "2021"
 # if this changes, update .vscode/launch.json and .cargo/config.toml
 name = "clock"
 version = "0.1.1"
+
+# The `[lib]` section defines the library part of this binary project.
+# It allows `src/lib.rs` to act as the central hub for shared code,
+# which can be reused across binaries or tests.
+[lib]
+name = "lib"
+path = "src/lib.rs"
 
 [dependencies]
 defmt = "0.3.8"

@@ -2,29 +2,12 @@
 #![no_main]
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
-use button::Button;
-use clock::{Clock, ClockNotifier};
+// cmk what other's to turn on? (record in notes)
 use defmt::info;
 use embassy_executor::Spawner;
-use error::Result;
-use never::Never;
-use pins::Pins;
-use state_machine::State;
-use {defmt_rtt as _, panic_probe as _};
+use lib::{Button, Clock, ClockNotifier, Never, Pins, Result, State};
 
-// cmk why doesn't brad use 'mod'?
-mod bit_matrix;
-mod blinker;
-mod button;
-mod clock;
-mod display;
-mod error;
-mod leds;
-mod never;
-mod offset_time;
-mod pins;
-mod shared_constants;
-mod state_machine;
+use {defmt_rtt as _, panic_probe as _};
 
 #[embassy_executor::main]
 async fn main(#[allow(clippy::used_underscore_binding)] spawner0: Spawner) -> ! {
@@ -35,7 +18,6 @@ async fn main(#[allow(clippy::used_underscore_binding)] spawner0: Spawner) -> ! 
 
 #[allow(clippy::items_after_statements)]
 async fn inner_main(spawner0: Spawner) -> Result<Never> {
-    info!("build time: {}", env!("BUILD_TIME"));
     let (pins, _core1) = Pins::new_and_core1(); // cmk good or bad?
 
     static NOTIFIER0: ClockNotifier = Clock::notifier();

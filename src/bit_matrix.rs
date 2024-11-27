@@ -1,3 +1,4 @@
+// cmk remove all crate::'s
 use crate::{
     error::Error::BitsToIndexesNotEnoughSpace,
     shared_constants::{BitsToIndexes, CELL_COUNT0},
@@ -25,22 +26,6 @@ impl BitMatrix {
 
     pub fn iter_mut(&mut self) -> core::slice::IterMut<u8> {
         self.0.iter_mut()
-    }
-
-    // If too long, turn on all decimal points
-    pub fn from_str<S: AsRef<str>>(str: S) -> Self {
-        let str = str.as_ref();
-
-        let mut bit_matrix = BitMatrix::default();
-        for (bits, c) in bit_matrix.iter_mut().zip(str.chars()) {
-            *bits = Leds::ASCII_TABLE[c as usize];
-        }
-
-        if str.len() > CELL_COUNT0 {
-            bit_matrix |= Leds::DECIMAL;
-        }
-
-        bit_matrix
     }
 
     pub fn from_chars(chars: &[char; CELL_COUNT0]) -> Self {
@@ -81,6 +66,24 @@ impl BitMatrix {
     }
 }
 
+impl core::str::FromStr for BitMatrix {
+    type Err = (); // Replace with a meaningful error type if needed
+
+    /// Parse a string into a `BitMatrix`. If too long, the decimal point will be turned on.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut bit_matrix = BitMatrix::default();
+
+        for (bits, c) in bit_matrix.iter_mut().zip(s.chars()) {
+            *bits = Leds::ASCII_TABLE.get(c as usize).copied().ok_or(())?;
+        }
+
+        if s.len() > CELL_COUNT0 {
+            bit_matrix |= Leds::DECIMAL;
+        }
+
+        Ok(bit_matrix)
+    }
+}
 impl Default for BitMatrix {
     fn default() -> Self {
         Self([0; CELL_COUNT0])
