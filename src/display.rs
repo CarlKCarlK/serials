@@ -3,22 +3,20 @@ use embassy_executor::{SpawnError, Spawner};
 use embassy_futures::select::{select, Either};
 use embassy_rp::gpio::Level;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-use embassy_time::{Duration, Timer};
+use embassy_time::Timer;
 
-use crate::{bit_matrix::BitMatrix, error, never, pins::OutputArray};
+use crate::{
+    bit_matrix::BitMatrix,
+    error, never,
+    pins::OutputArray,
+    shared_constants::{CELL_COUNT0, MULTIPLEX_SLEEP, SEGMENT_COUNT0},
+};
 use error::Result;
 use never::Never;
 
 pub struct Display<'a>(&'a DisplayNotifier);
 pub type DisplayNotifier = Signal<CriticalSectionRawMutex, BitMatrix>;
 
-// Display #1 is a 4-digit 8s-segment display
-pub const CELL_COUNT0: usize = 4;
-pub const SEGMENT_COUNT0: usize = 8;
-pub const MULTIPLEX_SLEEP: Duration = Duration::from_millis(3);
-// cmk remove constant generics
-
-// cmk only CELL_COUNT0
 impl Display<'_> {
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(

@@ -1,5 +1,8 @@
-use crate::{display::CELL_COUNT0, error::Error::BitsToIndexesNotEnoughSpace};
-use core::{array, ops::BitOrAssign};
+use crate::{
+    error::Error::BitsToIndexesNotEnoughSpace,
+    shared_constants::{BitsToIndexes, CELL_COUNT0},
+};
+use core::{array, ops::BitOrAssign, slice};
 
 use heapless::{LinearMap, Vec};
 
@@ -102,7 +105,7 @@ impl IntoIterator for BitMatrix {
 
 impl<'a> IntoIterator for &'a BitMatrix {
     type Item = &'a u8;
-    type IntoIter = core::slice::Iter<'a, u8>;
+    type IntoIter = slice::Iter<'a, u8>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
@@ -111,7 +114,7 @@ impl<'a> IntoIterator for &'a BitMatrix {
 
 impl<'a> IntoIterator for &'a mut BitMatrix {
     type Item = &'a mut u8;
-    type IntoIter = core::slice::IterMut<'a, u8>;
+    type IntoIter = slice::IterMut<'a, u8>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter_mut()
@@ -133,6 +136,3 @@ impl core::ops::IndexMut<usize> for BitMatrix {
         &mut self.0[index]
     }
 }
-
-// cmk move
-type BitsToIndexes = LinearMap<u8, Vec<usize, CELL_COUNT0>, CELL_COUNT0>;

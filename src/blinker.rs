@@ -2,15 +2,13 @@ use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-use embassy_time::{Duration, Timer};
+use embassy_time::Timer;
 
 use crate::{
-    display::{Display, DisplayNotifier, CELL_COUNT0, SEGMENT_COUNT0},
+    display::{Display, DisplayNotifier},
     pins::OutputArray,
+    shared_constants::{BLINK_OFF_DELAY, BLINK_ON_DELAY, CELL_COUNT0, SEGMENT_COUNT0},
 };
-
-const BLINK_OFF_DELAY: Duration = Duration::from_millis(50); // const cmk
-const BLINK_ON_DELAY: Duration = Duration::from_millis(150); // const cmk
 
 pub struct Blinker<'a>(&'a NotifierInner);
 pub type BlinkerNotifier = (NotifierInner, DisplayNotifier);

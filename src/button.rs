@@ -3,16 +3,14 @@ use embassy_futures::select::{select, Either};
 use embassy_rp::gpio::Input;
 use embassy_time::{Duration, Timer};
 
-// cmk why does brad pass AnyPin to the button constructor while I pass Input that was created in the pins module?
+use crate::shared_constants::{BUTTON_DEBOUNCE_DELAY, LONG_PRESS_DURATION};
 
-pub struct Button<'a> {
-    inner: Input<'a>,
-}
+pub struct Button<'a>(Input<'a>);
 
 impl<'a> Button<'a> {
     #[must_use]
     pub fn new(button: Input<'a>) -> Self {
-        Self { inner: button }
+        Self(button)
     }
 
     pub async fn press_duration(&mut self) -> PressDuration {
@@ -51,35 +49,29 @@ impl<'a> Button<'a> {
 
     // wait for the button to be released
     async fn wait_for_button_up(&mut self) -> &mut Self {
-        self.inner.wait_for_low().await;
+        self.0.wait_for_low().await;
         self
     }
 
-    // /// Pause until voltage is present on the input pin.
-    // async fn wait_for_down(&mut self) -> &mut Self {
-    //     self.inner.wait_for_high().await;
-    //     self
-    // }
-
     // wait for the button to be released
     pub async fn wait_for_up(&mut self) -> &mut Self {
-        self.inner.wait_for_low().await;
+        self.0.wait_for_low().await;
         self
     }
 
     /// Pause until voltage is present on the input pin.
     async fn wait_for_button_down(&mut self) -> &mut Self {
-        self.inner.wait_for_high().await;
+        self.0.wait_for_high().await;
         self
     }
 
     async fn wait_for_release(&mut self) -> &mut Self {
-        self.inner.wait_for_falling_edge().await;
+        self.0.wait_for_falling_edge().await;
         self
     }
 
     pub async fn wait_for_press(&mut self) -> &mut Self {
-        self.inner.wait_for_rising_edge().await;
+        self.0.wait_for_rising_edge().await;
         self
     }
 }
@@ -105,6 +97,3 @@ impl From<Duration> for PressDuration {
         }
     }
 }
-
-pub const BUTTON_DEBOUNCE_DELAY: Duration = Duration::from_millis(10);
-pub const LONG_PRESS_DURATION: Duration = Duration::from_millis(500);

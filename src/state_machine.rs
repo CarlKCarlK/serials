@@ -1,10 +1,12 @@
 use crate::{
     button::{Button, PressDuration},
     clock::{Clock, ClockMode},
+    shared_constants::{ONE_HOUR, ONE_MINUTE},
 };
 use embassy_futures::select::{select, Either};
 use embassy_time::{Duration, Timer};
 
+// cmk understand pub(crate) vs crate
 #[derive(Debug, defmt::Format)]
 pub(crate) enum State {
     First,
@@ -118,6 +120,3 @@ impl State {
         }
     }
 }
-// cmk move
-pub const ONE_MINUTE: Duration = Duration::from_secs(60);
-pub const ONE_HOUR: Duration = Duration::from_secs(60 * 60);

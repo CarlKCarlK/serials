@@ -6,17 +6,15 @@ use embassy_time::{Duration, Timer};
 
 use crate::{
     blinker::{BlinkMode, Blinker, BlinkerNotifier},
-    display::{CELL_COUNT0, SEGMENT_COUNT0},
     offset_time::OffsetTime,
     pins::OutputArray,
-    state_machine::ONE_MINUTE,
+    shared_constants::{CELL_COUNT0, ONE_MINUTE, SEGMENT_COUNT0},
 };
 
 pub struct Clock<'a>(&'a NotifierInner);
 type NotifierInner = Channel<CriticalSectionRawMutex, ClockNotice, 4>;
 pub type ClockNotifier = (NotifierInner, BlinkerNotifier);
 
-// cmk only CELL_COUNT0
 impl Clock<'_> {
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(

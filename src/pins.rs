@@ -1,11 +1,12 @@
 use core::convert::Infallible;
 
-use crate::display::{CELL_COUNT0, SEGMENT_COUNT0};
 use embassy_rp::{
     gpio::{self, Level},
     peripherals::CORE1,
 };
-use embedded_hal::digital::OutputPin; // cmk why doesn't Brad's code need this?
+use embedded_hal::digital::OutputPin;
+
+use crate::shared_constants::{CELL_COUNT0, SEGMENT_COUNT0}; // cmk why doesn't Brad's code need this?
 
 pub struct OutputArray<'a, const N: usize>([gpio::Output<'a>; N]);
 
