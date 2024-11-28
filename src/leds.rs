@@ -1,16 +1,27 @@
+/// An empty struct useful for defining constants related to 7-segment LED displays.
 pub struct Leds;
 
 #[allow(dead_code)]
+/// Constants of interest for a 7-segment LED display.
 impl Leds {
+    /// Segment A of the 7-segment display.
     pub const SEG_A: u8 = 0b_0000_0001;
+    /// Segment B of the 7-segment display.
     pub const SEG_B: u8 = 0b_0000_0010;
+    /// Segment C of the 7-segment display.
     pub const SEG_C: u8 = 0b_0000_0100;
+    /// Segment D of the 7-segment display.
     pub const SEG_D: u8 = 0b_0000_1000;
+    /// Segment E of the 7-segment display.
     pub const SEG_E: u8 = 0b_0001_0000;
+    /// Segment F of the 7-segment display.
     pub const SEG_F: u8 = 0b_0010_0000;
+    /// Segment G of the 7-segment display.
     pub const SEG_G: u8 = 0b_0100_0000;
+    /// Decimal point of the 7-segment display.
     pub const DECIMAL: u8 = 0b_1000_0000;
 
+    /// Array representing the segments for digits 0-9 on a 7-segment display.
     pub const DIGITS: [u8; 10] = [
         0b_0011_1111, // Digit 0
         0b_0000_0110, // Digit 1
@@ -23,8 +34,13 @@ impl Leds {
         0b_0111_1111, // Digit 8
         0b_0110_1111, // Digit 9
     ];
+
+    /// Representation of a blank space on a 7-segment display.
     pub const SPACE: u8 = 0b_0000_0000;
 
+    /// ASCII table mapping characters to their 7-segment display representations.
+    /// Control characters (0-31) and delete (127) are represented as blank spaces.
+    /// Uppercase and lowercase letters are mostly mapped to the same segments for simplicity.
     pub const ASCII_TABLE: [u8; 128] = [
         // Control characters (0-31) + space (32)
         0b_0000_0000,
@@ -129,7 +145,7 @@ impl Leds {
         0b_0000_0000, // ^
         0b_0000_1000, // _
         0b_0000_0000, // `
-        // Lowercase letters (97-122), reusing uppercase for simplicity
+        // Lowercase letters (97-122), mostly reusing uppercase for simplicity
         0b_0111_0111, // A
         0b_0111_1100, // B (same as b)
         0b_0011_1001, // C

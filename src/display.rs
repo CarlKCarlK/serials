@@ -14,10 +14,17 @@ use crate::{
 use error::Result;
 use never::Never;
 
+/// A struct representing the display.
 pub struct Display<'a>(&'a DisplayNotifier);
+/// A type alias for the notifier that sends messages to the `Display`.
 pub type DisplayNotifier = Signal<CriticalSectionRawMutex, BitMatrix>;
 
 impl Display<'_> {
+    /// Creates a new `Display`. // cmk
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the task cannot be spawned.
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
         cell_pins: OutputArray<'static, CELL_COUNT>,
@@ -30,12 +37,18 @@ impl Display<'_> {
         Ok(display)
     }
 
+    #[must_use]
+    /// Creates a new `DisplayNotifier`.
     pub const fn notifier() -> DisplayNotifier {
         Signal::new()
     }
 }
 
 impl Display<'_> {
+    /// Writes characters to the display.
+    ///
+    /// The characters can be be any Unicode character but
+    /// unknown or hard to display characters will be displayed as blanks.
     pub fn write_chars(&self, chars: [char; CELL_COUNT]) {
         info!("write_chars: {:?}", chars);
         self.0.signal(BitMatrix::from_chars(&chars));
@@ -71,7 +84,7 @@ async fn inner_device_loop(
             // If only one bit pattern should be displayed (even on multiple cells), display it
             // and wait for the next notification
             Some((&bits, indexes)) if bits_to_indexes.len() == 1 => {
-                segment_pins.set_from_bits(bits)?;
+                segment_pins.set_from_bits(bits);
                 cell_pins.set_levels_at_indexes(indexes, Level::Low);
                 bit_matrix = notifier.wait().await;
                 cell_pins.set_levels_at_indexes(indexes, Level::High);
@@ -79,7 +92,7 @@ async fn inner_device_loop(
             // If multiple patterns should be displayed, multiplex them until the next notification
             _ => loop {
                 for (bytes, indexes) in &bits_to_indexes {
-                    segment_pins.set_from_bits(*bytes)?;
+                    segment_pins.set_from_bits(*bytes);
                     cell_pins.set_levels_at_indexes(indexes, Level::Low);
                     let timeout_or_signal =
                         select(Timer::after(MULTIPLEX_SLEEP), notifier.wait()).await;

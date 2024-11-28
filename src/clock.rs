@@ -11,11 +11,21 @@ use crate::{
     shared_constants::{CELL_COUNT, ONE_DAY, ONE_HOUR, ONE_MINUTE, ONE_SECOND, SEGMENT_COUNT},
 };
 
+/// A struct representing a virtual clock.
 pub struct Clock<'a>(&'a NotifierInner);
-type NotifierInner = Channel<CriticalSectionRawMutex, ClockNotice, 4>;
+/// Type alias for notifier that sends messages to the `Clock` and the `Blinker` it controls.
 pub type ClockNotifier = (NotifierInner, BlinkerNotifier);
+/// A type alias for the inner notifier that sends messages to the `Clock`.
+///
+/// The number is the maximum number of messages that can be stored in the channel without blocking.
+pub type NotifierInner = Channel<CriticalSectionRawMutex, ClockNotice, 4>;
 
 impl Clock<'_> {
+    /// Creates a new `Clock` instance. cmk
+    ///
+    /// # Errors
+    ///
+    /// Returns a `SpawnError` if the task cannot be spawned.
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
         cell_pins: OutputArray<'static, CELL_COUNT>,
@@ -31,19 +41,20 @@ impl Clock<'_> {
     }
 
     #[must_use]
+    /// Creates a new `ClockNotifier` instance.
     pub const fn notifier() -> ClockNotifier {
         (Channel::new(), Blinker::notifier())
     }
 
-    pub async fn set_mode(&self, clock_mode: ClockMode) {
+    pub(crate) async fn set_mode(&self, clock_mode: ClockMode) {
         self.0.send(ClockNotice::SetMode { clock_mode }).await;
     }
 
-    pub async fn adjust_offset(&self, delta: Duration) {
+    pub(crate) async fn adjust_offset(&self, delta: Duration) {
         self.0.send(ClockNotice::AdjustOffset(delta)).await;
     }
 
-    pub async fn reset_seconds(&self) {
+    pub(crate) async fn reset_seconds(&self) {
         self.0.send(ClockNotice::ResetSeconds).await;
     }
 }
@@ -56,17 +67,17 @@ pub enum ClockNotice {
 
 impl ClockNotice {
     /// Handles the action associated with the given `ClockNotice`.
-    pub fn apply(self, offset_time: &mut OffsetTime, clock_mode: &mut ClockMode) {
+    pub(crate) fn apply(self, offset_time: &mut OffsetTime, clock_mode: &mut ClockMode) {
         match self {
-            ClockNotice::AdjustOffset(delta) => {
+            Self::AdjustOffset(delta) => {
                 *offset_time += delta;
             }
-            ClockNotice::SetMode {
+            Self::SetMode {
                 clock_mode: new_clock_mode,
             } => {
                 *clock_mode = new_clock_mode;
             }
-            ClockNotice::ResetSeconds => {
+            Self::ResetSeconds => {
                 let sleep_duration = OffsetTime::till_next(offset_time.now(), ONE_MINUTE);
                 *offset_time += sleep_duration;
             }
@@ -74,6 +85,11 @@ impl ClockNotice {
     }
 }
 
+/// Represents the different modes the clock can operate in.
+///
+/// For example, `HoursMinutes` displays the hours and minutes and `BlinkingSeconds` blinks the seconds
+/// to show that they are ready to be reset.
+#[allow(missing_docs)] // We don't need to document the variants of this enum.
 pub enum ClockMode {
     HoursMinutes,
     MinutesSeconds,
@@ -111,16 +127,19 @@ async fn device_loop(
 
 impl ClockMode {
     /// Given a `ClockMode`, compute the characters to display, the blink mode, and the sleep duration.
-    pub fn display_info(&self, offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
+    pub(crate) fn display_info(
+        &self,
+        offset_time: &OffsetTime,
+    ) -> ([char; 4], BlinkMode, Duration) {
         match self {
-            ClockMode::HoursMinutes => Self::hours_minutes(offset_time),
-            ClockMode::MinutesSeconds => Self::minutes_seconds(offset_time),
-            ClockMode::BlinkingSeconds => Self::blinking_seconds(offset_time),
-            ClockMode::SecondsZero => Self::seconds_zero(),
-            ClockMode::BlinkingMinutes => Self::blinking_minutes(offset_time),
-            ClockMode::SolidMinutes => Self::solid_minutes(offset_time),
-            ClockMode::BlinkingHours => Self::blinking_hours(offset_time),
-            ClockMode::SolidHours => Self::solid_hours(offset_time),
+            Self::HoursMinutes => Self::hours_minutes(offset_time),
+            Self::MinutesSeconds => Self::minutes_seconds(offset_time),
+            Self::BlinkingSeconds => Self::blinking_seconds(offset_time),
+            Self::SecondsZero => Self::seconds_zero(),
+            Self::BlinkingMinutes => Self::blinking_minutes(offset_time),
+            Self::SolidMinutes => Self::solid_minutes(offset_time),
+            Self::BlinkingHours => Self::blinking_hours(offset_time),
+            Self::SolidHours => Self::solid_hours(offset_time),
         }
     }
 
@@ -162,7 +181,7 @@ impl ClockMode {
         )
     }
 
-    fn seconds_zero() -> ([char; 4], BlinkMode, Duration) {
+    const fn seconds_zero() -> ([char; 4], BlinkMode, Duration) {
         // We don't really need to wake up even once a day to update
         // the constant "00" display, but Duration::MAX causes an overflow
         // so ONE_DAY is used instead.
@@ -207,12 +226,12 @@ impl ClockMode {
 }
 
 #[inline]
-fn tens_digit(value: u8) -> char {
+const fn tens_digit(value: u8) -> char {
     ((value / 10) + b'0') as char
 }
 
 #[inline]
-fn tens_hours(value: u8) -> char {
+const fn tens_hours(value: u8) -> char {
     if value >= 10 {
         '1'
     } else {
@@ -221,6 +240,6 @@ fn tens_hours(value: u8) -> char {
 }
 
 #[inline]
-fn ones_digit(value: u8) -> char {
+const fn ones_digit(value: u8) -> char {
     ((value % 10) + b'0') as char
 }

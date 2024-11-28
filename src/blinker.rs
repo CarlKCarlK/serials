@@ -10,13 +10,19 @@ use crate::{
     shared_constants::{BLINK_OFF_DELAY, BLINK_ON_DELAY, CELL_COUNT, SEGMENT_COUNT},
 };
 
+/// A struct that manages the blinking behavior of the display.
 pub struct Blinker<'a>(&'a NotifierInner);
+
+/// A type alias for the notifier that sends messages to the `Blinker`
+/// and the `Display` it controls.
 pub type BlinkerNotifier = (NotifierInner, DisplayNotifier);
+
+/// A type alias for the inner notifier that sends messages to the `Blinker`.
 type NotifierInner = Signal<CriticalSectionRawMutex, (BlinkMode, [char; CELL_COUNT])>;
 
 impl Blinker<'_> {
     #[must_use = "Must be used to manage the spawned task"]
-    pub fn new(
+    pub(crate) fn new(
         digit_pins: OutputArray<'static, CELL_COUNT>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT>,
         notifier: &'static BlinkerNotifier,
@@ -29,7 +35,7 @@ impl Blinker<'_> {
         Ok(blinker)
     }
 
-    pub const fn notifier() -> BlinkerNotifier {
+    pub(crate) const fn notifier() -> BlinkerNotifier {
         (Signal::new(), Display::notifier())
     }
 }
@@ -69,7 +75,7 @@ async fn device_loop(display: Display<'static>, notifier: &'static NotifierInner
 }
 
 impl Blinker<'_> {
-    pub fn write_chars(&self, chars: [char; CELL_COUNT], blink_mode: BlinkMode) {
+    pub(crate) fn write_chars(&self, chars: [char; CELL_COUNT], blink_mode: BlinkMode) {
         info!("write_chars: {:?}, blink_mode: {:?}", chars, blink_mode);
         self.0.signal((blink_mode, chars));
     }

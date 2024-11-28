@@ -2,7 +2,7 @@ use crate::{
     error::Error::BitsToIndexesNotEnoughSpace,
     shared_constants::{BitsToIndexes, CELL_COUNT},
 };
-use core::{array, ops::BitOrAssign, slice};
+use core::{array, num::NonZeroU8, ops::BitOrAssign, slice};
 
 use heapless::{LinearMap, Vec};
 
@@ -12,10 +12,10 @@ use crate::{error::Error, leds::Leds};
 pub struct BitMatrix([u8; CELL_COUNT]);
 
 impl BitMatrix {
-    pub fn new(bits: [u8; CELL_COUNT]) -> Self {
+    pub const fn new(bits: [u8; CELL_COUNT]) -> Self {
         Self(bits)
     }
-    pub fn from_bits(bits: u8) -> Self {
+    pub const fn from_bits(bits: u8) -> Self {
         Self([bits; CELL_COUNT])
     }
 
@@ -28,12 +28,12 @@ impl BitMatrix {
     }
 
     pub fn from_chars(chars: &[char; CELL_COUNT]) -> Self {
-        let bytes = chars.map(|c| Leds::ASCII_TABLE[c as usize]);
+        let bytes = chars.map(|c| Leds::ASCII_TABLE.get(c as usize).copied().unwrap_or(0));
         Self::new(bytes)
     }
 
     pub fn from_number(mut number: u16, padding: u8) -> Self {
-        let mut bit_matrix = BitMatrix::from_bits(padding);
+        let mut bit_matrix = Self::from_bits(padding);
 
         for bits in bit_matrix.iter_mut().rev() {
             *bits = Leds::DIGITS[(number % 10) as usize]; // Get the last digit
@@ -52,13 +52,16 @@ impl BitMatrix {
 
     pub fn bits_to_indexes(&self) -> Result<BitsToIndexes, Error> {
         let mut acc: BitsToIndexes = LinearMap::new();
-        for (index, &bits) in self.iter().enumerate().filter(|(_, &bits)| bits != 0) {
-            if let Some(vec) = acc.get_mut(&bits) {
-                vec.push(index).map_err(|_| BitsToIndexesNotEnoughSpace)?;
-            } else {
-                let vec = Vec::from_slice(&[index]).map_err(|()| BitsToIndexesNotEnoughSpace)?;
-                acc.insert(bits, vec)
-                    .map_err(|_| BitsToIndexesNotEnoughSpace)?;
+        for (index, &bits) in self.iter().enumerate() {
+            if let Some(nonzero_bits) = NonZeroU8::new(bits) {
+                if let Some(vec) = acc.get_mut(&nonzero_bits) {
+                    vec.push(index).map_err(|_| BitsToIndexesNotEnoughSpace)?;
+                } else {
+                    let vec =
+                        Vec::from_slice(&[index]).map_err(|()| BitsToIndexesNotEnoughSpace)?;
+                    acc.insert(nonzero_bits, vec)
+                        .map_err(|_| BitsToIndexesNotEnoughSpace)?;
+                }
             }
         }
         Ok(acc)
@@ -70,7 +73,7 @@ impl core::str::FromStr for BitMatrix {
 
     /// Parse a string into a `BitMatrix`. If too long, the decimal point will be turned on.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut bit_matrix = BitMatrix::default();
+        let mut bit_matrix = Self::default();
 
         for (bits, c) in bit_matrix.iter_mut().zip(s.chars()) {
             *bits = Leds::ASCII_TABLE.get(c as usize).copied().ok_or(())?;

@@ -5,14 +5,20 @@ use embassy_time::{Duration, Timer};
 
 use crate::shared_constants::{BUTTON_DEBOUNCE_DELAY, LONG_PRESS_DURATION};
 
+/// A struct representing a virtual button input.
 pub struct Button<'a>(Input<'a>);
 
 impl<'a> Button<'a> {
+    /// Creates a new `Button` instance.
     #[must_use]
-    pub fn new(button: Input<'a>) -> Self {
+    pub const fn new(button: Input<'a>) -> Self {
         Self(button)
     }
 
+    /// Measures the duration of a button press.
+    ///
+    /// This method does not wait for the button to be released.  It only waits
+    /// as long as necessary to determine whether the press was "short" or "long".
     pub async fn press_duration(&mut self) -> PressDuration {
         // wait for the button to be released
         self.wait_for_button_up().await;
@@ -53,7 +59,7 @@ impl<'a> Button<'a> {
         self
     }
 
-    // wait for the button to be released
+    /// Waits for the button to be released.
     pub async fn wait_for_up(&mut self) -> &mut Self {
         self.0.wait_for_low().await;
         self
@@ -70,6 +76,7 @@ impl<'a> Button<'a> {
         self
     }
 
+    /// Waits for the button to be pressed.
     pub async fn wait_for_press(&mut self) -> &mut Self {
         self.0.wait_for_rising_edge().await;
         self

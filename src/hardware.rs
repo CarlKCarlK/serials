@@ -5,11 +5,17 @@ use embassy_rp::{
 
 use crate::{output_array::OutputArray, CELL_COUNT, SEGMENT_COUNT};
 
+/// Represents the hardware components of the clock.
 pub struct Hardware {
+    /// The four cell pins that contol the digits of the display.
     pub cells: OutputArray<'static, CELL_COUNT>,
+    /// The eight segment pins that control the segments of the display.
     pub segments: OutputArray<'static, SEGMENT_COUNT>,
+    /// The button that controls the clock.
     pub button: gpio::Input<'static>,
+    /// An LED (not currently used).
     pub led: gpio::Output<'static>,
+    /// The second core of the RP2040 (not currently used).
     pub core1: CORE1,
 }
 
