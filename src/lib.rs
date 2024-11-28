@@ -37,7 +37,7 @@ mod state_machine;
 // Re-export commonly used items
 pub use blinker::{Blinker, BlinkerNotifier};
 pub use button::Button;
-pub use clock::{Clock, ClockMode, ClockNotifier, NotifierInner};
+pub use clock::{Clock, ClockNotifier, NotifierInner};
 pub use display::{Display, DisplayNotifier};
 pub use error::{Error, Result};
 pub use hardware::Hardware;
@@ -45,4 +45,4 @@ pub use leds::Leds;
 pub use never::Never;
 pub use offset_time::OffsetTime;
 pub use shared_constants::*;
-pub use state_machine::State;
+pub use state_machine::ClockState;

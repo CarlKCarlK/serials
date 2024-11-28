@@ -24,7 +24,7 @@ use defmt::info;
 use embassy_executor::Spawner;
 // Importing from our own internal `lib` module
 use defmt_rtt as _;
-use lib::{Button, Clock, ClockNotifier, Never, Result, State};
+use lib::{Button, Clock, ClockNotifier, ClockState, Never, Result};
 use panic_probe as _;
 #[embassy_executor::main]
 async fn main(#[allow(clippy::used_underscore_binding)] spawner0: Spawner) -> ! {
@@ -43,11 +43,11 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     info!("Clock and button created");
 
     // Run the state machine
-    let mut state = State::default();
+    let mut state = ClockState::default();
     loop {
         defmt::info!("State: {:?}", state);
         state = state.next_state(&mut clock, &mut button).await;
     }
 }
 
-// cmk what can we test?ks
+// cmk what can we test?

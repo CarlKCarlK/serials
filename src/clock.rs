@@ -9,6 +9,7 @@ use crate::{
     offset_time::OffsetTime,
     output_array::OutputArray,
     shared_constants::{CELL_COUNT, ONE_DAY, ONE_HOUR, ONE_MINUTE, ONE_SECOND, SEGMENT_COUNT},
+    ClockState,
 };
 
 /// A struct representing a virtual clock.
@@ -46,8 +47,8 @@ impl Clock<'_> {
         (Channel::new(), Blinker::notifier())
     }
 
-    pub(crate) async fn set_mode(&self, clock_mode: ClockMode) {
-        self.0.send(ClockNotice::SetMode { clock_mode }).await;
+    pub(crate) async fn set_mode(&self, clock_state: ClockState) {
+        self.0.send(ClockNotice::SetMode { clock_state }).await;
     }
 
     pub(crate) async fn adjust_offset(&self, delta: Duration) {
@@ -60,22 +61,22 @@ impl Clock<'_> {
 }
 
 pub enum ClockNotice {
-    SetMode { clock_mode: ClockMode },
+    SetMode { clock_state: ClockState },
     AdjustOffset(Duration),
     ResetSeconds,
 }
 
 impl ClockNotice {
     /// Handles the action associated with the given `ClockNotice`.
-    pub(crate) fn apply(self, offset_time: &mut OffsetTime, clock_mode: &mut ClockMode) {
+    pub(crate) fn apply(self, offset_time: &mut OffsetTime, clock_state: &mut ClockState) {
         match self {
             Self::AdjustOffset(delta) => {
                 *offset_time += delta;
             }
             Self::SetMode {
-                clock_mode: new_clock_mode,
+                clock_state: new_clock_mode,
             } => {
-                *clock_mode = new_clock_mode;
+                *clock_state = new_clock_mode;
             }
             Self::ResetSeconds => {
                 let sleep_duration = OffsetTime::till_next(offset_time.now(), ONE_MINUTE);
@@ -85,21 +86,22 @@ impl ClockNotice {
     }
 }
 
-/// Represents the different modes the clock can operate in.
-///
-/// For example, `HoursMinutes` displays the hours and minutes and `BlinkingSeconds` blinks the seconds
-/// to show that they are ready to be reset.
-#[allow(missing_docs)] // We don't need to document the variants of this enum.
-pub enum ClockMode {
-    HoursMinutes,
-    MinutesSeconds,
-    BlinkingSeconds,
-    SecondsZero,
-    BlinkingMinutes,
-    SolidMinutes,
-    BlinkingHours,
-    SolidHours,
-}
+// cmk remove
+// /// Represents the different modes the clock can operate in.
+// ///
+// /// For example, `HoursMinutes` displays the hours and minutes and `BlinkingSeconds` blinks the seconds
+// /// to show that they are ready to be reset.
+// #[allow(missing_docs)] // We don't need to document the variants of this enum.
+// pub enum ClockMode {
+//     HoursMinutes,
+//     MinutesSeconds,
+//     BlinkingSeconds,
+//     SecondsZero,
+//     BlinkingMinutes,
+//     SolidMinutes,
+//     BlinkingHours,
+//     SolidHours,
+// }
 
 #[embassy_executor::task]
 #[allow(clippy::needless_range_loop)]
@@ -108,11 +110,11 @@ async fn device_loop(
     clock_notifier: &'static NotifierInner,
 ) -> ! {
     let mut offset_time = OffsetTime::default();
-    let mut clock_mode = ClockMode::MinutesSeconds;
+    let mut clock_state = ClockState::default();
 
     loop {
         // Compute the display and time until the display change.
-        let (chars, blink_mode, sleep_duration) = clock_mode.display_info(&offset_time);
+        let (chars, blink_mode, sleep_duration) = clock_state.display_info(&offset_time);
         blinkable_display.write_chars(chars, blink_mode);
 
         // Wait for a notification or for the sleep duration to elapse
@@ -120,26 +122,26 @@ async fn device_loop(
         if let Either::First(notification) =
             select(clock_notifier.receive(), Timer::after(sleep_duration)).await
         {
-            notification.apply(&mut offset_time, &mut clock_mode);
+            notification.apply(&mut offset_time, &mut clock_state);
         }
     }
 }
 
-impl ClockMode {
-    /// Given a `ClockMode`, compute the characters to display, the blink mode, and the sleep duration.
+impl ClockState {
+    /// Given a `ClockState`, compute the characters to display, the blink mode, and the sleep duration.
     pub(crate) fn display_info(
         &self,
         offset_time: &OffsetTime,
     ) -> ([char; 4], BlinkMode, Duration) {
         match self {
-            Self::HoursMinutes => Self::hours_minutes(offset_time),
-            Self::MinutesSeconds => Self::minutes_seconds(offset_time),
-            Self::BlinkingSeconds => Self::blinking_seconds(offset_time),
-            Self::SecondsZero => Self::seconds_zero(),
-            Self::BlinkingMinutes => Self::blinking_minutes(offset_time),
-            Self::SolidMinutes => Self::solid_minutes(offset_time),
-            Self::BlinkingHours => Self::blinking_hours(offset_time),
-            Self::SolidHours => Self::solid_hours(offset_time),
+            Self::DisplayHoursMinutes => Self::hours_minutes(offset_time),
+            Self::DisplayMinutesSeconds => Self::minutes_seconds(offset_time),
+            Self::ShowSeconds => Self::blinking_seconds(offset_time),
+            Self::EditSeconds => Self::seconds_zero(),
+            Self::ShowMinutes => Self::blinking_minutes(offset_time),
+            Self::EditMinutes => Self::solid_minutes(offset_time),
+            Self::ShowHours => Self::blinking_hours(offset_time),
+            Self::EditHours => Self::solid_hours(offset_time),
         }
     }
 
