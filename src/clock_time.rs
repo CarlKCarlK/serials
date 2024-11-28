@@ -5,12 +5,12 @@ use embassy_time::{Duration, Instant};
 
 /// The system time along with an offset to represent time
 /// to display on the clock.
-pub struct OffsetTime {
+pub struct ClockTime {
     offset: Duration,
 }
 
-impl Default for OffsetTime {
-    /// By default, `OffsetTime` is born holding the time of the last build. If
+impl Default for ClockTime {
+    /// By default, `ClockTime` is born holding the time of the last build. If
     /// the build time is not available, it starts at Midnight.
     ///
     /// The build time is set by the `build.rs` script which sets the `BUILD_TIME`
@@ -27,7 +27,7 @@ impl Default for OffsetTime {
     }
 }
 
-impl OffsetTime {
+impl ClockTime {
     /// Returns the current time with the offset applied.
     #[inline]
     #[must_use]
@@ -68,7 +68,7 @@ impl OffsetTime {
     }
 }
 
-impl AddAssign<Duration> for OffsetTime {
+impl AddAssign<Duration> for ClockTime {
     fn add_assign(&mut self, duration: Duration) {
         self.offset += duration;
         info!(

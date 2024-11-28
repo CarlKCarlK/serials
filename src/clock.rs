@@ -5,10 +5,10 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channe
 use embassy_time::{Duration, Timer};
 
 use crate::{
-    blinker::{BlinkMode, Blinker, BlinkerNotifier},
-    offset_time::OffsetTime,
+    blinker::{Blinker, BlinkerNotifier},
+    clock_time::ClockTime,
     output_array::OutputArray,
-    shared_constants::{CELL_COUNT, ONE_DAY, ONE_HOUR, ONE_MINUTE, ONE_SECOND, SEGMENT_COUNT},
+    shared_constants::{CELL_COUNT, ONE_MINUTE, SEGMENT_COUNT},
     ClockState,
 };
 
@@ -68,10 +68,10 @@ pub enum ClockNotice {
 
 impl ClockNotice {
     /// Handles the action associated with the given `ClockNotice`.
-    pub(crate) fn apply(self, offset_time: &mut OffsetTime, clock_state: &mut ClockState) {
+    pub(crate) fn apply(self, clock_time: &mut ClockTime, clock_state: &mut ClockState) {
         match self {
             Self::AdjustOffset(delta) => {
-                *offset_time += delta;
+                *clock_time += delta;
             }
             Self::SetMode {
                 clock_state: new_clock_mode,
@@ -79,29 +79,12 @@ impl ClockNotice {
                 *clock_state = new_clock_mode;
             }
             Self::ResetSeconds => {
-                let sleep_duration = OffsetTime::till_next(offset_time.now(), ONE_MINUTE);
-                *offset_time += sleep_duration;
+                let sleep_duration = ClockTime::till_next(clock_time.now(), ONE_MINUTE);
+                *clock_time += sleep_duration;
             }
         }
     }
 }
-
-// cmk remove
-// /// Represents the different modes the clock can operate in.
-// ///
-// /// For example, `HoursMinutes` displays the hours and minutes and `BlinkingSeconds` blinks the seconds
-// /// to show that they are ready to be reset.
-// #[allow(missing_docs)] // We don't need to document the variants of this enum.
-// pub enum ClockMode {
-//     HoursMinutes,
-//     MinutesSeconds,
-//     BlinkingSeconds,
-//     SecondsZero,
-//     BlinkingMinutes,
-//     SolidMinutes,
-//     BlinkingHours,
-//     SolidHours,
-// }
 
 #[embassy_executor::task]
 #[allow(clippy::needless_range_loop)]
@@ -109,12 +92,12 @@ async fn device_loop(
     blinkable_display: Blinker<'static>,
     clock_notifier: &'static NotifierInner,
 ) -> ! {
-    let mut offset_time = OffsetTime::default();
+    let mut clock_time = ClockTime::default();
     let mut clock_state = ClockState::default();
 
     loop {
         // Compute the display and time until the display change.
-        let (chars, blink_mode, sleep_duration) = clock_state.display_info(&offset_time);
+        let (chars, blink_mode, sleep_duration) = clock_state.render(&clock_time);
         blinkable_display.write_chars(chars, blink_mode);
 
         // Wait for a notification or for the sleep duration to elapse
@@ -122,126 +105,7 @@ async fn device_loop(
         if let Either::First(notification) =
             select(clock_notifier.receive(), Timer::after(sleep_duration)).await
         {
-            notification.apply(&mut offset_time, &mut clock_state);
+            notification.apply(&mut clock_time, &mut clock_state);
         }
     }
-}
-
-impl ClockState {
-    /// Given a `ClockState`, compute the characters to display, the blink mode, and the sleep duration.
-    pub(crate) fn display_info(
-        &self,
-        offset_time: &OffsetTime,
-    ) -> ([char; 4], BlinkMode, Duration) {
-        match self {
-            Self::DisplayHoursMinutes => Self::hours_minutes(offset_time),
-            Self::DisplayMinutesSeconds => Self::minutes_seconds(offset_time),
-            Self::ShowSeconds => Self::blinking_seconds(offset_time),
-            Self::EditSeconds => Self::seconds_zero(),
-            Self::ShowMinutes => Self::blinking_minutes(offset_time),
-            Self::EditMinutes => Self::solid_minutes(offset_time),
-            Self::ShowHours => Self::blinking_hours(offset_time),
-            Self::EditHours => Self::solid_hours(offset_time),
-        }
-    }
-
-    /// Helper functions for each mode
-    fn hours_minutes(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
-        let (hours, minutes, _, sleep_duration) = offset_time.h_m_s_sleep_duration(ONE_MINUTE);
-        (
-            [
-                tens_hours(hours),
-                ones_digit(hours),
-                tens_digit(minutes),
-                ones_digit(minutes),
-            ],
-            BlinkMode::Solid,
-            sleep_duration,
-        )
-    }
-
-    fn minutes_seconds(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
-        let (_, minutes, seconds, sleep_duration) = offset_time.h_m_s_sleep_duration(ONE_SECOND);
-        (
-            [
-                tens_digit(minutes),
-                ones_digit(minutes),
-                tens_digit(seconds),
-                ones_digit(seconds),
-            ],
-            BlinkMode::Solid,
-            sleep_duration,
-        )
-    }
-
-    fn blinking_seconds(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
-        let (_, _, seconds, sleep_duration) = offset_time.h_m_s_sleep_duration(ONE_SECOND);
-        (
-            [' ', tens_digit(seconds), ones_digit(seconds), ' '],
-            BlinkMode::BlinkingAndOn,
-            sleep_duration,
-        )
-    }
-
-    const fn seconds_zero() -> ([char; 4], BlinkMode, Duration) {
-        // We don't really need to wake up even once a day to update
-        // the constant "00" display, but Duration::MAX causes an overflow
-        // so ONE_DAY is used instead.
-        ([' ', '0', '0', ' '], BlinkMode::Solid, ONE_DAY)
-    }
-
-    fn blinking_minutes(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
-        let (_, minutes, _, sleep_duration) = offset_time.h_m_s_sleep_duration(ONE_MINUTE);
-        (
-            [' ', ' ', tens_digit(minutes), ones_digit(minutes)],
-            BlinkMode::BlinkingAndOn,
-            sleep_duration,
-        )
-    }
-
-    fn solid_minutes(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
-        let (_, minutes, _, sleep_duration) = offset_time.h_m_s_sleep_duration(ONE_MINUTE);
-        (
-            [' ', ' ', tens_digit(minutes), ones_digit(minutes)],
-            BlinkMode::Solid,
-            sleep_duration,
-        )
-    }
-
-    fn blinking_hours(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
-        let (hours, _, _, sleep_duration) = offset_time.h_m_s_sleep_duration(ONE_HOUR);
-        (
-            [tens_hours(hours), ones_digit(hours), ' ', ' '],
-            BlinkMode::BlinkingAndOn,
-            sleep_duration,
-        )
-    }
-
-    fn solid_hours(offset_time: &OffsetTime) -> ([char; 4], BlinkMode, Duration) {
-        let (hours, _, _, sleep_duration) = offset_time.h_m_s_sleep_duration(ONE_HOUR);
-        (
-            [tens_hours(hours), ones_digit(hours), ' ', ' '],
-            BlinkMode::Solid,
-            sleep_duration,
-        )
-    }
-}
-
-#[inline]
-const fn tens_digit(value: u8) -> char {
-    ((value / 10) + b'0') as char
-}
-
-#[inline]
-const fn tens_hours(value: u8) -> char {
-    if value >= 10 {
-        '1'
-    } else {
-        ' '
-    }
-}
-
-#[inline]
-const fn ones_digit(value: u8) -> char {
-    ((value % 10) + b'0') as char
 }
