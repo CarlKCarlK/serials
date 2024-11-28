@@ -7,29 +7,29 @@ stateDiagram-v2
 
    %% Style overrides
 
-    style DisplayHoursMinutes fill:#000,stroke:#333,stroke-width:2px,color:#ff4444,font-family:"Courier New",font-size:18px,font-weight:bold
-    style DisplayMinutesSeconds fill:#000,stroke:#333,stroke-width:2px,color:#ff4444,font-family:"Courier New",font-size:18px,font-weight:bold
+    style HoursMinutes fill:#000,stroke:#333,stroke-width:2px,color:#ff4444,font-family:"Courier New",font-size:18px,font-weight:bold
+    style MinutesSeconds fill:#000,stroke:#333,stroke-width:2px,color:#ff4444,font-family:"Courier New",font-size:18px,font-weight:bold
     style ShowSeconds fill:#000,stroke:#333,stroke-width:2px,color:#ff4444,font-family:"Courier New",font-size:18px,font-weight:bold
     style ShowMinutes fill:#000,stroke:#333,stroke-width:2px,color:#ff4444,font-family:"Courier New",font-size:18px,font-weight:bold    
     style ShowHours fill:#000,stroke:#333,stroke-width:2px,color:#ff4444,font-family:"Courier New",font-size:18px,font-weight:bold
     
 
-    DisplayHoursMinutes --> DisplayMinutesSeconds : Tap
-    DisplayMinutesSeconds --> DisplayHoursMinutes : Tap
-    DisplayHoursMinutes --> ShowSeconds : Press & Release
-    DisplayMinutesSeconds --> ShowSeconds : Press & Release
+    HoursMinutes --> MinutesSeconds : Tap
+    MinutesSeconds --> HoursMinutes : Tap
+    HoursMinutes --> ShowSeconds : Press & Release
+    MinutesSeconds --> ShowSeconds : Press & Release
     ShowSeconds --> ShowMinutes : Tap
     ShowSeconds --> EditSeconds : Press
     EditSeconds --> ShowSeconds : Release
     ShowMinutes --> ShowHours : Tap
     ShowMinutes --> EditMinutes : Press
     EditMinutes --> ShowMinutes : Release
-    ShowHours --> DisplayHoursMinutes : Tap
+    ShowHours --> HoursMinutes : Tap
     ShowHours --> EditHours : Press
     EditHours --> ShowHours : Release
 
-    DisplayHoursMinutes: HHMM
-    DisplayMinutesSeconds: MMSS
+    HoursMinutes: HHMM
+    MinutesSeconds: MMSS
     state "&nbsp;&nbsp;✨SS✨&nbsp;&nbsp;" as ShowSeconds
     EditSeconds: *to 00*
     state "&nbsp;&nbsp;&nbsp;&nbsp;✨MM✨" as ShowMinutes    
@@ -61,7 +61,7 @@ Note: ✨ indicates blinking.
 
 **Press**: Change the value. Seconds go to `00`. Minutes and hours increment quickly.
 
-**Release**: When the value is right.
+**Release**: When the value is what you wish.
 
 ## Tools & Debugging
 

@@ -1,4 +1,4 @@
-[package] # cmk update this
+[package] # TODO: update this
 edition = "2021"
 # if this changes, update .vscode/launch.json and .cargo/config.toml
 name = "clock"
@@ -12,7 +12,7 @@ name = "lib"
 path = "src/lib.rs"
 
 [dependencies]
-defmt = "0.3.8"
+defmt = "0.3.9"
 defmt-rtt = "0.4.1"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
 cortex-m-rt = "0.7.5"

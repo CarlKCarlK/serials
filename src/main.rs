@@ -1,33 +1,36 @@
-//! # Clock cmk
+//! A 4-digit 7-segment clock that can be controlled by a button.
+//!
+//! Runs on a Raspberry Pi Pico RP2040. See the `README.md` for more information.
 #![no_std]
 #![no_main]
 #![warn(
     clippy::pedantic,
-    // clippy::nursery, // leave off because I can't turn off it's send_sync warning.
+    clippy::nursery,
     clippy::use_self,
     unused_lifetimes,
     missing_docs,
     single_use_lifetimes,
     unreachable_pub,
-    // cmk clippy::cargo,
+    // TODO: clippy::cargo,
     clippy::perf,
     clippy::style,
     clippy::complexity,
     clippy::correctness,
     clippy::must_use_candidate,
-    // // cmk0 clippy::cargo_common_metadata
+    // TODO: clippy::cargo_common_metadata
     clippy::unwrap_used, clippy::unwrap_used, // : Warns if you're using .unwrap() or .expect(), which can be a sign of inadequate error handling.
     clippy::panic_in_result_fn, // Ensures functions that return Result do not contain panic!, which could be inappropriate in production code.
 
 )]
+#![allow(clippy::future_not_send)] // This is a single-threaded application, so futures don't need to be Send.
 use defmt::info;
-use embassy_executor::Spawner;
-// Importing from our own internal `lib` module
 use defmt_rtt as _;
-use lib::{Button, Clock, ClockNotifier, ClockState, Never, Result};
+use embassy_executor::Spawner;
+use lib::{Button, Clock, ClockNotifier, ClockState, Never, Result}; // This crate's own internal library
 use panic_probe as _;
+
 #[embassy_executor::main]
-async fn main(#[allow(clippy::used_underscore_binding)] spawner0: Spawner) -> ! {
+pub async fn main(#[allow(clippy::used_underscore_binding)] spawner0: Spawner) -> ! {
     // If it returns, something went wrong.
     let err = inner_main(spawner0).await.unwrap_err();
     panic!("{err}");
@@ -35,7 +38,6 @@ async fn main(#[allow(clippy::used_underscore_binding)] spawner0: Spawner) -> ! 
 
 async fn inner_main(spawner: Spawner) -> Result<Never> {
     let hardware = lib::Hardware::default();
-
     #[allow(clippy::items_after_statements)]
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     let mut clock = Clock::new(hardware.cells, hardware.segments, &CLOCK_NOTIFIER, spawner)?;
@@ -50,4 +52,4 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     }
 }
 
-// cmk what can we test?
+// TODO: Is testing possible?

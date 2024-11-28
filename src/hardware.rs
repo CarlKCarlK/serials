@@ -7,7 +7,7 @@ use crate::{output_array::OutputArray, CELL_COUNT, SEGMENT_COUNT};
 
 /// Represents the hardware components of the clock.
 pub struct Hardware {
-    /// The four cell pins that contol the digits of the display.
+    /// The four cell pins that control the digits of the display.
     pub cells: OutputArray<'static, CELL_COUNT>,
     /// The eight segment pins that control the segments of the display.
     pub segments: OutputArray<'static, SEGMENT_COUNT>,

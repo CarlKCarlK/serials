@@ -22,7 +22,15 @@ pub type ClockNotifier = (NotifierInner, BlinkerNotifier);
 pub type NotifierInner = Channel<CriticalSectionRawMutex, ClockNotice, 4>;
 
 impl Clock<'_> {
-    /// Creates a new `Clock` instance. cmk
+    /// Create a new `Clock` instance, which entails starting an Embassy task.
+    ///
+    /// # Arguments
+    ///
+    /// * `cell_pins` - The pins that control the cells (digits) of the display.
+    /// * `segment_pins` - The pins that control the segments of the display.
+    /// * `notifier` - The static notifier that sends messages to the `Clock` and the `Blinker` it controls.
+    ///          This notifier is created with the `Clock::notifier()` method.
+    /// * `spawner` - The spawner that will spawn the task that controls the clock.
     ///
     /// # Errors
     ///
@@ -43,6 +51,18 @@ impl Clock<'_> {
 
     #[must_use]
     /// Creates a new `ClockNotifier` instance.
+    ///
+    /// This notifier is used to send messages to the `Clock` and the `Blinker` it controls.
+    ///
+    /// This should be assigned to a static variable and passed to the `Clock::new()` method.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// #[allow(clippy::items_after_statements)]
+    /// static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
+    /// let mut clock = Clock::new(hardware.cells, hardware.segments, &CLOCK_NOTIFIER, spawner)?;
+    /// ```
     pub const fn notifier() -> ClockNotifier {
         (Channel::new(), Blinker::notifier())
     }

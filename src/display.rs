@@ -20,11 +20,19 @@ pub struct Display<'a>(&'a DisplayNotifier);
 pub type DisplayNotifier = Signal<CriticalSectionRawMutex, BitMatrix>;
 
 impl Display<'_> {
-    /// Creates a new `Display`. // cmk
+    /// Create a new `Display`, which entails starting an Embassy task.
+    ///
+    /// # Arguments
+    ///
+    /// * `cell_pins` - The pins that control the cells (digits) of the display.
+    /// * `segment_pins` - The pins that control the segments of the display.
+    /// * `notifier` - The static notifier that sends messages to the `Display`.
+    ///          This notifier is created with the `Display::notifier()` method.
+    /// * `spawner` - The spawner that will spawn the task that controls the display.
     ///
     /// # Errors
     ///
-    /// This function will return an error if the task cannot be spawned.
+    /// Returns a `SpawnError` if the task cannot be spawned.
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
         cell_pins: OutputArray<'static, CELL_COUNT>,
@@ -39,6 +47,10 @@ impl Display<'_> {
 
     #[must_use]
     /// Creates a new `DisplayNotifier`.
+    ///
+    /// This notifier is used to send messages to the `Display`.
+    ///
+    /// This should be assigned to a static variable and passed to the `Display::new()` method.
     pub const fn notifier() -> DisplayNotifier {
         Signal::new()
     }

@@ -7,13 +7,13 @@
     missing_docs,
      single_use_lifetimes,
      unreachable_pub,
-    // cmk clippy::cargo,
+    // TODO: clippy::cargo,
     clippy::perf,
     clippy::style,
     clippy::complexity,
     clippy::correctness,
     clippy::must_use_candidate,
-    // // // cmk0 clippy::cargo_common_metadata
+    // TODO: clippy::cargo_common_metadata
     clippy::unwrap_used, clippy::unwrap_used, // Warns if you're using .unwrap() or .expect(), which can be a sign of inadequate error handling.
     clippy::panic_in_result_fn, // Ensures functions that return Result do not contain panic!, which could be inappropriate in production code.
 )]
