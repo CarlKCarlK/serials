@@ -15,7 +15,7 @@ impl<'a> Button<'a> {
         Self(button)
     }
 
-    /// Measures the duration of a button press.
+    /// Measures the duration of a button press but does not wait for the button to be released.
     ///
     /// This method does not wait for the button to be released.  It only waits
     /// as long as necessary to determine whether the press was "short" or "long".
@@ -86,9 +86,8 @@ impl<'a> Button<'a> {
 // Instead of having API describing a short vs a long button-press vaguely using a `bool`, we define
 // an `enum` to clarify what each state represents.  The compiler will compile this down to the
 // very same `boolean` that we would have coded by hand.
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, defmt::Format)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, defmt::Format)]
 pub enum PressDuration {
-    #[default]
     Short,
     Long,
 }

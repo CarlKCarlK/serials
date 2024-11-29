@@ -2,11 +2,11 @@ use core::convert::Infallible;
 
 use derive_more::derive::{Display, Error, From};
 
-/// A specialized `Result` where the error is this crate's `Error` type.ks
+/// A specialized `Result` where the error is this crate's `Error` type.
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 /// Define a unified error type for this crate.
-#[allow(missing_docs)] // We don't need to document the variants of this enum.
+#[expect(missing_docs, reason = "The variants are self-explanatory.")]
 #[derive(Debug, Display, Error, From)]
 pub enum Error {
     // `#[error(not(source))]` below tells `derive_more` that `embassy_executor::SpawnError` does
@@ -22,6 +22,12 @@ pub enum Error {
 
     #[display("Error setting output state")]
     CannotSetOutputState,
+
+    // cmk: Remove
+    // #[display("Arithmetic overflow")]
+    // ArithmeticOverflow,
+    #[display("Index out of bounds")]
+    IndexOutOfBounds,
 }
 
 impl From<Infallible> for Error {

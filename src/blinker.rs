@@ -61,8 +61,9 @@ impl Blinker<'_> {
 
 #[embassy_executor::task]
 async fn device_loop(display: Display<'static>, notifier: &'static NotifierInner) -> ! {
-    let mut blink_mode = BlinkMode::Solid;
+    let mut blink_mode = BlinkMode::default();
     let mut chars = [' '; CELL_COUNT];
+    #[expect(clippy::shadow_unrelated, reason = "This is a false positive.")]
     loop {
         (blink_mode, chars) = match blink_mode {
             BlinkMode::Solid => {
@@ -104,8 +105,9 @@ impl Blinker<'_> {
     }
 }
 
-#[derive(Debug, Clone, Copy, defmt::Format)]
+#[derive(Debug, Clone, Copy, defmt::Format, Default)]
 pub enum BlinkMode {
+    #[default]
     Solid,
     BlinkingAndOn,
     BlinkingButOff,

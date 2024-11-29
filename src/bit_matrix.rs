@@ -6,7 +6,7 @@ use core::{array, num::NonZeroU8, ops::BitOrAssign, slice};
 
 use heapless::{LinearMap, Vec};
 
-use crate::{error::Error, leds::Leds};
+use crate::{leds::Leds, Result};
 
 #[derive(defmt::Format, Debug)]
 pub struct BitMatrix([u8; CELL_COUNT]);
@@ -23,15 +23,21 @@ impl BitMatrix {
         self.0.iter()
     }
 
-    pub fn iter_mut(&mut self) -> core::slice::IterMut<u8> {
+    pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, u8> {
         self.0.iter_mut()
     }
 
     pub fn from_chars(chars: &[char; CELL_COUNT]) -> Self {
-        let bytes = chars.map(|c| Leds::ASCII_TABLE.get(c as usize).copied().unwrap_or(0));
+        let bytes = chars.map(|char| Leds::ASCII_TABLE.get(char as usize).copied().unwrap_or(0));
         Self::new(bytes)
     }
 
+    #[expect(
+        clippy::indexing_slicing,
+        clippy::integer_division_remainder_used,
+        reason = "Indexing and arithmetic are safe: Leds::DIGITS has 10 elements, and (number % 10) is in 0..9. \
+        Modulo is required for digit extraction in no_std."
+    )]
     pub fn from_number(mut number: u16, padding: u8) -> Self {
         let mut bit_matrix = Self::from_bits(padding);
 
@@ -50,7 +56,7 @@ impl BitMatrix {
         bit_matrix
     }
 
-    pub fn bits_to_indexes(&self) -> Result<BitsToIndexes, Error> {
+    pub fn bits_to_indexes(&self) -> Result<BitsToIndexes> {
         let mut acc: BitsToIndexes = LinearMap::new();
         for (index, &bits) in self.iter().enumerate() {
             if let Some(nonzero_bits) = NonZeroU8::new(bits) {
@@ -72,14 +78,14 @@ impl core::str::FromStr for BitMatrix {
     type Err = (); // Replace with a meaningful error type if needed
 
     /// Parse a string into a `BitMatrix`. If too long, the decimal point will be turned on.
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
         let mut bit_matrix = Self::default();
 
-        for (bits, c) in bit_matrix.iter_mut().zip(s.chars()) {
-            *bits = Leds::ASCII_TABLE.get(c as usize).copied().ok_or(())?;
+        for (bits, char) in bit_matrix.iter_mut().zip(input.chars()) {
+            *bits = Leds::ASCII_TABLE.get(char as usize).copied().ok_or(())?;
         }
 
-        if s.len() > CELL_COUNT {
+        if input.len() > CELL_COUNT {
             bit_matrix |= Leds::DECIMAL;
         }
 
@@ -130,12 +136,20 @@ impl<'a> IntoIterator for &'a mut BitMatrix {
 impl core::ops::Index<usize> for BitMatrix {
     type Output = u8;
 
+    #[expect(
+        clippy::indexing_slicing,
+        reason = "Bounds checking is the caller's responsibility."
+    )]
     fn index(&self, index: usize) -> &Self::Output {
         &self.0[index]
     }
 }
 
 // index that you can assign to
+#[expect(
+    clippy::indexing_slicing,
+    reason = "Bounds checking is the caller's responsibility."
+)]
 impl core::ops::IndexMut<usize> for BitMatrix {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.0[index]

@@ -54,9 +54,6 @@ impl Display<'_> {
     pub const fn notifier() -> DisplayNotifier {
         Signal::new()
     }
-}
-
-impl Display<'_> {
     /// Writes characters to the display.
     ///
     /// The characters can be be any Unicode character but
@@ -68,7 +65,6 @@ impl Display<'_> {
 }
 
 #[embassy_executor::task]
-#[allow(clippy::needless_range_loop)]
 async fn device_loop(
     cell_pins: OutputArray<'static, CELL_COUNT>,
     segment_pins: OutputArray<'static, SEGMENT_COUNT>,
@@ -97,18 +93,18 @@ async fn inner_device_loop(
             // and wait for the next notification
             Some((&bits, indexes)) if bits_to_indexes.len() == 1 => {
                 segment_pins.set_from_bits(bits);
-                cell_pins.set_levels_at_indexes(indexes, Level::Low);
+                cell_pins.set_levels_at_indexes(indexes, Level::Low)?;
                 bit_matrix = notifier.wait().await;
-                cell_pins.set_levels_at_indexes(indexes, Level::High);
+                cell_pins.set_levels_at_indexes(indexes, Level::High)?;
             }
             // If multiple patterns should be displayed, multiplex them until the next notification
             _ => loop {
                 for (bytes, indexes) in &bits_to_indexes {
                     segment_pins.set_from_bits(*bytes);
-                    cell_pins.set_levels_at_indexes(indexes, Level::Low);
+                    cell_pins.set_levels_at_indexes(indexes, Level::Low)?;
                     let timeout_or_signal =
                         select(Timer::after(MULTIPLEX_SLEEP), notifier.wait()).await;
-                    cell_pins.set_levels_at_indexes(indexes, Level::High);
+                    cell_pins.set_levels_at_indexes(indexes, Level::High)?;
                     if let Either::Second(notification) = timeout_or_signal {
                         bit_matrix = notification;
                         continue 'outer;

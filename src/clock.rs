@@ -49,30 +49,31 @@ impl Clock<'_> {
         Ok(clock)
     }
 
-    #[must_use]
     /// Creates a new `ClockNotifier` instance.
     ///
     /// This notifier is used to send messages to the `Clock` and the `Blinker` it controls.
     ///
-    /// This should be assigned to a static variable and passed to the `Clock::new()` method.
+    /// The `ClockNotifier` instance should be assigned to a static variable and passed
+    /// to the `Clock::new()` method.
     ///
     /// # Example
     ///
     /// ```rust,ignore
-    /// #[allow(clippy::items_after_statements)]
+    /// #[expect(clippy::items_after_statements, reason = "Keeps related code together and avoids name conflicts")]
     /// static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     /// let mut clock = Clock::new(hardware.cells, hardware.segments, &CLOCK_NOTIFIER, spawner)?;
     /// ```
+    #[must_use]
     pub const fn notifier() -> ClockNotifier {
         (Channel::new(), Blinker::notifier())
     }
 
-    pub(crate) async fn set_mode(&self, clock_state: ClockState) {
-        self.0.send(ClockNotice::SetMode { clock_state }).await;
+    pub(crate) async fn set_state(&self, clock_state: ClockState) {
+        self.0.send(ClockNotice::SetState { clock_state }).await;
     }
 
     pub(crate) async fn adjust_offset(&self, delta: Duration) {
-        self.0.send(ClockNotice::AdjustOffset(delta)).await;
+        self.0.send(ClockNotice::AdjustClockTime(delta)).await;
     }
 
     pub(crate) async fn reset_seconds(&self) {
@@ -81,19 +82,23 @@ impl Clock<'_> {
 }
 
 pub enum ClockNotice {
-    SetMode { clock_state: ClockState },
-    AdjustOffset(Duration),
+    SetState { clock_state: ClockState },
+    AdjustClockTime(Duration),
     ResetSeconds,
 }
 
 impl ClockNotice {
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "The += operator wraps around to always produce a result less than one day."
+    )]
     /// Handles the action associated with the given `ClockNotice`.
     pub(crate) fn apply(self, clock_time: &mut ClockTime, clock_state: &mut ClockState) {
         match self {
-            Self::AdjustOffset(delta) => {
+            Self::AdjustClockTime(delta) => {
                 *clock_time += delta;
             }
-            Self::SetMode {
+            Self::SetState {
                 clock_state: new_clock_mode,
             } => {
                 *clock_state = new_clock_mode;
@@ -107,7 +112,6 @@ impl ClockNotice {
 }
 
 #[embassy_executor::task]
-#[allow(clippy::needless_range_loop)]
 async fn device_loop(
     blinkable_display: Blinker<'static>,
     clock_notifier: &'static NotifierInner,

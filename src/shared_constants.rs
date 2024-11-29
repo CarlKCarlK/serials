@@ -23,6 +23,9 @@ pub const ONE_HOUR: Duration = Duration::from_secs(60 * 60);
 /// Duration representing one day (24 hours).
 pub const ONE_DAY: Duration = Duration::from_secs(60 * 60 * 24);
 
+/// Duration representing the number of ticks in one day.
+pub const TICKS_IN_ONE_DAY: u64 = ONE_DAY.as_ticks();
+
 /// Debounce delay for the button.
 /// This prevents registering multiple presses from a single button press event.
 pub const BUTTON_DEBOUNCE_DELAY: Duration = Duration::from_millis(10);

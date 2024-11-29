@@ -1,7 +1,6 @@
 /// An empty struct useful for defining constants related to 7-segment LED displays.
 pub struct Leds;
 
-#[allow(dead_code)]
 /// Constants of interest for a 7-segment LED display.
 impl Leds {
     /// Segment A of the 7-segment display.

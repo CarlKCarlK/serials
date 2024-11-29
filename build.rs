@@ -25,12 +25,13 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
     // Put the current millis since the Epoch into an environment variable
     let now = Local::now();
     // Calculate the time since local midnight
-    let millis_since_midnight = now.hour() as u64 * 60 * 60 * 1000  // Hours to milliseconds
-        + now.minute() as u64 * 60 * 1000                          // Minutes to milliseconds
-        + now.second() as u64 * 1000                              // Seconds to milliseconds
-        + now.timestamp_subsec_millis() as u64 // Milliseconds
+    #[expect(clippy::arithmetic_side_effects, reason = "Will never overflow")]
+    let millis_since_midnight = u64::from(now.hour()) * 60 * 60 * 1000  // Hours to milliseconds
+        + u64::from(now.minute()) * 60 * 1000                          // Minutes to milliseconds
+        + u64::from(now.second()) * 1000                              // Seconds to milliseconds
+        + u64::from(now.timestamp_subsec_millis()) // Milliseconds
         + 4000; // Add 4 seconds to the time to allow for the build process
-    println!("cargo:rustc-env=BUILD_TIME={}", millis_since_midnight);
+    println!("cargo:rustc-env=BUILD_TIME={millis_since_midnight}");
 
     Ok(())
 }

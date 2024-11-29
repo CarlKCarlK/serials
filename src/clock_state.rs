@@ -12,9 +12,10 @@ use embassy_time::{Duration, Timer};
 ///
 /// For example, `HoursMinutes` displays the hours and minutes and `ShowSeconds` blinks the seconds
 /// to show that they are ready to be reset.
-#[allow(missing_docs)] // We don't need to document the variants of this enum.
-#[derive(Debug, defmt::Format, Clone, Copy)]
+#[expect(missing_docs, reason = "The variants are self-explanatory.")]
+#[derive(Debug, defmt::Format, Clone, Copy, Default)]
 pub enum ClockState {
+    #[default]
     HoursMinutes,
     MinutesSeconds,
     ShowSeconds,
@@ -25,11 +26,6 @@ pub enum ClockState {
     EditHours,
 }
 
-impl Default for ClockState {
-    fn default() -> Self {
-        Self::HoursMinutes
-    }
-}
 impl ClockState {
     /// Run the clock in the current state and return the next state.
     ///
@@ -71,7 +67,7 @@ impl ClockState {
     }
 
     async fn run_and_next_hours_minutes(self, clock: &Clock<'_>, button: &mut Button<'_>) -> Self {
-        clock.set_mode(self).await;
+        clock.set_state(self).await;
         match button.press_duration().await {
             PressDuration::Short => Self::MinutesSeconds,
             PressDuration::Long => Self::ShowSeconds,
@@ -83,7 +79,7 @@ impl ClockState {
         clock: &Clock<'_>,
         button: &mut Button<'_>,
     ) -> Self {
-        clock.set_mode(self).await;
+        clock.set_state(self).await;
         match button.press_duration().await {
             PressDuration::Short => Self::HoursMinutes,
             PressDuration::Long => Self::ShowSeconds,
@@ -91,7 +87,7 @@ impl ClockState {
     }
 
     async fn run_and_next_show_seconds(self, clock: &Clock<'_>, button: &mut Button<'_>) -> Self {
-        clock.set_mode(self).await;
+        clock.set_state(self).await;
         button.wait_for_up().await;
         match button.press_duration().await {
             PressDuration::Short => Self::ShowMinutes,
@@ -100,14 +96,14 @@ impl ClockState {
     }
 
     async fn run_and_next_edit_seconds(self, clock: &Clock<'_>, button: &mut Button<'_>) -> Self {
-        clock.set_mode(self).await;
+        clock.set_state(self).await;
         button.wait_for_press().await;
         clock.reset_seconds().await;
         Self::ShowSeconds
     }
 
     async fn run_and_next_show_minutes(self, clock: &Clock<'_>, button: &mut Button<'_>) -> Self {
-        clock.set_mode(self).await;
+        clock.set_state(self).await;
         match button.press_duration().await {
             PressDuration::Short => Self::ShowHours,
             PressDuration::Long => Self::EditMinutes,
@@ -122,12 +118,12 @@ impl ClockState {
                 return Self::ShowMinutes;
             }
             clock.adjust_offset(ONE_MINUTE).await;
-            clock.set_mode(self).await;
+            clock.set_state(self).await;
         }
     }
 
     async fn run_and_next_show_hours(self, clock: &Clock<'_>, button: &mut Button<'_>) -> Self {
-        clock.set_mode(self).await;
+        clock.set_state(self).await;
         match button.press_duration().await {
             PressDuration::Short => Self::HoursMinutes,
             PressDuration::Long => Self::EditHours,
@@ -142,7 +138,7 @@ impl ClockState {
                 return Self::ShowHours;
             }
             clock.adjust_offset(ONE_HOUR).await;
-            clock.set_mode(self).await;
+            clock.set_state(self).await;
         }
     }
 
@@ -228,12 +224,22 @@ impl ClockState {
 }
 
 #[inline]
+#[expect(
+    clippy::arithmetic_side_effects,
+    clippy::integer_division_remainder_used,
+    reason = "Because value < 60, the division is safe."
+)]
 const fn tens_digit(value: u8) -> char {
+    debug_assert!(value < 60, "Value is between 0 and 59 (inclusive)");
     ((value / 10) + b'0') as char
 }
 
 #[inline]
 const fn tens_hours(value: u8) -> char {
+    debug_assert!(
+        1 <= value && value <= 12,
+        "Value is between 1 and 12 (inclusive)"
+    );
     if value >= 10 {
         '1'
     } else {
@@ -241,7 +247,13 @@ const fn tens_hours(value: u8) -> char {
     }
 }
 
+#[expect(
+    clippy::arithmetic_side_effects,
+    clippy::integer_division_remainder_used,
+    reason = "Because value < 60, the division is safe."
+)]
 #[inline]
 const fn ones_digit(value: u8) -> char {
+    debug_assert!(value < 60, "Value is be between 0 and 59 (inclusive)");
     ((value % 10) + b'0') as char
 }
