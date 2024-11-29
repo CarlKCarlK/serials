@@ -83,8 +83,8 @@ nursery = { level = "warn", priority = -2 }
 
 allow_attributes = "warn"
 allow_attributes_without_reason = "deny"
-# cmk cargo_common_metadata = { level = "warn", priority = -1 }
-# cmk doc_markdown = "warn"
+# TODO cargo_common_metadata = { level = "warn", priority = -1 }
+# TODO doc_markdown = "warn"
 enum_glob_use = "forbid"
 enum_variant_names = "warn"
 equatable_if_let = "warn"

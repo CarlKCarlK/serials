@@ -23,9 +23,6 @@ pub enum Error {
     #[display("Error setting output state")]
     CannotSetOutputState,
 
-    // cmk: Remove
-    // #[display("Arithmetic overflow")]
-    // ArithmeticOverflow,
     #[display("Index out of bounds")]
     IndexOutOfBounds,
 }
