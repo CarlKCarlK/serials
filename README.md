@@ -1,5 +1,7 @@
 # Clock
 
+![Clock](clock.jpg)
+
 ## State Diagram
 
 ```mermaid
