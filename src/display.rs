@@ -1,3 +1,5 @@
+use core::{cell, num::NonZeroU8};
+
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
 use embassy_futures::select::{select, Either};
@@ -5,6 +7,7 @@ use embassy_rp::gpio::Level;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
 
+use crate::Error::IndexOutOfBounds;
 use crate::{
     bit_matrix::BitMatrix,
     error, never,
@@ -14,12 +17,22 @@ use crate::{
 use error::Result;
 use never::Never;
 
-/// A struct representing the display.
+/// A virtual display that controls a 4-cell (digit), 8-segment LED display.
 pub struct Display<'a>(&'a DisplayNotifier);
-/// A type alias for the notifier that sends messages to the `Display`.
+/// A notifier that sends messages to the `Display`.
 pub type DisplayNotifier = Signal<CriticalSectionRawMutex, BitMatrix>;
 
 impl Display<'_> {
+    /// Creates a new `DisplayNotifier`.
+    ///
+    /// This notifier is used to send messages to the `Display`.
+    ///
+    /// This should be assigned to a static variable and passed to the `Display::new()` method.
+    #[must_use]
+    pub const fn notifier() -> DisplayNotifier {
+        Signal::new()
+    }
+
     /// Create a new `Display`, which entails starting an Embassy task.
     ///
     /// # Arguments
@@ -28,7 +41,7 @@ impl Display<'_> {
     /// * `segment_pins` - The pins that control the segments of the display.
     /// * `notifier` - The static notifier that sends messages to the `Display`.
     ///          This notifier is created with the `Display::notifier()` method.
-    /// * `spawner` - The spawner that will spawn the task that controls the display.
+    /// * `spawner` - The Embassy task spawner.
     ///
     /// # Errors
     ///
@@ -40,20 +53,10 @@ impl Display<'_> {
         notifier: &'static DisplayNotifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
-        let display = Self(notifier);
         spawner.spawn(device_loop(cell_pins, segment_pins, notifier))?;
-        Ok(display)
+        Ok(Self(notifier))
     }
 
-    #[must_use]
-    /// Creates a new `DisplayNotifier`.
-    ///
-    /// This notifier is used to send messages to the `Display`.
-    ///
-    /// This should be assigned to a static variable and passed to the `Display::new()` method.
-    pub const fn notifier() -> DisplayNotifier {
-        Signal::new()
-    }
     /// Writes characters to the display.
     ///
     /// The characters can be be any Unicode character but
@@ -83,34 +86,57 @@ async fn inner_device_loop(
     let mut bit_matrix: BitMatrix = BitMatrix::default();
     'outer: loop {
         info!("bit_matrix: {:?}", bit_matrix);
-        let bits_to_indexes = bit_matrix.bits_to_indexes()?;
-        info!("# of unique cell bit_matrix: {:?}", bits_to_indexes.len());
+        for index in (0..CELL_COUNT).cycle() {
+            segment_pins.set_from_bits(bit_matrix[index]);
 
-        match bits_to_indexes.iter().next() {
-            // If the display should be empty, then just wait for the next notification
-            None => bit_matrix = notifier.wait().await,
-            // If only one bit pattern should be displayed (even on multiple cells), display it
-            // and wait for the next notification
-            Some((&bits, indexes)) if bits_to_indexes.len() == 1 => {
-                segment_pins.set_from_bits(bits);
-                cell_pins.set_levels_at_indexes(indexes, Level::Low)?;
-                bit_matrix = notifier.wait().await;
-                cell_pins.set_levels_at_indexes(indexes, Level::High)?;
+            cell_pins.set_level_at_index(index, Level::Low)?;
+            let timeout_or_signal = select(Timer::after(MULTIPLEX_SLEEP), notifier.wait()).await;
+            cell_pins.set_level_at_index(index, Level::High)?;
+
+            if let Either::Second(notification) = timeout_or_signal {
+                bit_matrix = notification;
+                continue 'outer;
             }
-            // If multiple patterns should be displayed, multiplex them until the next notification
-            _ => loop {
-                for (bytes, indexes) in &bits_to_indexes {
-                    segment_pins.set_from_bits(*bytes);
-                    cell_pins.set_levels_at_indexes(indexes, Level::Low)?;
-                    let timeout_or_signal =
-                        select(Timer::after(MULTIPLEX_SLEEP), notifier.wait()).await;
-                    cell_pins.set_levels_at_indexes(indexes, Level::High)?;
-                    if let Either::Second(notification) = timeout_or_signal {
-                        bit_matrix = notification;
-                        continue 'outer;
-                    }
-                }
-            },
         }
     }
 }
+
+// async fn inner_device_loop(
+//     mut cell_pins: OutputArray<'static, CELL_COUNT>,
+//     mut segment_pins: OutputArray<'static, SEGMENT_COUNT>,
+//     notifier: &'static DisplayNotifier,
+// ) -> Result<Never> {
+//     let mut bit_matrix: BitMatrix = BitMatrix::default();
+//     'outer: loop {
+//         info!("bit_matrix: {:?}", bit_matrix);
+//         let bits_to_indexes = bit_matrix.bits_to_indexes()?;
+//         info!("# of unique cell bit_matrix: {:?}", bits_to_indexes.len());
+
+//         match bits_to_indexes.iter().next() {
+//             // If the display should be empty, then just wait for the next notification
+//             None => bit_matrix = notifier.wait().await,
+//             // If only one bit pattern should be displayed (even on multiple cells), display it
+//             // and wait for the next notification
+//             Some((&bits, indexes)) if bits_to_indexes.len() == 1 => {
+//                 segment_pins.set_from_bits(bits);
+//                 cell_pins.set_levels_at_indexes(indexes, Level::Low)?;
+//                 bit_matrix = notifier.wait().await;
+//                 cell_pins.set_levels_at_indexes(indexes, Level::High)?;
+//             }
+//             // If multiple patterns should be displayed, multiplex them until the next notification
+//             _ => loop {
+//                 for (bits, indexes) in &bits_to_indexes {
+//                     segment_pins.set_from_bits(*bits);
+//                     cell_pins.set_levels_at_indexes(indexes, Level::Low)?;
+//                     let timeout_or_signal =
+//                         select(Timer::after(MULTIPLEX_SLEEP), notifier.wait()).await;
+//                     cell_pins.set_levels_at_indexes(indexes, Level::High)?;
+//                     if let Either::Second(notification) = timeout_or_signal {
+//                         bit_matrix = notification;
+//                         continue 'outer;
+//                     }
+//                 }
+//             },
+//         }
+//     }
+// }

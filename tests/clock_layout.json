@@ -1,0 +1,40 @@
+{
+    "boards": [
+        {
+            "mcus": {
+                "mcu": {
+                    "position": {
+                        "column": 49,
+                        "row": 4
+                    }
+                }
+            },
+            "leds": {
+                "led1": {
+                    "position": {
+                        "column": 60,
+                        "row": 1
+                    },
+                    "color": "#8bc34a"
+                }
+            },
+            "buttons": {
+                "button": {
+                    "position": {
+                        "column": 44,
+                        "row": 11
+                    }
+                }
+            },
+            "segmentDisplays": {
+                "segment_display": {
+                    "position": {
+                        "column": 2,
+                        "row": 6
+                    },
+                    "color": "#03a9f4"
+                }
+            }
+        }
+    ]
+}

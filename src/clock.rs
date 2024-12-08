@@ -43,10 +43,9 @@ impl Clock<'_> {
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
         let (notifier_inner, blinker_notifier) = notifier;
-        let clock = Self(notifier_inner);
         let blinkable_display = Blinker::new(cell_pins, segment_pins, blinker_notifier, spawner)?;
         spawner.spawn(device_loop(blinkable_display, notifier_inner))?;
-        Ok(clock)
+        Ok(Self(notifier_inner))
     }
 
     /// Creates a new `ClockNotifier` instance.
@@ -59,7 +58,7 @@ impl Clock<'_> {
     /// # Example
     ///
     /// ```rust,ignore
-    /// #[expect(clippy::items_after_statements, reason = "Keeps related code together and avoids name conflicts")]
+    /// #[expect(clippy::items_after_statements, reason = "Keeps related code together")]
     /// static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     /// let mut clock = Clock::new(hardware.cells, hardware.segments, &CLOCK_NOTIFIER, spawner)?;
     /// ```
@@ -133,3 +132,5 @@ async fn device_loop(
         }
     }
 }
+
+// cmk make sure dua-blinka does Ok(Self(notifier_inner))

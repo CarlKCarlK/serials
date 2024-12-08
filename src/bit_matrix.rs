@@ -8,7 +8,7 @@ use heapless::{LinearMap, Vec};
 
 use crate::{leds::Leds, Result};
 
-#[derive(defmt::Format, Debug)]
+#[derive(defmt::Format, Debug, Clone)]
 pub struct BitMatrix([u8; CELL_COUNT]);
 
 impl BitMatrix {

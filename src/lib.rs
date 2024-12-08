@@ -17,7 +17,7 @@ mod output_array;
 mod shared_constants;
 
 // Re-export commonly used items
-pub use blinker::{Blinker, BlinkerNotifier};
+pub use blinker::{BlinkMode, Blinker, BlinkerNotifier};
 pub use button::Button;
 pub use clock::{Clock, ClockNotifier, NotifierInner};
 pub use clock_state::ClockState;

@@ -1,0 +1,33 @@
+using "cores/rp2040.repl"
+
+led1: Miscellaneous.LED @ gpio 1
+led2: Miscellaneous.LED @ gpio 2
+led3: Miscellaneous.LED @ gpio 3
+led4: Miscellaneous.LED @ gpio 4
+
+led5: Miscellaneous.LED @ gpio 5
+led6: Miscellaneous.LED @ gpio 6
+led7: Miscellaneous.LED @ gpio 7
+led8: Miscellaneous.LED @ gpio 8
+led9: Miscellaneous.LED @ gpio 9
+led10: Miscellaneous.LED @ gpio 10
+led11: Miscellaneous.LED @ gpio 11
+led12: Miscellaneous.LED @ gpio 12
+
+
+gpio: 
+    1 -> led1@0
+    2-> led2@0
+    3-> led3@0
+    4-> led4@0
+    5-> led5@0
+    6-> led6@0
+    7-> led7@0
+    8-> led8@0
+    9-> led9@0
+    10-> led10@0
+    11-> led11@0
+    12-> led12@0
+
+button: Miscellaneous.Button @ gpio 13 
+    -> gpio@13

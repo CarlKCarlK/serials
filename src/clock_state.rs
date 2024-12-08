@@ -88,7 +88,6 @@ impl ClockState {
 
     async fn run_and_next_show_seconds(self, clock: &Clock<'_>, button: &mut Button<'_>) -> Self {
         clock.set_state(self).await;
-        button.wait_for_up().await;
         match button.press_duration().await {
             PressDuration::Short => Self::ShowMinutes,
             PressDuration::Long => Self::EditSeconds,

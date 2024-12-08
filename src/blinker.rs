@@ -42,10 +42,9 @@ impl Blinker<'_> {
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
         let (notifier_inner, display_notifier) = notifier;
-        let blinker = Self(notifier_inner);
         let display = Display::new(cell_pins, segment_pins, display_notifier, spawner)?;
         spawner.spawn(device_loop(display, notifier_inner))?;
-        Ok(blinker)
+        Ok(Self(notifier_inner))
     }
 
     /// Creates a new `BlinkerNotifier` instance.
@@ -56,6 +55,15 @@ impl Blinker<'_> {
     #[must_use]
     pub const fn notifier() -> BlinkerNotifier {
         (Signal::new(), Display::notifier())
+    }
+
+    /// Writes possibly-blinking characters to the blinkable display.
+    ///
+    /// The characters can be be any Unicode character but
+    /// an unknown or hard-to-display character will be displayed as a blank.
+    pub fn write_chars(&self, chars: [char; CELL_COUNT], blink_mode: BlinkMode) {
+        info!("write_chars: {:?}, blink_mode: {:?}", chars, blink_mode);
+        self.0.signal((blink_mode, chars));
     }
 }
 
@@ -91,17 +99,6 @@ async fn device_loop(display: Display<'static>, notifier: &'static NotifierInner
                 }
             }
         };
-    }
-}
-
-impl Blinker<'_> {
-    /// Writes possibly-blinking characters to the blinkable display.
-    ///
-    /// The characters can be be any Unicode character but
-    /// an unknown or hard-to-display character will be displayed as a blank.
-    pub fn write_chars(&self, chars: [char; CELL_COUNT], blink_mode: BlinkMode) {
-        info!("write_chars: {:?}, blink_mode: {:?}", chars, blink_mode);
-        self.0.signal((blink_mode, chars));
     }
 }
 
