@@ -4,7 +4,7 @@
             "mcus": {
                 "mcu": {
                     "position": {
-                        "column": 49,
+                        "column": 50,
                         "row": 4
                     }
                 }
@@ -12,27 +12,26 @@
             "leds": {
                 "led1": {
                     "position": {
-                        "column": 60,
-                        "row": 1
-                    },
-                    "color": "#8bc34a"
+                        "column": 44,
+                        "row": 8
+                    }
                 }
             },
             "buttons": {
                 "button": {
                     "position": {
-                        "column": 44,
-                        "row": 11
+                        "column": 37,
+                        "row": 4
                     }
                 }
             },
             "segmentDisplays": {
                 "segment_display": {
                     "position": {
-                        "column": 2,
-                        "row": 6
+                        "column": 14,
+                        "row": 5
                     },
-                    "color": "#03a9f4"
+                    "color": "#ff2020"
                 }
             }
         }

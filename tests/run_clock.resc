@@ -2,3 +2,7 @@ $platform_file=@raspberry_clock.repl
 $global.FIRMWARE=@../target/thumbv6m-none-eabi/debug/clock
 path add @c:/deldir/1124/Renode_RP2040
 include @run_firmware.resc
+startVisualization 1234
+
+visualizationSetBoardElement led 
+visualizationLoadLayout clock_layout.json
