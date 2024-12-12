@@ -119,9 +119,9 @@ async fn device_loop(
     let mut clock_state = ClockState::default();
 
     loop {
-        // Compute the display and time until the display change.
-        let (chars, blink_mode, sleep_duration) = clock_state.render(&clock_time);
-        blinkable_display.write_chars(chars, blink_mode);
+        // Compute the blinkable display and time until the display change.
+        let (blink_mode, chars, sleep_duration) = clock_state.render(&clock_time);
+        blinkable_display.write_chars(blink_mode, chars);
 
         // Wait for a notification or for the sleep duration to elapse
         info!("Sleep for {:?}", sleep_duration);

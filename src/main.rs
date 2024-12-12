@@ -9,7 +9,7 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use lib::{
-    BlinkMode, Blinker, BlinkerNotifier, Button, Clock, ClockNotifier, ClockState, Display,
+    BlinkState, Blinker, BlinkerNotifier, Button, Clock, ClockNotifier, ClockState, Display,
     DisplayNotifier, Never, Result,
 }; // This crate's own internal library
 use panic_probe as _;
@@ -35,9 +35,9 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     )?;
 
     loop {
-        blinker.write_chars(['1', '2', '3', '4'], BlinkMode::Solid);
+        blinker.write_chars(BlinkState::Solid, ['1', '2', '3', '4']);
         button.press_duration().await;
-        blinker.write_chars(['r', 'u', 's', 't'], BlinkMode::BlinkingAndOn);
+        blinker.write_chars(BlinkState::BlinkingAndOn, ['r', 'u', 's', 't']);
         button.press_duration().await;
     }
 }

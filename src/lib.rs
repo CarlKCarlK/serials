@@ -3,6 +3,7 @@
 #![no_main]
 
 mod bit_matrix;
+mod blink_state;
 mod blinker;
 mod button;
 mod clock;
@@ -17,7 +18,8 @@ mod output_array;
 mod shared_constants;
 
 // Re-export commonly used items
-pub use blinker::{BlinkMode, Blinker, BlinkerNotifier};
+pub use blink_state::BlinkState;
+pub use blinker::{Blinker, BlinkerNotifier};
 pub use button::Button;
 pub use clock::{Clock, ClockNotifier, NotifierInner};
 pub use clock_state::ClockState;

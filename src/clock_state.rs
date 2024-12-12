@@ -1,9 +1,8 @@
 use crate::{
-    blinker::BlinkMode,
     button::{Button, PressDuration},
     clock::Clock,
     shared_constants::{HOUR_EDIT_SPEED, MINUTE_EDIT_SPEED, ONE_HOUR, ONE_MINUTE},
-    ClockTime, ONE_DAY, ONE_SECOND,
+    BlinkState, ClockTime, ONE_DAY, ONE_SECOND,
 };
 use embassy_futures::select::{select, Either};
 use embassy_time::{Duration, Timer};
@@ -51,9 +50,9 @@ impl ClockState {
     ///
     /// If the `ClockState` is `HoursMinutes` and the `ClockTime` is 1:23:45, the function will return:
     /// - Characters: `[' ', '1', '2', '3']`
-    /// - Blink Mode: `BlinkMode::Solid`
+    /// - Blink Mode: `BlinkState::Solid`
     /// - Sleep Duration: `Duration::from_secs(15)`
-    pub(crate) fn render(self, clock_time: &ClockTime) -> ([char; 4], BlinkMode, Duration) {
+    pub(crate) fn render(self, clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         match self {
             Self::HoursMinutes => Self::render_hours_minutes(clock_time),
             Self::MinutesSeconds => Self::render_minutes_seconds(clock_time),
@@ -141,82 +140,82 @@ impl ClockState {
         }
     }
 
-    fn render_hours_minutes(clock_time: &ClockTime) -> ([char; 4], BlinkMode, Duration) {
+    fn render_hours_minutes(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         let (hours, minutes, _, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_MINUTE);
         (
+            BlinkState::Solid,
             [
                 tens_hours(hours),
                 ones_digit(hours),
                 tens_digit(minutes),
                 ones_digit(minutes),
             ],
-            BlinkMode::Solid,
             sleep_duration,
         )
     }
 
-    fn render_minutes_seconds(clock_time: &ClockTime) -> ([char; 4], BlinkMode, Duration) {
+    fn render_minutes_seconds(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         let (_, minutes, seconds, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_SECOND);
         (
+            BlinkState::Solid,
             [
                 tens_digit(minutes),
                 ones_digit(minutes),
                 tens_digit(seconds),
                 ones_digit(seconds),
             ],
-            BlinkMode::Solid,
             sleep_duration,
         )
     }
 
-    fn render_show_seconds(clock_time: &ClockTime) -> ([char; 4], BlinkMode, Duration) {
+    fn render_show_seconds(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         let (_, _, seconds, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_SECOND);
         (
+            BlinkState::BlinkingAndOn,
             [' ', tens_digit(seconds), ones_digit(seconds), ' '],
-            BlinkMode::BlinkingAndOn,
             sleep_duration,
         )
     }
 
-    const fn render_edit_seconds(_clock_time: &ClockTime) -> ([char; 4], BlinkMode, Duration) {
+    const fn render_edit_seconds(_clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         // We don't really need to wake up even once a day to update
         // the constant "00" display, but Duration::MAX causes an overflow
         // so ONE_DAY is used instead.
-        ([' ', '0', '0', ' '], BlinkMode::Solid, ONE_DAY)
+        (BlinkState::Solid, [' ', '0', '0', ' '], ONE_DAY)
     }
 
-    fn render_show_minutes(clock_time: &ClockTime) -> ([char; 4], BlinkMode, Duration) {
+    fn render_show_minutes(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         let (_, minutes, _, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_MINUTE);
         (
+            BlinkState::BlinkingAndOn,
             [' ', ' ', tens_digit(minutes), ones_digit(minutes)],
-            BlinkMode::BlinkingAndOn,
             sleep_duration,
         )
     }
 
-    fn render_edit_minutes(clock_time: &ClockTime) -> ([char; 4], BlinkMode, Duration) {
+    fn render_edit_minutes(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         let (_, minutes, _, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_MINUTE);
         (
+            BlinkState::Solid,
             [' ', ' ', tens_digit(minutes), ones_digit(minutes)],
-            BlinkMode::Solid,
             sleep_duration,
         )
     }
 
-    fn render_show_hours(clock_time: &ClockTime) -> ([char; 4], BlinkMode, Duration) {
+    fn render_show_hours(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         let (hours, _, _, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_HOUR);
         (
+            BlinkState::BlinkingAndOn,
             [tens_hours(hours), ones_digit(hours), ' ', ' '],
-            BlinkMode::BlinkingAndOn,
             sleep_duration,
         )
     }
 
-    fn render_edit_hours(clock_time: &ClockTime) -> ([char; 4], BlinkMode, Duration) {
+    fn render_edit_hours(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         let (hours, _, _, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_HOUR);
         (
+            BlinkState::Solid,
             [tens_hours(hours), ones_digit(hours), ' ', ' '],
-            BlinkMode::Solid,
             sleep_duration,
         )
     }

@@ -5,4 +5,4 @@ include @run_firmware.resc
 startVisualization 1234
 
 visualizationSetBoardElement led 
-visualizationLoadLayout clock_layout.json
+visualizationLoadLayout @clock_layout.json
