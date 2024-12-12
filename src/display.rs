@@ -1,5 +1,3 @@
-use core::{cell, num::NonZeroU8};
-
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
 use embassy_futures::select::{select, Either};
@@ -7,7 +5,7 @@ use embassy_rp::gpio::Level;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
 
-use crate::Error::IndexOutOfBounds;
+use crate::blinker::Text;
 use crate::{
     bit_matrix::BitMatrix,
     error, never,
@@ -57,13 +55,13 @@ impl Display<'_> {
         Ok(Self(notifier))
     }
 
-    /// Writes characters to the display.
+    /// Writes text to the display.
     ///
     /// The characters can be be any Unicode character but
     /// unknown or hard to display characters will be displayed as blanks.
-    pub fn write_chars(&self, chars: [char; CELL_COUNT]) {
-        info!("write_chars: {:?}", chars);
-        self.0.signal(BitMatrix::from_chars(&chars));
+    pub fn write_text(&self, text: Text) {
+        info!("write_chars: {:?}", text);
+        self.0.signal(BitMatrix::from_text(&text));
     }
 }
 

@@ -7,7 +7,6 @@
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_time::{Duration, Timer};
 use lib::{
     BlinkState, Blinker, BlinkerNotifier, Button, Clock, ClockNotifier, ClockState, Display,
     DisplayNotifier, Never, Result,
@@ -35,14 +34,15 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     )?;
 
     loop {
-        blinker.write_chars(BlinkState::Solid, ['1', '2', '3', '4']);
+        blinker.write_text(BlinkState::Solid, ['1', '2', '3', '4']);
         button.press_duration().await;
-        blinker.write_chars(BlinkState::BlinkingAndOn, ['r', 'u', 's', 't']);
+        blinker.write_text(BlinkState::BlinkingAndOn, ['r', 'u', 's', 't']);
         button.press_duration().await;
     }
 }
 
 #[expect(clippy::items_after_statements, reason = "Keeps related code together")]
+#[expect(dead_code, reason = "for article")]
 async fn inner_main_display(spawner: Spawner) -> Result<Never> {
     let hardware = lib::Hardware::default();
 
@@ -56,13 +56,14 @@ async fn inner_main_display(spawner: Spawner) -> Result<Never> {
         spawner,
     )?;
     loop {
-        display.write_chars(['1', '2', '3', '4']);
+        display.write_text(['1', '2', '3', '4']);
         button.press_duration().await;
-        display.write_chars(['r', 'u', 's', 't']);
+        display.write_text(['r', 'u', 's', 't']);
         button.press_duration().await;
     }
 }
 
+#[expect(dead_code, reason = "for article")]
 #[expect(clippy::items_after_statements, reason = "Keeps related code together")]
 async fn inner_main_real(spawner: Spawner) -> Result<Never> {
     let hardware = lib::Hardware::default();

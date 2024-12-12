@@ -1,4 +1,5 @@
 use crate::{
+    blinker::Text,
     error::Error::BitsToIndexesNotEnoughSpace,
     shared_constants::{BitsToIndexes, CELL_COUNT},
 };
@@ -27,8 +28,8 @@ impl BitMatrix {
         self.0.iter_mut()
     }
 
-    pub fn from_chars(chars: &[char; CELL_COUNT]) -> Self {
-        let bytes = chars.map(|char| Leds::ASCII_TABLE.get(char as usize).copied().unwrap_or(0));
+    pub fn from_text(text: &Text) -> Self {
+        let bytes = text.map(|char| Leds::ASCII_TABLE.get(char as usize).copied().unwrap_or(0));
         Self::new(bytes)
     }
 

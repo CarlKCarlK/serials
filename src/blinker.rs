@@ -1,15 +1,12 @@
-use defmt::info;
-use embassy_executor::{SpawnError, Spawner};
-use embassy_futures::select::{select, Either};
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-use embassy_time::Timer;
-
 use crate::{
     blink_state::BlinkState,
     display::{Display, DisplayNotifier},
     output_array::OutputArray,
-    shared_constants::{BLINK_OFF_DELAY, BLINK_ON_DELAY, CELL_COUNT, SEGMENT_COUNT},
+    shared_constants::{CELL_COUNT, SEGMENT_COUNT},
 };
+use defmt::info;
+use embassy_executor::{SpawnError, Spawner};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 
 /// A struct representing a display with the ability to blink.
 pub struct Blinker<'a>(&'a NotifierInner);
@@ -20,7 +17,9 @@ pub type BlinkerNotifier = (NotifierInner, DisplayNotifier);
 
 // cmk give a more descriptive name to the inner notifier
 /// A type alias for the inner notifier that sends messages to the `Blinker`.
-pub type NotifierInner = Signal<CriticalSectionRawMutex, (BlinkState, [char; CELL_COUNT])>;
+pub type NotifierInner = Signal<CriticalSectionRawMutex, (BlinkState, Text)>;
+
+pub type Text = [char; CELL_COUNT];
 
 impl Blinker<'_> {
     /// Creates a new `Blinker` instance, which entails starting an Embassy task.
@@ -63,9 +62,9 @@ impl Blinker<'_> {
     ///
     /// The characters can be be any Unicode character but
     /// an unknown or hard-to-display character will be displayed as a blank.
-    pub fn write_chars(&self, blink_state: BlinkState, chars: [char; CELL_COUNT]) {
-        info!("blink_state: {:?}, write_chars: {:?}", blink_state, chars);
-        self.0.signal((blink_state, chars));
+    pub fn write_text(&self, blink_state: BlinkState, text: Text) {
+        info!("blink_state: {:?}, text: {:?}", blink_state, text);
+        self.0.signal((blink_state, text));
     }
 }
 
@@ -75,11 +74,11 @@ impl Blinker<'_> {
 #[embassy_executor::task]
 async fn device_loop(notifier_inner: &'static NotifierInner, display: Display<'static>) -> ! {
     let mut blink_state = BlinkState::default();
-    let mut chars = [' '; CELL_COUNT];
-    #[expect(clippy::shadow_unrelated, reason = "This is a false positive.")]
+    let mut text = [' '; CELL_COUNT];
+    #[expect(clippy::shadow_unrelated, reason = "false positive. Not shadowing.")]
     loop {
-        (blink_state, chars) = blink_state
-            .run_and_next(notifier_inner, &display, chars)
+        (blink_state, text) = blink_state
+            .run_and_next(notifier_inner, &display, text)
             .await;
     }
 }

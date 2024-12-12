@@ -120,8 +120,8 @@ async fn device_loop(
 
     loop {
         // Compute the blinkable display and time until the display change.
-        let (blink_mode, chars, sleep_duration) = clock_state.render(&clock_time);
-        blinkable_display.write_chars(blink_mode, chars);
+        let (blink_mode, text, sleep_duration) = clock_state.render(&clock_time);
+        blinkable_display.write_text(blink_mode, text);
 
         // Wait for a notification or for the sleep duration to elapse
         info!("Sleep for {:?}", sleep_duration);

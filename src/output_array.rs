@@ -1,7 +1,6 @@
 use crate::error::Error::IndexOutOfBounds;
 use crate::Result;
-use core::ops::IndexMut;
-use core::{num::NonZeroU8, ops::Index};
+use core::num::NonZeroU8;
 use embassy_rp::gpio::{self, Level};
 
 pub struct OutputArray<'a, const N: usize>([gpio::Output<'a>; N]);
