@@ -6,7 +6,7 @@ use crate::{
 };
 use core::{array, num::NonZeroU8, ops::BitOrAssign, slice};
 
-use heapless::{LinearMap, Vec};
+use heapless::Vec;
 
 use crate::{leds::Leds, Result};
 
@@ -59,8 +59,8 @@ impl BitMatrix {
         bit_matrix
     }
 
-    pub fn bits_to_indexes(&self) -> Result<BitsToIndexes> {
-        let mut bits_to_index: BitsToIndexes = LinearMap::new();
+    pub fn bits_to_indexes(&self, bits_to_index: &mut BitsToIndexes) -> Result<()> {
+        bits_to_index.clear();
         for (&bits, index) in self.iter().zip(0..CELL_COUNT_U8) {
             if let Some(nonzero_bits) = NonZeroU8::new(bits) {
                 if let Some(vec) = bits_to_index.get_mut(&nonzero_bits) {
@@ -74,7 +74,7 @@ impl BitMatrix {
                 }
             }
         }
-        Ok(bits_to_index)
+        Ok(())
     }
 }
 

@@ -6,13 +6,13 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal}
 use embassy_time::Timer;
 
 use crate::blinker::Text;
-use crate::CELL_COUNT_U8;
 use crate::{
     bit_matrix::BitMatrix,
     error, never,
     output_array::OutputArray,
     shared_constants::{CELL_COUNT, MULTIPLEX_SLEEP, SEGMENT_COUNT},
 };
+use crate::{BitsToIndexes, CELL_COUNT_U8};
 use error::Result;
 use never::Never;
 
@@ -107,9 +107,10 @@ async fn inner_device_loop(
     notifier: &'static DisplayNotifier,
 ) -> Result<Never> {
     let mut bit_matrix: BitMatrix = BitMatrix::default();
+    let mut bits_to_indexes = BitsToIndexes::default();
     'outer: loop {
         info!("bit_matrix: {:?}", bit_matrix);
-        let bits_to_indexes = bit_matrix.bits_to_indexes()?;
+        bit_matrix.bits_to_indexes(&mut bits_to_indexes)?;
         info!("# of unique cell bit_matrix: {:?}", bits_to_indexes.len());
 
         match bits_to_indexes.iter().next() {
