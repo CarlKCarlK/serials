@@ -13,13 +13,13 @@ use crate::{
 };
 
 /// A struct representing a virtual clock.
-pub struct Clock<'a>(&'a NotifierInner);
+pub struct Clock<'a>(&'a ClockOuterNotifier);
 /// Type alias for notifier that sends messages to the `Clock` and the `Blinker` it controls.
-pub type ClockNotifier = (NotifierInner, BlinkerNotifier);
-/// A type alias for the inner notifier that sends messages to the `Clock`.
+pub type ClockNotifier = (ClockOuterNotifier, BlinkerNotifier);
+/// A type alias for the outer notifier that sends messages to the `Clock`.
 ///
 /// The number is the maximum number of messages that can be stored in the channel without blocking.
-pub type NotifierInner = Channel<CriticalSectionRawMutex, ClockNotice, 4>;
+pub type ClockOuterNotifier = Channel<CriticalSectionRawMutex, ClockNotice, 4>;
 
 impl Clock<'_> {
     /// Create a new `Clock` instance, which entails starting an Embassy task.
@@ -42,10 +42,10 @@ impl Clock<'_> {
         notifier: &'static ClockNotifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
-        let (notifier_inner, blinker_notifier) = notifier;
+        let (outer_notifier, blinker_notifier) = notifier;
         let blinkable_display = Blinker::new(cell_pins, segment_pins, blinker_notifier, spawner)?;
-        spawner.spawn(device_loop(blinkable_display, notifier_inner))?;
-        Ok(Self(notifier_inner))
+        spawner.spawn(device_loop(outer_notifier, blinkable_display))?;
+        Ok(Self(outer_notifier))
     }
 
     /// Creates a new `ClockNotifier` instance.
@@ -68,7 +68,7 @@ impl Clock<'_> {
     }
 
     pub(crate) async fn set_state(&self, clock_state: ClockState) {
-        self.0.send(ClockNotice::SetState { clock_state }).await;
+        self.0.send(ClockNotice::SetState(clock_state)).await;
     }
 
     pub(crate) async fn adjust_offset(&self, delta: Duration) {
@@ -81,7 +81,7 @@ impl Clock<'_> {
 }
 
 pub enum ClockNotice {
-    SetState { clock_state: ClockState },
+    SetState(ClockState),
     AdjustClockTime(Duration),
     ResetSeconds,
 }
@@ -97,9 +97,7 @@ impl ClockNotice {
             Self::AdjustClockTime(delta) => {
                 *clock_time += delta;
             }
-            Self::SetState {
-                clock_state: new_clock_mode,
-            } => {
+            Self::SetState(new_clock_mode) => {
                 *clock_state = new_clock_mode;
             }
             Self::ResetSeconds => {
@@ -111,17 +109,14 @@ impl ClockNotice {
 }
 
 #[embassy_executor::task]
-async fn device_loop(
-    blinkable_display: Blinker<'static>,
-    clock_notifier: &'static NotifierInner,
-) -> ! {
+async fn device_loop(clock_notifier: &'static ClockOuterNotifier, blinker: Blinker<'static>) -> ! {
     let mut clock_time = ClockTime::default();
     let mut clock_state = ClockState::default();
 
     loop {
         // Compute the blinkable display and time until the display change.
         let (blink_mode, text, sleep_duration) = clock_state.render(&clock_time);
-        blinkable_display.write_text(blink_mode, text);
+        blinker.write_text(blink_mode, text);
 
         // Wait for a notification or for the sleep duration to elapse
         info!("Sleep for {:?}", sleep_duration);
@@ -133,4 +128,4 @@ async fn device_loop(
     }
 }
 
-// cmk make sure dua-blinka does Ok(Self(notifier_inner))
+// cmk make sure dua-blinka does Ok(Self(outer_notifier))

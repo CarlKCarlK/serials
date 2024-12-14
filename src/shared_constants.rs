@@ -5,7 +5,8 @@ use heapless::{LinearMap, Vec};
 
 /// The number of cells (digits) in the display.
 /// The Display a 4-digit, 8-segment display.
-pub const CELL_COUNT: usize = 4;
+pub const CELL_COUNT_U8: u8 = 4;
+pub const CELL_COUNT: usize = CELL_COUNT_U8 as usize;
 
 /// The number of segments per digit in the display.
 /// Each digit has 8 segments (7 segments plus a decimal point).
@@ -64,4 +65,4 @@ pub const HOUR_EDIT_SPEED: Duration = Duration::from_millis(500);
 ///
 /// - The inner vector is statically allocated with a capacity of `CELL_COUNT`, the most possible.
 /// - The map itself can hold up to `CELL_COUNT` entries, the most possible.
-pub type BitsToIndexes = LinearMap<NonZeroU8, Vec<usize, CELL_COUNT>, CELL_COUNT>;
+pub type BitsToIndexes = LinearMap<NonZeroU8, Vec<u8, CELL_COUNT>, CELL_COUNT>;

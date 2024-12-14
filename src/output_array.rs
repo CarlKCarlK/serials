@@ -21,7 +21,7 @@ impl<'a, const N: usize> OutputArray<'a, N> {
     }
 
     #[inline]
-    pub fn set_levels_at_indexes(&mut self, indexes: &[usize], level: Level) -> Result<()> {
+    pub fn set_levels_at_indexes(&mut self, indexes: &[u8], level: Level) -> Result<()> {
         for &index in indexes {
             self.set_level_at_index(index, level)?;
         }
@@ -29,8 +29,8 @@ impl<'a, const N: usize> OutputArray<'a, N> {
     }
 
     #[inline]
-    pub fn set_level_at_index(&mut self, index: usize, level: Level) -> Result<()> {
-        self.get_mut(index) // Mutable access
+    pub fn set_level_at_index(&mut self, index: u8, level: Level) -> Result<()> {
+        self.get_mut(index as usize) // Mutable access
             .ok_or(IndexOutOfBounds)? // Return error if index is out of bounds
             .set_level(level); // Mutate the item
         Ok(())

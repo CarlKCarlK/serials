@@ -23,21 +23,17 @@ pub async fn main(spawner0: Spawner) -> ! {
 #[expect(clippy::items_after_statements, reason = "Keeps related code together")]
 async fn inner_main(spawner: Spawner) -> Result<Never> {
     let hardware = lib::Hardware::default();
+
+    static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
+    let mut clock = Clock::new(hardware.cells, hardware.segments, &CLOCK_NOTIFIER, spawner)?;
     let mut button = Button::new(hardware.button);
+    info!("Clock and button created");
 
-    static BLINKER_NOTIFIER: BlinkerNotifier = Blinker::notifier();
-    let blinker = Blinker::new(
-        hardware.cells,
-        hardware.segments,
-        &BLINKER_NOTIFIER,
-        spawner,
-    )?;
-
+    // Run the state machine
+    let mut state = ClockState::default();
     loop {
-        blinker.write_text(BlinkState::Solid, ['1', '2', '3', '4']);
-        button.press_duration().await;
-        blinker.write_text(BlinkState::BlinkingAndOn, ['r', 'u', 's', 't']);
-        button.press_duration().await;
+        defmt::info!("State: {:?}", state);
+        state = state.run_and_next(&mut clock, &mut button).await;
     }
 }
 
@@ -63,21 +59,25 @@ async fn inner_main_display(spawner: Spawner) -> Result<Never> {
     }
 }
 
-#[expect(dead_code, reason = "for article")]
 #[expect(clippy::items_after_statements, reason = "Keeps related code together")]
-async fn inner_main_real(spawner: Spawner) -> Result<Never> {
+#[expect(dead_code, reason = "for article")]
+async fn inner_main_blinky(spawner: Spawner) -> Result<Never> {
     let hardware = lib::Hardware::default();
-
-    static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
-    let mut clock = Clock::new(hardware.cells, hardware.segments, &CLOCK_NOTIFIER, spawner)?;
     let mut button = Button::new(hardware.button);
-    info!("Clock and button created");
 
-    // Run the state machine
-    let mut state = ClockState::default();
+    static BLINKER_NOTIFIER: BlinkerNotifier = Blinker::notifier();
+    let blinker = Blinker::new(
+        hardware.cells,
+        hardware.segments,
+        &BLINKER_NOTIFIER,
+        spawner,
+    )?;
+
     loop {
-        defmt::info!("State: {:?}", state);
-        state = state.run_and_next(&mut clock, &mut button).await;
+        blinker.write_text(BlinkState::Solid, ['1', '2', '3', '4']);
+        button.press_duration().await;
+        blinker.write_text(BlinkState::BlinkingAndOn, ['r', 'u', 's', 't']);
+        button.press_duration().await;
     }
 }
 

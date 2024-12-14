@@ -21,7 +21,7 @@ mod shared_constants;
 pub use blink_state::BlinkState;
 pub use blinker::{Blinker, BlinkerNotifier};
 pub use button::Button;
-pub use clock::{Clock, ClockNotifier, NotifierInner};
+pub use clock::{Clock, ClockNotifier, ClockOuterNotifier};
 pub use clock_state::ClockState;
 pub use clock_time::ClockTime;
 pub use display::{Display, DisplayNotifier};
