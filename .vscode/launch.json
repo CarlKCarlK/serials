@@ -12,7 +12,7 @@
             "chip": "RP2040",
             "coreConfigs": [
                 {
-                    "programBinary": "target/thumbv6m-none-eabi/debug/clock"
+                    "programBinary": "target/thumbv6m-none-eabi/debug/fib"
                 }
             ]
         }

@@ -17,7 +17,7 @@ cargo doc --no-deps --open
 ```cmd
 python3 -m pip install -r C:\deldir\1124\Renode_RP2040\visualization\requirements.txt
 cd tests
-renode --console run_clock.resc
+renode --console run_fib.resc
 s
 ```
 

@@ -1,8 +1,8 @@
 $platform_file=@raspberry_clock.repl
-$global.FIRMWARE=@../target/thumbv6m-none-eabi/debug/clock
+$global.FIRMWARE=@../target/thumbv6m-none-eabi/debug/fib
 path add @../../Renode_RP2040
 include @run_firmware.resc
 startVisualization 1234
 
 visualizationSetBoardElement led 
-visualizationLoadLayout @clock_layout.json
+visualizationLoadLayout @fib_layout.json

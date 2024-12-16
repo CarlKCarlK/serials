@@ -1,7 +1,7 @@
 [package] # TODO: update this
 edition = "2021"
 # if this changes, update .vscode/launch.json and .cargo/config.toml
-name = "clock"
+name = "fib"
 version = "0.1.1"
 
 # The `[lib]` section defines the library part of this binary project.
@@ -41,9 +41,11 @@ derive_more = { version = "1.0.0", default-features = false, features = [
     "error",
     "from",
 ] }
+num-bigint = { version = "0.4.6", default-features = false }
+alloc-cortex-m = "0.4.4"
 
 [build-dependencies]
-chrono = "0.4.19"
+chrono = "0.4.39"
 
 [lints.rust]
 # To use the `unsafe` keyword, do not remove the `unsafe_code = "forbid"` entry.
