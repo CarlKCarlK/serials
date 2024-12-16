@@ -65,6 +65,11 @@ Note: ✨ indicates blinking.
 
 **Release**: When the value is what you wish.
 
+## Wiring
+
+See the [slides](https://slides.com/u007d/srug-2024-06#/6) from the June, 2024 Seattle Rust User Group meeting for the wiring diagram. Press the down arrow to the slide for each step. This design shows one resistor for each display digit. Alternatively, you can use one resistor for each segment for slightly more even
+brightness.
+
 ## Tools & Debugging
 
 This is project is setup to use `probe-rs`. The setup is based on

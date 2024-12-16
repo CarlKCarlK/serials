@@ -12,26 +12,27 @@
             "leds": {
                 "led1": {
                     "position": {
-                        "column": 44,
-                        "row": 8
-                    }
+                        "column": 51,
+                        "row": 11
+                    },
+                    "color": "#e91e63"
                 }
             },
             "buttons": {
                 "button": {
                     "position": {
-                        "column": 37,
-                        "row": 4
+                        "column": 47,
+                        "row": 6
                     }
                 }
             },
             "segmentDisplays": {
                 "segment_display": {
                     "position": {
-                        "column": 14,
+                        "column": 32,
                         "row": 5
                     },
-                    "color": "#ff2020"
+                    "color": "#e91e63"
                 }
             }
         }

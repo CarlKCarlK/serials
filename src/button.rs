@@ -61,5 +61,3 @@ pub enum PressDuration {
     Short,
     Long,
 }
-
-// cmk copy this to dua blinka project

@@ -37,8 +37,8 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     }
 }
 
-#[expect(clippy::items_after_statements, reason = "Keeps related code together")]
 #[expect(dead_code, reason = "for article")]
+#[expect(clippy::items_after_statements, reason = "Keeps related code together")]
 async fn inner_main_display(spawner: Spawner) -> Result<Never> {
     let hardware = lib::Hardware::default();
 
@@ -59,8 +59,8 @@ async fn inner_main_display(spawner: Spawner) -> Result<Never> {
     }
 }
 
-#[expect(clippy::items_after_statements, reason = "Keeps related code together")]
 #[expect(dead_code, reason = "for article")]
+#[expect(clippy::items_after_statements, reason = "Keeps related code together")]
 async fn inner_main_blinky(spawner: Spawner) -> Result<Never> {
     let hardware = lib::Hardware::default();
     let mut button = Button::new(hardware.button);

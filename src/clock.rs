@@ -127,5 +127,3 @@ async fn device_loop(clock_notifier: &'static ClockOuterNotifier, blinker: Blink
         }
     }
 }
-
-// cmk make sure dua-blinka does Ok(Self(outer_notifier))

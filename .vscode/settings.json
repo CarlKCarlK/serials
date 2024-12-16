@@ -2,6 +2,7 @@
     "rust-analyzer.cargo.target": "thumbv6m-none-eabi",
     "rust-analyzer.cargo.allTargets": false,
     "cSpell.words": [
+        "mcus",
         "MMSS"
     ],
 }
