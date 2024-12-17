@@ -43,6 +43,8 @@ derive_more = { version = "1.0.0", default-features = false, features = [
 ] }
 num-bigint = { version = "0.4.6", default-features = false }
 alloc-cortex-m = "0.4.4"
+rp2040-hal = "0.10.2"
+embedded-hal = "1.0.0"
 
 [build-dependencies]
 chrono = "0.4.39"
