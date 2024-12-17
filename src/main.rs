@@ -41,10 +41,10 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
         let result = fibonacci(high);
         let elapsed = loop_start.elapsed();
         info!(
-            "Fibonacci number at index {}: {} bits (computed in {})",
+            "Fibonacci number at index {}: {} bits (computed in {} ms)",
             high,
             result.bits(),
-            elapsed
+            elapsed.as_millis()
         );
         if elapsed >= Duration::from_secs(1) {
             break;
@@ -60,10 +60,10 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
         let result = fibonacci(mid);
         let elapsed = mid_start.elapsed();
         info!(
-            "Fibonacci number at index {}: {} bits (computed in {})",
+            "Fibonacci number at index {}: {} bits (computed in {} ms)",
             mid,
             result.bits(),
-            elapsed
+            elapsed.as_millis()
         );
         if elapsed < Duration::from_secs(1) {
             low = mid + 1;
