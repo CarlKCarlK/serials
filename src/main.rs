@@ -1,23 +1,18 @@
-//! A 4-digit 7-segment clock that can be controlled by a button.
-//!
-//! Runs on a Raspberry Pi Pico RP2040. See the `README.md` for more information.
 #![no_std]
 #![no_main]
 #![allow(clippy::future_not_send, reason = "Single-threaded")]
+
+const SPEED_UP_FRACTION: f32 = 1.5; // Speed-up factor: 1.0 = 125 MHz (default), 2.0 = 250 MHz
 
 #[global_allocator]
 static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
 const HEAP_SIZE: usize = 1024 * 64; // in bytes
 
-use rp2040_hal::clocks::{Clock, ClocksManager};
+use rp2040_hal::clocks::ClocksManager;
 use rp2040_hal::fugit::RateExtU32;
 use rp2040_hal::pll::{setup_pll_blocking, PLLConfig};
 use rp2040_hal::xosc::setup_xosc_blocking;
-use rp2040_hal::{
-    clocks::{init_clocks_and_plls, ClockSource},
-    pac,
-    watchdog::Watchdog,
-};
+use rp2040_hal::{clocks::ClockSource, pac};
 
 use alloc_cortex_m::CortexMHeap;
 use defmt::info;
@@ -36,14 +31,24 @@ pub async fn main(spawner0: Spawner) -> ! {
     panic!("{err}");
 }
 
-#[expect(clippy::arithmetic_side_effects, reason = "cmk")]
-#[expect(unsafe_code, reason = "cmk")]
-#[expect(clippy::cast_precision_loss, reason = "cmk")]
+#[expect(clippy::arithmetic_side_effects, reason = "TODO")]
+#[expect(unsafe_code, reason = "TODO")]
+#[expect(clippy::cast_precision_loss, reason = "TODO")]
+#[expect(clippy::items_after_statements, reason = "TODO")]
+#[expect(clippy::assertions_on_constants, reason = "TODO")]
+#[expect(clippy::too_many_lines, reason = "TODO")]
+#[expect(clippy::cast_sign_loss, reason = "TODO")]
+#[expect(clippy::cast_possible_truncation, reason = "TODO")]
 async fn inner_main(_spawner: Spawner) -> Result<Never> {
     unsafe { ALLOCATOR.init(cortex_m_rt::heap_start() as usize, HEAP_SIZE) }
 
-    let mut peripherals = pac::Peripherals::take().unwrap();
-    let mut watchdog = Watchdog::new(peripherals.WATCHDOG);
+    assert!(
+        1.0 <= SPEED_UP_FRACTION && SPEED_UP_FRACTION <= 2.0,
+        "This is the range I've tested"
+    );
+
+    let peripherals = pac::Peripherals::take().expect("Failed to take peripherals");
+    // TODO??? let mut _watchdog = Watchdog::new(peripherals.WATCHDOG);
 
     // Setup the external crystal oscillator (XOSC)
     let xosc_crystal_freq = 12_000_000u32.Hz(); // 12 MHz crystal
@@ -53,12 +58,27 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     // Create a ClocksManager instance
     let mut clocks = ClocksManager::new(peripherals.CLOCKS);
 
-    // Configure PLL_SYS to 250 MHz
+    // Dynamically compute the target system clock frequency
+    let default_sys_freq = 125_000_000u32; // Default 125 MHz
+    let target_sys_freq = (default_sys_freq as f32 * SPEED_UP_FRACTION) as u32; // Target frequency
+
+    // Calculate the VCO frequency and post-dividers
+    let post_div1 = 6; // Keep post_div1 constant at 6 for simplicity
+    let post_div2 = 1; // Final division step
+    let vco_freq = target_sys_freq * post_div1; // VCO frequency
+
+    // Log the calculated values for verification
+    info!(
+        "Target system frequency: {} Hz, VCO frequency: {} Hz, Post Div1: {}, Post Div2: {}",
+        target_sys_freq, vco_freq, post_div1, post_div2
+    );
+
+    // Configure PLL_SYS
     let pll_sys_config = PLLConfig {
-        refdiv: 1,                       // Reference divider
-        vco_freq: 1_500_000_000u32.Hz(), // VCO frequency: 1500 MHz
-        post_div1: 6,                    // Divide by 6
-        post_div2: 1,                    // Divide by 1 -> 250 MHz
+        refdiv: 1, // Reference divider
+        vco_freq: vco_freq.Hz(),
+        post_div1: post_div1.try_into().expect("TODO"),
+        post_div2,
     };
 
     let mut resets = peripherals.RESETS;
@@ -67,12 +87,12 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
         peripherals.PLL_SYS,
         xosc_crystal_freq,
         pll_sys_config,
-        &mut clocks, // Pass ClocksManager
+        &mut clocks,
         &mut resets,
     )
     .expect("Failed to set up PLL_SYS");
 
-    // Configure PLL_USB for compatibility
+    // Configure PLL_USB for compatibility (remains fixed at 48 MHz)
     let pll_usb_config = PLLConfig {
         refdiv: 1,
         vco_freq: 960_000_000u32.Hz(), // VCO frequency: 960 MHz
@@ -84,18 +104,20 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
         peripherals.PLL_USB,
         xosc_crystal_freq,
         pll_usb_config,
-        &mut clocks, // Pass ClocksManager
+        &mut clocks,
         &mut resets,
     )
     .expect("Failed to set up PLL_USB");
 
     // Initialize the clocks
-    clocks.init_default(&xosc, &pll_sys, &pll_usb);
+    clocks
+        .init_default(&xosc, &pll_sys, &pll_usb)
+        .expect("Failed to initialize clocks");
 
     info!(
         "System clock frequency: {} Hz",
         clocks.system_clock.get_freq().to_Hz()
-    ); // Verify the system clock frequency
+    );
 
     // Use the recalibrated system clock for timer
     let timer = rp2040_hal::Timer::new(peripherals.TIMER, &mut resets, &clocks);
@@ -159,22 +181,26 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
 
 #[expect(clippy::min_ident_chars, reason = "cmk")]
 #[expect(clippy::arithmetic_side_effects, reason = "cmk")]
+#[expect(clippy::integer_division_remainder_used, reason = "cmk")]
 fn fibonacci(n: u64) -> BigUint {
     if n == 0 {
         return BigUint::from(0u64);
     }
     let mut a = BigUint::from(0u64);
     let mut b = BigUint::from(1u64);
-    #[expect(clippy::integer_division_remainder_used, reason = "cmk")]
     for _ in 0..((n - 1) / 2) {
         a += &b;
         b += &a;
     }
 
-    if n & 1 == 0 {
-        // n is even
+    if is_even(n) {
         a + b
     } else {
         b
     }
+}
+
+#[inline]
+const fn is_even(n: u64) -> bool {
+    n & 1 == 0
 }

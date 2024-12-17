@@ -1,7 +1,4 @@
-use core::num::NonZeroU8;
-
 use embassy_time::Duration;
-use heapless::{LinearMap, Vec};
 
 /// The number of cells (digits) in the display.
 /// The Display a 4-digit, 8-segment display.
@@ -54,15 +51,3 @@ pub const MINUTE_EDIT_SPEED: Duration = Duration::from_millis(250);
 /// Speed for editing hours in the clock.
 /// Controls how quickly the hours increment during manual adjustments.
 pub const HOUR_EDIT_SPEED: Duration = Duration::from_millis(500);
-
-/// A map from patterns to the indexes of the cells that contain that pattern.
-///
-/// For example, the numeral five has the LED bit pattern `0b_0110_1101`.
-/// If the display is " 55 ", then the map will contain just one entry with the key`0b_0110_1101`
-/// and the value `[1, 2]` representing the indexes of the cells that contain the numeral five.
-///
-/// The map is used to multiplex efficiently.
-///
-/// - The inner vector is statically allocated with a capacity of `CELL_COUNT`, the most possible.
-/// - The map itself can hold up to `CELL_COUNT` entries, the most possible.
-pub type BitsToIndexes = LinearMap<NonZeroU8, Vec<u8, CELL_COUNT>, CELL_COUNT>;

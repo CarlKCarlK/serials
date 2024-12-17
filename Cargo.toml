@@ -34,7 +34,6 @@ embassy-time = { version = "0.3.2", features = [
     "defmt",
     "defmt-timestamp-uptime",
 ] }
-heapless = "0.8"
 derive_more = { version = "1.0.0", default-features = false, features = [
     "debug",
     "display",

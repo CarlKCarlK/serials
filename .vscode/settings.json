@@ -3,6 +3,7 @@
     "rust-analyzer.cargo.allTargets": false,
     "cSpell.words": [
         "mcus",
-        "MMSS"
+        "MMSS",
+        "refdiv"
     ],
 }

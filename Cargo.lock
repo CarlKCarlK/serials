@@ -644,7 +644,6 @@ dependencies = [
  "embassy-sync",
  "embassy-time",
  "embedded-hal 1.0.0",
- "heapless",
  "num-bigint",
  "panic-probe",
  "rp2040-hal",
