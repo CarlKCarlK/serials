@@ -2,11 +2,11 @@
 #![no_main]
 #![allow(clippy::future_not_send, reason = "Single-threaded")]
 
-const SPEED_UP_FRACTION: f32 = 1.5; // Speed-up factor: 1.0 = 125 MHz (default), 2.0 = 250 MHz
+const SPEED_UP_FRACTION: f32 = 1.0; // Speed-up factor: 1.0 = 125 MHz (default), 2.0 = 250 MHz
+const HEAP_SIZE: usize = 1024 * 200; // in bytes
 
 #[global_allocator]
 static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
-const HEAP_SIZE: usize = 1024 * 64; // in bytes
 
 use rp2040_hal::clocks::ClocksManager;
 use rp2040_hal::fugit::RateExtU32;
@@ -34,7 +34,6 @@ pub async fn main(spawner0: Spawner) -> ! {
 #[expect(clippy::arithmetic_side_effects, reason = "TODO")]
 #[expect(unsafe_code, reason = "TODO")]
 #[expect(clippy::cast_precision_loss, reason = "TODO")]
-#[expect(clippy::items_after_statements, reason = "TODO")]
 #[expect(clippy::assertions_on_constants, reason = "TODO")]
 #[expect(clippy::too_many_lines, reason = "TODO")]
 #[expect(clippy::cast_sign_loss, reason = "TODO")]
@@ -179,10 +178,15 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     }
 }
 
+fn fibonacci(n: usize) -> BigUint {
+    fib_fast(n).0
+}
+
+#[expect(dead_code, reason = "TODO")]
 #[expect(clippy::min_ident_chars, reason = "cmk")]
 #[expect(clippy::arithmetic_side_effects, reason = "cmk")]
 #[expect(clippy::integer_division_remainder_used, reason = "cmk")]
-fn fibonacci(n: u64) -> BigUint {
+fn fib_two_step(n: u64) -> BigUint {
     if n == 0 {
         return BigUint::from(0u64);
     }
@@ -203,4 +207,25 @@ fn fibonacci(n: u64) -> BigUint {
 #[inline]
 const fn is_even(n: u64) -> bool {
     n & 1 == 0
+}
+
+#[expect(clippy::many_single_char_names, reason = "TODO")]
+#[expect(clippy::arithmetic_side_effects, reason = "TODO")]
+#[expect(clippy::integer_division_remainder_used, reason = "TODO")]
+#[expect(clippy::min_ident_chars, reason = "cmk")]
+#[must_use]
+pub fn fib_fast(n: usize) -> (BigUint, BigUint) {
+    if n == 0 {
+        return (BigUint::from(0u64), BigUint::from(1u64));
+    }
+
+    let (a, b) = fib_fast(n / 2);
+    let mut c = &a * (&b + &b - &a);
+    let d = &a * &a + &b * &b;
+    if n % 2 == 0 {
+        (c, d)
+    } else {
+        c += &d;
+        (d, c)
+    }
 }
