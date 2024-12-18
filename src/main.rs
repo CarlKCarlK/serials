@@ -179,14 +179,15 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
 }
 
 fn fibonacci(n: usize) -> BigUint {
-    fib_fast(n).0
+    fib_two_step(n)
+    // fib_fast(n).0
 }
 
 #[expect(dead_code, reason = "TODO")]
 #[expect(clippy::min_ident_chars, reason = "cmk")]
 #[expect(clippy::arithmetic_side_effects, reason = "cmk")]
 #[expect(clippy::integer_division_remainder_used, reason = "cmk")]
-fn fib_two_step(n: u64) -> BigUint {
+fn fib_two_step(n: usize) -> BigUint {
     if n == 0 {
         return BigUint::from(0u64);
     }
@@ -205,7 +206,7 @@ fn fib_two_step(n: u64) -> BigUint {
 }
 
 #[inline]
-const fn is_even(n: u64) -> bool {
+const fn is_even(n: usize) -> bool {
     n & 1 == 0
 }
 
