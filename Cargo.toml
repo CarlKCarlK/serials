@@ -40,10 +40,15 @@ derive_more = { version = "1.0.0", default-features = false, features = [
     "error",
     "from",
 ] }
-num-bigint = { version = "0.4.6", default-features = false }
+# num-bigint = { version = "0.4.6", default-features = false }
 alloc-cortex-m = "0.4.4"
 rp2040-hal = "0.10.2"
 embedded-hal = "1.0.0"
+[dependencies.malachite]
+version = "0.4.16"
+default-features = false
+features = ["naturals_and_integers"]
+
 
 [build-dependencies]
 chrono = "0.4.39"

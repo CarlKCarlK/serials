@@ -2,8 +2,10 @@
 #![no_main]
 #![allow(clippy::future_not_send, reason = "Single-threaded")]
 
-const SPEED_UP_FRACTION: f32 = 1.0; // Speed-up factor: 1.0 = 125 MHz (default), 2.0 = 250 MHz
-const HEAP_SIZE: usize = 1024 * 200; // in bytes
+const SPEED_UP_FRACTION: f32 = 2.0; // Speed-up factor: 1.0 = 125 MHz (default), 2.0 = 250 MHz
+const HEAP_SIZE: usize = 1024 * 350; // in bytes
+const TIME_LIMIT: rp2040_hal::fugit::Duration<u64, 1, 1_000_000> =
+    rp2040_hal::fugit::Duration::<u64, 1, 1_000_000>::from_ticks(30_000);
 
 #[global_allocator]
 static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
@@ -20,7 +22,9 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use lib::{Never, Result, ONE_DAY};
-use num_bigint::BigUint;
+use malachite::num::arithmetic::traits::CeilingLogBase2;
+use malachite::num::arithmetic::traits::SquareAssign;
+use malachite::Natural;
 // This crate's own internal library
 use panic_probe as _;
 
@@ -121,8 +125,6 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     // Use the recalibrated system clock for timer
     let timer = rp2040_hal::Timer::new(peripherals.TIMER, &mut resets, &clocks);
 
-    let one_second = rp2040_hal::fugit::Duration::<u64, 1, 1_000_000>::from_ticks(1_000_000);
-
     // // Use the delay function to check system responsiveness
     // let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.get_freq().to_Hz());
 
@@ -131,23 +133,23 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     let mut high = 1;
 
     // Exponential search to find an upper bound
-    while timer.get_counter() - start < one_second {
+    while timer.get_counter() - start < TIME_LIMIT {
         let loop_start = timer.get_counter();
         let result = fibonacci(high);
         let elapsed = timer.get_counter() - loop_start;
         info!(
             "Fibonacci number at index {}: {} bits (computed in {} s)",
             high,
-            result.bits(),
+            result.ceiling_log_base_2(),
             elapsed.ticks() as f64 / 1_000_000.0
         );
-        if elapsed >= one_second {
+        if elapsed >= TIME_LIMIT {
             break;
         }
         high *= 2;
     }
 
-    // Binary search to find the largest Fibonacci number that can be generated in less than 1 second
+    // Binary search to find the largest Fibonacci number that can be generated TIME_LIMIT
     while low < high {
         #[expect(clippy::integer_division_remainder_used, reason = "cmk")]
         let mid = (low + high) / 2;
@@ -157,10 +159,10 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
         info!(
             "Fibonacci number at index {}: {} bits (computed in {} s)",
             mid,
-            result.bits(),
+            result.ceiling_log_base_2(),
             elapsed.ticks() as f64 / 1_000_000.0
         );
-        if elapsed < one_second {
+        if elapsed < TIME_LIMIT {
             low = mid + 1;
         } else {
             high = mid;
@@ -168,7 +170,8 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     }
 
     info!(
-        "Largest Fibonacci number index that can be generated in less than one second: {}",
+        "Largest Fibonacci number index that can be generated in less than {}: {}",
+        TIME_LIMIT.ticks() as f64 / 1_000_000.0,
         (low - 1)
     );
 
@@ -178,21 +181,21 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     }
 }
 
-fn fibonacci(n: usize) -> BigUint {
-    fib_two_step(n)
-    // fib_fast(n).0
+fn fibonacci(n: usize) -> Natural {
+    fib_fast(n).0
+    // fib_two_step(n)
 }
 
 #[expect(dead_code, reason = "TODO")]
 #[expect(clippy::min_ident_chars, reason = "cmk")]
-#[expect(clippy::arithmetic_side_effects, reason = "cmk")]
+#[expect(clippy::arithmetic_side_effects, reason = "TODO")]
 #[expect(clippy::integer_division_remainder_used, reason = "cmk")]
-fn fib_two_step(n: usize) -> BigUint {
+fn fib_two_step(n: usize) -> Natural {
     if n == 0 {
-        return BigUint::from(0u64);
+        return Natural::from(0usize);
     }
-    let mut a = BigUint::from(0u64);
-    let mut b = BigUint::from(1u64);
+    let mut a = Natural::from(0usize);
+    let mut b = Natural::from(1usize);
     for _ in 0..((n - 1) / 2) {
         a += &b;
         b += &a;
@@ -210,19 +213,30 @@ const fn is_even(n: usize) -> bool {
     n & 1 == 0
 }
 
+const TWO: Natural = Natural::const_from(2);
+
 #[expect(clippy::many_single_char_names, reason = "TODO")]
-#[expect(clippy::arithmetic_side_effects, reason = "TODO")]
-#[expect(clippy::integer_division_remainder_used, reason = "TODO")]
 #[expect(clippy::min_ident_chars, reason = "cmk")]
+#[expect(clippy::arithmetic_side_effects, reason = "TODO")]
+#[expect(clippy::integer_division_remainder_used, reason = "cmk")]
 #[must_use]
-pub fn fib_fast(n: usize) -> (BigUint, BigUint) {
+pub fn fib_fast(n: usize) -> (Natural, Natural) {
     if n == 0 {
-        return (BigUint::from(0u64), BigUint::from(1u64));
+        return (Natural::from(0usize), Natural::from(1usize));
     }
 
-    let (a, b) = fib_fast(n / 2);
-    let mut c = &a * (&b + &b - &a);
-    let d = &a * &a + &b * &b;
+    let (a, mut b) = fib_fast(n / 2);
+    let mut c = b.clone();
+    c *= TWO;
+    c -= &a;
+    c *= &a;
+
+    let mut d = a;
+    d.square_assign();
+    b.square_assign();
+    d += &b;
+
+    // let d = &a * &a + &b * &b;
     if n % 2 == 0 {
         (c, d)
     } else {
