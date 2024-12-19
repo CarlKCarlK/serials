@@ -5,7 +5,7 @@
 const SPEED_UP_FRACTION: f32 = 2.0; // Speed-up factor: 1.0 = 125 MHz (default), 2.0 = 250 MHz
 const HEAP_SIZE: usize = 1024 * 350; // in bytes
 const TIME_LIMIT: rp2040_hal::fugit::Duration<u64, 1, 1_000_000> =
-    rp2040_hal::fugit::Duration::<u64, 1, 1_000_000>::from_ticks(30_000);
+    rp2040_hal::fugit::Duration::<u64, 1, 1_000_000>::from_ticks(1_000_000);
 
 #[global_allocator]
 static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
@@ -182,8 +182,8 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
 }
 
 fn fibonacci(n: usize) -> Natural {
-    fib_fast(n).0
-    // fib_two_step(n)
+    // fib_fast(n).0
+    fib_two_step(n)
 }
 
 #[expect(dead_code, reason = "TODO")]
