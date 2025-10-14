@@ -17,8 +17,6 @@ use embassy_rp::i2c::{self, Config as I2cConfig};
 use embassy_rp::spi::{Config as SpiConfig, Spi};
 use embassy_time::Timer;
 use lib::{Never, Result};
-use malachite::num::arithmetic::traits::SquareAssign;
-use malachite::Natural;
 use mfrc522::comm::eh02::spi::SpiInterface;
 use mfrc522::Mfrc522;
 // This crate's own internal library
@@ -29,41 +27,6 @@ pub async fn main(spawner0: Spawner) -> ! {
     // If it returns, something went wrong.
     let err = inner_main(spawner0).await.unwrap_err();
     panic!("{err}");
-}
-
-// SPI device wrapper with CS pin for MFRC522
-struct SpiDeviceWithCs {
-    spi: Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Blocking>,
-    cs: Output<'static>,
-}
-
-impl embedded_hal::spi::ErrorType for SpiDeviceWithCs {
-    type Error = embassy_rp::spi::Error;
-}
-
-impl embedded_hal::spi::SpiDevice for SpiDeviceWithCs {
-    fn transaction(&mut self, operations: &mut [embedded_hal::spi::Operation<'_, u8>]) -> core::result::Result<(), Self::Error> {
-        self.cs.set_low();
-        for op in operations {
-            match op {
-                embedded_hal::spi::Operation::Read(buf) => {
-                    self.spi.blocking_read(buf)?;
-                }
-                embedded_hal::spi::Operation::Write(buf) => {
-                    self.spi.blocking_write(buf)?;
-                }
-                embedded_hal::spi::Operation::Transfer(read, write) => {
-                    self.spi.blocking_transfer(read, write)?;
-                }
-                embedded_hal::spi::Operation::TransferInPlace(buf) => {
-                    self.spi.blocking_transfer_in_place(buf)?;
-                }
-                _ => {}
-            }
-        }
-        self.cs.set_high();
-        Ok(())
-    }
 }
 
 #[expect(clippy::arithmetic_side_effects, reason = "TODO")]
@@ -96,10 +59,10 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     spi_config.frequency = 1_000_000; // 1 MHz
     spi_config.polarity = embassy_rp::spi::Polarity::IdleLow;
     spi_config.phase = embassy_rp::spi::Phase::CaptureOnFirstTransition;
-    let mut spi = Spi::new_blocking(p.SPI0, p.PIN_18, p.PIN_19, p.PIN_16, spi_config);
+    let spi = Spi::new_blocking(p.SPI0, p.PIN_18, p.PIN_19, p.PIN_16, spi_config);
     
     // MFRC522 "SDA" pin (pin 7) = NSS/CS, connect to GP15 (Pico pin 20)
-    let mut nss = Output::new(p.PIN_15, Level::High);  // GP15 = physical pin 20
+    let nss = Output::new(p.PIN_15, Level::High);  // GP15 = physical pin 20
     
     // Reset RFID module
     let mut rst = Output::new(p.PIN_17, Level::High);  // GP17 = physical pin 22
@@ -204,75 +167,12 @@ fn format_hex_byte(byte: u8) -> (u8, u8) {
     (high, low)
 }
 
-fn fibonacci(n: usize) -> Natural {
-    // fib_fast(n).0 // fib_fast(n-1).1
-    fib_two_step(n)
-}
-
-#[expect(dead_code, reason = "TODO")]
-#[expect(clippy::min_ident_chars, reason = "cmk")]
-#[expect(clippy::arithmetic_side_effects, reason = "TODO")]
-#[expect(clippy::integer_division_remainder_used, reason = "cmk")]
-fn fib_two_step(n: usize) -> Natural {
-    if n == 0 {
-        return Natural::from(0usize);
-    }
-    let mut a = Natural::from(0usize);
-    let mut b = Natural::from(1usize);
-    for _ in 0..((n - 1) / 2) {
-        a += &b;
-        b += &a;
-    }
-
-    if is_even(n) {
-        a + b
-    } else {
-        b
-    }
-}
-
-#[inline]
-const fn is_even(n: usize) -> bool {
-    n & 1 == 0
-}
-
-const TWO: Natural = Natural::const_from(2);
-
-#[expect(clippy::many_single_char_names, reason = "TODO")]
-#[expect(clippy::min_ident_chars, reason = "cmk")]
-#[expect(clippy::arithmetic_side_effects, reason = "TODO")]
-#[expect(clippy::integer_division_remainder_used, reason = "cmk")]
-#[must_use]
-pub fn fib_fast(n: usize) -> (Natural, Natural) {
-    if n == 0 {
-        return (Natural::from(0usize), Natural::from(1usize));
-    }
-
-    let (a, mut b) = fib_fast(n / 2);
-    let mut c = b.clone();
-    c *= TWO;
-    c -= &a;
-    c *= &a;
-
-    let mut d = a;
-    d.square_assign();
-    b.square_assign();
-    d += &b;
-
-    // let d = &a * &a + &b * &b;
-    if n % 2 == 0 {
-        (c, d)
-    } else {
-        c += &d;
-        (d, c)
-    }
-}
 
 // LCD helper functions for PCF8574 I2C backpack
 // PCF8574 pin mapping: P0=RS, P1=RW, P2=E, P3=Backlight, P4-P7=Data
 const LCD_BACKLIGHT: u8 = 0x08;
 const LCD_ENABLE: u8 = 0x04;
-const LCD_RW: u8 = 0x02;
+// const LCD_RW: u8 = 0x02;
 const LCD_RS: u8 = 0x01;
 
 #[expect(clippy::arithmetic_side_effects, reason = "Bit operations")]

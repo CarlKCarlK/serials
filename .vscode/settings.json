@@ -2,8 +2,13 @@
     "rust-analyzer.cargo.target": "thumbv6m-none-eabi",
     "rust-analyzer.cargo.allTargets": false,
     "cSpell.words": [
+        "atqa",
+        "iface",
         "mcus",
+        "mfrc",
         "MMSS",
-        "refdiv"
+        "MOSI",
+        "refdiv",
+        "reqa"
     ],
 }
