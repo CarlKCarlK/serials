@@ -141,24 +141,37 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
                 // Try to read UID
                 match mfrc522.select(&atqa) {
                     Ok(uid) => {
-                        info!("UID read successfully");
-                        
-                        // Display UID on LCD
-                        lcd_clear(&mut i2c).await;
-                        lcd_print(&mut i2c, "UID:").await;
-                        
-                        // Move to second line
-                        lcd_write_byte(&mut i2c, 0xC0, false).await;
-                        
-                        // Display UID bytes in hex
                         let uid_bytes = uid.as_bytes();
-                        for (i, byte) in uid_bytes.iter().enumerate() {
-                            if i > 0 && i < uid_bytes.len() {
-                                lcd_write_byte(&mut i2c, b' ', true).await;
+                        info!("UID read successfully ({} bytes)", uid_bytes.len());
+                        
+                        // Display UID on LCD - handle long UIDs by scrolling or splitting
+                        lcd_clear(&mut i2c).await;
+                        
+                        if uid_bytes.len() <= 4 {
+                            // Short UID - show on one line with label
+                            lcd_print(&mut i2c, "UID:").await;
+                            lcd_write_byte(&mut i2c, 0xC0, false).await; // Move to line 2
+                            
+                            for (i, byte) in uid_bytes.iter().enumerate() {
+                                if i > 0 {
+                                    lcd_write_byte(&mut i2c, b' ', true).await;
+                                }
+                                let hex_chars = format_hex_byte(*byte);
+                                lcd_write_byte(&mut i2c, hex_chars.0, true).await;
+                                lcd_write_byte(&mut i2c, hex_chars.1, true).await;
                             }
-                            let hex_chars = format_hex_byte(*byte);
-                            lcd_write_byte(&mut i2c, hex_chars.0, true).await;
-                            lcd_write_byte(&mut i2c, hex_chars.1, true).await;
+                        } else {
+                            // Long UID - split across two lines (first 4 bytes on line 1, rest on line 2)
+                            for (i, byte) in uid_bytes.iter().enumerate() {
+                                if i == 4 {
+                                    lcd_write_byte(&mut i2c, 0xC0, false).await; // Move to line 2
+                                } else if i > 0 {
+                                    lcd_write_byte(&mut i2c, b' ', true).await;
+                                }
+                                let hex_chars = format_hex_byte(*byte);
+                                lcd_write_byte(&mut i2c, hex_chars.0, true).await;
+                                lcd_write_byte(&mut i2c, hex_chars.1, true).await;
+                            }
                         }
                         
                         Timer::after_millis(2000).await;
