@@ -45,6 +45,7 @@ alloc-cortex-m = "0.4.4"
 rp2040-hal = "0.10.2"
 embedded-hal = "1.0.0"
 hd44780-driver = "0.4.0"
+mfrc522 = "0.6.0"
 [dependencies.malachite]
 version = "0.4.16"
 default-features = false

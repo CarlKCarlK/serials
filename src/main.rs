@@ -3,7 +3,6 @@
 #![allow(clippy::future_not_send, reason = "Single-threaded")]
 
 const HEAP_SIZE: usize = 1024 * 350; // in bytes
-const TIME_LIMIT_MICROS: u64 = 1_000_000; // 1 second in microseconds
 const LCD_ADDRESS: u8 = 0x27; // I2C address of PCF8574
 
 #[global_allocator]
@@ -13,12 +12,15 @@ use alloc_cortex_m::CortexMHeap;
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
+use embassy_rp::gpio::{Level, Output};
 use embassy_rp::i2c::{self, Config as I2cConfig};
+use embassy_rp::spi::{Config as SpiConfig, Spi};
 use embassy_time::Timer;
-use lib::{Never, Result, ONE_DAY};
-use malachite::num::arithmetic::traits::CeilingLogBase2;
+use lib::{Never, Result};
 use malachite::num::arithmetic::traits::SquareAssign;
 use malachite::Natural;
+use mfrc522::comm::eh02::spi::SpiInterface;
+use mfrc522::Mfrc522;
 // This crate's own internal library
 use panic_probe as _;
 
@@ -27,6 +29,41 @@ pub async fn main(spawner0: Spawner) -> ! {
     // If it returns, something went wrong.
     let err = inner_main(spawner0).await.unwrap_err();
     panic!("{err}");
+}
+
+// SPI device wrapper with CS pin for MFRC522
+struct SpiDeviceWithCs {
+    spi: Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Blocking>,
+    cs: Output<'static>,
+}
+
+impl embedded_hal::spi::ErrorType for SpiDeviceWithCs {
+    type Error = embassy_rp::spi::Error;
+}
+
+impl embedded_hal::spi::SpiDevice for SpiDeviceWithCs {
+    fn transaction(&mut self, operations: &mut [embedded_hal::spi::Operation<'_, u8>]) -> core::result::Result<(), Self::Error> {
+        self.cs.set_low();
+        for op in operations {
+            match op {
+                embedded_hal::spi::Operation::Read(buf) => {
+                    self.spi.blocking_read(buf)?;
+                }
+                embedded_hal::spi::Operation::Write(buf) => {
+                    self.spi.blocking_write(buf)?;
+                }
+                embedded_hal::spi::Operation::Transfer(read, write) => {
+                    self.spi.blocking_transfer(read, write)?;
+                }
+                embedded_hal::spi::Operation::TransferInPlace(buf) => {
+                    self.spi.blocking_transfer_in_place(buf)?;
+                }
+                _ => {}
+            }
+        }
+        self.cs.set_high();
+        Ok(())
+    }
 }
 
 #[expect(clippy::arithmetic_side_effects, reason = "TODO")]
@@ -53,57 +90,105 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     
     info!("LCD initialized and displaying Hello");
 
-    let start = embassy_time::Instant::now();
-    let mut low = 0;
-    let mut high = 1;
-
-    // Exponential search to find an upper bound
-    while start.elapsed().as_micros() < TIME_LIMIT_MICROS {
-        let loop_start = embassy_time::Instant::now();
-        let result = fibonacci(high);
-        let elapsed = loop_start.elapsed();
-        info!(
-            "Fibonacci number at index {}: {} bits (computed in {} s)",
-            high,
-            result.ceiling_log_base_2(),
-            elapsed.as_micros() as f64 / 1_000_000.0
-        );
-        if elapsed.as_micros() >= TIME_LIMIT_MICROS {
-            break;
+    // Initialize SPI for RFID (GP18=SCK, GP19=MOSI, GP16=MISO)
+    // MFRC522 pin labeled "SDA" is actually NSS/CS (chip select)
+    let mut spi_config = SpiConfig::default();
+    spi_config.frequency = 1_000_000; // 1 MHz
+    spi_config.polarity = embassy_rp::spi::Polarity::IdleLow;
+    spi_config.phase = embassy_rp::spi::Phase::CaptureOnFirstTransition;
+    let mut spi = Spi::new_blocking(p.SPI0, p.PIN_18, p.PIN_19, p.PIN_16, spi_config);
+    
+    // MFRC522 "SDA" pin (pin 7) = NSS/CS, connect to GP15 (Pico pin 20)
+    let mut nss = Output::new(p.PIN_15, Level::High);  // GP15 = physical pin 20
+    
+    // Reset RFID module
+    let mut rst = Output::new(p.PIN_17, Level::High);  // GP17 = physical pin 22
+    rst.set_low();
+    Timer::after_millis(10).await;
+    rst.set_high();
+    Timer::after_millis(50).await;
+    
+    // Initialize MFRC522 using driver - mfrc522 crate uses embedded-hal 0.2
+    // Pass SPI and NSS separately to SpiInterface
+    let spi_iface = SpiInterface::new(spi).with_nss(nss);
+    let mut mfrc522 = match Mfrc522::new(spi_iface).init() {
+        Ok(m) => {
+            info!("MFRC522 driver initialized successfully");
+            m
         }
-        high *= 2;
-    }
-
-    // Binary search to find the largest Fibonacci number that can be generated TIME_LIMIT
-    while low < high {
-        #[expect(clippy::integer_division_remainder_used, reason = "cmk")]
-        let mid = (low + high) / 2;
-        let mid_start = embassy_time::Instant::now();
-        let result = fibonacci(mid);
-        let elapsed = mid_start.elapsed();
-        info!(
-            "Fibonacci number at index {}: {} bits (computed in {} s)",
-            mid,
-            result.ceiling_log_base_2(),
-            elapsed.as_micros() as f64 / 1_000_000.0
-        );
-        if elapsed.as_micros() < TIME_LIMIT_MICROS {
-            low = mid + 1;
-        } else {
-            high = mid;
+        Err(_e) => {
+            info!("MFRC522 init error");
+            panic!("Failed to initialize MFRC522");
         }
+    };
+    
+    // Check version
+    match mfrc522.version() {
+        Ok(v) => info!("MFRC522 Version: 0x{:02X}", v),
+        Err(_e) => info!("Version read error"),
     }
-
-    info!(
-        "Largest Fibonacci number index that can be generated in less than {} s: {}",
-        TIME_LIMIT_MICROS as f64 / 1_000_000.0,
-        (low - 1)
-    );
-
-    // sleep forever
+    
+    lcd_clear(&mut i2c).await;
+    lcd_print(&mut i2c, "Scan card...").await;
+    
+    // Main loop: check for RFID cards
     loop {
-        Timer::after(ONE_DAY).await;
+        // Try to detect a card
+        match mfrc522.reqa() {
+            Ok(atqa) => {
+                info!("Card detected!");
+                
+                // Try to read UID
+                match mfrc522.select(&atqa) {
+                    Ok(uid) => {
+                        info!("UID read successfully");
+                        
+                        // Display UID on LCD
+                        lcd_clear(&mut i2c).await;
+                        lcd_print(&mut i2c, "UID:").await;
+                        
+                        // Move to second line
+                        lcd_write_byte(&mut i2c, 0xC0, false).await;
+                        
+                        // Display UID bytes in hex
+                        let uid_bytes = uid.as_bytes();
+                        for (i, byte) in uid_bytes.iter().enumerate() {
+                            if i > 0 && i < uid_bytes.len() {
+                                lcd_write_byte(&mut i2c, b' ', true).await;
+                            }
+                            let hex_chars = format_hex_byte(*byte);
+                            lcd_write_byte(&mut i2c, hex_chars.0, true).await;
+                            lcd_write_byte(&mut i2c, hex_chars.1, true).await;
+                        }
+                        
+                        Timer::after_millis(2000).await;
+                        lcd_clear(&mut i2c).await;
+                        lcd_print(&mut i2c, "Scan card...").await;
+                    }
+                    Err(_e) => {
+                        info!("UID read error");
+                    }
+                }
+            }
+            Err(_) => {
+                // No card detected, silently continue
+            }
+        }
+        
+        Timer::after_millis(100).await;
     }
+}
+
+// Helper function to format byte as hex
+fn format_hex_byte(byte: u8) -> (u8, u8) {
+    const HEX: &[u8] = b"0123456789ABCDEF";
+    #[expect(clippy::arithmetic_side_effects, reason = "Hex conversion")]
+    #[expect(clippy::indexing_slicing, reason = "Always valid for 4-bit values")]
+    let high = HEX[(byte >> 4) as usize];
+    #[expect(clippy::arithmetic_side_effects, reason = "Hex conversion")]
+    #[expect(clippy::indexing_slicing, reason = "Always valid for 4-bit values")]
+    let low = HEX[(byte & 0x0F) as usize];
+    (high, low)
 }
 
 fn fibonacci(n: usize) -> Natural {
@@ -228,4 +313,6 @@ async fn lcd_print(i2c: &mut embassy_rp::i2c::I2c<'_, embassy_rp::peripherals::I
         lcd_write_byte(i2c, ch, true).await;
     }
 }
+
+// MFRC522 driver is now used instead of manual implementation
 
