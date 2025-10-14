@@ -4,6 +4,7 @@
 
 const HEAP_SIZE: usize = 1024 * 350; // in bytes
 const TIME_LIMIT_MICROS: u64 = 1_000_000; // 1 second in microseconds
+const LCD_ADDRESS: u8 = 0x27; // I2C address of PCF8574
 
 #[global_allocator]
 static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
@@ -12,6 +13,7 @@ use alloc_cortex_m::CortexMHeap;
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
+use embassy_rp::i2c::{self, Config as I2cConfig};
 use embassy_time::Timer;
 use lib::{Never, Result, ONE_DAY};
 use malachite::num::arithmetic::traits::CeilingLogBase2;
@@ -37,7 +39,19 @@ pub async fn main(spawner0: Spawner) -> ! {
 async fn inner_main(_spawner: Spawner) -> Result<Never> {
     unsafe { ALLOCATOR.init(cortex_m_rt::heap_start() as usize, HEAP_SIZE) }
 
-    let _p = embassy_rp::init(Default::default());
+    let p = embassy_rp::init(Default::default());
+
+    // Initialize I2C for LCD (GP4=SDA, GP5=SCL)
+    let sda = p.PIN_4;
+    let scl = p.PIN_5;
+    let mut i2c = i2c::I2c::new_blocking(p.I2C0, scl, sda, I2cConfig::default());
+    
+    // Initialize LCD using direct I2C commands
+    lcd_init(&mut i2c).await;
+    lcd_clear(&mut i2c).await;
+    lcd_print(&mut i2c, "Hello").await;
+    
+    info!("LCD initialized and displaying Hello");
 
     let start = embassy_time::Instant::now();
     let mut low = 0;
@@ -155,3 +169,63 @@ pub fn fib_fast(n: usize) -> (Natural, Natural) {
         (d, c)
     }
 }
+
+// LCD helper functions for PCF8574 I2C backpack
+// PCF8574 pin mapping: P0=RS, P1=RW, P2=E, P3=Backlight, P4-P7=Data
+const LCD_BACKLIGHT: u8 = 0x08;
+const LCD_ENABLE: u8 = 0x04;
+const LCD_RW: u8 = 0x02;
+const LCD_RS: u8 = 0x01;
+
+#[expect(clippy::arithmetic_side_effects, reason = "Bit operations")]
+async fn lcd_write_nibble(i2c: &mut embassy_rp::i2c::I2c<'_, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Blocking>, nibble: u8, rs: bool) {
+    let rs_bit = if rs { LCD_RS } else { 0 };
+    let data = (nibble << 4) | LCD_BACKLIGHT | rs_bit;
+    
+    // Write with enable high
+    let _ = i2c.blocking_write(LCD_ADDRESS, &[data | LCD_ENABLE]);
+    Timer::after_micros(1).await;
+    
+    // Write with enable low
+    let _ = i2c.blocking_write(LCD_ADDRESS, &[data]);
+    Timer::after_micros(50).await;
+}
+
+async fn lcd_write_byte(i2c: &mut embassy_rp::i2c::I2c<'_, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Blocking>, byte: u8, rs: bool) {
+    lcd_write_nibble(i2c, (byte >> 4) & 0x0F, rs).await;
+    lcd_write_nibble(i2c, byte & 0x0F, rs).await;
+}
+
+async fn lcd_init(i2c: &mut embassy_rp::i2c::I2c<'_, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Blocking>) {
+    Timer::after_millis(50).await;
+    
+    // Initialize in 4-bit mode
+    lcd_write_nibble(i2c, 0x03, false).await;
+    Timer::after_millis(5).await;
+    lcd_write_nibble(i2c, 0x03, false).await;
+    Timer::after_micros(150).await;
+    lcd_write_nibble(i2c, 0x03, false).await;
+    lcd_write_nibble(i2c, 0x02, false).await;
+    
+    // Function set: 4-bit, 2 lines, 5x8 font
+    lcd_write_byte(i2c, 0x28, false).await;
+    // Display control: display on, cursor off, blink off
+    lcd_write_byte(i2c, 0x0C, false).await;
+    // Clear display
+    lcd_write_byte(i2c, 0x01, false).await;
+    Timer::after_millis(2).await;
+    // Entry mode: increment cursor, no shift
+    lcd_write_byte(i2c, 0x06, false).await;
+}
+
+async fn lcd_clear(i2c: &mut embassy_rp::i2c::I2c<'_, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Blocking>) {
+    lcd_write_byte(i2c, 0x01, false).await;
+    Timer::after_millis(2).await;
+}
+
+async fn lcd_print(i2c: &mut embassy_rp::i2c::I2c<'_, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Blocking>, text: &str) {
+    for ch in text.bytes() {
+        lcd_write_byte(i2c, ch, true).await;
+    }
+}
+
