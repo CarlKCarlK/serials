@@ -2,13 +2,8 @@
 #![no_main]
 #![allow(clippy::future_not_send, reason = "Single-threaded")]
 
-const HEAP_SIZE: usize = 1024 * 350; // in bytes
 const LCD_ADDRESS: u8 = 0x27; // I2C address of PCF8574
 
-#[global_allocator]
-static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
-
-use alloc_cortex_m::CortexMHeap;
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
@@ -16,6 +11,7 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::i2c::{self, Config as I2cConfig};
 use embassy_rp::spi::{Config as SpiConfig, Spi};
 use embassy_time::Timer;
+use heapless::FnvIndexMap;
 use lib::{Never, Result};
 use mfrc522::comm::eh02::spi::SpiInterface;
 use mfrc522::Mfrc522;
@@ -30,15 +26,12 @@ pub async fn main(spawner0: Spawner) -> ! {
 }
 
 #[expect(clippy::arithmetic_side_effects, reason = "TODO")]
-#[expect(unsafe_code, reason = "TODO")]
 #[expect(clippy::cast_precision_loss, reason = "TODO")]
 #[expect(clippy::assertions_on_constants, reason = "TODO")]
 #[expect(clippy::too_many_lines, reason = "TODO")]
 #[expect(clippy::cast_sign_loss, reason = "TODO")]
 #[expect(clippy::cast_possible_truncation, reason = "TODO")]
 async fn inner_main(_spawner: Spawner) -> Result<Never> {
-    unsafe { ALLOCATOR.init(cortex_m_rt::heap_start() as usize, HEAP_SIZE) }
-
     let p = embassy_rp::init(Default::default());
 
     // Initialize I2C for LCD (GP4=SDA, GP5=SCL)
@@ -94,6 +87,10 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     lcd_clear(&mut i2c).await;
     lcd_print(&mut i2c, "Scan card...").await;
     
+    // Card tracking - map UID to assigned name (A-D for first 4 cards)
+    // heapless requires power-of-2 capacity, so using 4
+    let mut card_map: FnvIndexMap<[u8; 10], u8, 4> = FnvIndexMap::new();
+    
     // Main loop: check for RFID cards
     loop {
         // Try to detect a card
@@ -107,34 +104,41 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
                         let uid_bytes = uid.as_bytes();
                         info!("UID read successfully ({} bytes)", uid_bytes.len());
                         
-                        // Display UID on LCD - handle long UIDs by scrolling or splitting
+                        // Create fixed-size UID key (pad with zeros if shorter than 10 bytes)
+                        let mut uid_key = [0u8; 10];
+                        #[expect(clippy::indexing_slicing, reason = "Length checked")]
+                        for (i, &byte) in uid_bytes.iter().enumerate() {
+                            if i < 10 {
+                                uid_key[i] = byte;
+                            }
+                        }
+                        
+                        // Look up or assign card name
+                        let card_name = if let Some(&name) = card_map.get(&uid_key) {
+                            // Card seen before
+                            name
+                        } else if card_map.len() < 4 {
+                            // New card, assign next letter (A, B, C, or D)
+                            #[expect(clippy::arithmetic_side_effects, reason = "Card count limited to 4")]
+                            let name = b'A' + card_map.len() as u8;
+                            let _ = card_map.insert(uid_key, name);
+                            name
+                        } else {
+                            // More than 4 cards seen
+                            b'?'
+                        };
+                        
+                        // Display result on LCD
                         lcd_clear(&mut i2c).await;
                         
-                        if uid_bytes.len() <= 4 {
-                            // Short UID - show on one line with label
-                            lcd_print(&mut i2c, "UID:").await;
-                            lcd_write_byte(&mut i2c, 0xC0, false).await; // Move to line 2
-                            
-                            for (i, byte) in uid_bytes.iter().enumerate() {
-                                if i > 0 {
-                                    lcd_write_byte(&mut i2c, b' ', true).await;
-                                }
-                                let hex_chars = format_hex_byte(*byte);
-                                lcd_write_byte(&mut i2c, hex_chars.0, true).await;
-                                lcd_write_byte(&mut i2c, hex_chars.1, true).await;
-                            }
+                        if card_name == b'?' {
+                            lcd_print(&mut i2c, "Unknown Card").await;
+                            lcd_write_byte(&mut i2c, 0xC0, false).await; // Line 2
+                            lcd_print(&mut i2c, "Seen").await;
                         } else {
-                            // Long UID - split across two lines (first 4 bytes on line 1, rest on line 2)
-                            for (i, byte) in uid_bytes.iter().enumerate() {
-                                if i == 4 {
-                                    lcd_write_byte(&mut i2c, 0xC0, false).await; // Move to line 2
-                                } else if i > 0 {
-                                    lcd_write_byte(&mut i2c, b' ', true).await;
-                                }
-                                let hex_chars = format_hex_byte(*byte);
-                                lcd_write_byte(&mut i2c, hex_chars.0, true).await;
-                                lcd_write_byte(&mut i2c, hex_chars.1, true).await;
-                            }
+                            lcd_print(&mut i2c, "Card ").await;
+                            lcd_write_byte(&mut i2c, card_name, true).await;
+                            lcd_print(&mut i2c, " Seen").await;
                         }
                         
                         Timer::after_millis(2000).await;
@@ -155,24 +159,10 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     }
 }
 
-// Helper function to format byte as hex
-fn format_hex_byte(byte: u8) -> (u8, u8) {
-    const HEX: &[u8] = b"0123456789ABCDEF";
-    #[expect(clippy::arithmetic_side_effects, reason = "Hex conversion")]
-    #[expect(clippy::indexing_slicing, reason = "Always valid for 4-bit values")]
-    let high = HEX[(byte >> 4) as usize];
-    #[expect(clippy::arithmetic_side_effects, reason = "Hex conversion")]
-    #[expect(clippy::indexing_slicing, reason = "Always valid for 4-bit values")]
-    let low = HEX[(byte & 0x0F) as usize];
-    (high, low)
-}
-
-
 // LCD helper functions for PCF8574 I2C backpack
 // PCF8574 pin mapping: P0=RS, P1=RW, P2=E, P3=Backlight, P4-P7=Data
 const LCD_BACKLIGHT: u8 = 0x08;
 const LCD_ENABLE: u8 = 0x04;
-// const LCD_RW: u8 = 0x02;
 const LCD_RS: u8 = 0x01;
 
 #[expect(clippy::arithmetic_side_effects, reason = "Bit operations")]

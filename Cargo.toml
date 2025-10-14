@@ -41,7 +41,7 @@ derive_more = { version = "1.0.0", default-features = false, features = [
     "from",
 ] }
 # num-bigint = { version = "0.4.6", default-features = false }
-alloc-cortex-m = "0.4.4"
+heapless = "0.8"
 rp2040-hal = "0.10.2"
 embedded-hal = "1.0.0"
 hd44780-driver = "0.4.0"
