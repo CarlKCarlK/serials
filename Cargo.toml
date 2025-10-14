@@ -1,8 +1,8 @@
 [package] # TODO: update this
-edition = "2021"
+edition = "2024"
 # if this changes, update .vscode/launch.json and .cargo/config.toml
-name = "fib"
-version = "0.1.1"
+name = "serials"
+version = "0.0.1"
 
 # The `[lib]` section defines the library part of this binary project.
 # It allows `src/lib.rs` to act as the central hub for shared code,
@@ -44,6 +44,7 @@ derive_more = { version = "1.0.0", default-features = false, features = [
 alloc-cortex-m = "0.4.4"
 rp2040-hal = "0.10.2"
 embedded-hal = "1.0.0"
+hd44780-driver = "0.4.0"
 [dependencies.malachite]
 version = "0.4.16"
 default-features = false

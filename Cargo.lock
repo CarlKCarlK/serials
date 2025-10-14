@@ -640,28 +640,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
-name = "fib"
-version = "0.1.1"
-dependencies = [
- "alloc-cortex-m",
- "chrono",
- "cortex-m",
- "cortex-m-rt",
- "defmt",
- "defmt-rtt",
- "derive_more",
- "embassy-executor",
- "embassy-futures",
- "embassy-rp",
- "embassy-sync",
- "embassy-time",
- "embedded-hal 1.0.0",
- "malachite",
- "panic-probe",
- "rp2040-hal",
-]
-
-[[package]]
 name = "fixed"
 version = "1.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -813,6 +791,15 @@ name = "hashbrown"
 version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf151400ff0baff5465007dd2f3e717f3fe502074ca563069ce3a6629d07b289"
+
+[[package]]
+name = "hd44780-driver"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aab2b13fdeaed7dde9133a57c28b2cbde4a8fc8c3196b5631428aad114857d3a"
+dependencies = [
+ "embedded-hal 0.2.7",
+]
 
 [[package]]
 name = "heapless"
@@ -1442,6 +1429,29 @@ name = "semver-parser"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
+
+[[package]]
+name = "serials"
+version = "0.0.1"
+dependencies = [
+ "alloc-cortex-m",
+ "chrono",
+ "cortex-m",
+ "cortex-m-rt",
+ "defmt",
+ "defmt-rtt",
+ "derive_more",
+ "embassy-executor",
+ "embassy-futures",
+ "embassy-rp",
+ "embassy-sync",
+ "embassy-time",
+ "embedded-hal 1.0.0",
+ "hd44780-driver",
+ "malachite",
+ "panic-probe",
+ "rp2040-hal",
+]
 
 [[package]]
 name = "shlex"
