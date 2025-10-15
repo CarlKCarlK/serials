@@ -80,59 +80,50 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     // Main loop: check for RFID cards
     loop {
         // Try to detect a card
-        match mfrc522.reqa() {
-            Ok(atqa) => {
-                info!("Card detected!");
-                
-                // Try to read UID
-                match mfrc522.select(&atqa) {
-                    Ok(uid) => {
-                        let uid_bytes = uid.as_bytes();
-                        info!("UID read successfully ({} bytes)", uid_bytes.len());
-                        
-                        // Create fixed-size UID key (pad with zeros if shorter than 10 bytes)
-                        let mut uid_key = [0u8; 10];
-                        #[expect(clippy::indexing_slicing, reason = "Length checked")]
-                        for (i, &byte) in uid_bytes.iter().enumerate() {
-                            if i < 10 {
-                                uid_key[i] = byte;
-                            }
-                        }
-                        
-                        // Look up or assign card name
-                        let card_name = card_map.get(&uid_key).copied().or_else(|| {
-                            // Try to assign next letter (A, B, C, D...)
-                            #[expect(clippy::arithmetic_side_effects, reason = "Card count limited by map capacity")]
-                            let name = b'A' + card_map.len() as u8;
-                            card_map.insert(uid_key, name).ok().map(|_| name)
-                        });
-                        
-                        // Display result on LCD
-                        lcd.clear().await;
-                        
-                        if let Some(name) = card_name {
-                            lcd.print("Card ").await;
-                            lcd.write_byte(name).await;
-                            lcd.print(" Seen").await;
-                        } else {
-                            lcd.print("Unknown Card").await;
-                            lcd.set_cursor(1, 0).await;
-                            lcd.print("Seen").await;
-                        }
-                        
-                        Timer::after_millis(2000).await;
-                        lcd.clear().await;
-                        lcd.print("Scan card...").await;
-                    }
-                    Err(_e) => {
-                        info!("UID read error");
-                    }
-                }
-            }
-            Err(_) => {
-                // No card detected, silently continue
-            }
+        let Ok(atqa) = mfrc522.reqa() else {
+            Timer::after_millis(100).await;
+            continue;
+        };
+        
+        info!("Card detected!");
+        
+        // Try to read UID
+        let Ok(uid) = mfrc522.select(&atqa) else {
+            info!("UID read error");
+            Timer::after_millis(100).await;
+            continue;
+        };
+        
+        let uid_bytes = uid.as_bytes();
+        info!("UID read successfully ({} bytes)", uid_bytes.len());
+        
+        // Create fixed-size UID key (pad with zeros if shorter than 10 bytes)
+        let uid_key = create_uid_key(uid_bytes);
+        
+        // Look up or assign card name
+        let card_name = card_map.get(&uid_key).copied().or_else(|| {
+            // Try to assign next letter (A, B, C, D...)
+            #[expect(clippy::arithmetic_side_effects, reason = "Card count limited by map capacity")]
+            let name = b'A' + card_map.len() as u8;
+            card_map.insert(uid_key, name).ok().map(|_| name)
+        });
+        
+        // Display result on LCD
+        lcd.clear().await;
+        
+        if let Some(name) = card_name {
+            lcd.print("Card ").await;
+            lcd.write_byte(name).await;
+            lcd.print(" Seen").await;
+        } else {
+            lcd.print("Unknown Card").await;
+            lcd.set_cursor(1, 0).await;
+            lcd.print("Seen").await;
         }
+        
+        Timer::after_millis(2000).await;
+        lcd.clear().await;
+        lcd.print("Scan card...").await;
         
         Timer::after_millis(100).await;
     }
