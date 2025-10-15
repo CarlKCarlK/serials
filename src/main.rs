@@ -12,7 +12,7 @@ use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal_mfrc522::consts::{PCDErrorCode, UidSize};
 use esp_hal_mfrc522::drivers::SpiDriver;
 use esp_hal_mfrc522::MFRC522;
-use heapless::FnvIndexMap;
+use heapless::index_map::FnvIndexMap;
 use lib::{CharLcdI2c, Never, Result};
 // This crate's own internal library
 use panic_probe as _;

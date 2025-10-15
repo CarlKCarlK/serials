@@ -1,7 +1,7 @@
 //! LCD Display driver for HD44780-compatible displays with PCF8574 I2C backpack
 
 use embassy_rp::i2c::{self, Config as I2cConfig, Instance as I2cInstance};
-use embassy_rp::Peripheral;
+use embassy_rp::Peri;
 use embassy_time::Timer;
 
 /// Character LCD Display with I2C interface (HD44780 + PCF8574 backpack)
@@ -25,10 +25,10 @@ impl<'d, T: I2cInstance> CharLcdI2c<'d, T> {
     /// * `i2c_peripheral` - I2C peripheral (I2C0 or I2C1)
     /// * `scl` - Clock pin (any valid I2C SCL pin for this peripheral)
     /// * `sda` - Data pin (any valid I2C SDA pin for this peripheral)
-    pub async fn new<SCL: i2c::SclPin<T>, SDA: i2c::SdaPin<T>>(
-        i2c_peripheral: impl Peripheral<P = T> + 'd,
-        scl: impl Peripheral<P = SCL> + 'd,
-        sda: impl Peripheral<P = SDA> + 'd,
+    pub async fn new(
+        i2c_peripheral: Peri<'d, T>,
+        scl: Peri<'d, impl i2c::SclPin<T>>,
+        sda: Peri<'d, impl i2c::SdaPin<T>>,
     ) -> Self {
         Self::new_with_address(i2c_peripheral, scl, sda, 0x27).await
     }
@@ -40,10 +40,10 @@ impl<'d, T: I2cInstance> CharLcdI2c<'d, T> {
     /// * `scl` - Clock pin (any valid I2C SCL pin for this peripheral)
     /// * `sda` - Data pin (any valid I2C SDA pin for this peripheral)
     /// * `i2c_address` - I2C address of PCF8574 backpack (typically 0x27 or 0x3F)
-    pub async fn new_with_address<SCL: i2c::SclPin<T>, SDA: i2c::SdaPin<T>>(
-        i2c_peripheral: impl Peripheral<P = T> + 'd,
-        scl: impl Peripheral<P = SCL> + 'd,
-        sda: impl Peripheral<P = SDA> + 'd,
+    pub async fn new_with_address(
+        i2c_peripheral: Peri<'d, T>,
+        scl: Peri<'d, impl i2c::SclPin<T>>,
+        sda: Peri<'d, impl i2c::SdaPin<T>>,
         i2c_address: u8,
     ) -> Self {
         let mut lcd = Self {

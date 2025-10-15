@@ -1,6 +1,7 @@
 use embassy_rp::{
     gpio::{self, Level},
     peripherals::CORE1,
+    Peri,
 };
 
 use crate::{output_array::OutputArray, CELL_COUNT, SEGMENT_COUNT};
@@ -17,7 +18,7 @@ pub struct Hardware {
     /// An LED (not currently used).
     pub led: gpio::Output<'static>,
     /// The second core of the RP2040 (not currently used).
-    pub core1: CORE1,
+    pub core1: Peri<'static, CORE1>,
 }
 
 impl Default for Hardware {
