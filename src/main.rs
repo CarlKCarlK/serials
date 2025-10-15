@@ -100,31 +100,24 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
                         }
                         
                         // Look up or assign card name
-                        let card_name = if let Some(&name) = card_map.get(&uid_key) {
-                            // Card seen before
-                            name
-                        } else if card_map.len() < 4 {
-                            // New card, assign next letter (A, B, C, or D)
-                            #[expect(clippy::arithmetic_side_effects, reason = "Card count limited to 4")]
+                        let card_name = card_map.get(&uid_key).copied().or_else(|| {
+                            // Try to assign next letter (A, B, C, D...)
+                            #[expect(clippy::arithmetic_side_effects, reason = "Card count limited by map capacity")]
                             let name = b'A' + card_map.len() as u8;
-                            let _ = card_map.insert(uid_key, name);
-                            name
-                        } else {
-                            // More than 4 cards seen
-                            b'?'
-                        };
+                            card_map.insert(uid_key, name).ok().map(|_| name)
+                        });
                         
                         // Display result on LCD
                         lcd.clear().await;
                         
-                        if card_name == b'?' {
+                        if let Some(name) = card_name {
+                            lcd.print("Card ").await;
+                            lcd.write_byte(name).await;
+                            lcd.print(" Seen").await;
+                        } else {
                             lcd.print("Unknown Card").await;
                             lcd.set_cursor(1, 0).await;
                             lcd.print("Seen").await;
-                        } else {
-                            lcd.print("Card ").await;
-                            lcd.write_byte(card_name).await;
-                            lcd.print(" Seen").await;
                         }
                         
                         Timer::after_millis(2000).await;
