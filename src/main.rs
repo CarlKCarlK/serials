@@ -6,8 +6,9 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Pull};
-use embassy_time::{Instant, Timer};
-use lib::{CharLcdI2c, Never, Result};
+use embassy_time::Timer;
+use heapless::index_map::FnvIndexMap;
+use lib::{CharLcdI2c, Never, Result, RfidEvent, SpiMfrc522Notifier, SpiMfrc522Reader};
 // This crate's own internal library
 use panic_probe as _;
 
@@ -18,7 +19,7 @@ pub async fn main(spawner0: Spawner) -> ! {
     panic!("{err}");
 }
 
-async fn inner_main(_spawner: Spawner) -> Result<Never> {
+async fn inner_main(spawner: Spawner) -> Result<Never> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize LCD (GP4=SDA, GP5=SCL)
@@ -28,32 +29,10 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     
     info!("LCD initialized and displaying Hello");
 
-    // === IR RECEIVER TEST (GPIO 6) ===
-    lcd.clear().await;
-    lcd.print("IR Test").await;
-    info!("Starting IR receiver test on GPIO 6");
-    
+    // Initialize IR receiver (GPIO 6)
     let mut ir_pin = Input::new(p.PIN_6, Pull::Up);
-    
-    loop {
-        // Wait for pin to go low (IR signal detected)
-        ir_pin.wait_for_low().await;
-        let start = Instant::now();
-        
-        // Measure pulse duration
-        ir_pin.wait_for_high().await;
-        let duration = start.elapsed();
-        
-        info!("IR pulse: {} us", duration.as_micros());
-        
-        lcd.clear().await;
-        lcd.print("IR pulse!").await;
-        
-        Timer::after_millis(100).await;
-    }
+    info!("IR receiver initialized on GPIO 6");
 
-    // === OLD RFID CODE (commented out for IR test) ===
-    /*
     // Initialize MFRC522 RFID reader device abstraction
     static RFID_NOTIFIER: SpiMfrc522Notifier = SpiMfrc522Reader::notifier();
     let rfid_reader = SpiMfrc522Reader::new(
@@ -76,38 +55,54 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     // heapless requires power-of-2 capacity, so using 4
     let mut card_map: FnvIndexMap<[u8; 10], u8, 4> = FnvIndexMap::new();
     
-    // Main loop: wait for RFID events
+    // Main loop: wait for RFID events OR IR button press
     loop {
-        // Wait for next event (card detection)
-        let RfidEvent::CardDetected { uid } = rfid_reader.next_event().await;
+        use embassy_futures::select::{select, Either};
         
-        // Look up or assign card name
-        let card_name = card_map.get(&uid).copied().or_else(|| {
-            // Try to assign next letter (A, B, C, D...)
-            #[expect(clippy::arithmetic_side_effects, reason = "Card count limited by map capacity")]
-            let name = b'A' + card_map.len() as u8;
-            card_map.insert(uid, name).ok().map(|_| name)
-        });
-        
-        // Display result on LCD based on card name
-        lcd.clear().await;
-        
-        if let Some(name) = card_name {
-            lcd.print("Card ").await;
-            lcd.write_byte(name).await;
-            lcd.print(" Seen").await;
-        } else {
-            lcd.print("Unknown Card").await;
-            lcd.set_cursor(1, 0).await;
-            lcd.print("Map Full").await;
+        // Wait for either card detection OR IR button press
+        match select(rfid_reader.next_event(), ir_pin.wait_for_low()).await {
+            Either::First(RfidEvent::CardDetected { uid }) => {
+                // Look up or assign card name
+                let card_name = card_map.get(&uid).copied().or_else(|| {
+                    // Try to assign next letter (A, B, C, D...)
+                    #[expect(clippy::arithmetic_side_effects, reason = "Card count limited by map capacity")]
+                    let name = b'A' + card_map.len() as u8;
+                    card_map.insert(uid, name).ok().map(|_| name)
+                });
+                
+                // Display result on LCD based on card name
+                lcd.clear().await;
+                
+                if let Some(name) = card_name {
+                    lcd.print("Card ").await;
+                    lcd.write_byte(name).await;
+                    lcd.print(" Seen").await;
+                } else {
+                    lcd.print("Unknown Card").await;
+                    lcd.set_cursor(1, 0).await;
+                    lcd.print("Map Full").await;
+                }
+                
+                Timer::after_millis(2000).await;
+            }
+            Either::Second(()) => {
+                // IR button pressed - reset the card map
+                info!("IR button pressed, resetting card map");
+                card_map.clear();
+                
+                lcd.clear().await;
+                lcd.print("Map Reset").await;
+                
+                // Wait for button release to avoid repeated triggers
+                ir_pin.wait_for_high().await;
+                Timer::after_millis(500).await;
+            }
         }
         
-        Timer::after_millis(2000).await;
         lcd.clear().await;
         lcd.print("Scan card...").await;
         
         Timer::after_millis(100).await;
     }
-    */
 }
 
