@@ -119,11 +119,11 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
                         
                         if card_name == b'?' {
                             lcd.print("Unknown Card").await;
-                            lcd.write_command(0xC0).await; // Line 2
+                            lcd.set_cursor(1, 0).await;
                             lcd.print("Seen").await;
                         } else {
                             lcd.print("Card ").await;
-                            lcd.write_byte_public(card_name, true).await;
+                            lcd.write_byte(card_name).await;
                             lcd.print(" Seen").await;
                         }
                         

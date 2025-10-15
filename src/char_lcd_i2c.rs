@@ -69,7 +69,7 @@ impl<'d, T: I2cInstance> CharLcdI2c<'d, T> {
         Timer::after_micros(50).await;
     }
     
-    async fn write_byte(&mut self, byte: u8, rs: bool) {
+    async fn write_byte_internal(&mut self, byte: u8, rs: bool) {
         self.write_nibble((byte >> 4) & 0x0F, rs).await;
         self.write_nibble(byte & 0x0F, rs).await;
     }
@@ -86,36 +86,99 @@ impl<'d, T: I2cInstance> CharLcdI2c<'d, T> {
         self.write_nibble(0x02, false).await;
         
         // Function set: 4-bit, 2 lines, 5x8 font
-        self.write_byte(0x28, false).await;
+        self.write_byte_internal(0x28, false).await;
         // Display control: display on, cursor off, blink off
-        self.write_byte(0x0C, false).await;
+        self.write_byte_internal(0x0C, false).await;
         // Clear display
-        self.write_byte(0x01, false).await;
+        self.write_byte_internal(0x01, false).await;
         Timer::after_millis(2).await;
         // Entry mode: increment cursor, no shift
-        self.write_byte(0x06, false).await;
+        self.write_byte_internal(0x06, false).await;
     }
     
     /// Clear the display
     pub async fn clear(&mut self) {
-        self.write_byte(0x01, false).await;
+        self.write_byte_internal(0x01, false).await;
         Timer::after_millis(2).await;
     }
     
+    /// Return cursor to home position (0, 0)
+    pub async fn home(&mut self) {
+        self.write_byte_internal(0x02, false).await;
+        Timer::after_millis(2).await;
+    }
+    
+    /// Set cursor position
+    /// 
+    /// # Arguments
+    /// * `row` - Row number (0-3, depending on display size)
+    /// * `col` - Column number (0-15 for 16x2, 0-19 for 20x4)
+    #[expect(clippy::arithmetic_side_effects, reason = "Row/col values are small")]
+    pub async fn set_cursor(&mut self, row: u8, col: u8) {
+        let address = match row {
+            0 => 0x00 + col,  // Line 1
+            1 => 0x40 + col,  // Line 2
+            2 => 0x14 + col,  // Line 3 (20x4 displays)
+            3 => 0x54 + col,  // Line 4 (20x4 displays)
+            _ => 0x00,
+        };
+        self.write_byte_internal(0x80 | address, false).await;
+    }
+    
+    /// Show underline cursor
+    pub async fn cursor_on(&mut self) {
+        self.write_byte_internal(0x0E, false).await;
+    }
+    
+    /// Hide cursor
+    pub async fn cursor_off(&mut self) {
+        self.write_byte_internal(0x0C, false).await;
+    }
+    
+    /// Enable blinking block cursor
+    pub async fn blink_on(&mut self) {
+        self.write_byte_internal(0x0F, false).await;
+    }
+    
+    /// Disable blinking cursor
+    pub async fn blink_off(&mut self) {
+        self.write_byte_internal(0x0E, false).await;
+    }
+    
+    /// Turn display on
+    pub async fn display_on(&mut self) {
+        self.write_byte_internal(0x0C, false).await;
+    }
+    
+    /// Turn display off (contents preserved)
+    pub async fn display_off(&mut self) {
+        self.write_byte_internal(0x08, false).await;
+    }
+    
+    /// Scroll entire display left
+    pub async fn scroll_left(&mut self) {
+        self.write_byte_internal(0x18, false).await;
+    }
+    
+    /// Scroll entire display right
+    pub async fn scroll_right(&mut self) {
+        self.write_byte_internal(0x1C, false).await;
+    }
+    
     /// Print text to the display at the current cursor position
-    pub async fn print(&mut self, text: &str) {
-        for ch in text.bytes() {
-            self.write_byte(ch, true).await;
+    pub async fn print(&mut self, s: &str) {
+        for ch in s.bytes() {
+            self.write_byte_internal(ch, true).await;
         }
     }
     
     /// Send a command byte to the display
     pub async fn write_command(&mut self, cmd: u8) {
-        self.write_byte(cmd, false).await;
+        self.write_byte_internal(cmd, false).await;
     }
     
-    /// Write a single byte (character or data) to the display
-    pub async fn write_byte_public(&mut self, byte: u8, rs: bool) {
-        self.write_byte(byte, rs).await;
+    /// Write a single byte (character) to the display at the current cursor position
+    pub async fn write_byte(&mut self, byte: u8) {
+        self.write_byte_internal(byte, true).await;
     }
 }
