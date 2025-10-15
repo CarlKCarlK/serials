@@ -8,6 +8,7 @@
         "mfrc",
         "MMSS",
         "MOSI",
+        "picc",
         "refdiv",
         "reqa"
     ],
