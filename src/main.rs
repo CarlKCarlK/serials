@@ -5,9 +5,9 @@
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_time::Timer;
-use heapless::index_map::FnvIndexMap;
-use lib::{CharLcdI2c, Never, Result, RfidEvent, SpiMfrc522Notifier, SpiMfrc522Reader};
+use embassy_rp::gpio::{Input, Pull};
+use embassy_time::{Instant, Timer};
+use lib::{CharLcdI2c, Never, Result};
 // This crate's own internal library
 use panic_probe as _;
 
@@ -18,7 +18,7 @@ pub async fn main(spawner0: Spawner) -> ! {
     panic!("{err}");
 }
 
-async fn inner_main(spawner: Spawner) -> Result<Never> {
+async fn inner_main(_spawner: Spawner) -> Result<Never> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize LCD (GP4=SDA, GP5=SCL)
@@ -28,6 +28,32 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     
     info!("LCD initialized and displaying Hello");
 
+    // === IR RECEIVER TEST (GPIO 6) ===
+    lcd.clear().await;
+    lcd.print("IR Test").await;
+    info!("Starting IR receiver test on GPIO 6");
+    
+    let mut ir_pin = Input::new(p.PIN_6, Pull::Up);
+    
+    loop {
+        // Wait for pin to go low (IR signal detected)
+        ir_pin.wait_for_low().await;
+        let start = Instant::now();
+        
+        // Measure pulse duration
+        ir_pin.wait_for_high().await;
+        let duration = start.elapsed();
+        
+        info!("IR pulse: {} us", duration.as_micros());
+        
+        lcd.clear().await;
+        lcd.print("IR pulse!").await;
+        
+        Timer::after_millis(100).await;
+    }
+
+    // === OLD RFID CODE (commented out for IR test) ===
+    /*
     // Initialize MFRC522 RFID reader device abstraction
     static RFID_NOTIFIER: SpiMfrc522Notifier = SpiMfrc522Reader::notifier();
     let rfid_reader = SpiMfrc522Reader::new(
@@ -82,5 +108,6 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
         
         Timer::after_millis(100).await;
     }
+    */
 }
 
