@@ -2,6 +2,7 @@
 #![no_std]
 #![no_main]
 
+mod char_lcd_i2c;
 mod error;
 mod hardware;
 mod never;
@@ -9,6 +10,7 @@ mod output_array;
 mod shared_constants;
 
 // Re-export commonly used items
+pub use char_lcd_i2c::CharLcdI2c;
 pub use error::{Error, Result};
 pub use hardware::Hardware;
 pub use never::Never;
