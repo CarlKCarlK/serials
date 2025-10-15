@@ -6,9 +6,10 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Level, Output};
-use embassy_rp::spi::{Config as SpiConfig, Spi};
+use embassy_rp::peripherals;
+use embassy_rp::spi::{Config as SpiConfig, Phase, Polarity, Spi};
 use embassy_time::{Instant, Timer};
-use embedded_hal_bus::spi::ExclusiveDevice;
+use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
 use esp_hal_mfrc522::consts::{PCDErrorCode, UidSize};
 use esp_hal_mfrc522::drivers::SpiDriver;
 use esp_hal_mfrc522::MFRC522;
@@ -16,6 +17,48 @@ use heapless::index_map::FnvIndexMap;
 use lib::{CharLcdI2c, Never, Result};
 // This crate's own internal library
 use panic_probe as _;
+
+/// Initialize MFRC522 RFID reader with the specified pins
+async fn init_mfrc522<'a>(
+    spi0: embassy_rp::Peri<'a, peripherals::SPI0>,
+    sck: embassy_rp::Peri<'a, peripherals::PIN_18>,
+    mosi: embassy_rp::Peri<'a, peripherals::PIN_19>,
+    miso: embassy_rp::Peri<'a, peripherals::PIN_16>,
+    dma_ch0: embassy_rp::Peri<'a, peripherals::DMA_CH0>,
+    dma_ch1: embassy_rp::Peri<'a, peripherals::DMA_CH1>,
+    cs: embassy_rp::Peri<'a, peripherals::PIN_15>,
+    rst: embassy_rp::Peri<'a, peripherals::PIN_17>,
+) -> ExclusiveDevice<Spi<'a, peripherals::SPI0, embassy_rp::spi::Async>, Output<'a>, NoDelay> {
+    // Initialize async SPI for RFID (GP18=SCK, GP19=MOSI, GP16=MISO)
+    let spi = Spi::new(
+        spi0,
+        sck,
+        mosi,
+        miso,
+        dma_ch0,
+        dma_ch1,
+        {
+            let mut config = SpiConfig::default();
+            config.frequency = 1_000_000; // 1 MHz
+            config.polarity = Polarity::IdleLow;
+            config.phase = Phase::CaptureOnFirstTransition;
+            config
+        },
+    );
+    
+    // CS pin for MFRC522
+    let cs = Output::new(cs, Level::High);  // GP15 = physical pin 20
+    
+    // Reset RFID module
+    let mut rst = Output::new(rst, Level::High);  // GP17 = physical pin 22
+    rst.set_low();
+    Timer::after_millis(10).await;
+    rst.set_high();
+    Timer::after_millis(50).await;
+    
+    // Wrap SPI+CS in ExclusiveDevice to implement SpiDevice trait
+    ExclusiveDevice::new_no_delay(spi, cs).expect("CS pin is infallible")
+}
 
 #[embassy_executor::main]
 pub async fn main(spawner0: Spawner) -> ! {
@@ -34,26 +77,18 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     
     info!("LCD initialized and displaying Hello");
 
-    // Initialize async SPI for RFID (GP18=SCK, GP19=MOSI, GP16=MISO)
-    let mut spi_config = SpiConfig::default();
-    spi_config.frequency = 1_000_000; // 1 MHz
-    spi_config.polarity = embassy_rp::spi::Polarity::IdleLow;
-    spi_config.phase = embassy_rp::spi::Phase::CaptureOnFirstTransition;
-    let spi = Spi::new(p.SPI0, p.PIN_18, p.PIN_19, p.PIN_16, p.DMA_CH0, p.DMA_CH1, spi_config);
+    // Initialize MFRC522 RFID reader
+    let spi_device = init_mfrc522(
+        p.SPI0,
+        p.PIN_18,
+        p.PIN_19,
+        p.PIN_16,
+        p.DMA_CH0,
+        p.DMA_CH1,
+        p.PIN_15,
+        p.PIN_17,
+    ).await;
     
-    // CS pin for MFRC522
-    let cs = Output::new(p.PIN_15, Level::High);  // GP15 = physical pin 20
-    
-    // Reset RFID module
-    let mut rst = Output::new(p.PIN_17, Level::High);  // GP17 = physical pin 22
-    rst.set_low();
-    Timer::after_millis(10).await;
-    rst.set_high();
-    Timer::after_millis(50).await;
-    
-    // Initialize MFRC522 using async driver
-    // Wrap SPI+CS in ExclusiveDevice to implement SpiDevice trait
-    let spi_device = ExclusiveDevice::new_no_delay(spi, cs).expect("CS pin is infallible");
     let spi_driver = SpiDriver::new(spi_device);
     let mut mfrc522 = MFRC522::new(spi_driver, || {
         Instant::now().as_millis()
