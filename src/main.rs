@@ -98,7 +98,13 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
         info!("UID read successfully ({} bytes)", uid_bytes.len());
         
         // Create fixed-size UID key (pad with zeros if shorter than 10 bytes)
-        let uid_key = create_uid_key(uid_bytes);
+        let mut uid_key = [0u8; 10];
+        #[expect(clippy::indexing_slicing, reason = "Length checked")]
+        for (i, &byte) in uid_bytes.iter().enumerate() {
+            if i < 10 {
+                uid_key[i] = byte;
+            }
+        }
         
         // Look up or assign card name
         let card_name = card_map.get(&uid_key).copied().or_else(|| {
