@@ -7,7 +7,7 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use heapless::index_map::FnvIndexMap;
-use lib::{CharLcdI2c, Never, Result, SpiMfrc522Notifier, SpiMfrc522Reader};
+use lib::{CharLcdI2c, Never, Result, RfidEvent, SpiMfrc522Notifier, SpiMfrc522Reader};
 // This crate's own internal library
 use panic_probe as _;
 
@@ -17,8 +17,6 @@ pub async fn main(spawner0: Spawner) -> ! {
     let err = inner_main(spawner0).await.unwrap_err();
     panic!("{err}");
 }
-
-static RFID_NOTIFIER: SpiMfrc522Notifier = SpiMfrc522Reader::notifier();
 
 async fn inner_main(spawner: Spawner) -> Result<Never> {
     let p = embassy_rp::init(Default::default());
@@ -31,6 +29,7 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     info!("LCD initialized and displaying Hello");
 
     // Initialize MFRC522 RFID reader device abstraction
+    static RFID_NOTIFIER: SpiMfrc522Notifier = SpiMfrc522Reader::notifier();
     let rfid_reader = SpiMfrc522Reader::new(
         p.SPI0,
         p.PIN_18,
@@ -51,30 +50,33 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     // heapless requires power-of-2 capacity, so using 4
     let mut card_map: FnvIndexMap<[u8; 10], u8, 4> = FnvIndexMap::new();
     
-    // Main loop: wait for RFID cards
+    // Main loop: wait for RFID events
     loop {
-        // Wait for next card (clean async interface - polling happens in background task)
-        let uid_key = rfid_reader.next_card().await;
+        // Wait for next event (card detection)
+        let RfidEvent::CardDetected { uid } = rfid_reader.next_event().await;
         
         // Look up or assign card name
-        let card_name = card_map.get(&uid_key).copied().or_else(|| {
+        let card_name = card_map.get(&uid).copied().or_else(|| {
             // Try to assign next letter (A, B, C, D...)
             #[expect(clippy::arithmetic_side_effects, reason = "Card count limited by map capacity")]
             let name = b'A' + card_map.len() as u8;
-            card_map.insert(uid_key, name).ok().map(|_| name)
+            card_map.insert(uid, name).ok().map(|_| name)
         });
         
-        // Display result on LCD
+        // Display result on LCD based on card name
         lcd.clear().await;
         
-        if let Some(name) = card_name {
-            lcd.print("Card ").await;
-            lcd.write_byte(name).await;
-            lcd.print(" Seen").await;
-        } else {
-            lcd.print("Unknown Card").await;
-            lcd.set_cursor(1, 0).await;
-            lcd.print("Seen").await;
+        match card_name {
+            Some(name) => {
+                lcd.print("Card ").await;
+                lcd.write_byte(name).await;
+                lcd.print(" Seen").await;
+            }
+            None => {
+                lcd.print("Unknown Card").await;
+                lcd.set_cursor(1, 0).await;
+                lcd.print("Map Full").await;
+            }
         }
         
         Timer::after_millis(2000).await;

@@ -16,4 +16,4 @@ pub use error::{Error, Result};
 pub use hardware::Hardware;
 pub use never::Never;
 pub use shared_constants::*;
-pub use spi_mfrc522::{SpiMfrc522Notifier, SpiMfrc522Reader};
+pub use spi_mfrc522::{RfidEvent, SpiMfrc522Notifier, SpiMfrc522Reader};

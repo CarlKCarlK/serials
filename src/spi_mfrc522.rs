@@ -14,6 +14,13 @@ use esp_hal_mfrc522::MFRC522;
 
 use crate::{Error, Result};
 
+/// Events from the RFID reader
+#[derive(Debug, Clone, Copy)]
+pub enum RfidEvent {
+    /// A card was detected
+    CardDetected { uid: [u8; 10] },
+}
+
 /// Concrete type for the MFRC522 device - needed because Embassy tasks can't be generic
 pub type Mfrc522Device = MFRC522<SpiDriver<ExclusiveDevice<
     Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
@@ -22,7 +29,7 @@ pub type Mfrc522Device = MFRC522<SpiDriver<ExclusiveDevice<
 >>>;
 
 /// Notifier type for RFID reader events (uses Channel to ensure all cards are processed)
-pub type SpiMfrc522Notifier = EmbassyChannel<CriticalSectionRawMutex, [u8; 10], 4>;
+pub type SpiMfrc522Notifier = EmbassyChannel<CriticalSectionRawMutex, RfidEvent, 4>;
 
 /// RFID reader device abstraction
 pub struct SpiMfrc522Reader<'a>(&'a SpiMfrc522Notifier);
@@ -68,8 +75,8 @@ impl SpiMfrc522Reader<'_> {
         Ok(Self(notifier))
     }
 
-    /// Wait for the next card and return its UID as a fixed-size array
-    pub async fn next_card(&self) -> [u8; 10] {
+    /// Wait for the next RFID event
+    pub async fn next_event(&self) -> RfidEvent {
         self.0.receive().await
     }
 }
@@ -112,9 +119,11 @@ async fn rfid_polling_task(
         
         info!("UID read successfully ({} bytes)", uid.uid_bytes.len());
         
-        // Convert to fixed-size array and send to channel
+        // Convert to fixed-size array
         let uid_key = uid_to_fixed_array(&uid.uid_bytes);
-        notifier.send(uid_key).await;
+        
+        // Send event to channel
+        notifier.send(RfidEvent::CardDetected { uid: uid_key }).await;
     }
 }
 
