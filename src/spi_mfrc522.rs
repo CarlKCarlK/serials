@@ -1,32 +1,138 @@
 use defmt::info;
+use embassy_executor::Spawner;
 use embassy_rp::dma::Channel;
 use embassy_rp::gpio::{Level, Output, Pin};
-use embassy_rp::spi::{ClkPin, Config as SpiConfig, Instance, MisoPin, MosiPin, Phase, Polarity, Spi};
+use embassy_rp::spi::{ClkPin, Config as SpiConfig, MisoPin, MosiPin, Phase, Polarity, Spi};
 use embassy_rp::Peri;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::channel::Channel as EmbassyChannel;
 use embassy_time::{Instant, Timer};
 use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
-use esp_hal_mfrc522::consts::PCDErrorCode;
+use esp_hal_mfrc522::consts::UidSize;
 use esp_hal_mfrc522::drivers::SpiDriver;
 use esp_hal_mfrc522::MFRC522;
 
-use crate::Result;
+use crate::{Error, Result};
 
-/// Create and initialize a new MFRC522 RFID reader with Embassy-RP SPI peripherals
-pub async fn new_spi_mfrc522<'a, T, Sck, Mosi, Miso, Dma0, Dma1, Cs, Rst>(
-    spi: Peri<'a, T>,
-    sck: Peri<'a, Sck>,
-    mosi: Peri<'a, Mosi>,
-    miso: Peri<'a, Miso>,
-    dma_ch0: Peri<'a, Dma0>,
-    dma_ch1: Peri<'a, Dma1>,
-    cs: Peri<'a, Cs>,
-    rst: Peri<'a, Rst>,
-) -> MFRC522<SpiDriver<ExclusiveDevice<Spi<'a, T, embassy_rp::spi::Async>, Output<'a>, NoDelay>>>
+/// Concrete type for the MFRC522 device - needed because Embassy tasks can't be generic
+pub type Mfrc522Device = MFRC522<SpiDriver<ExclusiveDevice<
+    Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
+    Output<'static>,
+    NoDelay
+>>>;
+
+/// Notifier type for RFID reader events (uses Channel to ensure all cards are processed)
+pub type SpiMfrc522Notifier = EmbassyChannel<CriticalSectionRawMutex, [u8; 10], 4>;
+
+/// RFID reader device abstraction
+pub struct SpiMfrc522Reader<'a>(&'a SpiMfrc522Notifier);
+
+impl SpiMfrc522Reader<'_> {
+    /// Create a new notifier for the RFID reader
+    #[must_use]
+    pub const fn notifier() -> SpiMfrc522Notifier {
+        EmbassyChannel::new()
+    }
+
+    /// Create a new RFID reader device abstraction
+    /// 
+    /// Note: Currently hardcoded to SPI0. All peripherals must have 'static lifetime.
+    pub async fn new<Sck, Mosi, Miso, Dma0, Dma1, Cs, Rst>(
+        spi: Peri<'static, embassy_rp::peripherals::SPI0>,
+        sck: Peri<'static, Sck>,
+        mosi: Peri<'static, Mosi>,
+        miso: Peri<'static, Miso>,
+        dma_ch0: Peri<'static, Dma0>,
+        dma_ch1: Peri<'static, Dma1>,
+        cs: Peri<'static, Cs>,
+        rst: Peri<'static, Rst>,
+        notifier: &'static SpiMfrc522Notifier,
+        spawner: Spawner,
+    ) -> Result<Self>
+    where
+        Sck: Pin + ClkPin<embassy_rp::peripherals::SPI0>,
+        Mosi: Pin + MosiPin<embassy_rp::peripherals::SPI0>,
+        Miso: Pin + MisoPin<embassy_rp::peripherals::SPI0>,
+        Dma0: Channel,
+        Dma1: Channel,
+        Cs: Pin,
+        Rst: Pin,
+    {
+        // Initialize the hardware
+        let mfrc522 = init_mfrc522_hardware(spi, sck, mosi, miso, dma_ch0, dma_ch1, cs, rst).await?;
+        
+        // Spawn the polling task
+        spawner.spawn(rfid_polling_task(mfrc522, notifier))
+            .map_err(Error::TaskSpawn)?;
+        
+        Ok(Self(notifier))
+    }
+
+    /// Wait for the next card and return its UID as a fixed-size array
+    pub async fn next_card(&self) -> [u8; 10] {
+        self.0.receive().await
+    }
+}
+
+/// Convert UID bytes to a fixed-size array, padding with zeros if needed
+fn uid_to_fixed_array(uid_bytes: &[u8]) -> [u8; 10] {
+    let mut uid_key = [0u8; 10];
+    #[expect(clippy::indexing_slicing, reason = "Length checked")]
+    for (i, &byte) in uid_bytes.iter().enumerate() {
+        if i < 10 {
+            uid_key[i] = byte;
+        }
+    }
+    uid_key
+}
+
+/// Embassy task that continuously polls for RFID cards
+#[embassy_executor::task]
+async fn rfid_polling_task(
+    mut mfrc522: Mfrc522Device,
+    notifier: &'static SpiMfrc522Notifier,
+) -> ! {
+    info!("RFID polling task started");
+    
+    loop {
+        // Try to detect a card
+        let Ok(()) = mfrc522.picc_is_new_card_present().await else {
+            Timer::after_millis(100).await;
+            continue;
+        };
+        
+        info!("Card detected!");
+        
+        // Try to read UID
+        let Ok(uid) = mfrc522.get_card(UidSize::Four).await else {
+            info!("UID read error");
+            Timer::after_millis(100).await;
+            continue;
+        };
+        
+        info!("UID read successfully ({} bytes)", uid.uid_bytes.len());
+        
+        // Convert to fixed-size array and send to channel
+        let uid_key = uid_to_fixed_array(&uid.uid_bytes);
+        notifier.send(uid_key).await;
+    }
+}
+
+/// Initialize MFRC522 hardware (internal helper function)
+async fn init_mfrc522_hardware<Sck, Mosi, Miso, Dma0, Dma1, Cs, Rst>(
+    spi: Peri<'static, embassy_rp::peripherals::SPI0>,
+    sck: Peri<'static, Sck>,
+    mosi: Peri<'static, Mosi>,
+    miso: Peri<'static, Miso>,
+    dma_ch0: Peri<'static, Dma0>,
+    dma_ch1: Peri<'static, Dma1>,
+    cs: Peri<'static, Cs>,
+    rst: Peri<'static, Rst>,
+) -> Result<Mfrc522Device>
 where
-    T: Instance,
-    Sck: Pin + ClkPin<T>,
-    Mosi: Pin + MosiPin<T>,
-    Miso: Pin + MisoPin<T>,
+    Sck: Pin + ClkPin<embassy_rp::peripherals::SPI0>,
+    Mosi: Pin + MosiPin<embassy_rp::peripherals::SPI0>,
+    Miso: Pin + MisoPin<embassy_rp::peripherals::SPI0>,
     Dma0: Channel,
     Dma1: Channel,
     Cs: Pin,
@@ -65,13 +171,11 @@ where
     let mut mfrc522 = MFRC522::new(spi_driver, || Instant::now().as_millis());
     
     // Initialize the MFRC522 chip
-    let _: Result<(), PCDErrorCode> = mfrc522.pcd_init().await;
+    mfrc522.pcd_init().await.map_err(Error::Mfrc522Init)?;
     info!("MFRC522 initialized");
     
-    match mfrc522.pcd_get_version().await {
-        Ok(_v) => info!("MFRC522 Version read successfully"),
-        Err(_e) => info!("Version read error"),
-    }
+    let _version = mfrc522.pcd_get_version().await.map_err(Error::Mfrc522Version)?;
+    info!("MFRC522 version read successfully");
     
-    mfrc522
+    Ok(mfrc522)
 }
