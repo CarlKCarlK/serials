@@ -25,12 +25,6 @@ pub async fn main(spawner0: Spawner) -> ! {
     panic!("{err}");
 }
 
-#[expect(clippy::arithmetic_side_effects, reason = "TODO")]
-#[expect(clippy::cast_precision_loss, reason = "TODO")]
-#[expect(clippy::assertions_on_constants, reason = "TODO")]
-#[expect(clippy::too_many_lines, reason = "TODO")]
-#[expect(clippy::cast_sign_loss, reason = "TODO")]
-#[expect(clippy::cast_possible_truncation, reason = "TODO")]
 async fn inner_main(_spawner: Spawner) -> Result<Never> {
     let p = embassy_rp::init(Default::default());
 
