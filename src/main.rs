@@ -6,7 +6,6 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Level, Output};
-use embassy_rp::peripherals;
 use embassy_rp::spi::{Config as SpiConfig, Phase, Polarity, Spi};
 use embassy_time::{Instant, Timer};
 use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
@@ -19,19 +18,29 @@ use lib::{CharLcdI2c, Never, Result};
 use panic_probe as _;
 
 /// Initialize MFRC522 RFID reader with the specified pins
-async fn init_mfrc522<'a>(
-    spi0: embassy_rp::Peri<'a, peripherals::SPI0>,
-    sck: embassy_rp::Peri<'a, peripherals::PIN_18>,
-    mosi: embassy_rp::Peri<'a, peripherals::PIN_19>,
-    miso: embassy_rp::Peri<'a, peripherals::PIN_16>,
-    dma_ch0: embassy_rp::Peri<'a, peripherals::DMA_CH0>,
-    dma_ch1: embassy_rp::Peri<'a, peripherals::DMA_CH1>,
-    cs: embassy_rp::Peri<'a, peripherals::PIN_15>,
-    rst: embassy_rp::Peri<'a, peripherals::PIN_17>,
-) -> ExclusiveDevice<Spi<'a, peripherals::SPI0, embassy_rp::spi::Async>, Output<'a>, NoDelay> {
-    // Initialize async SPI for RFID (GP18=SCK, GP19=MOSI, GP16=MISO)
+async fn init_mfrc522<'a, T, Sck, Mosi, Miso, Dma0, Dma1, Cs, Rst>(
+    spi: embassy_rp::Peri<'a, T>,
+    sck: embassy_rp::Peri<'a, Sck>,
+    mosi: embassy_rp::Peri<'a, Mosi>,
+    miso: embassy_rp::Peri<'a, Miso>,
+    dma_ch0: embassy_rp::Peri<'a, Dma0>,
+    dma_ch1: embassy_rp::Peri<'a, Dma1>,
+    cs: embassy_rp::Peri<'a, Cs>,
+    rst: embassy_rp::Peri<'a, Rst>,
+) -> ExclusiveDevice<Spi<'a, T, embassy_rp::spi::Async>, Output<'a>, NoDelay>
+where
+    T: embassy_rp::spi::Instance,
+    Sck: embassy_rp::gpio::Pin + embassy_rp::spi::ClkPin<T>,
+    Mosi: embassy_rp::gpio::Pin + embassy_rp::spi::MosiPin<T>,
+    Miso: embassy_rp::gpio::Pin + embassy_rp::spi::MisoPin<T>,
+    Dma0: embassy_rp::dma::Channel,
+    Dma1: embassy_rp::dma::Channel,
+    Cs: embassy_rp::gpio::Pin,
+    Rst: embassy_rp::gpio::Pin,
+{
+    // Initialize async SPI for RFID
     let spi = Spi::new(
-        spi0,
+        spi,
         sck,
         mosi,
         miso,
