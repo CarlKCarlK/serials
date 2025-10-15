@@ -66,17 +66,14 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
         // Display result on LCD based on card name
         lcd.clear().await;
         
-        match card_name {
-            Some(name) => {
-                lcd.print("Card ").await;
-                lcd.write_byte(name).await;
-                lcd.print(" Seen").await;
-            }
-            None => {
-                lcd.print("Unknown Card").await;
-                lcd.set_cursor(1, 0).await;
-                lcd.print("Map Full").await;
-            }
+        if let Some(name) = card_name {
+            lcd.print("Card ").await;
+            lcd.write_byte(name).await;
+            lcd.print(" Seen").await;
+        } else {
+            lcd.print("Unknown Card").await;
+            lcd.set_cursor(1, 0).await;
+            lcd.print("Map Full").await;
         }
         
         Timer::after_millis(2000).await;
