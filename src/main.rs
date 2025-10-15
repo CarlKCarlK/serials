@@ -7,11 +7,13 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::spi::{Config as SpiConfig, Spi};
-use embassy_time::Timer;
+use embassy_time::{Instant, Timer};
+use embedded_hal_bus::spi::ExclusiveDevice;
+use esp_hal_mfrc522::consts::{PCDErrorCode, UidSize};
+use esp_hal_mfrc522::drivers::SpiDriver;
+use esp_hal_mfrc522::MFRC522;
 use heapless::FnvIndexMap;
 use lib::{CharLcdI2c, Never, Result};
-use mfrc522::comm::eh02::spi::SpiInterface;
-use mfrc522::Mfrc522;
 // This crate's own internal library
 use panic_probe as _;
 
@@ -32,16 +34,15 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     
     info!("LCD initialized and displaying Hello");
 
-    // Initialize SPI for RFID (GP18=SCK, GP19=MOSI, GP16=MISO)
-    // MFRC522 pin labeled "SDA" is actually NSS/CS (chip select)
+    // Initialize async SPI for RFID (GP18=SCK, GP19=MOSI, GP16=MISO)
     let mut spi_config = SpiConfig::default();
     spi_config.frequency = 1_000_000; // 1 MHz
     spi_config.polarity = embassy_rp::spi::Polarity::IdleLow;
     spi_config.phase = embassy_rp::spi::Phase::CaptureOnFirstTransition;
-    let spi = Spi::new_blocking(p.SPI0, p.PIN_18, p.PIN_19, p.PIN_16, spi_config);
+    let spi = Spi::new(p.SPI0, p.PIN_18, p.PIN_19, p.PIN_16, p.DMA_CH0, p.DMA_CH1, spi_config);
     
-    // MFRC522 "SDA" pin (pin 7) = NSS/CS, connect to GP15 (Pico pin 20)
-    let nss = Output::new(p.PIN_15, Level::High);  // GP15 = physical pin 20
+    // CS pin for MFRC522
+    let cs = Output::new(p.PIN_15, Level::High);  // GP15 = physical pin 20
     
     // Reset RFID module
     let mut rst = Output::new(p.PIN_17, Level::High);  // GP17 = physical pin 22
@@ -50,23 +51,19 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     rst.set_high();
     Timer::after_millis(50).await;
     
-    // Initialize MFRC522 using driver - mfrc522 crate uses embedded-hal 0.2
-    // Pass SPI and NSS separately to SpiInterface
-    let spi_iface = SpiInterface::new(spi).with_nss(nss);
-    let mut mfrc522 = match Mfrc522::new(spi_iface).init() {
-        Ok(m) => {
-            info!("MFRC522 driver initialized successfully");
-            m
-        }
-        Err(_e) => {
-            info!("MFRC522 init error");
-            panic!("Failed to initialize MFRC522");
-        }
-    };
+    // Initialize MFRC522 using async driver
+    // Wrap SPI+CS in ExclusiveDevice to implement SpiDevice trait
+    let spi_device = ExclusiveDevice::new_no_delay(spi, cs).expect("CS pin is infallible");
+    let spi_driver = SpiDriver::new(spi_device);
+    let mut mfrc522 = MFRC522::new(spi_driver, || {
+        Instant::now().as_millis()
+    });
     
-    // Check version
-    match mfrc522.version() {
-        Ok(v) => info!("MFRC522 Version: 0x{:02X}", v),
+    let _: Result<(), PCDErrorCode> = mfrc522.pcd_init().await;
+    info!("MFRC522 initialized");
+    
+    match mfrc522.pcd_get_version().await {
+        Ok(_v) => info!("MFRC522 Version read successfully"),
         Err(_e) => info!("Version read error"),
     }
     
@@ -79,28 +76,27 @@ async fn inner_main(_spawner: Spawner) -> Result<Never> {
     
     // Main loop: check for RFID cards
     loop {
-        // Try to detect a card
-        let Ok(atqa) = mfrc522.reqa() else {
+        // Try to detect a card (async!)
+        let Ok(()) = mfrc522.picc_is_new_card_present().await else {
             Timer::after_millis(100).await;
             continue;
         };
         
         info!("Card detected!");
         
-        // Try to read UID
-        let Ok(uid) = mfrc522.select(&atqa) else {
+        // Try to read UID (async!)
+        let Ok(uid) = mfrc522.get_card(UidSize::Four).await else {
             info!("UID read error");
             Timer::after_millis(100).await;
             continue;
         };
         
-        let uid_bytes = uid.as_bytes();
-        info!("UID read successfully ({} bytes)", uid_bytes.len());
+        info!("UID read successfully ({} bytes)", uid.uid_bytes.len());
         
         // Create fixed-size UID key (pad with zeros if shorter than 10 bytes)
         let mut uid_key = [0u8; 10];
         #[expect(clippy::indexing_slicing, reason = "Length checked")]
-        for (i, &byte) in uid_bytes.iter().enumerate() {
+        for (i, &byte) in uid.uid_bytes.iter().enumerate() {
             if i < 10 {
                 uid_key[i] = byte;
             }

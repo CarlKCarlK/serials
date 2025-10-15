@@ -44,8 +44,11 @@ derive_more = { version = "1.0.0", default-features = false, features = [
 heapless = "0.8"
 rp2040-hal = "0.10.2"
 embedded-hal = "1.0.0"
+embedded-hal-async = "1.0.0"
+embedded-hal-bus = { version = "0.3.0", features = ["async", "portable-atomic"] }
+portable-atomic = { version = "1.10.0", features = ["critical-section"] }
 hd44780-driver = "0.4.0"
-mfrc522 = "0.6.0"
+esp-hal-mfrc522 = "0.3.2"
 
 
 [build-dependencies]
