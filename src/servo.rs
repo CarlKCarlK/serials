@@ -18,9 +18,14 @@ pub struct Servo<'d> {
 }
 
 impl<'d> Servo<'d> {
-    /// Create on a PWM output channel, e.g.:
-    ///   Servo::new(Pwm::new_output_a(p.PWM_SLICE0, p.PIN_0), 1000, 2000)
-    pub fn new(mut pwm: Pwm<'d>, min_us: u16, max_us: u16) -> Self {
+    /// Create on a PWM output channel, accepting pre-configured Pwm.
+    /// e.g.: Servo::new(Pwm::new_output_a(p.PWM_SLICE0, p.PIN_0, Config::default()), 500, 2500)
+    pub fn new(pwm: Pwm<'d>, min_us: u16, max_us: u16) -> Self {
+        Self::init(pwm, min_us, max_us)
+    }
+
+    /// Configure PWM and initialize servo. Internal shared logic.
+    fn init(mut pwm: Pwm<'d>, min_us: u16, max_us: u16) -> Self {
         let clk = clk_sys_freq() as u64; // Hz
         // Aim for tick ≈ 1 µs: divider = clk_sys / 1_000_000 (with /16 fractional)
         let mut div_int = (clk / 1_000_000).clamp(1, 255) as u16;
@@ -88,6 +93,7 @@ impl<'d> Servo<'d> {
         self.pwm.set_config(&self.cfg);
     }
 
+    // cmk000 what does this do?
     /// Resume output (keeps last duty). Call `center()` if you prefer.
     pub fn enable(&mut self) {
         self.cfg.enable = true;
