@@ -9,6 +9,19 @@ use defmt::info;
 
 pub const SERVO_PERIOD_US: u16 = 20_000; // 20 ms
 
+/// Convenience macro to create a servo in one line.
+/// Usage: servo!(p.PWM_SLICE0, p.PIN_0, 500, 2500)
+#[macro_export]
+macro_rules! servo {
+    ($slice:expr, $pin:expr, $min_us:expr, $max_us:expr) => {
+        $crate::servo::Servo::new(
+            embassy_rp::pwm::Pwm::new_output_a($slice, $pin, embassy_rp::pwm::Config::default()),
+            $min_us,
+            $max_us,
+        )
+    };
+}
+
 pub struct Servo<'d> {
     pwm: Pwm<'d>,
     cfg: Config,  // Store config to avoid recreating default (which resets divider)
@@ -24,6 +37,7 @@ impl<'d> Servo<'d> {
         Self::init(pwm, min_us, max_us)
     }
 
+    // cmk is not reading the system speed
     /// Configure PWM and initialize servo. Internal shared logic.
     fn init(mut pwm: Pwm<'d>, min_us: u16, max_us: u16) -> Self {
         let clk = clk_sys_freq() as u64; // Hz
@@ -43,6 +57,7 @@ impl<'d> Servo<'d> {
         cfg.phase_correct = false; // edge-aligned => exact 1 µs steps
         // Apply divider: use the integer part as u8 which has a From impl
         cfg.divider = (div_int as u8).into();
+        // cmk a should not be hardcoded
         cfg.compare_a = 1500;      // start ~center if this is channel A
         cfg.enable = true;         // Enable PWM output
         pwm.set_config(&cfg);
@@ -93,7 +108,6 @@ impl<'d> Servo<'d> {
         self.pwm.set_config(&self.cfg);
     }
 
-    // cmk000 what does this do?
     /// Resume output (keeps last duty). Call `center()` if you prefer.
     pub fn enable(&mut self) {
         self.cfg.enable = true;
