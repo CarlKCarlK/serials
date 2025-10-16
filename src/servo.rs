@@ -30,6 +30,7 @@ macro_rules! servo_a {
     ($slice:expr, $pin:expr, $min_us:expr, $max_us:expr) => {
         $crate::servo::Servo::new(
             embassy_rp::pwm::Pwm::new_output_a($slice, $pin, embassy_rp::pwm::Config::default()),
+            $crate::servo::ServoChannel::A,
             $min_us,
             $max_us,
         )
@@ -42,6 +43,7 @@ macro_rules! servo_b {
     ($slice:expr, $pin:expr, $min_us:expr, $max_us:expr) => {
         $crate::servo::Servo::new(
             embassy_rp::pwm::Pwm::new_output_b($slice, $pin, embassy_rp::pwm::Config::default()),
+            $crate::servo::ServoChannel::B,
             $min_us,
             $max_us,
         )
@@ -54,18 +56,25 @@ pub struct Servo<'d> {
     top: u16,
     min_us: u16,
     max_us: u16,
+    channel: ServoChannel,  // Track which channel (A or B) this servo uses
+}
+
+/// Which PWM channel the servo is on.
+#[derive(Debug, Clone, Copy)]
+pub enum ServoChannel {
+    A,
+    B,
 }
 
 impl<'d> Servo<'d> {
     /// Create on a PWM output channel, accepting pre-configured Pwm.
-    /// e.g.: Servo::new(Pwm::new_output_a(p.PWM_SLICE0, p.PIN_0, Config::default()), 500, 2500)
-    pub fn new(pwm: Pwm<'d>, min_us: u16, max_us: u16) -> Self {
-        Self::init(pwm, min_us, max_us)
+    /// e.g.: Servo::new(Pwm::new_output_a(p.PWM_SLICE0, p.PIN_0, Config::default()), ServoChannel::A, 500, 2500)
+    pub fn new(pwm: Pwm<'d>, channel: ServoChannel, min_us: u16, max_us: u16) -> Self {
+        Self::init(pwm, channel, min_us, max_us)
     }
 
-    // cmk is not reading the system speed
     /// Configure PWM and initialize servo. Internal shared logic.
-    fn init(mut pwm: Pwm<'d>, min_us: u16, max_us: u16) -> Self {
+    fn init(mut pwm: Pwm<'d>, channel: ServoChannel, min_us: u16, max_us: u16) -> Self {
         let clk = clk_sys_freq() as u64; // Hz
         // Aim for tick ≈ 1 µs: divider = clk_sys / 1_000_000 (with /16 fractional)
         let mut div_int = (clk / 1_000_000).clamp(1, 255) as u16;
@@ -83,8 +92,13 @@ impl<'d> Servo<'d> {
         cfg.phase_correct = false; // edge-aligned => exact 1 µs steps
         // Apply divider: use the integer part as u8 which has a From impl
         cfg.divider = (div_int as u8).into();
-        // cmk a should not be hardcoded
-        cfg.compare_a = 1500;      // start ~center if this is channel A
+        
+        // Set the appropriate compare register based on channel
+        match channel {
+            ServoChannel::A => cfg.compare_a = 1500,  // start ~center
+            ServoChannel::B => cfg.compare_b = 1500,  // start ~center
+        }
+        
         cfg.enable = true;         // Enable PWM output
         pwm.set_config(&cfg);
 
@@ -96,6 +110,7 @@ impl<'d> Servo<'d> {
             top,
             min_us,
             max_us,
+            channel,
         };
         s.center();
         s
@@ -124,7 +139,10 @@ impl<'d> Servo<'d> {
         // One tick ≈ 1 µs, so compare = us.
         // CRITICAL: Update our stored config and reapply it WITH the divider intact.
         // This prevents the divider from being reset to default.
-        self.cfg.compare_a = us;
+        match self.channel {
+            ServoChannel::A => self.cfg.compare_a = us,
+            ServoChannel::B => self.cfg.compare_b = us,
+        }
         self.pwm.set_config(&self.cfg);
     }
 
