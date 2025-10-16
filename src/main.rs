@@ -8,7 +8,7 @@ use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Pull};
 use embassy_time::Timer;
 use heapless::index_map::FnvIndexMap;
-use lib::{CharLcdI2c, Never, Result, RfidEvent, SpiMfrc522Notifier, SpiMfrc522Reader};
+use lib::{CharLcdI2c, Never, Result, RfidEvent, SpiMfrc522Channels, SpiMfrc522Reader};
 // This crate's own internal library
 use panic_probe as _;
 
@@ -34,7 +34,7 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     info!("IR receiver initialized on GPIO 6");
 
     // Initialize MFRC522 RFID reader device abstraction
-    static RFID_NOTIFIER: SpiMfrc522Notifier = SpiMfrc522Reader::notifier();
+    static RFID_CHANNELS: SpiMfrc522Channels = SpiMfrc522Reader::channels();
     let rfid_reader = SpiMfrc522Reader::new(
         p.SPI0,
         p.PIN_18,
@@ -44,7 +44,7 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
         p.DMA_CH1,
         p.PIN_15,
         p.PIN_17,
-        &RFID_NOTIFIER,
+        &RFID_CHANNELS,
         spawner,
     ).await?;
     
@@ -84,6 +84,10 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
                 }
                 
                 Timer::after_millis(2000).await;
+            }
+            Either::First(_) => {
+                // ignore other RFID events
+                continue;
             }
             Either::Second(()) => {
                 // IR button pressed - reset the card map
