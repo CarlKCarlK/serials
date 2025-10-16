@@ -29,7 +29,7 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     // Test servo: sweep angles 0,45,90,135,180 with 1s pause, 2 times
     // GPIO0 is on PWM0 slice, channel A
     info!("Starting servo test...");
-    let mut servo = servo!(p.PWM_SLICE0, p.PIN_0, 500, 2500);  // min=500µs (0°), max=2500µs (180°)
+    let mut servo = servo_a!(p.PWM_SLICE0, p.PIN_0, 500, 2500);  // min=500µs (0°), max=2500µs (180°)
     servo.set_degrees(90);
 
     // Initialize LCD (GP4=SDA, GP5=SCL)

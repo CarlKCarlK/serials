@@ -9,13 +9,39 @@ use defmt::info;
 
 pub const SERVO_PERIOD_US: u16 = 20_000; // 20 ms
 
-/// Convenience macro to create a servo in one line.
-/// Usage: servo!(p.PWM_SLICE0, p.PIN_0, 500, 2500)
+/// Convenience macros to create a servo in one line.
+/// 
+/// The macro expands to call `Pwm::new_output_a()` (or `_b()`) internally,
+/// so you don't need to create the PWM manually. The type checker will verify
+/// that the slice and pin are compatible with the chosen channel (A or B).
+/// 
+/// # Examples
+/// ```ignore
+/// // Channel A servo on GPIO0 (PWM slice 0)
+/// let mut servo_a = servo_a!(p.PWM_SLICE0, p.PIN_0, 500, 2500);
+/// 
+/// // Channel B servo on GPIO1 (PWM slice 0)
+/// let mut servo_b = servo_b!(p.PWM_SLICE0, p.PIN_1, 500, 2500);
+/// ```
+
+/// Create a servo on PWM channel A.
 #[macro_export]
-macro_rules! servo {
+macro_rules! servo_a {
     ($slice:expr, $pin:expr, $min_us:expr, $max_us:expr) => {
         $crate::servo::Servo::new(
             embassy_rp::pwm::Pwm::new_output_a($slice, $pin, embassy_rp::pwm::Config::default()),
+            $min_us,
+            $max_us,
+        )
+    };
+}
+
+/// Create a servo on PWM channel B.
+#[macro_export]
+macro_rules! servo_b {
+    ($slice:expr, $pin:expr, $min_us:expr, $max_us:expr) => {
+        $crate::servo::Servo::new(
+            embassy_rp::pwm::Pwm::new_output_b($slice, $pin, embassy_rp::pwm::Config::default()),
             $min_us,
             $max_us,
         )
