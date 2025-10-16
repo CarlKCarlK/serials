@@ -30,11 +30,11 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     // Test servo: sweep angles 0,45,90,135,180 with 1s pause, 2 times
     // GPIO0 is on PWM0 slice, channel A
     // NOTE: PWM divider is NOT set here - it's set at runtime by embassy
-    // For servo timing (1000-2000µs), we need ~ 1 MHz PWM ticks (50 Hz clock needs 20ms = 20,000 ticks)
+    // For servo timing (500-2500µs), we need ~ 1 MHz PWM ticks (50 Hz clock needs 20ms = 20,000 ticks)
     info!("Starting servo test...");
     let pwm_cfg = Config::default();
     let pwm = Pwm::new_output_a(p.PWM_SLICE0, p.PIN_0, pwm_cfg);
-    let mut servo = Servo::new(pwm, 1000, 2000);  // min=1000µs (0°), max=2000µs (180°)
+    let mut servo = Servo::new(pwm, 500, 2500);  // min=500µs (0°), max=2500µs (180°)
     info!("Servo created, setting to 90 degrees");
     servo.set_degrees(90);
     info!("Servo at 90, waiting 5 seconds...");
