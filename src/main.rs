@@ -2,11 +2,16 @@
 #![no_main]
 #![allow(clippy::future_not_send, reason = "Single-threaded")]
 
+mod servo;
+use servo::Servo;
+use lib::ONE_SECOND;
+
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Pull};
-use embassy_time::Timer;
+use embassy_rp::pwm::{Pwm, Config};
+use embassy_time::{Duration, Timer};
 use heapless::index_map::FnvIndexMap;
 use lib::{CharLcdI2c, Never, Result, RfidEvent, SpiMfrc522Channels, SpiMfrc522Reader};
 // This crate's own internal library
@@ -21,6 +26,34 @@ pub async fn main(spawner0: Spawner) -> ! {
 
 async fn inner_main(spawner: Spawner) -> Result<Never> {
     let p = embassy_rp::init(Default::default());
+
+    // Test servo: sweep angles 0,45,90,135,180 with 1s pause, 2 times
+    // GPIO0 is on PWM0 slice, channel A
+    // NOTE: PWM divider is NOT set here - it's set at runtime by embassy
+    // For servo timing (1000-2000µs), we need ~ 1 MHz PWM ticks (50 Hz clock needs 20ms = 20,000 ticks)
+    info!("Starting servo test...");
+    let pwm_cfg = Config::default();
+    let pwm = Pwm::new_output_a(p.PWM_SLICE0, p.PIN_0, pwm_cfg);
+    let mut servo = Servo::new(pwm, 1000, 2000);  // min=1000µs (0°), max=2000µs (180°)
+    info!("Servo created, setting to 90 degrees");
+    servo.set_degrees(90);
+    info!("Servo at 90, waiting 5 seconds...");
+    Timer::after(Duration::from_secs(5)).await;
+    for i in 0..2 {
+        info!("Sweep iteration {}", i);
+        servo.set_degrees(0);
+        Timer::after(ONE_SECOND).await;
+        servo.set_degrees(45);
+        Timer::after(ONE_SECOND).await;
+        servo.set_degrees(90);
+        Timer::after(ONE_SECOND).await;
+        servo.set_degrees(135);
+        Timer::after(ONE_SECOND).await;
+        servo.set_degrees(180);
+        Timer::after(ONE_SECOND).await;
+    }
+    servo.disable();
+    info!("Servo test complete!");
 
     // Initialize LCD (GP4=SDA, GP5=SCL)
     let mut lcd = CharLcdI2c::new(p.I2C0, p.PIN_5, p.PIN_4).await;
