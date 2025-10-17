@@ -100,7 +100,7 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
                     lcd.print("Unknown Card").await;
                     lcd.set_cursor(1, 0).await;
                     lcd.print("Map Full").await;
-                    servo.set_degrees(180);
+                    servo.set_degrees(0);
                 }
                 
                 Timer::after_millis(2000).await;
