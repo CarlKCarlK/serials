@@ -4,6 +4,9 @@ target = "thumbv6m-none-eabi"
 [env]
 DEFMT_LOG = "info"
 
+[alias]
+ir = "run --example ir_pio_read"
+
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
 runner = "probe-rs run --chip=RP2040"
 rustflags = [
