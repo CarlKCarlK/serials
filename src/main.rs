@@ -4,22 +4,20 @@
 
 mod servo;
 
-use lib::ONE_SECOND;
-
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Pull};
-use embassy_time::{Duration, Timer};
+use embassy_time::{ Timer};
 use heapless::index_map::FnvIndexMap;
 use lib::{CharLcdI2c, Never, Result, RfidEvent, SpiMfrc522Channels, SpiMfrc522Reader};
 // This crate's own internal library
 use panic_probe as _;
 
 #[embassy_executor::main]
-pub async fn main(spawner0: Spawner) -> ! {
+pub async fn main(spawner: Spawner) -> ! {
     // If it returns, something went wrong.
-    let err = inner_main(spawner0).await.unwrap_err();
+    let err = inner_main(spawner).await.unwrap_err();
     panic!("{err}");
 }
 
@@ -35,9 +33,9 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     // Initialize LCD (GP4=SDA, GP5=SCL)
     let mut lcd = CharLcdI2c::new(p.I2C0, p.PIN_5, p.PIN_4).await;
     lcd.clear().await;
-    lcd.print("Hello").await;
+    lcd.print("Starting RFID...").await;
     
-    info!("LCD initialized and displaying Hello");
+    info!("LCD initialized");
 
     // Initialize IR receiver (GPIO 6)
     let mut ir_pin = Input::new(p.PIN_6, Pull::Up);
@@ -46,16 +44,16 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     // Initialize MFRC522 RFID reader device abstraction
     static RFID_CHANNELS: SpiMfrc522Channels = SpiMfrc522Reader::channels();
     let rfid_reader = SpiMfrc522Reader::new(
-        p.SPI0,
-        p.PIN_18,
-        p.PIN_19,
-        p.PIN_16,
-        p.DMA_CH0,
-        p.DMA_CH1,
-        p.PIN_15,
-        p.PIN_17,
-        &RFID_CHANNELS,
-        spawner,
+        p.SPI0,           // SPI peripheral
+        p.PIN_18,         // SCK (serial clock)
+        p.PIN_19,         // MOSI
+        p.PIN_16,         // MISO
+        p.DMA_CH0,        // DMA channel 0
+        p.DMA_CH1,        // DMA channel 1
+        p.PIN_15,         // CS (chip select)
+        p.PIN_17,         // RST (reset)
+        &RFID_CHANNELS,   // Event channels (notifier + command)
+        spawner,          // Task spawner
     ).await?;
     
     lcd.clear().await;

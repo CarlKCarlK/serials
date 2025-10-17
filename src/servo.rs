@@ -63,6 +63,7 @@ pub struct Servo<'d> {
 #[derive(Debug, Clone, Copy)]
 pub enum ServoChannel {
     A,
+    #[allow(dead_code)]
     B,
 }
 
@@ -147,12 +148,14 @@ impl<'d> Servo<'d> {
     }
 
     /// Stop the slice (most servos relax).
+    #[allow(dead_code)]
     pub fn disable(&mut self) {
         self.cfg.enable = false;
         self.pwm.set_config(&self.cfg);
     }
 
     /// Resume output (keeps last duty). Call `center()` if you prefer.
+    #[allow(dead_code)]
     pub fn enable(&mut self) {
         self.cfg.enable = true;
         self.pwm.set_config(&self.cfg);
