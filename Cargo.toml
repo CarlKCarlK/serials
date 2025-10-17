@@ -49,8 +49,6 @@ embedded-hal-bus = { version = "0.3.0", features = ["async", "portable-atomic"] 
 portable-atomic = { version = "1.11.1", features = ["critical-section"] }
 hd44780-driver = "0.4.0"
 esp-hal-mfrc522 = "0.3.2"
-infrared = "0.14.2"
-
 
 [build-dependencies]
 chrono = "0.4.42"
