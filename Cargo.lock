@@ -858,6 +858,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "infrared"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "178d1045554b6f52df07656403f4cbd316b480f673ed97cb726b34504f94bbed"
+dependencies = [
+ "embedded-hal 0.2.7",
+ "fugit",
+]
+
+[[package]]
 name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1424,6 +1434,7 @@ dependencies = [
  "esp-hal-mfrc522",
  "hd44780-driver",
  "heapless 0.9.1",
+ "infrared",
  "panic-probe",
  "portable-atomic",
  "rp2040-hal",

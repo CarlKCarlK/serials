@@ -7,7 +7,7 @@ Run main RFID+Servo demo:
 cargo run
 ```
 
-Run IR PIO read experiment (using alias):
+Run IR NEC decoder (using alias):
 ```bash
 cargo ir
 ```
@@ -15,6 +15,11 @@ cargo ir
 Or explicitly:
 ```bash
 cargo run --example ir_pio_read
+```
+
+Troubleshoot IR pin (verify GPIO6 detects edges):
+```bash
+cargo run --example ir_test_pin
 ```
 
 Build only (don't flash):
