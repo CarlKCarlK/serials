@@ -53,7 +53,7 @@ impl IrNec<'_> {
 async fn nec_ir_task(mut pin: Input<'static>, notifier: &'static IrNecNotifier) -> ! {
     let mut decoder_state: DecoderState = DecoderState::Idle;
     let mut last_code: Option<(u8, u8)> = None;
-    let mut level_low: bool; // cmk instead of bool use an enum
+    let mut level_low: bool = pin.is_low(); // Initialize from pin state
     let mut last_edge: Instant = Instant::now();
 
     info!("NEC IR task started");
