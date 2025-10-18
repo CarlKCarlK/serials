@@ -229,7 +229,7 @@ async fn rfid_polling_task(
         notifier.send(RfidEvent::CardDetected { uid: uid_key }).await;
         
         // Wait to prevent repeated detections of the same card
-        Timer::after_millis(1000).await;
+        Timer::after_millis(50).await;
     }
 }
 

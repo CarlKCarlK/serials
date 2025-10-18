@@ -4,19 +4,18 @@
 
 mod servo;
 
+use core::fmt::Write;
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
-use embassy_time::Timer;
-use heapless::index_map::FnvIndexMap;
+use heapless::{String, index_map::FnvIndexMap};
 use lib::{
-    CharLcdI2c, IrNec, IrNecEvent, IrNecNotifier, Never, Result, RfidEvent, SpiMfrc522Channels,
+    AsyncLcd, IrNec, IrNecEvent, IrNecNotifier, LcdChannel, Never, Result, RfidEvent, SpiMfrc522Channels,
     SpiMfrc522Reader,
 };
 // This crate's own internal library
 use panic_probe as _;
-use embassy_sync::channel::TryReceiveError;
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -35,9 +34,9 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     servo.set_degrees(90);
 
     // Initialize LCD (GP4=SDA, GP5=SCL)
-    let mut lcd = CharLcdI2c::new(p.I2C0, p.PIN_5, p.PIN_4).await;
-    lcd.clear().await;
-    lcd.print("Starting RFID...").await;
+    static LCD_CHANNEL: LcdChannel = AsyncLcd::channel();
+    let lcd = AsyncLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &LCD_CHANNEL, spawner)?;
+    lcd.display(String::<64>::try_from("Starting RFID...").unwrap(), 0);
 
     info!("LCD initialized");
 
@@ -70,8 +69,7 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     )
     .await?;
 
-    lcd.clear().await;
-    lcd.print("Scan card...").await;
+    lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0);
 
     // Card tracking - map UID to assigned name (A-D for first 4 cards)
     // heapless requires power-of-2 capacity, so using 4
@@ -81,9 +79,10 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     loop {
         use embassy_futures::select::{Either, select};
 
-        // Wait for either card detection OR IR button press
+        info!("Wait for either card detection OR IR button press");
         match select(rfid_reader.next_event(), ir.next_event()).await {
             Either::First(RfidEvent::CardDetected { uid }) => {
+                info!("Card detected");
                 // Look up or assign card name
                 let card_name = card_map.get(&uid).copied().or_else(|| {
                     // Try to assign next letter (A, B, C, D...)
@@ -96,12 +95,10 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
                 });
 
                 // Display result on LCD based on card name
-                lcd.clear().await;
-
                 if let Some(name) = card_name {
-                    lcd.print("Card ").await;
-                    lcd.write_byte(name).await;
-                    lcd.print(" Seen").await;
+                    let mut text = String::<64>::new();
+                    let _ = write!(text, "Card {} Seen", name as char);
+                    lcd.display(text, 1000); // 1 second
 
                     // Move servo based on card letter
                     match name {
@@ -112,13 +109,10 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
                         _ => servo.set_degrees(0), // Unknown card
                     }
                 } else {
-                    lcd.print("Unknown Card").await;
-                    lcd.set_cursor(1, 0).await;
-                    lcd.print("Map Full").await;
+                    let text = String::<64>::try_from("Unknown Card\nMap Full").unwrap();
+                    lcd.display(text, 1000); // 1 second
                     servo.set_degrees(0);
                 }
-
-                Timer::after_millis(2000).await;
             }
             Either::First(_) => {
                 // ignore other RFID events
@@ -127,29 +121,16 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
             Either::Second(ir_nec_event) => {
                 // IR button pressed - reset the card map
                 info!("IR button pressed, resetting card map");
-                let (IrNecEvent::Press { addr, cmd } ) =
+                let IrNecEvent::Press { addr, cmd } =
                     ir_nec_event;
                 info!("IR Press: Addr=0x{:02X} Cmd=0x{:02X}", addr, cmd);
 
-                loop {
-                    match IR_NEC_NOTIFIER.try_receive() {
-                        Ok(_ev) => {info!("ignoring extra IR event");},
-                        Err(TryReceiveError::Empty) => break,
-                    }
-                }
-
                 card_map.clear();
 
-                lcd.clear().await;
-                lcd.print("Map Reset").await;
-
-                // Wait for button release to avoid repeated triggers
+                lcd.display(String::<64>::try_from("Map Reset").unwrap(), 500); // 0.5 seconds
             }
         }
 
-        lcd.clear().await;
-        lcd.print("Scan card...").await;
-
-        Timer::after_millis(100).await;
+        lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0); // 0 = until next message
     }
 }
