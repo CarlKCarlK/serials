@@ -51,8 +51,10 @@ impl AsyncLcd {
 
     /// Send a message to the LCD (non-blocking, returns immediately)
     pub fn send(&self, msg: LcdMessage) {
-        // Try to send, drop if channel is full (fire-and-forget) // cmk no
-        let _ = self.channel.try_send(msg);
+        use defmt::info;
+        if self.channel.try_send(msg).is_err() {
+            info!("LCD channel full, message dropped");
+        }
     }
 
     /// Send a message and wait for it to be queued

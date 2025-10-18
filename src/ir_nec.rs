@@ -66,7 +66,8 @@ async fn nec_ir_task(mut pin: Input<'static>, notifier: &'static IrNecNotifier) 
         last_edge = now;
 
         // Active-low receiver: every edge toggles the level.
-        level_low = pin.is_low();
+        // Toggle instead of reading pin to avoid race conditions and glitches
+        level_low = !level_low;
 
         // info!("NEC IR state: {}", decoder_state.name());
 
@@ -118,14 +119,14 @@ fn nec_ok(f: u32) -> Option<(u8, u8)> {
     ((a ^ an) == 0xFF && (c ^ cn) == 0xFF).then_some((a, c))
 }
 
-// µs windows
+// µs windows - RELAXED TOLERANCES for better reliability
 const GLITCH: u32 = 120;
-const LDR_LOW: (u32, u32) = (7_500, 10_500);
-const LDR_HIGH: (u32, u32) = (3_700, 5_300);
-const REP_HIGH: (u32, u32) = (1_750, 2_750);
-const BIT_LOW: (u32, u32) = (360, 760);
-const BIT0_HIGH: (u32, u32) = (310, 810);
-const BIT1_HIGH: (u32, u32) = (1_190, 2_190);
+const LDR_LOW: (u32, u32) = (7_000, 11_000);      // was (7_500, 10_500) - ±15%
+const LDR_HIGH: (u32, u32) = (3_500, 5_500);      // was (3_700, 5_300) - ±22%
+const REP_HIGH: (u32, u32) = (1_500, 3_000);      // was (1_750, 2_750) - ±33%
+const BIT_LOW: (u32, u32) = (300, 900);           // was (360, 760) - ±40%
+const BIT0_HIGH: (u32, u32) = (250, 900);         // was (310, 810) - ±56%
+const BIT1_HIGH: (u32, u32) = (1_000, 2_400);     // was (1_190, 2_190) - ±40%
 
 // cmk move into an impl
 fn feed(
@@ -142,6 +143,7 @@ fn feed(
         Idle => {
             if level_low {
                 decoder_state = LdrLow;
+                defmt::info!("IR: Decoding started");
             }
         }
         LdrLow => {
@@ -149,6 +151,7 @@ fn feed(
                 decoder_state = LdrHigh;
             } else {
                 decoder_state = Idle;
+                defmt::info!("IR: Decode failed (bad LDR_LOW timing)");
             }
         }
         LdrHigh => {
@@ -158,6 +161,7 @@ fn feed(
                 decoder_state = RepeatTail;
             } else {
                 decoder_state = Idle;
+                defmt::info!("IR: Decode failed (bad LDR_HIGH/REP_HIGH timing)");
             }
         }
         RepeatTail => {
@@ -167,6 +171,7 @@ fn feed(
                 // cmk return (decoder_state, out, last_code);
             } else {
                 decoder_state = Idle;
+                defmt::info!("IR: Decode failed (bad RepeatTail timing)");
             }
         }
         BitLow { n, v } => {
@@ -174,6 +179,7 @@ fn feed(
                 decoder_state = BitHigh { n, v };
             } else {
                 decoder_state = Idle;
+                defmt::info!("IR: Decode failed (bad BIT_LOW timing, bit={})", n);
             }
         }
         BitHigh { n, mut v } => {
@@ -181,6 +187,7 @@ fn feed(
                 v |= 1u32 << n;
             } else if !(level_low && inr(dt, BIT0_HIGH)) {
                 decoder_state = Idle;
+                defmt::info!("IR: Decode failed (bad BIT_HIGH timing, bit={})", n);
                 return (decoder_state, None, last_code);
             }
 
@@ -196,6 +203,7 @@ fn feed(
                     );
                 } else {
                     decoder_state = Idle;
+                    defmt::info!("IR: Decode failed (checksum validation failed, v=0x{:08X})", v);
                 }
             } else {
                 decoder_state = BitLow { n: n2, v };
