@@ -14,7 +14,7 @@ use crate::{Error, Result};
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum IrNecEvent {
     Press { addr: u8, cmd: u8 },
-    Repeat { addr: u8, cmd: u8 },
+    // Repeat { addr: u8, cmd: u8 },
 }
 
 pub type IrNecNotifier = EmbassyChannel<CriticalSectionRawMutex, IrNecEvent, 8>;
@@ -38,7 +38,7 @@ impl IrNec<'_> {
         // Type erase to Peri<'static, AnyPin> (keep the Peri wrapper!)
         let any: Peri<'static, AnyPin> = pin.into();
         spawner
-            .spawn(nec_ir_task(NecIrDevice::new(any, pull), notifier))
+            .spawn(nec_ir_task(Input::new(any, pull), notifier))
             .map_err(Error::TaskSpawn)?;
         Ok(Self { notifier })
     }
@@ -48,40 +48,27 @@ impl IrNec<'_> {
     }
 }
 
-// ===== Concrete device passed to the task (non-generic) =====================
-
-struct NecIrDevice {
-    pin: Input<'static>, // NOTE: Input<'d> has NO pin type param in embassy-rp 0.8
-                         // dec: Decoder,
-}
-
-impl NecIrDevice {
-    fn new(pin: Peri<'static, AnyPin>, pull: Pull) -> Self {
-        let pin = Input::new(pin, pull);
-        Self { pin }
-    }
-}
-
-// ===== The non-generic task =================================================
 
 #[embassy_executor::task]
-async fn nec_ir_task(mut nec_ir_device: NecIrDevice, notifier: &'static IrNecNotifier) -> ! {
+async fn nec_ir_task(mut pin: Input<'static>, notifier: &'static IrNecNotifier) -> ! {
     let mut decoder_state: DecoderState = DecoderState::Idle;
     let mut last_code: Option<(u8, u8)> = None;
-    let mut level_low: bool = nec_ir_device.pin.is_low();
+    let mut level_low: bool; // cmk instead of bool use an enum
     let mut last_edge: Instant = Instant::now();
 
     info!("NEC IR task started");
     loop {
-        nec_ir_device.pin.wait_for_any_edge().await;
+        pin.wait_for_any_edge().await;
 
         let now = Instant::now();
         let dt = now.duration_since(last_edge).as_micros() as u32;
-        info!("NEC IR edge: dt={}µs", dt);
+        // info!("NEC IR edge: dt={}µs", dt);
         last_edge = now;
 
         // Active-low receiver: every edge toggles the level.
-        level_low = !level_low;
+        level_low = pin.is_low();
+
+        // info!("NEC IR state: {}", decoder_state.name());
 
         let (decoder_state0, ir_nec_event, last_code0) =
             feed(decoder_state, level_low, dt, last_code);
@@ -94,7 +81,6 @@ async fn nec_ir_task(mut nec_ir_device: NecIrDevice, notifier: &'static IrNecNot
     }
 }
 
-// ===== Decoder (same timings/logic as your working example) =================
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum DecoderState {
@@ -104,6 +90,19 @@ enum DecoderState {
     BitLow { n: u8, v: u32 },
     BitHigh { n: u8, v: u32 },
     RepeatTail,
+}
+
+impl DecoderState {
+    fn name(&self) -> &'static str {
+        match self {
+            DecoderState::Idle => "Idle",
+            DecoderState::LdrLow => "LdrLow",
+            DecoderState::LdrHigh => "LdrHigh",
+            DecoderState::BitLow { .. } => "BitLow",
+            DecoderState::BitHigh { .. } => "BitHigh",
+            DecoderState::RepeatTail => "RepeatTail",
+        }
+    }
 }
 
 #[inline]
@@ -163,9 +162,9 @@ fn feed(
         }
         RepeatTail => {
             if !level_low && inr(dt, BIT_LOW) {
-                let out = last_code.map(|(a, c)| IrNecEvent::Repeat { addr: a, cmd: c });
+                // CMK let out = last_code.map(|(a, c)| IrNecEvent::Repeat { addr: a, cmd: c });
                 decoder_state = Idle;
-                return (decoder_state, out, last_code);
+                // cmk return (decoder_state, out, last_code);
             } else {
                 decoder_state = Idle;
             }

@@ -16,6 +16,7 @@ use lib::{
 };
 // This crate's own internal library
 use panic_probe as _;
+use embassy_sync::channel::TryReceiveError;
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -47,11 +48,11 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
         &IR_NEC_NOTIFIER,
         spawner,
     )?;
-    loop {
-        let ir_nec_event = ir.next_event().await;
-        let (IrNecEvent::Press { addr, cmd } | IrNecEvent::Repeat { addr, cmd }) = ir_nec_event;
-        info!("IR Press: Addr=0x{:02X} Cmd=0x{:02X}", addr, cmd);
-    }
+    // loop {
+    //     let ir_nec_event = ir.next_event().await;
+    //     let (IrNecEvent::Press { addr, cmd } ) = ir_nec_event;
+    //     info!("IR Press: Addr=0x{:02X} Cmd=0x{:02X}", addr, cmd);
+    // }
 
     // Initialize MFRC522 RFID reader device abstraction
     static RFID_CHANNELS: SpiMfrc522Channels = SpiMfrc522Reader::channels();
@@ -126,9 +127,17 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
             Either::Second(ir_nec_event) => {
                 // IR button pressed - reset the card map
                 info!("IR button pressed, resetting card map");
-                let (IrNecEvent::Press { addr, cmd } | IrNecEvent::Repeat { addr, cmd }) =
+                let (IrNecEvent::Press { addr, cmd } ) =
                     ir_nec_event;
                 info!("IR Press: Addr=0x{:02X} Cmd=0x{:02X}", addr, cmd);
+
+                loop {
+                    match IR_NEC_NOTIFIER.try_receive() {
+                        Ok(_ev) => {info!("ignoring extra IR event");},
+                        Err(TryReceiveError::Empty) => break,
+                    }
+                }
+
                 card_map.clear();
 
                 lcd.clear().await;
