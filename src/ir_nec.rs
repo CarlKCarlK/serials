@@ -68,6 +68,18 @@ async fn nec_ir_task(mut pin: Input<'static>, notifier: &'static IrNecNotifier) 
         // Active-low receiver: every edge toggles the level.
         // Toggle instead of reading pin to avoid race conditions and glitches
         level_low = !level_low;
+        
+        // Sanity check: verify our toggle matches the actual pin state
+        let actual_level_low = pin.is_low();
+        if level_low != actual_level_low {
+            defmt::warn!("IR: Pin state mismatch! Expected {}, got {} (missed edge?)", 
+                        level_low, actual_level_low);
+            // Resync to actual pin state
+            level_low = actual_level_low;
+            // Reset decoder to avoid processing corrupt data
+            decoder_state = DecoderState::Idle;
+            continue;
+        }
 
         // info!("NEC IR state: {}", decoder_state.name());
 
@@ -90,6 +102,7 @@ enum DecoderState {
     LdrHigh,
     BitLow { n: u8, v: u32 },
     BitHigh { n: u8, v: u32 },
+    StopBit { addr: u8, cmd: u8 },  // Waiting for final stop bit after 32 bits
     RepeatTail,
 }
 
@@ -101,6 +114,7 @@ impl DecoderState {
             DecoderState::LdrHigh => "LdrHigh",
             DecoderState::BitLow { .. } => "BitLow",
             DecoderState::BitHigh { .. } => "BitHigh",
+            DecoderState::StopBit { .. } => "StopBit",
             DecoderState::RepeatTail => "RepeatTail",
         }
     }
@@ -154,7 +168,11 @@ fn feed(
                 decoder_state = LdrHigh;
             } else {
                 decoder_state = Idle;
-                defmt::info!("IR: Decode failed (bad LDR_LOW timing)");
+                // Only log decode failures for pulses that were at least somewhat close
+                // Very short pulses (<2ms) are likely NEC stop bits, not decode failures
+                if dt > 2_000 {
+                    defmt::info!("IR: Decode failed (bad LDR_LOW timing)");
+                }
             }
         }
         LdrHigh => {
@@ -198,18 +216,25 @@ fn feed(
             if n2 == 32 {
                 if let Some((a, c)) = nec_ok(v) {
                     last_code = Some((a, c));
-                    decoder_state = Idle;
-                    return (
-                        decoder_state,
-                        Some(IrNecEvent::Press { addr: a, cmd: c }),
-                        last_code,
-                    );
+                    // Don't emit the event yet - wait for stop bit validation
+                    decoder_state = StopBit { addr: a, cmd: c };
                 } else {
                     decoder_state = Idle;
                     defmt::info!("IR: Decode failed (checksum validation failed, v=0x{:08X})", v);
                 }
             } else {
                 decoder_state = BitLow { n: n2, v };
+            }
+        }
+        StopBit { addr, cmd } => {
+            // NEC stop bit: short low pulse (~562µs)
+            if !level_low && inr(dt, BIT_LOW) {
+                decoder_state = Idle;
+                // Stop bit validated - emit the event
+                return (decoder_state, Some(IrNecEvent::Press { addr, cmd }), last_code);
+            } else {
+                decoder_state = Idle;
+                defmt::info!("IR: Decode failed (missing or bad stop bit, dt={}µs)", dt);
             }
         }
     }

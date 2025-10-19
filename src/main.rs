@@ -53,21 +53,21 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     //     info!("IR Press: Addr=0x{:02X} Cmd=0x{:02X}", addr, cmd);
     // }
 
-    // Initialize MFRC522 RFID reader device abstraction
-    static RFID_CHANNELS: SpiMfrc522Channels = SpiMfrc522Reader::channels();
-    let rfid_reader = SpiMfrc522Reader::new(
-        p.SPI0,         // SPI peripheral
-        p.PIN_18,       // SCK (serial clock)
-        p.PIN_19,       // MOSI
-        p.PIN_16,       // MISO
-        p.DMA_CH0,      // DMA channel 0
-        p.DMA_CH1,      // DMA channel 1
-        p.PIN_15,       // CS (chip select)
-        p.PIN_17,       // RST (reset)
-        &RFID_CHANNELS, // Event channels (notifier + command)
-        spawner,        // Task spawner
-    )
-    .await?;
+    // // Initialize MFRC522 RFID reader device abstraction
+    // static RFID_CHANNELS: SpiMfrc522Channels = SpiMfrc522Reader::channels();
+    // let rfid_reader = SpiMfrc522Reader::new(
+    //     p.SPI0,         // SPI peripheral
+    //     p.PIN_18,       // SCK (serial clock)
+    //     p.PIN_19,       // MOSI
+    //     p.PIN_16,       // MISO
+    //     p.DMA_CH0,      // DMA channel 0
+    //     p.DMA_CH1,      // DMA channel 1
+    //     p.PIN_15,       // CS (chip select)
+    //     p.PIN_17,       // RST (reset)
+    //     &RFID_CHANNELS, // Event channels (notifier + command)
+    //     spawner,        // Task spawner
+    // )
+    // .await?;
 
     lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0);
 
@@ -80,45 +80,47 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
         use embassy_futures::select::{Either, select};
 
         info!("Wait for either card detection OR IR button press");
-        match select(rfid_reader.next_event(), ir.next_event()).await {
-            Either::First(RfidEvent::CardDetected { uid }) => {
-                info!("Card detected");
-                // Look up or assign card name
-                let card_name = card_map.get(&uid).copied().or_else(|| {
-                    // Try to assign next letter (A, B, C, D...)
-                    #[expect(
-                        clippy::arithmetic_side_effects,
-                        reason = "Card count limited by map capacity"
-                    )]
-                    let name = b'A' + card_map.len() as u8;
-                    card_map.insert(uid, name).ok().map(|_| name)
-                });
+        //match select(rfid_reader.next_event(), ir.next_event()).await {
+            // Either::First(RfidEvent::CardDetected { uid }) => {
+            //     info!("Card detected");
+            //     // Look up or assign card name
+            //     let card_name = card_map.get(&uid).copied().or_else(|| {
+            //         // Try to assign next letter (A, B, C, D...)
+            //         #[expect(
+            //             clippy::arithmetic_side_effects,
+            //             reason = "Card count limited by map capacity"
+            //         )]
+            //         let name = b'A' + card_map.len() as u8;
+            //         card_map.insert(uid, name).ok().map(|_| name)
+            //     });
 
-                // Display result on LCD based on card name
-                if let Some(name) = card_name {
-                    let mut text = String::<64>::new();
-                    let _ = write!(text, "Card {} Seen", name as char);
-                    lcd.display(text, 1000); // 1 second
+            //     // Display result on LCD based on card name
+            //     if let Some(name) = card_name {
+            //         let mut text = String::<64>::new();
+            //         let _ = write!(text, "Card {} Seen", name as char);
+            //         lcd.display(text, 1000); // 1 second
 
-                    // Move servo based on card letter
-                    match name {
-                        b'A' => servo.set_degrees(180),
-                        b'B' => servo.set_degrees(135),
-                        b'C' => servo.set_degrees(90),
-                        b'D' => servo.set_degrees(45),
-                        _ => servo.set_degrees(0), // Unknown card
-                    }
-                } else {
-                    let text = String::<64>::try_from("Unknown Card\nMap Full").unwrap();
-                    lcd.display(text, 1000); // 1 second
-                    servo.set_degrees(0);
-                }
-            }
-            Either::First(_) => {
-                // ignore other RFID events
-                continue;
-            }
-            Either::Second(ir_nec_event) => {
+            //         // Move servo based on card letter
+            //         match name {
+            //             b'A' => servo.set_degrees(180),
+            //             b'B' => servo.set_degrees(135),
+            //             b'C' => servo.set_degrees(90),
+            //             b'D' => servo.set_degrees(45),
+            //             _ => servo.set_degrees(0), // Unknown card
+            //         }
+            //     } else {
+            //         let text = String::<64>::try_from("Unknown Card\nMap Full").unwrap();
+            //         lcd.display(text, 1000); // 1 second
+            //         servo.set_degrees(0);
+            //     }
+            // }
+            // Either::First(_) => {
+            //     // ignore other RFID events
+            //     continue;
+            // }
+            // Either::Second(ir_nec_event) => {
+            let ir_nec_event = ir.next_event().await;
+            {
                 // IR button pressed - reset the card map
                 info!("IR button pressed, resetting card map");
                 let IrNecEvent::Press { addr, cmd } =
@@ -129,7 +131,7 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
 
                 lcd.display(String::<64>::try_from("Map Reset").unwrap(), 500); // 0.5 seconds
             }
-        }
+        // }
 
         lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0); // 0 = until next message
     }
