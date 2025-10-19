@@ -9,8 +9,6 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
-// IR imports temporarily disabled
-// use embassy_rp::gpio::Pull;
 use heapless::{String, index_map::FnvIndexMap};
 use lib::{
     AsyncLcd, IrNec, IrNecEvent, IrNecNotifier, LcdChannel, Never, Result, RfidEvent, SpiMfrc522Channels, SpiMfrc522Reader
@@ -41,7 +39,6 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
 
     info!("LCD initialized");
 
-    // IR Remote temporarily disabled
     static IR_NEC_NOTIFIER: IrNecNotifier = IrNec::notifier();
     let ir = IrNec::new(
         p.PIN_22,
@@ -49,12 +46,6 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
         &IR_NEC_NOTIFIER,
         spawner,
     )?;
-
-    // loop {
-    //     let IrNecEvent::Press { addr, cmd } =
-    //         ir.next_event().await;
-    //     info!("IR Press: Addr=0x{:02X} Cmd=0x{:02X}", addr, cmd);
-    // }
 
     // Initialize MFRC522 RFID reader device abstraction
     static RFID_CHANNELS: SpiMfrc522Channels = SpiMfrc522Reader::channels();
@@ -80,12 +71,11 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
 
     // Main loop: wait for RFID events OR IR button press
     loop {
-        // IR temporarily disabled, RFID-only mode
-        // use embassy_futures::select::{Either, select};
+        use embassy_futures::select::{Either, select};
 
-        info!("Wait for card detection");
-        match rfid_reader.next_event().await {
-            RfidEvent::CardDetected { uid } => {
+        info!("Wait for either card detection OR IR button press");
+        match select(rfid_reader.next_event(), ir.next_event()).await {
+            Either::First(RfidEvent::CardDetected { uid }) => {
                 info!("Card detected");
                 // Look up or assign card name
                 let card_name = card_map.get(&uid).copied().or_else(|| {
@@ -118,21 +108,20 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
                     servo.set_degrees(0);
                 }
             }
-            _ => {
+            Either::First(_) => {
                 // ignore other RFID events
                 continue;
             }
-            // IR button pressed - reset the card map (disabled)
-            // Either::Second(ir_nec_event) => {
-            //     info!("IR button pressed, resetting card map");
-            //     let IrNecEvent::Press { addr, cmd } =
-            //         ir_nec_event;
-            //     info!("IR Press: Addr=0x{:02X} Cmd=0x{:02X}", addr, cmd);
-            //
-            //     card_map.clear();
-            //
-            //     lcd.display(String::<64>::try_from("Map Reset").unwrap(), 500); // 0.5 seconds
-            // }
+            Either::Second(ir_nec_event) => {
+                // IR button pressed - reset the card map
+                info!("IR button pressed, resetting card map");
+                let IrNecEvent::Press { addr, cmd } = ir_nec_event;
+                info!("IR Press: Addr=0x{:02X} Cmd=0x{:02X}", addr, cmd);
+
+                card_map.clear();
+
+                lcd.display(String::<64>::try_from("Map Reset").unwrap(), 500); // 0.5 seconds
+            }
          }
 
         lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0); // 0 = until next message
