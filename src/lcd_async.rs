@@ -172,7 +172,24 @@ async fn lcd_task(
             LcdMessage::Display { text, duration_ms } => {
                 // Clear and display the text
                 lcd.clear().await;
-                lcd.print(text.as_str()).await;
+                
+                // Split text by newline and display on separate lines
+                let text_str = text.as_str();
+                if let Some(newline_pos) = text_str.find('\n') {
+                    // Two-line display
+                    let (line1, rest) = text_str.split_at(newline_pos);
+                    let line2 = &rest[1..]; // Skip the \n character
+                    
+                    // Display line 1
+                    lcd.print(line1).await;
+                    // Move to line 2
+                    lcd.set_cursor(1, 0).await;
+                    // Display line 2
+                    lcd.print(line2).await;
+                } else {
+                    // Single-line display
+                    lcd.print(text_str).await;
+                }
                 
                 // Wait for the minimum display duration
                 if duration_ms > 0 {

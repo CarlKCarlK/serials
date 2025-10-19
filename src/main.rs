@@ -91,7 +91,7 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
                 // Display result on LCD based on card name
                 if let Some(name) = card_name {
                     let mut text = String::<64>::new();
-                    let _ = write!(text, "Card {} Seen", name as char);
+                    write!(text, "Card {} Seen", name as char).unwrap();
                     lcd.display(text, 1000); // 1 second
 
                     // Move servo based on card letter
@@ -142,7 +142,7 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
                     servo.set_degrees(angle);
                     
                     let mut text = String::<64>::new();
-                    let _ = write!(text, "Servo: {} degrees", angle);
+                    write!(text, "Servo:\n{} degrees", angle).unwrap();
                     lcd.display(text, 1000); // 1 second
                 } else {
                     // Any other button: reset the card map
