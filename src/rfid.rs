@@ -45,32 +45,32 @@ pub type Mfrc522Device = MFRC522<SpiDriver<ExclusiveDevice<
 >>>;
 
 /// Notifier type for RFID reader events (uses Channel to ensure all cards are processed)
-pub type SpiMfrc522Notifier = EmbassyChannel<CriticalSectionRawMutex, RfidEvent, 4>;
+pub type RfidNotifier = EmbassyChannel<CriticalSectionRawMutex, RfidEvent, 4>;
 /// Command channel type for RFID commands
-pub type SpiMfrc522CommandChannel = EmbassyChannel<CriticalSectionRawMutex, RfidCommand, 4>;
+pub type RfidCommandChannel = EmbassyChannel<CriticalSectionRawMutex, RfidCommand, 4>;
 /// Combined channels for notifier and commands
-pub type SpiMfrc522Channels = (SpiMfrc522Notifier, SpiMfrc522CommandChannel);
+pub type RfidChannels = (RfidNotifier, RfidCommandChannel);
 
 /// RFID reader device abstraction
-pub struct SpiMfrc522Reader<'a> {
-    notifier: &'a SpiMfrc522Notifier,
-    commands: &'a SpiMfrc522CommandChannel,
+pub struct RfidReader<'a> {
+    notifier: &'a RfidNotifier,
+    commands: &'a RfidCommandChannel,
 }
 
-impl SpiMfrc522Reader<'_> {
+impl RfidReader<'_> {
     /// Create a new notifier for the RFID reader
     #[must_use]
-    pub const fn notifier() -> SpiMfrc522Notifier {
+    pub const fn notifier() -> RfidNotifier {
         EmbassyChannel::new()
     }
     /// Create a new command channel for the RFID reader
     #[must_use]
-    pub const fn command_channel() -> SpiMfrc522CommandChannel {
+    pub const fn command_channel() -> RfidCommandChannel {
         EmbassyChannel::new()
     }
     /// Create paired notifier+command channels
     #[must_use]
-    pub const fn channels() -> SpiMfrc522Channels {
+    pub const fn channels() -> RfidChannels {
         (Self::notifier(), Self::command_channel())
     }
 
@@ -86,7 +86,7 @@ impl SpiMfrc522Reader<'_> {
         dma_ch1: Peri<'static, Dma1>,
         cs: Peri<'static, Cs>,
         rst: Peri<'static, Rst>,
-    channels: &'static SpiMfrc522Channels,
+        channels: &'static RfidChannels,
         spawner: Spawner,
     ) -> Result<Self>
     where
@@ -169,8 +169,8 @@ fn uid_to_fixed_array(uid_bytes: &[u8]) -> [u8; 10] {
 #[embassy_executor::task]
 async fn rfid_polling_task(
     mut mfrc522: Mfrc522Device,
-    notifier: &'static SpiMfrc522Notifier,
-    commands: &'static SpiMfrc522CommandChannel,
+    notifier: &'static RfidNotifier,
+    commands: &'static RfidCommandChannel,
 ) -> ! {
     info!("RFID polling task started");
     

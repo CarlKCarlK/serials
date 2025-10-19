@@ -6,7 +6,7 @@ DEFMT_LOG = "info"
 
 [alias]
 full = "run --example full --release"
-ir = "run --example ir_pio_read --release"
+ir = "run --example ir --release"
 wireless = "run --example wireless --release"
 lcd_clock = "run --example lcd_clock --release"
 

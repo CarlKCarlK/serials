@@ -106,19 +106,19 @@ enum DecoderState {
     RepeatTail,
 }
 
-impl DecoderState {
-    fn name(&self) -> &'static str {
-        match self {
-            DecoderState::Idle => "Idle",
-            DecoderState::LdrLow => "LdrLow",
-            DecoderState::LdrHigh => "LdrHigh",
-            DecoderState::BitLow { .. } => "BitLow",
-            DecoderState::BitHigh { .. } => "BitHigh",
-            DecoderState::StopBit { .. } => "StopBit",
-            DecoderState::RepeatTail => "RepeatTail",
-        }
-    }
-}
+// impl DecoderState {
+//     fn name(&self) -> &'static str {
+//         match self {
+//             DecoderState::Idle => "Idle",
+//             DecoderState::LdrLow => "LdrLow",
+//             DecoderState::LdrHigh => "LdrHigh",
+//             DecoderState::BitLow { .. } => "BitLow",
+//             DecoderState::BitHigh { .. } => "BitHigh",
+//             DecoderState::StopBit { .. } => "StopBit",
+//             DecoderState::RepeatTail => "RepeatTail",
+//         }
+//     }
+// }
 
 #[inline]
 fn inr(x: u32, r: (u32, u32)) -> bool {

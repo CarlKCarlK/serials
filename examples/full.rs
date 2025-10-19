@@ -9,6 +9,7 @@
 #![no_main]
 #![allow(clippy::future_not_send, reason = "Single-threaded")]
 
+use core::convert::Infallible;
 use core::fmt::Write;
 use defmt::info;
 use defmt_rtt as _;
@@ -16,8 +17,8 @@ use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
 use heapless::{String, index_map::FnvIndexMap};
 use lib::{
-    servo_a, CharLcd, IrNec, IrNecEvent, IrNecNotifier, LcdChannel, Never, Result, RfidEvent,
-    SpiMfrc522Channels, SpiMfrc522Reader,
+    servo_a, CharLcd, IrNec, IrNecEvent, IrNecNotifier, LcdChannel, Result, RfidEvent,
+    RfidChannels, RfidReader,
 };
 use panic_probe as _;
 
@@ -28,7 +29,7 @@ pub async fn main(spawner: Spawner) -> ! {
     panic!("{err}");
 }
 
-async fn inner_main(spawner: Spawner) -> Result<Never> {
+async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     // Test servo: sweep angles 0,45,90,135,180 with 1s pause, 2 times
@@ -53,8 +54,8 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     )?;
 
     // Initialize MFRC522 RFID reader device abstraction
-    static RFID_CHANNELS: SpiMfrc522Channels = SpiMfrc522Reader::channels();
-    let rfid_reader = SpiMfrc522Reader::new(
+    static RFID_CHANNELS: RfidChannels = RfidReader::channels();
+    let rfid_reader = RfidReader::new(
         p.SPI0,         // SPI peripheral
         p.PIN_18,       // SCK (serial clock)
         p.PIN_19,       // MOSI

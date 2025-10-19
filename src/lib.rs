@@ -4,22 +4,13 @@
 
 mod char_lcd;
 mod error;
-mod hardware;
 mod ir_nec;
-mod never;
-mod output_array;
+mod rfid;
 pub mod servo;
-mod shared_constants;
-mod spi_mfrc522;
 
 // Re-export commonly used items
 pub use char_lcd::{CharLcd, LcdChannel, LcdMessage};
 pub use error::{Error, Result};
-pub use hardware::Hardware;
 pub use ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
-pub use never::Never;
+pub use rfid::{RfidEvent, RfidNotifier, RfidCommandChannel, RfidChannels, RfidReader};
 pub use servo::Servo;
-pub use shared_constants::*;
-pub use spi_mfrc522::{RfidEvent, SpiMfrc522Notifier, SpiMfrc522CommandChannel,
-    SpiMfrc522Channels, SpiMfrc522Reader
-};

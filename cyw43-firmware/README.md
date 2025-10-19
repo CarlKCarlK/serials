@@ -11,6 +11,7 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/georgerobotics/cyw43-d
 ```
 
 Or use curl:
+
 ```powershell
 curl -L -o 43439A0.bin https://raw.githubusercontent.com/georgerobotics/cyw43-driver/main/firmware/43439A0.bin
 curl -L -o 43439A0_clm.bin https://raw.githubusercontent.com/georgerobotics/cyw43-driver/main/firmware/43439A0_clm.bin

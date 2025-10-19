@@ -136,10 +136,12 @@ async fn main(spawner: Spawner) -> ! {
                     info!("Time fetch attempt {} failed: {}", attempt, e);
                     if attempt < 3 {
                         lcd.display(String::<64>::try_from("Retrying...").unwrap(), 0);
-                        Timer::after_secs(2).await;
+                        // Exponential backoff: 5s, 10s, 20s
+                        let delay_secs = 5_u64 << (attempt - 1);
+                        Timer::after_secs(delay_secs).await;
                     } else {
-                        lcd.display(String::<64>::try_from("Sync failed!\nRetrying...").unwrap(), 0);
-                        Timer::after_secs(10).await;
+                        lcd.display(String::<64>::try_from("Sync failed!\nWaiting 60s...").unwrap(), 0);
+                        Timer::after_secs(60).await; // Wait a full minute before trying again
                     }
                 }
             }
@@ -193,24 +195,17 @@ async fn main(spawner: Spawner) -> ! {
             info!("Hourly sync...");
             lcd.display(String::<64>::try_from("Syncing time...").unwrap(), 0);
             
-            for attempt in 1..=3 {
-                match fetch_local_time(&stack, TIMEZONE).await {
-                    Ok(new_time) => {
-                        current_time = new_time;
-                        minutes_since_sync = 0;
-                        info!("Sync successful: {}:{}:{}", new_time.0, new_time.1, new_time.2);
-                        break;
-                    }
-                    Err(e) => {
-                        info!("Sync attempt {} failed: {}", attempt, e);
-                        if attempt == 3 {
-                            // Keep using local time if sync fails
-                            info!("Sync failed, continuing with local time");
-                            minutes_since_sync = 0; // Reset to try again in an hour
-                        } else {
-                            Timer::after_secs(2).await;
-                        }
-                    }
+            // Only try once for hourly sync to avoid rate limiting
+            match fetch_local_time(&stack, TIMEZONE).await {
+                Ok(new_time) => {
+                    current_time = new_time;
+                    minutes_since_sync = 0;
+                    info!("Sync successful: {}:{}:{}", new_time.0, new_time.1, new_time.2);
+                }
+                Err(e) => {
+                    info!("Hourly sync failed: {}", e);
+                    // Keep using local time if sync fails
+                    minutes_since_sync = 0; // Reset to try again in an hour
                 }
             }
         }
