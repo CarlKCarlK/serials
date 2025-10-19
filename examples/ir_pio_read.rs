@@ -102,7 +102,7 @@ async fn main(_spawner: Spawner) -> ! {
 
     defmt::info!("edge sniffer on GP6 (active-low expected)");
 
- let mut ir = embassy_rp::gpio::Input::new(p.PIN_6, embassy_rp::gpio::Pull::Up);
+ let mut ir = embassy_rp::gpio::Input::new(p.PIN_22, embassy_rp::gpio::Pull::Up);
 let mut last = embassy_time::Instant::now();
 let mut level_low = ir.is_low(); // shadow
 let mut nec = Nec::new();
