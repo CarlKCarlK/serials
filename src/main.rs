@@ -41,7 +41,7 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
 
     static IR_NEC_NOTIFIER: IrNecNotifier = IrNec::notifier();
     let ir = IrNec::new(
-        p.PIN_22,
+        p.PIN_28,
         Pull::Up, // most 38 kHz IR modules idle HIGH
         &IR_NEC_NOTIFIER,
         spawner,
