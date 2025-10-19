@@ -148,7 +148,7 @@ async fn main(spawner: Spawner) -> ! {
         }
     };
 
-    let mut minutes_since_sync = 0;
+    let mut seconds_since_sync = 0;
 
     // Main loop: keep time locally, sync every hour
     loop {
@@ -170,28 +170,31 @@ async fn main(spawner: Spawner) -> ! {
             hour12, minute, second, am_pm, date)).unwrap();
         lcd.display(text, 0);
         
-        // Wait one minute
-        Timer::after_secs(60).await;
+        // Wait one second
+        Timer::after_secs(1).await;
         
-        // Increment time by one minute
+        // Increment time by one second
         #[expect(clippy::arithmetic_side_effects, reason = "time arithmetic with wrapping")]
         {
-            current_time.2 = 0; // Reset seconds to 0 (we only update every minute)
-            current_time.1 += 1; // Increment minute
-            if current_time.1 >= 60 {
-                current_time.1 = 0;
-                current_time.0 += 1; // Increment hour
-                if current_time.0 >= 24 {
-                    current_time.0 = 0;
-                    // Note: We don't handle date rollover - will re-sync before that matters
+            current_time.2 += 1; // Increment second
+            if current_time.2 >= 60 {
+                current_time.2 = 0;
+                current_time.1 += 1; // Increment minute
+                if current_time.1 >= 60 {
+                    current_time.1 = 0;
+                    current_time.0 += 1; // Increment hour
+                    if current_time.0 >= 24 {
+                        current_time.0 = 0;
+                        // Note: We don't handle date rollover - will re-sync before that matters
+                    }
                 }
             }
         }
         
-        minutes_since_sync += 1;
+        seconds_since_sync += 1;
         
-        // Sync with internet every 60 minutes
-        if minutes_since_sync >= 60 {
+        // Sync with internet every 3600 seconds (60 minutes)
+        if seconds_since_sync >= 3600 {
             info!("Hourly sync...");
             lcd.display(String::<64>::try_from("Syncing time...").unwrap(), 0);
             
@@ -199,13 +202,13 @@ async fn main(spawner: Spawner) -> ! {
             match fetch_local_time(&stack, TIMEZONE).await {
                 Ok(new_time) => {
                     current_time = new_time;
-                    minutes_since_sync = 0;
+                    seconds_since_sync = 0;
                     info!("Sync successful: {}:{}:{}", new_time.0, new_time.1, new_time.2);
                 }
                 Err(e) => {
                     info!("Hourly sync failed: {}", e);
                     // Keep using local time if sync fails
-                    minutes_since_sync = 0; // Reset to try again in an hour
+                    seconds_since_sync = 0; // Reset to try again in an hour
                 }
             }
         }
