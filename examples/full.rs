@@ -1,8 +1,13 @@
+//! Full demonstration of all peripherals: RFID, IR remote, LCD, and Servo
+//! - RFID cards control servo position (A=180°, B=135°, C=90°, D=45°)
+//! - IR buttons 0-9 set servo to 0°-180° in 20° increments
+//! - Other IR buttons reset the card map
+//! - LCD displays current status with two-line support
+//!
+//! Run with: cargo full
 #![no_std]
 #![no_main]
 #![allow(clippy::future_not_send, reason = "Single-threaded")]
-
-mod servo;
 
 use core::fmt::Write;
 use defmt::info;
@@ -11,9 +16,9 @@ use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
 use heapless::{String, index_map::FnvIndexMap};
 use lib::{
-    AsyncLcd, IrNec, IrNecEvent, IrNecNotifier, LcdChannel, Never, Result, RfidEvent, SpiMfrc522Channels, SpiMfrc522Reader
+    servo_a, AsyncLcd, IrNec, IrNecEvent, IrNecNotifier, LcdChannel, Never, Result, RfidEvent,
+    SpiMfrc522Channels, SpiMfrc522Reader,
 };
-// This crate's own internal library
 use panic_probe as _;
 
 #[embassy_executor::main]

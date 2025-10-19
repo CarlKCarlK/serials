@@ -13,6 +13,8 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_time::{Duration, Timer};
+use heapless::String;
+use lib::{AsyncLcd, LcdChannel};
 use panic_probe as _;
 use static_cell::StaticCell;
 
@@ -39,11 +41,19 @@ async fn main(spawner: Spawner) -> ! {
     const WIFI_PASS: &str = env!("WIFI_PASS");
     const TIMEZONE: &str = env!("TIMEZONE");
 
-    info!("Starting Pico W wireless example...");
+    info!("Starting LCD Clock...");
     info!("Timezone: {}", TIMEZONE);
 
     // Initialize RP2040 peripherals
     let p = embassy_rp::init(Default::default());
+
+    // Initialize LCD (GP4=SDA, GP5=SCL)
+    static LCD_CHANNEL: LcdChannel = AsyncLcd::channel();
+    let lcd = match AsyncLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &LCD_CHANNEL, spawner) {
+        Ok(lcd) => lcd,
+        Err(_) => core::panic!("LCD init failed"),
+    };
+    lcd.display(String::<64>::try_from("Connecting WiFi").unwrap(), 0);
 
     // Initialize PIO for WiFi communication
     let fw = cyw43_firmware::CYW43_43439A0;
@@ -76,8 +86,8 @@ async fn main(spawner: Spawner) -> ! {
     // Configure DHCP
     let config = Config::dhcpv4(Default::default());
 
-    // Generate random seed (using timer as entropy source)
-    let seed = 0x0123_4567_89ab_cdef; // In production, use better entropy
+    // Generate random seed
+    let seed = 0x0123_4567_89ab_cdef;
 
     // Init network stack
     static RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
@@ -91,36 +101,57 @@ async fn main(spawner: Spawner) -> ! {
     unwrap!(spawner.spawn(net_task(runner)));
 
     // Connect to WiFi
-    info!("Connecting to WiFi SSID: {}", WIFI_SSID);
+    info!("Connecting to WiFi: {}", WIFI_SSID);
     loop {
         match control.join(WIFI_SSID, JoinOptions::new(WIFI_PASS.as_bytes())).await {
             Ok(_) => break,
             Err(err) => {
-                info!("Join failed with status={}", err.status);
+                info!("Join failed: {}", err.status);
                 Timer::after_secs(1).await;
             }
         }
     }
 
+    lcd.display(String::<64>::try_from("WiFi Connected!").unwrap(), 1000);
+    Timer::after_secs(1).await;
+
     info!("WiFi connected! Waiting for DHCP...");
     stack.wait_config_up().await;
-    info!("DHCP configured!");
+
+    lcd.display(String::<64>::try_from("Getting time...").unwrap(), 0);
 
     if let Some(config) = stack.config_v4() {
         info!("IP Address: {}", config.address);
     }
 
-    // Fetch local time from WorldTimeAPI (handles DST automatically)
-    info!("Fetching local time from WorldTimeAPI...");
-    
+    // Main loop: fetch and display time
     loop {
-        match fetch_local_time(&stack, TIMEZONE).await {
-            Ok(time_info) => {
-                info!("Local Time: {}", time_info);
+        // Try up to 3 times to get the time
+        let mut success = false;
+        for attempt in 1..=3 {
+            match fetch_local_time(&stack, TIMEZONE).await {
+                Ok((time_12h, date)) => {
+                    info!("Time: {} | Date: {}", time_12h, date);
+                    
+                    // Display on LCD (two lines: time on top, date on bottom)
+                    let mut text = String::<64>::new();
+                    core::fmt::Write::write_fmt(&mut text, format_args!("{}\\n{}", time_12h, date)).unwrap();
+                    lcd.display(text, 0);
+                    success = true;
+                    break;
+                }
+                Err(e) => {
+                    info!("Time fetch attempt {} failed: {}", attempt, e);
+                    if attempt < 3 {
+                        lcd.display(String::<64>::try_from("Retrying...").unwrap(), 0);
+                        Timer::after_secs(2).await; // Wait before retry
+                    }
+                }
             }
-            Err(e) => {
-                info!("Time fetch failed: {}", e);
-            }
+        }
+        
+        if !success {
+            lcd.display(String::<64>::try_from("Time Error").unwrap(), 0);
         }
         
         Timer::after_secs(60).await; // Update every minute
@@ -130,7 +161,7 @@ async fn main(spawner: Spawner) -> ! {
 async fn fetch_local_time(
     stack: &embassy_net::Stack<'static>,
     timezone: &str,
-) -> Result<&'static str, &'static str> {
+) -> Result<(&'static str, &'static str), &'static str> {
     use embassy_net::tcp::TcpSocket;
     use embassy_net::dns::DnsQueryType;
     use heapless::String;
@@ -175,7 +206,7 @@ async fn fetch_local_time(
     
     loop {
         match socket.read(&mut response[total_read..]).await {
-            Ok(0) => break, // Connection closed
+            Ok(0) => break,
             Ok(n) => {
                 total_read += n;
                 #[expect(clippy::arithmetic_side_effects, reason = "bounded by response.len()")]
@@ -189,16 +220,14 @@ async fn fetch_local_time(
     
     socket.close();
     
-    // Check if we got a response
     if total_read == 0 {
         return Err("No response from server");
     }
     
     // Parse datetime from JSON response
-    // Looking for: "datetime":"2025-10-19T14:30:00.123456-07:00"
     let response_str = core::str::from_utf8(&response[..total_read]).map_err(|_| "Invalid UTF-8")?;
     
-    // Find datetime field in JSON
+    // Find datetime field in JSON: "datetime":"2025-10-19T14:30:00.123456-07:00"
     if let Some(datetime_start) = response_str.find("\"datetime\":\"") {
         #[expect(clippy::arithmetic_side_effects, reason = "string index arithmetic")]
         let value_start = datetime_start + "\"datetime\":\"".len();
@@ -207,19 +236,46 @@ async fn fetch_local_time(
             let datetime = &response_str[value_start..value_start + value_end];
             
             // Parse datetime: "2025-10-19T14:30:00.123456-07:00"
-            // Extract time portion (HH:MM:SS)
             if datetime.len() >= 19 {
                 #[expect(clippy::indexing_slicing, reason = "datetime format verified")]
-                let time = &datetime[11..19]; // "14:30:00"
+                let hour24: u8 = datetime[11..13].parse().map_err(|_| "Invalid hour")?;
+                #[expect(clippy::indexing_slicing, reason = "datetime format verified")]
+                let minute = &datetime[14..16];
+                #[expect(clippy::indexing_slicing, reason = "datetime format verified")]
+                let second = &datetime[17..19];
+                #[expect(clippy::indexing_slicing, reason = "datetime format verified")]
+                let date = &datetime[..10]; // "2025-10-19"
                 
-                // Store in static for return (simple approach)
-                static mut TIME_STR: [u8; 64] = [0; 64];
+                // Convert to 12-hour format
+                let (hour12, am_pm) = if hour24 == 0 {
+                    (12, "AM")
+                } else if hour24 < 12 {
+                    (hour24, "AM")
+                } else if hour24 == 12 {
+                    (12, "PM")
+                } else {
+                    #[expect(clippy::arithmetic_side_effects, reason = "hour24 guaranteed 13-23")]
+                    (hour24 - 12, "PM")
+                };
+                
+                // Store in static for return
+                static mut TIME_STR: [u8; 16] = [0; 16];
+                static mut DATE_STR: [u8; 16] = [0; 16];
+                
                 #[expect(unsafe_code, reason = "static string storage for return value")]
                 unsafe {
-                    let mut result = String::<64>::new();
-                    core::fmt::write(&mut result, format_args!("Local: {} ({})", time, &datetime[..10])).unwrap();
-                    TIME_STR[..result.len()].copy_from_slice(result.as_bytes());
-                    Ok(core::str::from_utf8_unchecked(&TIME_STR[..result.len()]))
+                    let mut time_result = String::<16>::new();
+                    core::fmt::write(&mut time_result, format_args!("{:2}:{}:{} {}", hour12, minute, second, am_pm)).unwrap();
+                    TIME_STR[..time_result.len()].copy_from_slice(time_result.as_bytes());
+                    
+                    let mut date_result = String::<16>::new();
+                    core::fmt::write(&mut date_result, format_args!("{}", date)).unwrap();
+                    DATE_STR[..date_result.len()].copy_from_slice(date_result.as_bytes());
+                    
+                    Ok((
+                        core::str::from_utf8_unchecked(&TIME_STR[..time_result.len()]),
+                        core::str::from_utf8_unchecked(&DATE_STR[..date_result.len()]),
+                    ))
                 }
             } else {
                 Err("Invalid datetime format")

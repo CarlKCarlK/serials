@@ -5,8 +5,10 @@ target = "thumbv6m-none-eabi"
 DEFMT_LOG = "info"
 
 [alias]
-ir = "run --example ir_pio_read"
-wireless = "run --example wireless"
+full = "run --example full --release"
+ir = "run --example ir_pio_read --release"
+wireless = "run --example wireless --release"
+clock = "run --example lcd_clock --release"
 
 
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']

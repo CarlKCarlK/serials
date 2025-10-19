@@ -1,12 +1,10 @@
-[package] # TODO: update this
+[package]
 edition = "2024"
 # if this changes, update .vscode/launch.json and .cargo/config.toml
 name = "serials"
 version = "0.0.1"
 
-# The `[lib]` section defines the library part of this binary project.
-# It allows `src/lib.rs` to act as the central hub for shared code,
-# which can be reused across binaries or tests.
+# Pure library crate - all applications are in examples/
 [lib]
 name = "lib"
 path = "src/lib.rs"
@@ -45,6 +43,7 @@ heapless = "0.9.1"
 rp2040-hal = "0.11.0"
 embedded-hal = "1.0.0"
 embedded-hal-async = "1.0.0"
+embedded-io-async = "0.6.1"
 embedded-hal-bus = { version = "0.3.0", features = ["async", "portable-atomic"] }
 portable-atomic = { version = "1.11.1", features = ["critical-section"] }
 hd44780-driver = "0.4.0"
@@ -52,7 +51,7 @@ esp-hal-mfrc522 = "0.3.2"
 cyw43 = { version = "0.5.0", features = ["defmt", "firmware-logs"] }
 cyw43-pio = { version = "0.8.0", features = ["defmt"] }
 cyw43-firmware = { version = "0.1", features = ["wifi"] }
-embassy-net = { version = "0.7.1", features = ["defmt", "tcp", "udp", "dhcpv4", "medium-ethernet"] }
+embassy-net = { version = "0.7.1", features = ["defmt", "tcp", "udp", "dhcpv4", "dns", "medium-ethernet"] }
 static_cell = "2.1.0"
 
 [build-dependencies]

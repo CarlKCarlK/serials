@@ -1570,6 +1570,7 @@ dependencies = [
  "embedded-hal 1.0.0",
  "embedded-hal-async",
  "embedded-hal-bus",
+ "embedded-io-async",
  "esp-hal-mfrc522",
  "hd44780-driver",
  "heapless 0.9.1",
