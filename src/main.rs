@@ -113,14 +113,43 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
                 continue;
             }
             Either::Second(ir_nec_event) => {
-                // IR button pressed - reset the card map
-                info!("IR button pressed, resetting card map");
+                // IR button pressed - check if it's 0-9 for servo control, otherwise reset map
                 let IrNecEvent::Press { addr, cmd } = ir_nec_event;
                 info!("IR Press: Addr=0x{:02X} Cmd=0x{:02X}", addr, cmd);
 
-                card_map.clear();
+                // Map button codes to digits 0-9
+                let button_digit = match cmd {
+                    0x16 => Some(0),  // Button 0
+                    0x0C => Some(1),  // Button 1
+                    0x18 => Some(2),  // Button 2
+                    0x5E => Some(3),  // Button 3
+                    0x08 => Some(4),  // Button 4
+                    0x1C => Some(5),  // Button 5
+                    0x5A => Some(6),  // Button 6
+                    0x42 => Some(7),  // Button 7
+                    0x52 => Some(8),  // Button 8
+                    0x4A => Some(9),  // Button 9
+                    _ => None,        // Any other button
+                };
 
-                lcd.display(String::<64>::try_from("Map Reset").unwrap(), 500); // 0.5 seconds
+                if let Some(digit) = button_digit {
+                    // Servo control: angle = digit * 20 (0° to 180°)
+                    #[expect(
+                        clippy::arithmetic_side_effects,
+                        reason = "digit is 0-9, so digit*20 is 0-180"
+                    )]
+                    let angle = digit * 20;
+                    servo.set_degrees(angle);
+                    
+                    let mut text = String::<64>::new();
+                    let _ = write!(text, "Servo: {} degrees", angle);
+                    lcd.display(text, 1000); // 1 second
+                } else {
+                    // Any other button: reset the card map
+                    info!("IR button pressed, resetting card map");
+                    card_map.clear();
+                    lcd.display(String::<64>::try_from("Map Reset").unwrap(), 500); // 0.5 seconds
+                }
             }
          }
 
