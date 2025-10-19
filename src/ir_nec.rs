@@ -121,6 +121,7 @@ fn nec_ok(f: u32) -> Option<(u8, u8)> {
 
 // µs windows - RELAXED TOLERANCES for better reliability
 const GLITCH: u32 = 120;
+const MIN_IDLE: u32 = 5_000;  // Require 5ms of idle before starting decode (filters SPI crosstalk)
 const LDR_LOW: (u32, u32) = (7_000, 11_000);      // was (7_500, 10_500) - ±15%
 const LDR_HIGH: (u32, u32) = (3_500, 5_500);      // was (3_700, 5_300) - ±22%
 const REP_HIGH: (u32, u32) = (1_500, 3_000);      // was (1_750, 2_750) - ±33%
@@ -141,7 +142,9 @@ fn feed(
     use DecoderState::*;
     match decoder_state {
         Idle => {
-            if level_low {
+            // Only start decoding if we've been idle (HIGH) for at least MIN_IDLE
+            // This filters out SPI crosstalk and other electrical noise
+            if level_low && dt >= MIN_IDLE {
                 decoder_state = LdrLow;
                 defmt::info!("IR: Decoding started");
             }

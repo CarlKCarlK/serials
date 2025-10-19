@@ -207,7 +207,7 @@ async fn rfid_polling_task(
         }
         // Try to detect a card
         let Ok(()) = mfrc522.picc_is_new_card_present().await else {
-            Timer::after_millis(100).await;
+            Timer::after_millis(200).await;
             continue;
         };
         
@@ -216,7 +216,7 @@ async fn rfid_polling_task(
         // Try to read UID
         let Ok(uid) = mfrc522.get_card(UidSize::Four).await else {
             info!("UID read error");
-            Timer::after_millis(100).await;
+            Timer::after_millis(200).await;
             continue;
         };
         
