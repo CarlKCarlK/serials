@@ -16,7 +16,7 @@ use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
 use heapless::{String, index_map::FnvIndexMap};
 use lib::{
-    servo_a, AsyncLcd, IrNec, IrNecEvent, IrNecNotifier, LcdChannel, Never, Result, RfidEvent,
+    servo_a, CharLcd, IrNec, IrNecEvent, IrNecNotifier, LcdChannel, Never, Result, RfidEvent,
     SpiMfrc522Channels, SpiMfrc522Reader,
 };
 use panic_probe as _;
@@ -38,8 +38,8 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     servo.set_degrees(90);
 
     // Initialize LCD (GP4=SDA, GP5=SCL)
-    static LCD_CHANNEL: LcdChannel = AsyncLcd::channel();
-    let lcd = AsyncLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &LCD_CHANNEL, spawner)?;
+    static LCD_CHANNEL: LcdChannel = CharLcd::channel();
+    let lcd = CharLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &LCD_CHANNEL, spawner)?;
     lcd.display(String::<64>::try_from("Starting RFID...").unwrap(), 0);
 
     info!("LCD initialized");

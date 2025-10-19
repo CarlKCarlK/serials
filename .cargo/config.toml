@@ -8,7 +8,7 @@ DEFMT_LOG = "info"
 full = "run --example full --release"
 ir = "run --example ir_pio_read --release"
 wireless = "run --example wireless --release"
-clock = "run --example lcd_clock --release"
+lcd_clock = "run --example lcd_clock --release"
 
 
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']

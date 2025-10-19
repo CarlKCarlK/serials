@@ -14,7 +14,7 @@ use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_time::{Duration, Timer};
 use heapless::String;
-use lib::{AsyncLcd, LcdChannel};
+use lib::{CharLcd, LcdChannel};
 use panic_probe as _;
 use static_cell::StaticCell;
 
@@ -48,8 +48,8 @@ async fn main(spawner: Spawner) -> ! {
     let p = embassy_rp::init(Default::default());
 
     // Initialize LCD (GP4=SDA, GP5=SCL)
-    static LCD_CHANNEL: LcdChannel = AsyncLcd::channel();
-    let lcd = match AsyncLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &LCD_CHANNEL, spawner) {
+    static LCD_CHANNEL: LcdChannel = CharLcd::channel();
+    let lcd = match CharLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &LCD_CHANNEL, spawner) {
         Ok(lcd) => lcd,
         Err(_) => core::panic!("LCD init failed"),
     };
@@ -124,44 +124,103 @@ async fn main(spawner: Spawner) -> ! {
         info!("IP Address: {}", config.address);
     }
 
-    // Main loop: fetch and display time
-    loop {
-        // Try up to 3 times to get the time
-        let mut success = false;
+    // Fetch initial time from internet
+    let mut current_time = 'outer: loop {
         for attempt in 1..=3 {
             match fetch_local_time(&stack, TIMEZONE).await {
-                Ok((time_12h, date)) => {
-                    info!("Time: {} | Date: {}", time_12h, date);
-                    
-                    // Display on LCD (two lines: time on top, date on bottom)
-                    let mut text = String::<64>::new();
-                    core::fmt::Write::write_fmt(&mut text, format_args!("{}\\n{}", time_12h, date)).unwrap();
-                    lcd.display(text, 0);
-                    success = true;
-                    break;
+                Ok((hour, minute, second, date)) => {
+                    info!("Initial sync: {}:{}:{} | {}", hour, minute, second, date);
+                    break 'outer (hour, minute, second, date);
                 }
                 Err(e) => {
                     info!("Time fetch attempt {} failed: {}", attempt, e);
                     if attempt < 3 {
                         lcd.display(String::<64>::try_from("Retrying...").unwrap(), 0);
-                        Timer::after_secs(2).await; // Wait before retry
+                        Timer::after_secs(2).await;
+                    } else {
+                        lcd.display(String::<64>::try_from("Sync failed!\nRetrying...").unwrap(), 0);
+                        Timer::after_secs(10).await;
                     }
                 }
             }
         }
+    };
+
+    let mut minutes_since_sync = 0;
+
+    // Main loop: keep time locally, sync every hour
+    loop {
+        // Display current time on LCD (two lines: time on top, date on bottom)
+        let (hour, minute, second, date) = current_time;
+        let (hour12, am_pm) = if hour == 0 {
+            (12, "AM")
+        } else if hour < 12 {
+            (hour, "AM")
+        } else if hour == 12 {
+            (12, "PM")
+        } else {
+            #[expect(clippy::arithmetic_side_effects, reason = "hour guaranteed 13-23")]
+            (hour - 12, "PM")
+        };
         
-        if !success {
-            lcd.display(String::<64>::try_from("Time Error").unwrap(), 0);
+        let mut text = String::<64>::new();
+        core::fmt::Write::write_fmt(&mut text, format_args!("{:2}:{:02}:{:02} {}\n{}", 
+            hour12, minute, second, am_pm, date)).unwrap();
+        lcd.display(text, 0);
+        
+        // Wait one minute
+        Timer::after_secs(60).await;
+        
+        // Increment time by one minute
+        #[expect(clippy::arithmetic_side_effects, reason = "time arithmetic with wrapping")]
+        {
+            current_time.2 = 0; // Reset seconds to 0 (we only update every minute)
+            current_time.1 += 1; // Increment minute
+            if current_time.1 >= 60 {
+                current_time.1 = 0;
+                current_time.0 += 1; // Increment hour
+                if current_time.0 >= 24 {
+                    current_time.0 = 0;
+                    // Note: We don't handle date rollover - will re-sync before that matters
+                }
+            }
         }
         
-        Timer::after_secs(60).await; // Update every minute
+        minutes_since_sync += 1;
+        
+        // Sync with internet every 60 minutes
+        if minutes_since_sync >= 60 {
+            info!("Hourly sync...");
+            lcd.display(String::<64>::try_from("Syncing time...").unwrap(), 0);
+            
+            for attempt in 1..=3 {
+                match fetch_local_time(&stack, TIMEZONE).await {
+                    Ok(new_time) => {
+                        current_time = new_time;
+                        minutes_since_sync = 0;
+                        info!("Sync successful: {}:{}:{}", new_time.0, new_time.1, new_time.2);
+                        break;
+                    }
+                    Err(e) => {
+                        info!("Sync attempt {} failed: {}", attempt, e);
+                        if attempt == 3 {
+                            // Keep using local time if sync fails
+                            info!("Sync failed, continuing with local time");
+                            minutes_since_sync = 0; // Reset to try again in an hour
+                        } else {
+                            Timer::after_secs(2).await;
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 async fn fetch_local_time(
     stack: &embassy_net::Stack<'static>,
     timezone: &str,
-) -> Result<(&'static str, &'static str), &'static str> {
+) -> Result<(u8, u8, u8, &'static str), &'static str> {
     use embassy_net::tcp::TcpSocket;
     use embassy_net::dns::DnsQueryType;
     use heapless::String;
@@ -190,6 +249,9 @@ async fn fetch_local_time(
     info!("Connecting to {}:80...", server_addr);
     socket.connect(remote_endpoint).await.map_err(|_| "Connect failed")?;
     
+    // Small delay after connect to let connection stabilize
+    Timer::after_millis(100).await;
+    
     // Build HTTP GET request
     let mut request = String::<256>::new();
     core::fmt::write(&mut request, format_args!("GET /api/timezone/{} HTTP/1.1\r\n", timezone)).unwrap();
@@ -199,6 +261,9 @@ async fn fetch_local_time(
     
     info!("Sending HTTP request...");
     Write::write_all(&mut socket, request.as_bytes()).await.map_err(|_| "Write failed")?;
+    
+    // Small delay after write to let server process
+    Timer::after_millis(100).await;
     
     // Read response
     let mut response = [0u8; 1024];
@@ -240,40 +305,25 @@ async fn fetch_local_time(
                 #[expect(clippy::indexing_slicing, reason = "datetime format verified")]
                 let hour24: u8 = datetime[11..13].parse().map_err(|_| "Invalid hour")?;
                 #[expect(clippy::indexing_slicing, reason = "datetime format verified")]
-                let minute = &datetime[14..16];
+                let minute: u8 = datetime[14..16].parse().map_err(|_| "Invalid minute")?;
                 #[expect(clippy::indexing_slicing, reason = "datetime format verified")]
-                let second = &datetime[17..19];
+                let second: u8 = datetime[17..19].parse().map_err(|_| "Invalid second")?;
                 #[expect(clippy::indexing_slicing, reason = "datetime format verified")]
                 let date = &datetime[..10]; // "2025-10-19"
                 
-                // Convert to 12-hour format
-                let (hour12, am_pm) = if hour24 == 0 {
-                    (12, "AM")
-                } else if hour24 < 12 {
-                    (hour24, "AM")
-                } else if hour24 == 12 {
-                    (12, "PM")
-                } else {
-                    #[expect(clippy::arithmetic_side_effects, reason = "hour24 guaranteed 13-23")]
-                    (hour24 - 12, "PM")
-                };
-                
-                // Store in static for return
-                static mut TIME_STR: [u8; 16] = [0; 16];
+                // Store date in static for return
                 static mut DATE_STR: [u8; 16] = [0; 16];
                 
                 #[expect(unsafe_code, reason = "static string storage for return value")]
                 unsafe {
-                    let mut time_result = String::<16>::new();
-                    core::fmt::write(&mut time_result, format_args!("{:2}:{}:{} {}", hour12, minute, second, am_pm)).unwrap();
-                    TIME_STR[..time_result.len()].copy_from_slice(time_result.as_bytes());
-                    
                     let mut date_result = String::<16>::new();
                     core::fmt::write(&mut date_result, format_args!("{}", date)).unwrap();
                     DATE_STR[..date_result.len()].copy_from_slice(date_result.as_bytes());
                     
                     Ok((
-                        core::str::from_utf8_unchecked(&TIME_STR[..time_result.len()]),
+                        hour24,
+                        minute,
+                        second,
                         core::str::from_utf8_unchecked(&DATE_STR[..date_result.len()]),
                     ))
                 }
