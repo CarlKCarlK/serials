@@ -53,21 +53,21 @@ async fn inner_main(spawner: Spawner) -> Result<Never> {
     //     info!("IR Press: Addr=0x{:02X} Cmd=0x{:02X}", addr, cmd);
     // }
 
-    // // Initialize MFRC522 RFID reader device abstraction
-    // static RFID_CHANNELS: SpiMfrc522Channels = SpiMfrc522Reader::channels();
-    // let rfid_reader = SpiMfrc522Reader::new(
-    //     p.SPI0,         // SPI peripheral
-    //     p.PIN_18,       // SCK (serial clock)
-    //     p.PIN_19,       // MOSI
-    //     p.PIN_16,       // MISO
-    //     p.DMA_CH0,      // DMA channel 0
-    //     p.DMA_CH1,      // DMA channel 1
-    //     p.PIN_15,       // CS (chip select)
-    //     p.PIN_17,       // RST (reset)
-    //     &RFID_CHANNELS, // Event channels (notifier + command)
-    //     spawner,        // Task spawner
-    // )
-    // .await?;
+    // Initialize MFRC522 RFID reader device abstraction
+    static RFID_CHANNELS: SpiMfrc522Channels = SpiMfrc522Reader::channels();
+    let rfid_reader = SpiMfrc522Reader::new(
+        p.SPI0,         // SPI peripheral
+        p.PIN_18,       // SCK (serial clock)
+        p.PIN_19,       // MOSI
+        p.PIN_16,       // MISO
+        p.DMA_CH0,      // DMA channel 0
+        p.DMA_CH1,      // DMA channel 1
+        p.PIN_15,       // CS (chip select)
+        p.PIN_17,       // RST (reset)
+        &RFID_CHANNELS, // Event channels (notifier + command)
+        spawner,        // Task spawner
+    )
+    .await?;
 
     lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0);
 
