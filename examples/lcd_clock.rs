@@ -56,76 +56,23 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
 
-    // Initialize WiFi and network stack
-    let fw = cyw43_firmware::CYW43_43439A0;
-    let clm = cyw43_firmware::CYW43_43439A0_CLM;
+    let utc_offset_minutes: i32 = UTC_OFFSET_MINUTES.parse().unwrap_or(0);
 
-    let pwr = Output::new(p.PIN_23, Level::Low);
-    let cs = Output::new(p.PIN_25, Level::High);
-    let mut pio = Pio::new(p.PIO0, Irqs);
-    let spi = PioSpi::new(
-        &mut pio.common,
-        pio.sm0,
-        DEFAULT_CLOCK_DIVIDER,
-        pio.irq0,
-        cs,
+    // Create TimeSync virtual device (handles WiFi initialization internally)
+    static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
+    let time_sync = TimeSync::new(
+        WIFI_SSID,
+        WIFI_PASS,
+        utc_offset_minutes,
+        p.PIN_23,
+        p.PIN_25,
+        p.PIO0,
         p.PIN_24,
         p.PIN_29,
         p.DMA_CH0,
+        &TIME_SYNC_NOTIFIER,
+        spawner,
     );
-
-    static STATE: StaticCell<cyw43::State> = StaticCell::new();
-    let state = STATE.init(cyw43::State::new());
-    let (net_device, mut control, runner) = cyw43::new(state, pwr, spi, fw).await;
-    unwrap!(spawner.spawn(wifi_task(runner)));
-
-    control.init(clm).await;
-    control
-        .set_power_management(cyw43::PowerManagementMode::PowerSave)
-        .await;
-
-    let config = Config::dhcpv4(Default::default());
-    let seed = 0x7c8f_3a2e_9d14_6b5a;
-
-    static RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
-    static STACK: StaticCell<embassy_net::Stack<'static>> = StaticCell::new();
-    let (stack, runner) = embassy_net::new(
-        net_device,
-        config,
-        RESOURCES.init(StackResources::<3>::new()),
-        seed,
-    );
-    let stack = STACK.init(stack);
-
-    unwrap!(spawner.spawn(net_task(runner)));
-
-    // Connect to WiFi
-    info!("Connecting to WiFi: {}", WIFI_SSID);
-    loop {
-        match control
-            .join(WIFI_SSID, JoinOptions::new(WIFI_PASS.as_bytes()))
-            .await
-        {
-            Ok(_) => break,
-            Err(err) => {
-                info!("Join failed: {}", err.status);
-                Timer::after_secs(1).await;
-            }
-        }
-    }
-
-    info!("WiFi connected! Waiting for DHCP...");
-    stack.wait_config_up().await;
-
-    if let Some(config) = stack.config_v4() {
-        info!("IP Address: {}", config.address);
-    }
-
-    let utc_offset_minutes: i32 = UTC_OFFSET_MINUTES.parse().unwrap_or(0);
-
-    // Create TimeSync virtual device (Clock already running)
-    static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
-    let time_sync = TimeSync::new(stack, utc_offset_minutes, &TIME_SYNC_NOTIFIER, spawner);
 
     info!("Entering main event loop");
 
@@ -390,13 +337,33 @@ impl TimeSync {
     }
 
     /// Create a new TimeSync device and spawn its task
+    #[expect(clippy::too_many_arguments, reason = "WiFi requires many peripherals")]
     pub fn new(
-        stack: &'static embassy_net::Stack<'static>,
+        wifi_ssid: &'static str,
+        wifi_pass: &'static str,
         utc_offset_minutes: i32,
+        pin_23: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_23>,
+        pin_25: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_25>,
+        pio0: embassy_rp::Peri<'static, PIO0>,
+        pin_24: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_24>,
+        pin_29: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_29>,
+        dma_ch0: embassy_rp::Peri<'static, DMA_CH0>,
         notifier: &'static TimeSyncNotifier,
         spawner: Spawner,
     ) -> Self {
-        unwrap!(spawner.spawn(time_sync_device_loop(stack, utc_offset_minutes, notifier)));
+        unwrap!(spawner.spawn(time_sync_device_loop(
+            wifi_ssid,
+            wifi_pass,
+            utc_offset_minutes,
+            pin_23,
+            pin_25,
+            pio0,
+            pin_24,
+            pin_29,
+            dma_ch0,
+            notifier,
+            spawner,
+        )));
         Self(notifier)
     }
 
@@ -408,20 +375,115 @@ impl TimeSync {
 
 #[embassy_executor::task]
 async fn time_sync_device_loop(
-    stack: &'static embassy_net::Stack<'static>,
+    wifi_ssid: &'static str,
+    wifi_pass: &'static str,
     utc_offset_minutes: i32,
+    pin_23: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_23>,
+    pin_25: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_25>,
+    pio0: embassy_rp::Peri<'static, PIO0>,
+    pin_24: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_24>,
+    pin_29: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_29>,
+    dma_ch0: embassy_rp::Peri<'static, DMA_CH0>,
     sync_notifier: &'static TimeSyncNotifier,
+    spawner: Spawner,
 ) -> ! {
-    let err = inner_time_sync_device_loop(stack, utc_offset_minutes, sync_notifier).await.unwrap_err();
+    let err = inner_time_sync_device_loop(
+        wifi_ssid,
+        wifi_pass,
+        utc_offset_minutes,
+        pin_23,
+        pin_25,
+        pio0,
+        pin_24,
+        pin_29,
+        dma_ch0,
+        sync_notifier,
+        spawner,
+    )
+    .await
+    .unwrap_err();
     core::panic!("{err}");
 }
 
 async fn inner_time_sync_device_loop(
-    stack: &'static embassy_net::Stack<'static>,
+    wifi_ssid: &'static str,
+    wifi_pass: &'static str,
     utc_offset_minutes: i32,
+    pin_23: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_23>,
+    pin_25: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_25>,
+    pio0: embassy_rp::Peri<'static, PIO0>,
+    pin_24: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_24>,
+    pin_29: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_29>,
+    dma_ch0: embassy_rp::Peri<'static, DMA_CH0>,
     sync_notifier: &'static TimeSyncNotifier,
+    spawner: Spawner,
 ) -> Result<Infallible> {
     info!("TimeSync device started (UTC offset: {} minutes)", utc_offset_minutes);
+
+    // Initialize WiFi and network stack
+    let fw = cyw43_firmware::CYW43_43439A0;
+    let clm = cyw43_firmware::CYW43_43439A0_CLM;
+
+    let pwr = Output::new(pin_23, Level::Low);
+    let cs = Output::new(pin_25, Level::High);
+    let mut pio = Pio::new(pio0, Irqs);
+    let spi = PioSpi::new(
+        &mut pio.common,
+        pio.sm0,
+        DEFAULT_CLOCK_DIVIDER,
+        pio.irq0,
+        cs,
+        pin_24,
+        pin_29,
+        dma_ch0,
+    );
+
+    static STATE: StaticCell<cyw43::State> = StaticCell::new();
+    let state = STATE.init(cyw43::State::new());
+    let (net_device, mut control, runner) = cyw43::new(state, pwr, spi, fw).await;
+    unwrap!(spawner.spawn(wifi_task(runner)));
+
+    control.init(clm).await;
+    control
+        .set_power_management(cyw43::PowerManagementMode::PowerSave)
+        .await;
+
+    let config = Config::dhcpv4(Default::default());
+    let seed = 0x7c8f_3a2e_9d14_6b5a;
+
+    static RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
+    static STACK: StaticCell<embassy_net::Stack<'static>> = StaticCell::new();
+    let (stack, runner) = embassy_net::new(
+        net_device,
+        config,
+        RESOURCES.init(StackResources::<3>::new()),
+        seed,
+    );
+    let stack = STACK.init(stack);
+
+    unwrap!(spawner.spawn(net_task(runner)));
+
+    // Connect to WiFi
+    info!("Connecting to WiFi: {}", wifi_ssid);
+    loop {
+        match control
+            .join(wifi_ssid, JoinOptions::new(wifi_pass.as_bytes()))
+            .await
+        {
+            Ok(_) => break,
+            Err(err) => {
+                info!("Join failed: {}", err.status);
+                Timer::after_secs(1).await;
+            }
+        }
+    }
+
+    info!("WiFi connected! Waiting for DHCP...");
+    stack.wait_config_up().await;
+
+    if let Some(config) = stack.config_v4() {
+        info!("IP Address: {}", config.address);
+    }
 
     // Initial sync with retry (exponential backoff: 10s, 30s, 60s, then 5min intervals)
     let mut attempt = 0;
