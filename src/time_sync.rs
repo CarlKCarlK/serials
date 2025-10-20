@@ -8,7 +8,7 @@ use cyw43_pio::{DEFAULT_CLOCK_DIVIDER, PioSpi};
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_net::{Config, StackResources};
-use embassy_rp::bind_interrupts;
+use embassy_rp::{Peri, bind_interrupts, peripherals};
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use embassy_rp::pio::{InterruptHandler, Pio};
@@ -48,12 +48,12 @@ impl TimeSync {
 
     /// Create a new TimeSync device and spawn its task
     pub fn new(
-        pin_23: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_23>,
-        pin_25: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_25>,
-        pio0: embassy_rp::Peri<'static, PIO0>,
-        pin_24: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_24>,
-        pin_29: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_29>,
-        dma_ch0: embassy_rp::Peri<'static, DMA_CH0>,
+        pin_23: Peri<'static, peripherals::PIN_23>,
+        pin_25: Peri<'static, peripherals::PIN_25>,
+        pio0: Peri<'static, PIO0>,
+        pin_24: Peri<'static, peripherals::PIN_24>,
+        pin_29: Peri<'static, peripherals::PIN_29>,
+        dma_ch0: Peri<'static, DMA_CH0>,
         notifier: &'static TimeSyncNotifier,
         spawner: Spawner,
     ) -> Self {
@@ -75,12 +75,12 @@ bind_interrupts!(struct Irqs {
 
 #[embassy_executor::task]
 async fn time_sync_device_loop(
-    pin_23: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_23>,
-    pin_25: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_25>,
-    pio0: embassy_rp::Peri<'static, PIO0>,
-    pin_24: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_24>,
-    pin_29: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_29>,
-    dma_ch0: embassy_rp::Peri<'static, DMA_CH0>,
+    pin_23: Peri<'static, peripherals::PIN_23>,
+    pin_25: Peri<'static, peripherals::PIN_25>,
+    pio0: Peri<'static, PIO0>,
+    pin_24: Peri<'static, peripherals::PIN_24>,
+    pin_29: Peri<'static, peripherals::PIN_29>,
+    dma_ch0: Peri<'static, DMA_CH0>,
     sync_notifier: &'static TimeSyncNotifier,
     spawner: Spawner,
 ) -> ! {
@@ -100,12 +100,12 @@ async fn time_sync_device_loop(
 }
 
 async fn inner_time_sync_device_loop(
-    pin_23: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_23>,
-    pin_25: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_25>,
-    pio0: embassy_rp::Peri<'static, PIO0>,
-    pin_24: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_24>,
-    pin_29: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_29>,
-    dma_ch0: embassy_rp::Peri<'static, DMA_CH0>,
+    pin_23: Peri<'static, peripherals::PIN_23>,
+    pin_25: Peri<'static, peripherals::PIN_25>,
+    pio0: Peri<'static, PIO0>,
+    pin_24: Peri<'static, peripherals::PIN_24>,
+    pin_29: Peri<'static, peripherals::PIN_29>,
+    dma_ch0: Peri<'static, DMA_CH0>,
     sync_notifier: &'static TimeSyncNotifier,
     spawner: Spawner,
 ) -> Result<Infallible> {
