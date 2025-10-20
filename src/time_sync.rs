@@ -5,12 +5,12 @@
 use core::convert::Infallible;
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_net::Stack;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Timer};
 
 use crate::unix_seconds::UnixSeconds;
+use crate::wifi::Wifi;
 use crate::Result;
 
 // ============================================================================
@@ -40,12 +40,15 @@ impl TimeSync {
     }
 
     /// Create a new TimeSync device and spawn its task
+    /// 
+    /// The task will await `WifiEvent::Ready` from the wifi device,
+    /// then perform initial NTP sync with backoff, followed by hourly sync loop.
     pub fn new(
-        stack: &'static Stack<'static>,
+        wifi: &'static Wifi,
         notifier: &'static TimeSyncNotifier,
         spawner: Spawner,
     ) -> Self {
-        unwrap!(spawner.spawn(time_sync_device_loop(stack, notifier)));
+        unwrap!(spawner.spawn(time_sync_device_loop(wifi, notifier)));
         Self(notifier)
     }
 
@@ -57,19 +60,25 @@ impl TimeSync {
 
 #[embassy_executor::task]
 async fn time_sync_device_loop(
-    stack: &'static Stack<'static>,
+    wifi: &'static Wifi,
     sync_notifier: &'static TimeSyncNotifier,
 ) -> ! {
-    let err = inner_time_sync_device_loop(stack, sync_notifier)
+    let err = inner_time_sync_device_loop(wifi, sync_notifier)
         .await
         .unwrap_err();
     core::panic!("{err}");
 }
 
 async fn inner_time_sync_device_loop(
-    stack: &'static Stack<'static>,
+    wifi: &'static Wifi,
     sync_notifier: &'static TimeSyncNotifier,
 ) -> Result<Infallible> {
+    info!("TimeSync device awaiting network stack...");
+    
+    // Wait for WiFi to be ready and get the stack
+    let stack = wifi.wait_stack().await;
+    info!("TimeSync received network stack");
+    
     info!("TimeSync device started");
 
     // Initial sync with retry (exponential backoff: 10s, 30s, 60s, then 5min intervals)

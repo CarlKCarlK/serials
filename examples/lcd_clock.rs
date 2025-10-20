@@ -12,9 +12,10 @@ use embassy_futures::select::{Either, select};
 use heapless::String;
 use lib::{
     CharLcd, Clock, ClockNotifier, LcdChannel, Result, TimeSync, TimeSyncEvent,
-    TimeSyncNotifier, Wifi,
+    TimeSyncNotifier, Wifi, WifiNotifier,
 };
 use panic_probe as _;
+use static_cell::StaticCell;
 
 // ============================================================================
 // Main Orchestrator
@@ -41,21 +42,26 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
 
-    // Initialize WiFi and get network stack
-    let stack = Wifi::new(
+    // Create WiFi device (will emit Ready event when network is up)
+    static WIFI_NOTIFIER: WifiNotifier = Wifi::notifier();
+    static WIFI_STACK_STORAGE: lib::StackStorage = Wifi::stack_storage();
+    static WIFI_CELL: StaticCell<Wifi> = StaticCell::new();
+    let wifi = Wifi::new(
         p.PIN_23,      // WiFi power enable
         p.PIN_25,      // SPI chip select
         p.PIO0,        // PIO block for SPI
         p.PIN_24,      // SPI MOSI
         p.PIN_29,      // SPI CLK
         p.DMA_CH0,     // DMA channel for SPI
-        spawner,       // Task spawner
-    )
-    .await?;
+        &WIFI_NOTIFIER,
+        &WIFI_STACK_STORAGE,
+        spawner,
+    );
+    let wifi: &'static Wifi = WIFI_CELL.init(wifi);
 
-    // Create TimeSync virtual device (uses WiFi stack for NTP)
+    // Create TimeSync virtual device (will await WiFi readiness)
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
-    let time_sync = TimeSync::new(stack, &TIME_SYNC_NOTIFIER, spawner);
+    let time_sync = TimeSync::new(wifi, &TIME_SYNC_NOTIFIER, spawner);
 
     info!("Entering main event loop");
 
@@ -78,3 +84,6 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         }
     }
 }
+
+// ============================================================================
+

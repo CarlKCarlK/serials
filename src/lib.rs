@@ -21,4 +21,4 @@ pub use rfid::{RfidEvent, RfidNotifier, RfidCommandChannel, RfidChannels, RfidRe
 pub use servo::Servo;
 pub use time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 pub use unix_seconds::UnixSeconds;
-pub use wifi::Wifi;
+pub use wifi::{StackStorage, Wifi, WifiEvent, WifiNotifier};
