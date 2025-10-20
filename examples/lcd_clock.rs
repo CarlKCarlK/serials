@@ -25,6 +25,7 @@ use heapless::String;
 use lib::{CharLcd, Error, LcdChannel, Result};
 use panic_probe as _;
 use static_cell::StaticCell;
+use time::{OffsetDateTime, UtcOffset};
 
 // ============================================================================
 // Main Orchestrator
@@ -70,7 +71,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     loop {
         match select(clock.next_event(), time_sync.next_event()).await {
             Either::First(time_info) => {
-                let text = Clock::format_display(&time_info);
+                let text = Clock::format_display(&time_info)?;
                 lcd.display(text, 0);
             }
             Either::Second(TimeSyncEvent::SyncSuccess { unix }) => {
@@ -100,14 +101,9 @@ pub enum TimeState {
     Synced,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct TimeInfo {
-    pub unix: u64,
-    pub hours: u8,
-    pub minutes: u8,
-    pub seconds: u8,
-    pub offset_minutes: i32,
-    pub date_iso: String<16>,
+    pub datetime: Option<OffsetDateTime>,
     pub state: TimeState,
 }
 
@@ -174,30 +170,26 @@ impl Clock {
 
     /// Format time info as display string
     pub fn format_display(time_info: &TimeInfo) -> Result<String<64>> {
-        let (hour12, am_pm) = Self::format_12hour(time_info.hours);
-
         let mut text = String::<64>::new();
-        match time_info.state {
-            TimeState::NotSet => {
-                fmt::Write::write_fmt(
-                    &mut text,
-                    format_args!(
-                        "{:2}:{:02}:{:02} {}\nTime not set",
-                        hour12, time_info.minutes, time_info.seconds, am_pm
-                    ),
-                )
-                .map_err(|_| Error::FormatError)?;
+        
+        match time_info.datetime {
+            None => {
+                fmt::Write::write_str(&mut text, "--:--:-- --\nTime not set")
+                    .map_err(|_| Error::FormatError)?;
             }
-            TimeState::Synced => {
+            Some(dt) => {
+                let (hour12, am_pm) = Self::format_12hour(dt.hour());
                 fmt::Write::write_fmt(
                     &mut text,
                     format_args!(
-                        "{:2}:{:02}:{:02} {}\n{}",
+                        "{:2}:{:02}:{:02} {}\n{:04}-{:02}-{:02}",
                         hour12,
-                        time_info.minutes,
-                        time_info.seconds,
+                        dt.minute(),
+                        dt.second(),
                         am_pm,
-                        time_info.date_iso.as_str()
+                        dt.year(),
+                        u8::from(dt.month()),
+                        dt.day()
                     ),
                 )
                 .map_err(|_| Error::FormatError)?;
@@ -217,6 +209,11 @@ async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Inf
     // Read configuration from compile-time environment
     const UTC_OFFSET_MINUTES: &str = env!("UTC_OFFSET_MINUTES");
     let offset_minutes: i32 = UTC_OFFSET_MINUTES.parse().unwrap_or(0);
+    
+    // Create UtcOffset from minutes
+    #[expect(clippy::arithmetic_side_effects, reason = "offset bounds checked")]
+    let utc_offset = UtcOffset::from_whole_seconds(offset_minutes * 60)
+        .unwrap_or(UtcOffset::UTC);
 
     info!(
         "Clock device started (UTC offset: {} minutes)",
@@ -225,89 +222,47 @@ async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Inf
 
     let (cmd_channel, event_signal) = notifier;
 
-    let mut unix_utc: u64 = 0;
-    let mut date_iso: String<16> = String::new();
+    let mut current_time: Option<OffsetDateTime> = None;
     let mut time_state = TimeState::NotSet;
 
     loop {
-        // Compute current local time
-        #[expect(clippy::cast_possible_wrap, reason = "offset is always small")]
-        let local_seconds = unix_utc.wrapping_add((offset_minutes * 60) as u64);
-
-        #[expect(clippy::cast_possible_truncation, reason = "seconds in day < u32::MAX")]
-        let seconds_in_day = (local_seconds % 86400) as u32;
-
-        #[expect(clippy::arithmetic_side_effects, reason = "bounded time arithmetic")]
-        {
-            let hours = (seconds_in_day / 3600) as u8;
-            let minutes = ((seconds_in_day % 3600) / 60) as u8;
-            let seconds = (seconds_in_day % 60) as u8;
-
-            let time_info = TimeInfo {
-                unix: unix_utc,
-                hours,
-                minutes,
-                seconds,
-                offset_minutes,
-                date_iso: date_iso.clone(),
-                state: time_state,
-            };
-
-            // Emit tick event
-            event_signal.signal(time_info);
-        }
+        // Emit tick event
+        let time_info = TimeInfo {
+            datetime: current_time,
+            state: time_state,
+        };
+        event_signal.signal(time_info);
 
         // Wait for either 1 second or a command
         match select(Timer::after_secs(1), cmd_channel.receive()).await {
             Either::First(_) => {
                 // Timer elapsed - increment time
-                unix_utc = unix_utc.wrapping_add(1);
+                if let Some(dt) = current_time {
+                    current_time = dt.checked_add(time::Duration::seconds(1));
+                }
             }
             Either::Second(cmd) => {
                 // Command received
                 match cmd {
                     ClockCommand::SetTime { unix } => {
-                        unix_utc = unix;
-                        date_iso = compute_date_string(unix, offset_minutes);
+                        // Convert Unix timestamp to OffsetDateTime
+                        current_time = OffsetDateTime::from_unix_timestamp(unix as i64)
+                            .ok()
+                            .map(|dt| dt.to_offset(utc_offset));
                         time_state = TimeState::Synced;
+                        
                         info!(
-                            "Clock time set: unix={} offset={} date={}",
+                            "Clock time set: {} (offset={} minutes)",
                             unix,
-                            offset_minutes,
-                            date_iso.as_str()
+                            offset_minutes
                         );
 
                         // Emit immediate tick with new time
-                        #[expect(clippy::cast_possible_wrap, reason = "offset is always small")]
-                        let local_seconds = unix_utc.wrapping_add((offset_minutes * 60) as u64);
-
-                        #[expect(
-                            clippy::cast_possible_truncation,
-                            reason = "seconds in day < u32::MAX"
-                        )]
-                        let seconds_in_day = (local_seconds % 86400) as u32;
-
-                        #[expect(
-                            clippy::arithmetic_side_effects,
-                            reason = "bounded time arithmetic"
-                        )]
-                        {
-                            let hours = (seconds_in_day / 3600) as u8;
-                            let minutes = ((seconds_in_day % 3600) / 60) as u8;
-                            let seconds = (seconds_in_day % 60) as u8;
-
-                            let time_info = TimeInfo {
-                                unix: unix_utc,
-                                hours,
-                                minutes,
-                                seconds,
-                                offset_minutes,
-                                date_iso: date_iso.clone(),
-                                state: time_state,
-                            };
-
-                            event_signal.signal(time_info);
-                        }
+                        let time_info = TimeInfo {
+                            datetime: current_time,
+                            state: time_state,
+                        };
+                        event_signal.signal(time_info);
                     }
                 }
             }
@@ -613,60 +568,6 @@ async fn fetch_ntp_time(stack: &embassy_net::Stack<'static>) -> Result<u64, &'st
     info!("NTP time: {} (unix timestamp)", unix_time);
     Ok(unix_time)
 }
-
-// ============================================================================
-// DST and Date Computation
-// ============================================================================
-
-/// Compute month and day from days since Unix epoch
-fn compute_month_day(days_since_epoch: u64) -> (u8, u8) {
-    // Simplified calendar computation
-    const DAYS_PER_MONTH: [u16; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-
-    // Approximate year (ignoring leap years for simplicity)
-    let days_per_year = 365;
-    let _years_since_epoch = days_since_epoch / days_per_year;
-    let days_in_year = (days_since_epoch % days_per_year) as u16;
-
-    let mut day_count = 0_u16;
-    for (month_idx, &days_in_month) in DAYS_PER_MONTH.iter().enumerate() {
-        if day_count + days_in_month > days_in_year {
-            let day = (days_in_year - day_count + 1) as u8;
-            return ((month_idx + 1) as u8, day);
-        }
-        day_count += days_in_month;
-    }
-
-    (12, 31) // Fallback
-}
-
-/// Compute date string "YYYY-MM-DD" from unix timestamp and offset
-fn compute_date_string(unix: u64, offset_minutes: i32) -> String<16> {
-    #[expect(clippy::cast_possible_wrap, reason = "offset is always small")]
-    let local_seconds = unix.wrapping_add((offset_minutes * 60) as u64);
-
-    let days_since_epoch = local_seconds / 86400;
-
-    // Unix epoch: 1970-01-01
-    // Simplified year computation
-    const DAYS_PER_YEAR: u64 = 365;
-    let year = 1970 + (days_since_epoch / DAYS_PER_YEAR);
-    let days_in_year = days_since_epoch % DAYS_PER_YEAR;
-
-    let (month, day) = compute_month_day(days_in_year);
-
-    let mut date = String::<16>::new();
-    core::fmt::write(
-        &mut date,
-        format_args!("{:04}-{:02}-{:02}", year, month, day),
-    )
-    .unwrap();
-    date
-}
-
-// ============================================================================
-// WiFi Tasks
-// ============================================================================
 
 // ============================================================================
 // WiFi Tasks
