@@ -126,15 +126,11 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
     let time_sync = TimeSync::new(stack, utc_offset_minutes, &TIME_SYNC_NOTIFIER, spawner);
 
-    // Subscribe to Clock and TimeSync events
-    let clock_signal = clock.subscriber();
-    let sync_signal = time_sync.subscriber();
-
     info!("Entering main event loop");
 
     // Main orchestrator loop - owns LCD and displays clock/sync events
     loop {
-        match select(clock_signal.wait(), sync_signal.wait()).await {
+        match select(clock.next_event(), time_sync.next_event()).await {
             Either::First(time_info) => {
                 // Clock tick - display current time
         
@@ -262,9 +258,9 @@ impl Clock {
         Self(notifier)
     }
 
-    /// Subscribe to clock events
-    pub fn subscriber(&self) -> &'static ClockEventBus {
-        &self.0.1
+    /// Wait for and return the next clock tick event
+    pub async fn next_event(&self) -> TimeInfo {
+        self.0.1.wait().await
     }
 
     /// Send a command to set the time
@@ -403,9 +399,9 @@ impl TimeSync {
         Self(notifier)
     }
 
-    /// Subscribe to time sync events
-    pub fn subscriber(&self) -> &'static TimeSyncNotifier {
-        self.0
+    /// Wait for and return the next time sync event
+    pub async fn next_event(&self) -> TimeSyncEvent {
+        self.0.wait().await
     }
 }
 
