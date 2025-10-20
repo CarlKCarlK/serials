@@ -12,7 +12,7 @@ use embassy_futures::select::{Either, select};
 use heapless::String;
 use lib::{
     CharLcd, Clock, ClockNotifier, LcdChannel, Result, TimeSync, TimeSyncEvent,
-    TimeSyncNotifier,
+    TimeSyncNotifier, Wifi,
 };
 use panic_probe as _;
 
@@ -41,18 +41,21 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
 
-    // Create TimeSync virtual device (handles WiFi initialization internally)
-    static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
-    let time_sync = TimeSync::new(
+    // Initialize WiFi and get network stack
+    let stack = Wifi::new(
         p.PIN_23,      // WiFi power enable
         p.PIN_25,      // SPI chip select
         p.PIO0,        // PIO block for SPI
         p.PIN_24,      // SPI MOSI
         p.PIN_29,      // SPI CLK
         p.DMA_CH0,     // DMA channel for SPI
-        &TIME_SYNC_NOTIFIER,  // Event signal for sync notifications
         spawner,       // Task spawner
-    );
+    )
+    .await?;
+
+    // Create TimeSync virtual device (uses WiFi stack for NTP)
+    static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
+    let time_sync = TimeSync::new(stack, &TIME_SYNC_NOTIFIER, spawner);
 
     info!("Entering main event loop");
 

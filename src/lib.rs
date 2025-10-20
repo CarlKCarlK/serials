@@ -10,6 +10,7 @@ mod rfid;
 pub mod servo;
 pub mod time_sync;
 pub mod unix_seconds;
+pub mod wifi;
 
 // Re-export commonly used items
 pub use char_lcd::{CharLcd, LcdChannel, LcdMessage};
@@ -20,3 +21,4 @@ pub use rfid::{RfidEvent, RfidNotifier, RfidCommandChannel, RfidChannels, RfidRe
 pub use servo::Servo;
 pub use time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 pub use unix_seconds::UnixSeconds;
+pub use wifi::Wifi;
