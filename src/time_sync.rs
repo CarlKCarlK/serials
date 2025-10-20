@@ -24,12 +24,12 @@ pub enum TimeSyncEvent {
     SyncFailed(&'static str),
 }
 
-pub type TimeSyncNotifierInner = Signal<CriticalSectionRawMutex, TimeSyncEvent>;
+pub type TimeSyncEvents = Signal<CriticalSectionRawMutex, TimeSyncEvent>;
 
 /// Resources needed by TimeSync device (includes WiFi resources)
 pub struct TimeSyncNotifier {
-    pub time_sync_notifier: TimeSyncNotifierInner,
-    pub wifi_resources: WifiNotifier,
+    pub events: TimeSyncEvents,
+    pub wifi: WifiNotifier,
     time_sync_cell: StaticCell<TimeSync>,
 }
 
@@ -39,7 +39,7 @@ pub struct TimeSyncNotifier {
 
 /// TimeSync virtual device - manages time synchronization
 pub struct TimeSync {
-    notifier: &'static TimeSyncNotifierInner,
+    events: &'static TimeSyncEvents,
     #[allow(dead_code, reason = "Keeps WiFi alive")]
     wifi: &'static Wifi,
 }
@@ -49,8 +49,8 @@ impl TimeSync {
     #[must_use]
     pub const fn notifier() -> TimeSyncNotifier {
         TimeSyncNotifier {
-            time_sync_notifier: Signal::new(),
-            wifi_resources: Wifi::notifier(),
+            events: Signal::new(),
+            wifi: Wifi::notifier(),
             time_sync_cell: StaticCell::new(),
         }
     }
@@ -68,7 +68,7 @@ impl TimeSync {
     ) -> &'static Self {
         // Create WiFi device
         let wifi = Wifi::new(
-            &resources.wifi_resources,
+            &resources.wifi,
             pin_23,
             pin_25,
             pio0,
@@ -79,26 +79,26 @@ impl TimeSync {
         );
 
         // Spawn TimeSync task
-        unwrap!(spawner.spawn(time_sync_device_loop(wifi, &resources.time_sync_notifier)));
+        unwrap!(spawner.spawn(time_sync_device_loop(wifi, &resources.events)));
         
         resources.time_sync_cell.init(Self {
-            notifier: &resources.time_sync_notifier,
+            events: &resources.events,
             wifi,
         })
     }
 
     /// Wait for and return the next TimeSync event
     pub async fn next_event(&self) -> TimeSyncEvent {
-        self.notifier.wait().await
+        self.events.wait().await
     }
 }
 
 #[embassy_executor::task]
 async fn time_sync_device_loop(
     wifi: &'static Wifi,
-    sync_notifier: &'static TimeSyncNotifierInner,
+    sync_events: &'static TimeSyncEvents,
 ) -> ! {
-    let err = inner_time_sync_device_loop(wifi, sync_notifier)
+    let err = inner_time_sync_device_loop(wifi, sync_events)
         .await
         .unwrap_err();
     core::panic!("{err}");
@@ -106,7 +106,7 @@ async fn time_sync_device_loop(
 
 async fn inner_time_sync_device_loop(
     wifi: &'static Wifi,
-    sync_notifier: &'static TimeSyncNotifierInner,
+    sync_events: &'static TimeSyncEvents,
 ) -> Result<Infallible> {
     info!("TimeSync device awaiting network stack...");
     
@@ -125,12 +125,12 @@ async fn inner_time_sync_device_loop(
             Ok(unix_seconds) => {
                 info!("Initial sync successful: unix_seconds={}", unix_seconds.as_i64());
 
-                sync_notifier.signal(TimeSyncEvent::SyncSuccess { unix_seconds });
+                sync_events.signal(TimeSyncEvent::SyncSuccess { unix_seconds });
                 break;
             }
             Err(e) => {
                 info!("Sync failed: {}", e);
-                sync_notifier.signal(TimeSyncEvent::SyncFailed(e));
+                sync_events.signal(TimeSyncEvent::SyncFailed(e));
                 // Exponential backoff: 10s, 30s, 60s, then 5min intervals
                 let delay_secs = if attempt == 1 {
                     10
@@ -163,12 +163,12 @@ async fn inner_time_sync_device_loop(
             Ok(unix_seconds) => {
                 info!("Periodic sync successful: unix_seconds={}", unix_seconds.as_i64());
 
-                sync_notifier.signal(TimeSyncEvent::SyncSuccess { unix_seconds });
-                last_success_elapsed = 0; // Reset counter on success
+                sync_events.signal(TimeSyncEvent::SyncSuccess { unix_seconds });
+                last_success_elapsed = 0; // reset backoff
             }
             Err(e) => {
-                info!("Sync failed: {}", e);
-                sync_notifier.signal(TimeSyncEvent::SyncFailed(e));
+                info!("Periodic sync failed: {}", e);
+                sync_events.signal(TimeSyncEvent::SyncFailed(e));
                 info!("Sync failed, will retry in 5 minutes");
             }
         }

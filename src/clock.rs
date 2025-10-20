@@ -41,36 +41,48 @@ pub enum ClockCommand {
 // Clock Virtual Device
 // ============================================================================
 
-pub type ClockNotifier = (ClockCommandChannel, ClockEventBus);
-pub type ClockCommandChannel = Channel<CriticalSectionRawMutex, ClockCommand, 4>;
-pub type ClockEventBus = Signal<CriticalSectionRawMutex, TimeInfo>;
+pub type ClockCommands = Channel<CriticalSectionRawMutex, ClockCommand, 4>;
+pub type ClockEvents = Signal<CriticalSectionRawMutex, TimeInfo>;
+
+/// Resources needed by Clock device
+pub struct ClockNotifier {
+    pub cmds: ClockCommands,
+    pub events: ClockEvents,
+}
 
 /// Clock virtual device - manages time keeping and emits time tick events
-pub struct Clock(&'static ClockNotifier);
+pub struct Clock {
+    cmds: &'static ClockCommands,
+    events: &'static ClockEvents,
+}
 
 impl Clock {
-    /// Create the notifier for Clock
+    /// Create Clock resources
     #[must_use]
     pub const fn notifier() -> ClockNotifier {
-        (Channel::new(), Signal::new())
+        ClockNotifier {
+            cmds: Channel::new(),
+            events: Signal::new(),
+        }
     }
 
     /// Create a new Clock device and spawn its task
-    pub fn new(notifier: &'static ClockNotifier, spawner: Spawner) -> Self {
-        unwrap!(spawner.spawn(clock_device_loop(notifier)));
-        Self(notifier)
+    pub fn new(resources: &'static ClockNotifier, spawner: Spawner) -> Self {
+        unwrap!(spawner.spawn(clock_device_loop(resources)));
+        Self {
+            cmds: &resources.cmds,
+            events: &resources.events,
+        }
     }
 
     /// Wait for and return the next clock tick event
     pub async fn next_event(&self) -> TimeInfo {
-        let Self((_, event_signal)) = self;
-        event_signal.wait().await
+        self.events.wait().await
     }
 
     /// Send a command to set the time
     pub async fn set_time(&self, unix_seconds: UnixSeconds) {
-        let Self((cmd_channel, _)) = self;
-        cmd_channel.send(ClockCommand::SetTime { unix_seconds }).await;
+        self.cmds.send(ClockCommand::SetTime { unix_seconds }).await;
     }
 
     /// Format 24-hour time as 12-hour with AM/PM
@@ -132,12 +144,12 @@ impl Clock {
 }
 
 #[embassy_executor::task]
-async fn clock_device_loop(notifier: &'static ClockNotifier) -> ! {
-    let err = inner_clock_device_loop(notifier).await.unwrap_err();
+async fn clock_device_loop(resources: &'static ClockNotifier) -> ! {
+    let err = inner_clock_device_loop(resources).await.unwrap_err();
     core::panic!("{err}");
 }
 
-async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Infallible> {
+async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<Infallible> {
     // Read configuration from compile-time environment
     const UTC_OFFSET_MINUTES: &str = env!("UTC_OFFSET_MINUTES");
     let offset_minutes: i32 = UTC_OFFSET_MINUTES.parse().unwrap_or(0);
@@ -151,8 +163,6 @@ async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Inf
         "Clock device started (UTC offset: {} minutes)",
         offset_minutes
     );
-
-    let (cmd_channel, event_signal) = notifier;
 
     // Monotonic anchor for drift-free timekeeping
     let mut base_unix_seconds: Option<UnixSeconds> = None;
@@ -168,10 +178,10 @@ async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Inf
             datetime: current_time,
             state: time_state,
         };
-        event_signal.signal(time_info);
+        resources.events.signal(time_info);
 
         // Wait for either 1 second or a command
-        match select(Timer::after_secs(1), cmd_channel.receive()).await {
+        match select(Timer::after_secs(1), resources.cmds.receive()).await {
             Either::First(_) => {
                 // Timer elapsed - compute time from monotonic anchor
                 if let (Some(base_unix), Some(base_instant)) = (base_unix_seconds, base_instant) {
@@ -206,7 +216,7 @@ async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Inf
                             datetime: current_time,
                             state: time_state,
                         };
-                        event_signal.signal(time_info);
+                        resources.events.signal(time_info);
                     }
                 }
             }

@@ -20,17 +20,25 @@ pub enum LcdMessage {
     },
 }
 
-pub type LcdChannel = Channel<CriticalSectionRawMutex, LcdMessage, 8>;
+pub type LcdCommands = Channel<CriticalSectionRawMutex, LcdMessage, 8>;
+
+/// Resources needed by CharLcd device
+pub struct CharLcdNotifier {
+    pub cmds: LcdCommands,
+}
 
 /// Character LCD with async message-based interface
 pub struct CharLcd {
-    channel: &'static LcdChannel,
+    cmds: &'static LcdCommands,
 }
 
 impl CharLcd {
+    /// Create CharLcd resources
     #[must_use]
-    pub const fn channel() -> LcdChannel {
-        Channel::new()
+    pub const fn notifier() -> CharLcdNotifier {
+        CharLcdNotifier {
+            cmds: Channel::new(),
+        }
     }
 
     // Hardcode to I2C0 to avoid generics in the task
@@ -38,28 +46,28 @@ impl CharLcd {
         i2c_peripheral: Peri<'static, embassy_rp::peripherals::I2C0>,
         scl: Peri<'static, impl SclPin<embassy_rp::peripherals::I2C0> + 'static>,
         sda: Peri<'static, impl SdaPin<embassy_rp::peripherals::I2C0> + 'static>,
-        channel: &'static LcdChannel,
+        resources: &'static CharLcdNotifier,
         spawner: Spawner,
     ) -> Result<Self> {
         // Create the I2C instance and pass it to the task
         let i2c = i2c::I2c::new_blocking(i2c_peripheral, scl, sda, I2cConfig::default());
         spawner
-            .spawn(lcd_task(i2c, channel))
+            .spawn(lcd_task(i2c, &resources.cmds))
             .map_err(Error::TaskSpawn)?;
-        Ok(Self { channel })
+        Ok(Self { cmds: &resources.cmds })
     }
 
     /// Send a message to the LCD (non-blocking, returns immediately)
     pub fn send(&self, msg: LcdMessage) {
         use defmt::info;
-        if self.channel.try_send(msg).is_err() {
+        if self.cmds.try_send(msg).is_err() {
             info!("LCD channel full, message dropped");
         }
     }
 
     /// Send a message and wait for it to be queued
     pub async fn send_await(&self, msg: LcdMessage) {
-        self.channel.send(msg).await;
+        self.cmds.send(msg).await;
     }
 
     /// Display text for a specified duration (0 = until next message)
@@ -152,13 +160,13 @@ impl LcdDriver {
 #[embassy_executor::task]
 async fn lcd_task(
     i2c: i2c::I2c<'static, embassy_rp::peripherals::I2C0, i2c::Blocking>,
-    channel: &'static LcdChannel,
+    cmds: &'static LcdCommands,
 ) -> ! {
     let mut lcd = LcdDriver::new(i2c);
     lcd.init().await;
 
     loop {
-        let msg = channel.receive().await;
+        let msg = cmds.receive().await;
         match msg {
             LcdMessage::Display { text, duration_ms } => {
                 // Clear and display the text

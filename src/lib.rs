@@ -13,7 +13,7 @@ pub mod unix_seconds;
 pub mod wifi;
 
 // Re-export commonly used items
-pub use char_lcd::{CharLcd, LcdChannel, LcdMessage};
+pub use char_lcd::{CharLcd, CharLcdNotifier, LcdCommands, LcdMessage};
 pub use clock::{Clock, ClockCommand, ClockNotifier, TimeInfo, TimeState};
 pub use error::{Error, Result};
 pub use ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
