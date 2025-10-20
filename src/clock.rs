@@ -29,7 +29,7 @@ pub enum ClockState {
 
 #[derive(Clone, Copy)]
 pub struct ClockEvent {
-    pub datetime: Option<OffsetDateTime>,
+    pub datetime: OffsetDateTime,
     pub state: ClockState,
 }
 
@@ -104,7 +104,7 @@ impl Clock {
     pub fn format_display(time_info: &ClockEvent) -> Result<String<64>> {
         let mut text = String::<64>::new();
         
-        let dt = time_info.datetime.expect("datetime should always be Some");
+        let dt = time_info.datetime;
         let (hour12, am_pm) = Self::format_12hour(dt.hour());
         
         match time_info.state {
@@ -170,7 +170,7 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
     let mut clock_state = ClockState::NotSet;
 
     // For initial "Time not set" display, start from midnight
-    let mut current_time: Option<OffsetDateTime> = OffsetDateTime::from_unix_timestamp(0).ok();
+    let mut current_time: OffsetDateTime = OffsetDateTime::from_unix_timestamp(0).expect("midnight is valid");
 
     loop {
         // Emit tick event
@@ -187,10 +187,10 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
                 if let (Some(base_unix_seconds), Some(base_instant)) = (base_unix_seconds, base_instant) {
                     let elapsed = (Instant::now() - base_instant).as_secs();
                     let unix_seconds = UnixSeconds(base_unix_seconds.as_i64().saturating_add(elapsed as i64));
-                    current_time = unix_seconds.to_offset_datetime(utc_offset);
-                } else if let Some(dt) = current_time {
+                    current_time = unix_seconds.to_offset_datetime(utc_offset).expect("valid offset datetime");
+                } else {
                     // Fallback for "Time not set" - simple increment
-                    current_time = dt.checked_add(time::Duration::seconds(1));
+                    current_time = current_time.checked_add(time::Duration::seconds(1)).unwrap_or(current_time);
                 }
             }
             Either::Second(cmd) => {
@@ -203,7 +203,7 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
                         clock_state = ClockState::Synced;
                         
                         // Update current time
-                        current_time = unix_seconds.to_offset_datetime(utc_offset);
+                        current_time = unix_seconds.to_offset_datetime(utc_offset).expect("valid offset datetime");
                         
                         info!(
                             "Clock time set: {} (offset={} minutes)",

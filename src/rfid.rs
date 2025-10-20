@@ -20,25 +20,9 @@ use crate::{Error, Result};
 pub enum RfidEvent {
     /// A card was detected
     CardDetected { uid: [u8; 10] },
-    /// A page was read (NTAG213, 4 bytes)
-    PageRead { page: u8, data: [u8; 4] },
-    /// A page was written
-    PageWritten { page: u8 },
-    /// A page was locked (read-only)
-    PageLocked { page: u8 },
-    /// An error occurred during authentication or I/O
-    ErrorEvent,
 }
 
-/// Commands sent to the RFID task
-#[derive(Debug, Clone, Copy)]
-pub enum RfidCommand {
-    ReadPage(u8),
-    WritePage(u8, [u8; 4]),
-    LockPage(u8),
-}
-
-/// Concrete type for the MFRC522 device - needed because Embassy tasks can't be generic
+/// Notifier type for RFID reader events
 pub type Mfrc522Device = MFRC522<SpiDriver<ExclusiveDevice<
     Spi<'static, SPI0, embassy_rp::spi::Async>,
     Output<'static>,
@@ -47,15 +31,10 @@ pub type Mfrc522Device = MFRC522<SpiDriver<ExclusiveDevice<
 
 /// Notifier type for RFID reader events (uses Channel to ensure all cards are processed)
 pub type RfidNotifier = EmbassyChannel<CriticalSectionRawMutex, RfidEvent, 4>;
-/// Command channel type for RFID commands
-pub type RfidCommandChannel = EmbassyChannel<CriticalSectionRawMutex, RfidCommand, 4>;
-/// Combined channels for notifier and commands
-pub type RfidChannels = (RfidNotifier, RfidCommandChannel);
 
 /// RFID reader device abstraction
 pub struct Rfid<'a> {
     notifier: &'a RfidNotifier,
-    commands: &'a RfidCommandChannel,
 }
 
 impl Rfid<'_> {
@@ -63,16 +42,6 @@ impl Rfid<'_> {
     #[must_use]
     pub const fn notifier() -> RfidNotifier {
         EmbassyChannel::new()
-    }
-    /// Create a new command channel for the RFID reader
-    #[must_use]
-    pub const fn command_channel() -> RfidCommandChannel {
-        EmbassyChannel::new()
-    }
-    /// Create paired notifier+command channels
-    #[must_use]
-    pub const fn channels() -> RfidChannels {
-        (Self::notifier(), Self::command_channel())
     }
 
     /// Create a new RFID reader device abstraction
@@ -87,7 +56,7 @@ impl Rfid<'_> {
         dma_ch1: Peri<'static, Dma1>,
         cs: Peri<'static, Cs>,
         rst: Peri<'static, Rst>,
-        channels: &'static RfidChannels,
+        notifier: &'static RfidNotifier,
         spawner: Spawner,
     ) -> Result<Self>
     where
@@ -102,55 +71,16 @@ impl Rfid<'_> {
         // Initialize the hardware
         let mfrc522 = init_mfrc522_hardware(spi, sck, mosi, miso, dma_ch0, dma_ch1, cs, rst).await?;
         
-    // Spawn the polling task with both channels
-    let notifier = &channels.0;
-    let commands = &channels.1;
-    spawner.spawn(rfid_polling_task(mfrc522, notifier, commands))
-            .map_err(Error::TaskSpawn)?;
+        // Spawn the polling task
+        spawner.spawn(rfid_polling_task(mfrc522, notifier))
+                .map_err(Error::TaskSpawn)?;
         
-        Ok(Self { notifier, commands })
+        Ok(Self { notifier })
     }
 
-    /// Wait for the next RFID event
+    /// Wait for the next RFID event (card detection)
     pub async fn wait(&self) -> RfidEvent {
         self.notifier.receive().await
-    }
-
-    /// Read a 4-byte page from an NTAG213 tag
-    pub async fn read_page(&self, page: u8) -> Result<[u8; 4]> {
-        // send read command and await response event
-        self.commands.send(RfidCommand::ReadPage(page)).await;
-        loop {
-            match self.wait().await {
-                RfidEvent::PageRead { page: p, data } if p == page => return Ok(data),
-                RfidEvent::ErrorEvent => return Err(Error::IndexOutOfBounds),
-                _ => continue,
-            }
-        }
-    }
-
-    /// Write a 4-byte page to an NTAG213 tag
-    pub async fn write_page(&self, page: u8, data: [u8; 4]) -> Result<()> {
-        self.commands.send(RfidCommand::WritePage(page, data)).await;
-        loop {
-            match self.wait().await {
-                RfidEvent::PageWritten { page: p } if p == page => return Ok(()),
-                RfidEvent::ErrorEvent => return Err(Error::IndexOutOfBounds),
-                _ => continue,
-            }
-        }
-    }
-
-    /// Lock (set read-only) a page on an NTAG213 tag
-    pub async fn lock_page(&self, page: u8) -> Result<()> {
-        self.commands.send(RfidCommand::LockPage(page)).await;
-        loop {
-            match self.wait().await {
-                RfidEvent::PageLocked { page: p } if p == page => return Ok(()),
-                RfidEvent::ErrorEvent => return Err(Error::IndexOutOfBounds),
-                _ => continue,
-            }
-        }
     }
 }
 
@@ -171,41 +101,10 @@ fn uid_to_fixed_array(uid_bytes: &[u8]) -> [u8; 10] {
 async fn rfid_polling_task(
     mut mfrc522: Mfrc522Device,
     notifier: &'static RfidNotifier,
-    commands: &'static RfidCommandChannel,
 ) -> ! {
     info!("RFID polling task started");
     
     loop {
-        // Process any pending commands
-    if let Ok(cmd) = commands.try_receive() {
-            match cmd {
-                RfidCommand::ReadPage(page) => {
-                    // read 4-byte page
-                    let mut buf = [0u8; 4];
-                    let mut size = 4u8;
-                    let res = mfrc522.mifare_read(page, &mut buf, &mut size).await;
-                    if res.is_ok() {
-                        notifier.send(RfidEvent::PageRead { page, data: buf }).await
-                    } else {
-                        notifier.send(RfidEvent::ErrorEvent).await
-                    }
-                }
-                RfidCommand::WritePage(page, data) => {
-                    // write 4-byte page
-                    let mut buf = data;
-                    let res = mfrc522.mifare_ultralight_write(page, &mut buf, 4).await;
-                    if res.is_ok() {
-                        notifier.send(RfidEvent::PageWritten { page }).await
-                    } else {
-                        notifier.send(RfidEvent::ErrorEvent).await
-                    }
-                }
-                RfidCommand::LockPage(_page) => {
-                    // NTAG213 lock bits not implemented yet
-                    notifier.send(RfidEvent::ErrorEvent).await
-                }
-            }
-        }
         // Try to detect a card
         let Ok(()) = mfrc522.picc_is_new_card_present().await else {
             Timer::after_millis(500).await;

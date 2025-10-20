@@ -28,8 +28,6 @@ use static_cell::StaticCell;
 pub enum WifiEvent {
     /// Network stack is initialized and DHCP is configured
     Ready,
-    /// Link went down (future use)
-    Down,
 }
 
 /// Single-threaded once-storage for network stack
@@ -122,7 +120,7 @@ impl Wifi {
     }
     
     /// Wait for the network stack to be ready and return a reference to it
-    pub async fn wait_stack(&self) -> &'static Stack<'static> {
+    pub async fn stack(&self) -> &'static Stack<'static> {
         self.stack.get().await
     }
     

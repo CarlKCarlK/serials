@@ -23,8 +23,9 @@ use crate::Result;
 
 #[derive(Clone)]
 pub enum TimeSyncEvent {
-    SyncSuccess { unix_seconds: UnixSeconds },
-    SyncFailed(&'static str),
+    Success { unix_seconds: UnixSeconds },
+    // cmk consider changing to Error type?
+    Failed(&'static str),
 }
 
 pub type TimeSyncEvents = Signal<CriticalSectionRawMutex, TimeSyncEvent>;
@@ -114,7 +115,7 @@ async fn inner_time_sync_device_loop(
     info!("TimeSync device awaiting network stack...");
     
     // Wait for WiFi to be ready and get the stack
-    let stack = wifi.wait_stack().await;
+    let stack = wifi.stack().await;
     info!("TimeSync received network stack");
     
     info!("TimeSync device started");
@@ -128,12 +129,12 @@ async fn inner_time_sync_device_loop(
             Ok(unix_seconds) => {
                 info!("Initial sync successful: unix_seconds={}", unix_seconds.as_i64());
 
-                sync_events.signal(TimeSyncEvent::SyncSuccess { unix_seconds });
+                sync_events.signal(TimeSyncEvent::Success { unix_seconds });
                 break;
             }
             Err(e) => {
                 info!("Sync failed: {}", e);
-                sync_events.signal(TimeSyncEvent::SyncFailed(e));
+                sync_events.signal(TimeSyncEvent::Failed(e));
                 // Exponential backoff: 10s, 30s, 60s, then 5min intervals
                 let delay_secs = if attempt == 1 {
                     10
@@ -166,12 +167,12 @@ async fn inner_time_sync_device_loop(
             Ok(unix_seconds) => {
                 info!("Periodic sync successful: unix_seconds={}", unix_seconds.as_i64());
 
-                sync_events.signal(TimeSyncEvent::SyncSuccess { unix_seconds });
+                sync_events.signal(TimeSyncEvent::Success { unix_seconds });
                 last_success_elapsed = 0; // reset backoff
             }
             Err(e) => {
                 info!("Periodic sync failed: {}", e);
-                sync_events.signal(TimeSyncEvent::SyncFailed(e));
+                sync_events.signal(TimeSyncEvent::Failed(e));
                 info!("Sync failed, will retry in 5 minutes");
             }
         }

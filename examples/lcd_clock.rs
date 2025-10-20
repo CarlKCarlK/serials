@@ -66,14 +66,14 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
             }
             
             // On time sync events, set clock and display status
-            Either::Second(TimeSyncEvent::SyncSuccess { unix_seconds }) => {
+            Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
                 info!("Sync successful: unix_seconds={}", unix_seconds.as_i64());
                 clock.set_time(unix_seconds).await;
                 char_lcd.display(String::<64>::try_from("Synced!").unwrap(), 800).await;
             }
 
             // On sync failure, display error message for at least 8/10th of a second
-            Either::Second(TimeSyncEvent::SyncFailed(err)) => {
+            Either::Second(TimeSyncEvent::Failed(err)) => {
                 info!("Sync failed: {}", err);
                 char_lcd.display(String::<64>::try_from("Sync failed").unwrap(), 800).await;
             }

@@ -17,7 +17,7 @@ pub use char_lcd::{CharLcd, CharLcdNotifier, CharLcdMessage};
 pub use clock::{Clock, ClockCommand, ClockNotifier, ClockEvent, ClockState};
 pub use error::{Error, Result};
 pub use ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
-pub use rfid::{RfidEvent, RfidNotifier, RfidCommandChannel, RfidChannels, Rfid};
+pub use rfid::{RfidEvent, RfidNotifier, Rfid};
 pub use servo::Servo;
 pub use time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 pub use unix_seconds::UnixSeconds;

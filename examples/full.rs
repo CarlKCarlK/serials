@@ -17,7 +17,7 @@ use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
 use heapless::{String, index_map::FnvIndexMap};
 use lib::{
-    CharLcd, CharLcdNotifier, IrNec, IrNecEvent, IrNecNotifier, Result, Rfid, RfidChannels, RfidEvent, servo_a
+    CharLcd, CharLcdNotifier, IrNec, IrNecEvent, IrNecNotifier, Result, Rfid, RfidEvent, RfidNotifier, servo_a
 };
 use panic_probe as _;
 
@@ -40,7 +40,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     // Initialize LCD (GP4=SDA, GP5=SCL)
     static CHAR_LCD_CHANNEL: CharLcdNotifier = CharLcd::notifier();
     let lcd = CharLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &CHAR_LCD_CHANNEL, spawner)?;
-    lcd.display(String::<64>::try_from("Starting RFID...").unwrap(), 0);
+    lcd.display(String::<64>::try_from("Starting RFID...").unwrap(), 0).await;
 
     info!("LCD initialized");
 
@@ -53,7 +53,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     )?;
 
     // Initialize MFRC522 RFID reader device abstraction
-    static RFID_CHANNELS: RfidChannels = Rfid::channels();
+    static RFID_NOTIFIER: RfidNotifier = Rfid::notifier();
     let rfid_reader = Rfid::new(
         p.SPI0,         // SPI peripheral
         p.PIN_18,       // SCK (serial clock)
@@ -63,12 +63,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         p.DMA_CH1,      // DMA channel 1
         p.PIN_15,       // CS (chip select)
         p.PIN_17,       // RST (reset)
-        &RFID_CHANNELS, // Event channels (notifier + command)
+        &RFID_NOTIFIER, // Event notifier
         spawner,        // Task spawner
     )
     .await?;
 
-    lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0);
+    lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0).await;
 
     // Card tracking - map UID to assigned name (A-D for first 4 cards)
     // heapless requires power-of-2 capacity, so using 4
@@ -97,7 +97,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                 if let Some(name) = card_name {
                     let mut text = String::<64>::new();
                     write!(text, "Card {} Seen", name as char).unwrap();
-                    lcd.display(text, 1000); // 1 second
+                    lcd.display(text, 1000).await; // 1 second
 
                     // Move servo based on card letter
                     match name {
@@ -109,13 +109,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                     }
                 } else {
                     let text = String::<64>::try_from("Unknown Card\nMap Full").unwrap();
-                    lcd.display(text, 1000); // 1 second
+                    lcd.display(text, 1000).await; // 1 second
                     servo.set_degrees(0);
                 }
-            }
-            Either::First(_) => {
-                // ignore other RFID events
-                continue;
             }
             Either::Second(ir_nec_event) => {
                 // IR button pressed - check if it's 0-9 for servo control, otherwise reset map
@@ -148,16 +144,16 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                     
                     let mut text = String::<64>::new();
                     write!(text, "Servo:\n{} degrees", angle).unwrap();
-                    lcd.display(text, 1000); // 1 second
+                    lcd.display(text, 1000).await; // 1 second
                 } else {
                     // Any other button: reset the card map
                     info!("IR button pressed, resetting card map");
                     card_map.clear();
-                    lcd.display(String::<64>::try_from("Map Reset").unwrap(), 500); // 0.5 seconds
+                    lcd.display(String::<64>::try_from("Map Reset").unwrap(), 500).await; // 0.5 seconds
                 }
             }
          }
 
-        lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0); // 0 = until next message
+        lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0).await; // 0 = until next message
     }
 }
