@@ -53,6 +53,7 @@ cyw43-pio = { version = "0.8.0", features = ["defmt"] }
 cyw43-firmware = { version = "0.1", features = ["wifi"] }
 embassy-net = { version = "0.7.1", features = ["defmt", "tcp", "udp", "dhcpv4", "dns", "medium-ethernet"] }
 static_cell = "2.1.0"
+embassy-hal-internal = "0.3.0"
 
 [build-dependencies]
 dotenvy = "0.15"

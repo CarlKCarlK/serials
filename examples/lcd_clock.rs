@@ -52,6 +52,10 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static LCD_CHANNEL: LcdChannel = CharLcd::channel();
     let lcd = CharLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &LCD_CHANNEL, spawner)?;
 
+    // Create Clock device (starts ticking immediately)
+    static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
+    let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
+
     // Initialize WiFi and network stack
     let fw = cyw43_firmware::CYW43_43439A0;
     let clm = cyw43_firmware::CYW43_43439A0_CLM;
@@ -119,10 +123,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     let utc_offset_minutes: i32 = UTC_OFFSET_MINUTES.parse().unwrap_or(0);
 
-    // Create Clock and TimeSync virtual devices
-    static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
-    let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
-
+    // Create TimeSync virtual device (Clock already running)
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
     let time_sync = TimeSync::new(stack, utc_offset_minutes, &TIME_SYNC_NOTIFIER, spawner);
 
