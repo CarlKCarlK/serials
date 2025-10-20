@@ -2,6 +2,7 @@ use defmt::info;
 use embassy_executor::Spawner;
 use embassy_rp::dma::Channel;
 use embassy_rp::gpio::{Level, Output, Pin};
+use embassy_rp::peripherals::SPI0;
 use embassy_rp::spi::{ClkPin, Config as SpiConfig, MisoPin, MosiPin, Phase, Polarity, Spi};
 use embassy_rp::Peri;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -39,7 +40,7 @@ pub enum RfidCommand {
 
 /// Concrete type for the MFRC522 device - needed because Embassy tasks can't be generic
 pub type Mfrc522Device = MFRC522<SpiDriver<ExclusiveDevice<
-    Spi<'static, embassy_rp::peripherals::SPI0, embassy_rp::spi::Async>,
+    Spi<'static, SPI0, embassy_rp::spi::Async>,
     Output<'static>,
     NoDelay
 >>>;
@@ -52,12 +53,12 @@ pub type RfidCommandChannel = EmbassyChannel<CriticalSectionRawMutex, RfidComman
 pub type RfidChannels = (RfidNotifier, RfidCommandChannel);
 
 /// RFID reader device abstraction
-pub struct RfidReader<'a> {
+pub struct Rfid<'a> {
     notifier: &'a RfidNotifier,
     commands: &'a RfidCommandChannel,
 }
 
-impl RfidReader<'_> {
+impl Rfid<'_> {
     /// Create a new notifier for the RFID reader
     #[must_use]
     pub const fn notifier() -> RfidNotifier {
@@ -78,7 +79,7 @@ impl RfidReader<'_> {
     /// 
     /// Note: Currently hardcoded to SPI0. All peripherals must have 'static lifetime.
     pub async fn new<Sck, Mosi, Miso, Dma0, Dma1, Cs, Rst>(
-        spi: Peri<'static, embassy_rp::peripherals::SPI0>,
+        spi: Peri<'static, SPI0>,
         sck: Peri<'static, Sck>,
         mosi: Peri<'static, Mosi>,
         miso: Peri<'static, Miso>,
@@ -90,9 +91,9 @@ impl RfidReader<'_> {
         spawner: Spawner,
     ) -> Result<Self>
     where
-        Sck: Pin + ClkPin<embassy_rp::peripherals::SPI0>,
-        Mosi: Pin + MosiPin<embassy_rp::peripherals::SPI0>,
-        Miso: Pin + MisoPin<embassy_rp::peripherals::SPI0>,
+        Sck: Pin + ClkPin<SPI0>,
+        Mosi: Pin + MosiPin<SPI0>,
+        Miso: Pin + MisoPin<SPI0>,
         Dma0: Channel,
         Dma1: Channel,
         Cs: Pin,
@@ -235,7 +236,7 @@ async fn rfid_polling_task(
 
 /// Initialize MFRC522 hardware (internal helper function)
 async fn init_mfrc522_hardware<Sck, Mosi, Miso, Dma0, Dma1, Cs, Rst>(
-    spi: Peri<'static, embassy_rp::peripherals::SPI0>,
+    spi: Peri<'static, SPI0>,
     sck: Peri<'static, Sck>,
     mosi: Peri<'static, Mosi>,
     miso: Peri<'static, Miso>,
@@ -245,9 +246,9 @@ async fn init_mfrc522_hardware<Sck, Mosi, Miso, Dma0, Dma1, Cs, Rst>(
     rst: Peri<'static, Rst>,
 ) -> Result<Mfrc522Device>
 where
-    Sck: Pin + ClkPin<embassy_rp::peripherals::SPI0>,
-    Mosi: Pin + MosiPin<embassy_rp::peripherals::SPI0>,
-    Miso: Pin + MisoPin<embassy_rp::peripherals::SPI0>,
+    Sck: Pin + ClkPin<SPI0>,
+    Mosi: Pin + MosiPin<SPI0>,
+    Miso: Pin + MisoPin<SPI0>,
     Dma0: Channel,
     Dma1: Channel,
     Cs: Pin,

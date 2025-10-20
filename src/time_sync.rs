@@ -5,6 +5,9 @@
 use core::convert::Infallible;
 use defmt::*;
 use embassy_executor::Spawner;
+use embassy_rp::peripherals::{PIN_23, PIN_24, PIN_25, PIN_29, PIO0, DMA_CH0};
+use embassy_net::{Stack, dns, udp};
+use embassy_rp::Peri;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Timer};
@@ -28,8 +31,8 @@ pub type TimeSyncEvents = Signal<CriticalSectionRawMutex, TimeSyncEvent>;
 
 /// Resources needed by TimeSync device (includes WiFi resources)
 pub struct TimeSyncNotifier {
-    pub events: TimeSyncEvents,
-    pub wifi: WifiNotifier,
+    events: TimeSyncEvents,
+    wifi: WifiNotifier,
     time_sync_cell: StaticCell<TimeSync>,
 }
 
@@ -58,12 +61,12 @@ impl TimeSync {
     /// Create a new TimeSync device (creates WiFi internally) and spawn its task
     pub fn new(
         resources: &'static TimeSyncNotifier,
-        pin_23: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_23>,
-        pin_25: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_25>,
-        pio0: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
-        pin_24: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_24>,
-        pin_29: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_29>,
-        dma_ch0: embassy_rp::Peri<'static, embassy_rp::peripherals::DMA_CH0>,
+        pin_23: Peri<'static, PIN_23>,
+        pin_25: Peri<'static, PIN_25>,
+        pio0: Peri<'static, PIO0>,
+        pin_24: Peri<'static, PIN_24>,
+        pin_29: Peri<'static, PIN_29>,
+        dma_ch0: Peri<'static, DMA_CH0>,
         spawner: Spawner,
     ) -> &'static Self {
         // Create WiFi device
@@ -179,9 +182,9 @@ async fn inner_time_sync_device_loop(
 // Network - NTP Fetch
 // ============================================================================
 
-async fn fetch_ntp_time(stack: &embassy_net::Stack<'static>) -> Result<UnixSeconds, &'static str> {
-    use embassy_net::dns::DnsQueryType;
-    use embassy_net::udp::UdpSocket;
+async fn fetch_ntp_time(stack: &Stack<'static>) -> Result<UnixSeconds, &'static str> {
+    use dns::DnsQueryType;
+    use udp::UdpSocket;
 
     // NTP server
     const NTP_SERVER: &str = "pool.ntp.org";
@@ -201,9 +204,9 @@ async fn fetch_ntp_time(stack: &embassy_net::Stack<'static>) -> Result<UnixSecon
     info!("NTP Server IP: {}", server_addr);
 
     // Create UDP socket
-    let mut rx_meta = [embassy_net::udp::PacketMetadata::EMPTY; 1];
+    let mut rx_meta = [udp::PacketMetadata::EMPTY; 1];
     let mut rx_buffer = [0; 128];
-    let mut tx_meta = [embassy_net::udp::PacketMetadata::EMPTY; 1];
+    let mut tx_meta = [udp::PacketMetadata::EMPTY; 1];
     let mut tx_buffer = [0; 128];
     let mut socket = UdpSocket::new(
         *stack,

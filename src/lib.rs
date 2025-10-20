@@ -13,11 +13,11 @@ pub mod unix_seconds;
 pub mod wifi;
 
 // Re-export commonly used items
-pub use char_lcd::{CharLcd, CharLcdNotifier, LcdCommands, LcdMessage};
+pub use char_lcd::{CharLcd, CharLcdNotifier, LcdMessage};
 pub use clock::{Clock, ClockCommand, ClockNotifier, TimeInfo, TimeState};
 pub use error::{Error, Result};
 pub use ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
-pub use rfid::{RfidEvent, RfidNotifier, RfidCommandChannel, RfidChannels, RfidReader};
+pub use rfid::{RfidEvent, RfidNotifier, RfidCommandChannel, RfidChannels, Rfid};
 pub use servo::Servo;
 pub use time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 pub use unix_seconds::UnixSeconds;

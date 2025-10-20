@@ -8,9 +8,9 @@ use cyw43_pio::{DEFAULT_CLOCK_DIVIDER, PioSpi};
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_net::{Config, Stack, StackResources};
-use embassy_rp::{Peri, bind_interrupts, peripherals};
+use embassy_rp::{Peri, bind_interrupts};
 use embassy_rp::gpio::{Level, Output};
-use embassy_rp::peripherals::{DMA_CH0, PIO0};
+use embassy_rp::peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0};
 use embassy_rp::pio::{InterruptHandler, Pio};
 use core::cell::UnsafeCell;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -99,8 +99,8 @@ pub type WifiEvents = Signal<CriticalSectionRawMutex, WifiEvent>;
 
 /// Resources needed by the WiFi device (single static)
 pub struct WifiNotifier {
-    pub events: WifiEvents,
-    pub stack: StackStorage,
+    events: WifiEvents,
+    stack: StackStorage,
     wifi_cell: StaticCell<Wifi>,
 }
 
@@ -135,11 +135,11 @@ impl Wifi {
     /// Returns a static reference to the Wifi handle
     pub fn new(
         resources: &'static WifiNotifier,
-        pin_23: Peri<'static, peripherals::PIN_23>,
-        pin_25: Peri<'static, peripherals::PIN_25>,
+        pin_23: Peri<'static, PIN_23>,
+        pin_25: Peri<'static, PIN_25>,
         pio0: Peri<'static, PIO0>,
-        pin_24: Peri<'static, peripherals::PIN_24>,
-        pin_29: Peri<'static, peripherals::PIN_29>,
+        pin_24: Peri<'static, PIN_24>,
+        pin_29: Peri<'static, PIN_29>,
         dma_ch0: Peri<'static, DMA_CH0>,
         spawner: Spawner,
     ) -> &'static Self {
@@ -159,11 +159,11 @@ bind_interrupts!(struct Irqs {
 
 #[embassy_executor::task]
 async fn wifi_device_loop(
-    pin_23: Peri<'static, peripherals::PIN_23>,
-    pin_25: Peri<'static, peripherals::PIN_25>,
+    pin_23: Peri<'static, PIN_23>,
+    pin_25: Peri<'static, PIN_25>,
     pio0: Peri<'static, PIO0>,
-    pin_24: Peri<'static, peripherals::PIN_24>,
-    pin_29: Peri<'static, peripherals::PIN_29>,
+    pin_24: Peri<'static, PIN_24>,
+    pin_29: Peri<'static, PIN_29>,
     dma_ch0: Peri<'static, DMA_CH0>,
     wifi_events: &'static WifiEvents,
     stack_storage: &'static StackStorage,

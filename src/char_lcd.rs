@@ -3,6 +3,7 @@
 use embassy_executor::Spawner;
 use embassy_rp::i2c::{self, Config as I2cConfig, SclPin, SdaPin};
 use embassy_rp::Peri;
+use embassy_rp::peripherals::I2C0;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_time::Timer;
@@ -20,54 +21,54 @@ pub enum LcdMessage {
     },
 }
 
-pub type LcdCommands = Channel<CriticalSectionRawMutex, LcdMessage, 8>;
-
-/// Resources needed by CharLcd device
-pub struct CharLcdNotifier {
-    pub cmds: LcdCommands,
-}
+pub type CharLcdNotifier = Channel<CriticalSectionRawMutex, LcdMessage, 8>;
 
 /// Character LCD with async message-based interface
 pub struct CharLcd {
-    cmds: &'static LcdCommands,
+    notifier: &'static CharLcdNotifier,
 }
 
 impl CharLcd {
     /// Create CharLcd resources
     #[must_use]
     pub const fn notifier() -> CharLcdNotifier {
-        CharLcdNotifier {
-            cmds: Channel::new(),
-        }
+        Channel::new()
     }
 
-    // Hardcode to I2C0 to avoid generics in the task
-    pub fn new(
-        i2c_peripheral: Peri<'static, embassy_rp::peripherals::I2C0>,
-        scl: Peri<'static, impl SclPin<embassy_rp::peripherals::I2C0> + 'static>,
-        sda: Peri<'static, impl SdaPin<embassy_rp::peripherals::I2C0> + 'static>,
-        resources: &'static CharLcdNotifier,
+    /// Create a new CharLcd device
+    /// 
+    /// Note: Hardcoded to I2C0 peripheral (like WiFi's internal pins).
+    /// However, SCL and SDA can be any pins compatible with I2C0.
+    pub fn new<SCL, SDA>(
+        i2c_peripheral: Peri<'static, I2C0>,
+        scl: Peri<'static, SCL>,
+        sda: Peri<'static, SDA>,
+        char_lcd_notifier: &'static CharLcdNotifier,
         spawner: Spawner,
-    ) -> Result<Self> {
+    ) -> Result<Self>
+    where
+        SCL: SclPin<I2C0>,
+        SDA: SdaPin<I2C0>,
+    {
         // Create the I2C instance and pass it to the task
         let i2c = i2c::I2c::new_blocking(i2c_peripheral, scl, sda, I2cConfig::default());
         spawner
-            .spawn(lcd_task(i2c, &resources.cmds))
+            .spawn(lcd_task(i2c, char_lcd_notifier))
             .map_err(Error::TaskSpawn)?;
-        Ok(Self { cmds: &resources.cmds })
+        Ok(Self { notifier: char_lcd_notifier })
     }
 
     /// Send a message to the LCD (non-blocking, returns immediately)
     pub fn send(&self, msg: LcdMessage) {
         use defmt::info;
-        if self.cmds.try_send(msg).is_err() {
+        if self.notifier.try_send(msg).is_err() {
             info!("LCD channel full, message dropped");
         }
     }
 
     /// Send a message and wait for it to be queued
     pub async fn send_await(&self, msg: LcdMessage) {
-        self.cmds.send(msg).await;
+        self.notifier.send(msg).await;
     }
 
     /// Display text for a specified duration (0 = until next message)
@@ -78,7 +79,7 @@ impl CharLcd {
 
 // Internal LCD driver implementation (used by the background task)
 struct LcdDriver {
-    i2c: i2c::I2c<'static, embassy_rp::peripherals::I2C0, i2c::Blocking>,
+    i2c: i2c::I2c<'static, I2C0, i2c::Blocking>,
     address: u8,
 }
 
@@ -88,7 +89,7 @@ const LCD_ENABLE: u8 = 0x04;
 const LCD_RS: u8 = 0x01;
 
 impl LcdDriver {
-    fn new(i2c: i2c::I2c<'static, embassy_rp::peripherals::I2C0, i2c::Blocking>) -> Self {
+    fn new(i2c: i2c::I2c<'static, I2C0, i2c::Blocking>) -> Self {
         Self { i2c, address: 0x27 }
     }
 
@@ -159,14 +160,14 @@ impl LcdDriver {
 
 #[embassy_executor::task]
 async fn lcd_task(
-    i2c: i2c::I2c<'static, embassy_rp::peripherals::I2C0, i2c::Blocking>,
-    cmds: &'static LcdCommands,
+    i2c: i2c::I2c<'static, I2C0, i2c::Blocking>,
+    commands: &'static CharLcdNotifier,
 ) -> ! {
     let mut lcd = LcdDriver::new(i2c);
     lcd.init().await;
 
     loop {
-        let msg = cmds.receive().await;
+        let msg = commands.receive().await;
         match msg {
             LcdMessage::Display { text, duration_ms } => {
                 // Clear and display the text

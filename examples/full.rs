@@ -17,8 +17,7 @@ use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
 use heapless::{String, index_map::FnvIndexMap};
 use lib::{
-    servo_a, CharLcd, IrNec, IrNecEvent, IrNecNotifier, LcdChannel, Result, RfidEvent,
-    RfidChannels, RfidReader,
+    CharLcd, CharLcdNotifier, IrNec, IrNecEvent, IrNecNotifier, Result, Rfid, RfidChannels, RfidEvent, servo_a
 };
 use panic_probe as _;
 
@@ -39,8 +38,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     servo.set_degrees(90);
 
     // Initialize LCD (GP4=SDA, GP5=SCL)
-    static LCD_CHANNEL: LcdChannel = CharLcd::channel();
-    let lcd = CharLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &LCD_CHANNEL, spawner)?;
+    static CHAR_LCD_CHANNEL: CharLcdNotifier = CharLcd::notifier();
+    let lcd = CharLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &CHAR_LCD_CHANNEL, spawner)?;
     lcd.display(String::<64>::try_from("Starting RFID...").unwrap(), 0);
 
     info!("LCD initialized");
@@ -54,8 +53,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     )?;
 
     // Initialize MFRC522 RFID reader device abstraction
-    static RFID_CHANNELS: RfidChannels = RfidReader::channels();
-    let rfid_reader = RfidReader::new(
+    static RFID_CHANNELS: RfidChannels = Rfid::channels();
+    let rfid_reader = Rfid::new(
         p.SPI0,         // SPI peripheral
         p.PIN_18,       // SCK (serial clock)
         p.PIN_19,       // MOSI

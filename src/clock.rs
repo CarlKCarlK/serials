@@ -46,13 +46,13 @@ pub type ClockEvents = Signal<CriticalSectionRawMutex, TimeInfo>;
 
 /// Resources needed by Clock device
 pub struct ClockNotifier {
-    pub cmds: ClockCommands,
-    pub events: ClockEvents,
+    commands: ClockCommands,
+    events: ClockEvents,
 }
 
 /// Clock virtual device - manages time keeping and emits time tick events
 pub struct Clock {
-    cmds: &'static ClockCommands,
+    commands: &'static ClockCommands,
     events: &'static ClockEvents,
 }
 
@@ -61,7 +61,7 @@ impl Clock {
     #[must_use]
     pub const fn notifier() -> ClockNotifier {
         ClockNotifier {
-            cmds: Channel::new(),
+            commands: Channel::new(),
             events: Signal::new(),
         }
     }
@@ -70,7 +70,7 @@ impl Clock {
     pub fn new(resources: &'static ClockNotifier, spawner: Spawner) -> Self {
         unwrap!(spawner.spawn(clock_device_loop(resources)));
         Self {
-            cmds: &resources.cmds,
+            commands: &resources.commands,
             events: &resources.events,
         }
     }
@@ -82,7 +82,7 @@ impl Clock {
 
     /// Send a command to set the time
     pub async fn set_time(&self, unix_seconds: UnixSeconds) {
-        self.cmds.send(ClockCommand::SetTime { unix_seconds }).await;
+        self.commands.send(ClockCommand::SetTime { unix_seconds }).await;
     }
 
     /// Format 24-hour time as 12-hour with AM/PM
@@ -181,7 +181,7 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
         resources.events.signal(time_info);
 
         // Wait for either 1 second or a command
-        match select(Timer::after_secs(1), resources.cmds.receive()).await {
+        match select(Timer::after_secs(1), resources.commands.receive()).await {
             Either::First(_) => {
                 // Timer elapsed - compute time from monotonic anchor
                 if let (Some(base_unix), Some(base_instant)) = (base_unix_seconds, base_instant) {
