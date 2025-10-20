@@ -18,7 +18,7 @@ use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
-use embassy_sync::pubsub::PubSubChannel;
+use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Timer};
 use heapless::String;
 use lib::{CharLcd, LcdChannel, Result};
@@ -48,11 +48,11 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     // Initialize RP2040 peripherals
     let p = embassy_rp::init(Default::default());
 
-    // Initialize LCD (GP4=SDA, GP5=SCL) - Main owns the LCD
+    // Initialize LCD (GP4=SDA, GP5=SCL)
     static LCD_CHANNEL: LcdChannel = CharLcd::channel();
     let lcd = CharLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &LCD_CHANNEL, spawner)?;
 
-    // Initialize PIO for WiFi communication
+    // Initialize WiFi and network stack
     let fw = cyw43_firmware::CYW43_43439A0;
     let clm = cyw43_firmware::CYW43_43439A0_CLM;
 
@@ -80,13 +80,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         .set_power_management(cyw43::PowerManagementMode::PowerSave)
         .await;
 
-    // Configure DHCP
     let config = Config::dhcpv4(Default::default());
-
-    // Network stack seed (fixed value is fine for this application)
     let seed = 0x7c8f_3a2e_9d14_6b5a;
 
-    // Init network stack
     static RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
     static STACK: StaticCell<embassy_net::Stack<'static>> = StaticCell::new();
     let (stack, runner) = embassy_net::new(
@@ -121,72 +117,74 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         info!("IP Address: {}", config.address);
     }
 
-    // Parse offset parameters
     let utc_offset_minutes: i32 = UTC_OFFSET_MINUTES.parse().unwrap_or(0);
 
-    // Spawn clock and time syncer tasks
-    unwrap!(spawner.spawn(clock_task()));
-    unwrap!(spawner.spawn(time_syncer_task(stack, utc_offset_minutes)));
+    // Create Clock and TimeSync virtual devices
+    static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
+    let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
 
-    // Subscribe to events
-    let mut clock_sub = CLOCK_EVENT_BUS.subscriber().unwrap();
-    let mut sync_sub = SYNC_EVENT_BUS.subscriber().unwrap();
+    static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
+    let time_sync = TimeSync::new(stack, utc_offset_minutes, &TIME_SYNC_NOTIFIER, spawner);
+
+    // Subscribe to Clock and TimeSync events
+    let clock_signal = clock.subscriber();
+    let sync_signal = time_sync.subscriber();
 
     info!("Entering main event loop");
 
-    // Main orchestrator loop - owns LCD and paints on events
+    // Main orchestrator loop - owns LCD and displays clock/sync events
     loop {
-        match select(clock_sub.next_message_pure(), sync_sub.next_message_pure()).await {
-            Either::First(ClockEvent::TimeTick(time_info)) => {
-                // Format time as 12-hour with AM/PM
-                let (hour12, am_pm) = if time_info.hours == 0 {
-                    (12, "AM")
-                } else if time_info.hours < 12 {
-                    (time_info.hours, "AM")
-                } else if time_info.hours == 12 {
-                    (12, "PM")
-                } else {
-                    #[expect(clippy::arithmetic_side_effects, reason = "hour guaranteed 13-23")]
-                    (time_info.hours - 12, "PM")
-                };
+        match select(clock_signal.wait(), sync_signal.wait()).await {
+            Either::First(time_info) => {
+                // Clock tick - display current time
+        
+        // Format time as 12-hour with AM/PM
+        let (hour12, am_pm) = if time_info.hours == 0 {
+            (12, "AM")
+        } else if time_info.hours < 12 {
+            (time_info.hours, "AM")
+        } else if time_info.hours == 12 {
+            (12, "PM")
+        } else {
+            #[expect(clippy::arithmetic_side_effects, reason = "hour guaranteed 13-23")]
+            (time_info.hours - 12, "PM")
+        };
 
-                let mut text = String::<64>::new();
-                match time_info.state {
-                    TimeState::NotSet => {
-                        core::fmt::Write::write_fmt(
-                            &mut text,
-                            format_args!(
-                                "{:2}:{:02}:{:02} {}\nTime not set",
-                                hour12,
-                                time_info.minutes,
-                                time_info.seconds,
-                                am_pm
-                            ),
-                        )
-                        .unwrap();
-                    }
-                    TimeState::Synced => {
-                        core::fmt::Write::write_fmt(
-                            &mut text,
-                            format_args!(
-                                "{:2}:{:02}:{:02} {}\n{}",
-                                hour12,
-                                time_info.minutes,
-                                time_info.seconds,
-                                am_pm,
-                                time_info.date_iso.as_str()
-                            ),
-                        )
-                        .unwrap();
-                    }
-                }
-                lcd.display(text, 0);
+        let mut text = String::<64>::new();
+        match time_info.state {
+            TimeState::NotSet => {
+                core::fmt::Write::write_fmt(
+                    &mut text,
+                    format_args!(
+                        "{:2}:{:02}:{:02} {}\nTime not set",
+                        hour12,
+                        time_info.minutes,
+                        time_info.seconds,
+                        am_pm
+                    ),
+                )
+                .unwrap();
             }
-            Either::Second(TimeSyncEvent::SyncSuccess(time_info)) => {
-                info!(
-                    "Sync successful: {:02}:{:02}:{:02}",
-                    time_info.hours, time_info.minutes, time_info.seconds
-                );
+            TimeState::Synced => {
+                core::fmt::Write::write_fmt(
+                    &mut text,
+                    format_args!(
+                        "{:2}:{:02}:{:02} {}\n{}",
+                        hour12,
+                        time_info.minutes,
+                        time_info.seconds,
+                        am_pm,
+                        time_info.date_iso.as_str()
+                    ),
+                )
+                .unwrap();
+            }
+        }
+        lcd.display(text, 0);
+            }
+            Either::Second(TimeSyncEvent::SyncSuccess { unix, date_iso }) => {
+                info!("Sync successful: unix={}", unix);
+                clock.set_time(unix, utc_offset_minutes, date_iso).await;
                 lcd.display(String::<64>::try_from("Synced!").unwrap(), 800);
             }
             Either::Second(TimeSyncEvent::SyncFailed(err)) => {
@@ -232,40 +230,68 @@ pub enum ClockCommand {
 }
 
 #[derive(Clone)]
-pub enum ClockEvent {
-    TimeTick(TimeInfo),
-}
-
-#[derive(Clone)]
 pub enum TimeSyncEvent {
-    SyncSuccess(TimeInfo),
+    SyncSuccess { unix: u64, date_iso: String<16> },
     SyncFailed(&'static str),
 }
 
 // ============================================================================
-// Channels & Notifiers
+// Clock Virtual Device
 // ============================================================================
 
-static CLOCK_CMD_CHANNEL: Channel<CriticalSectionRawMutex, ClockCommand, 4> = Channel::new();
-static CLOCK_EVENT_BUS: PubSubChannel<CriticalSectionRawMutex, ClockEvent, 2, 2, 1> =
-    PubSubChannel::new();
-static SYNC_EVENT_BUS: PubSubChannel<CriticalSectionRawMutex, TimeSyncEvent, 2, 2, 1> =
-    PubSubChannel::new();
+pub type ClockNotifier = (ClockCommandChannel, ClockEventBus);
+pub type ClockCommandChannel = Channel<CriticalSectionRawMutex, ClockCommand, 4>;
+pub type ClockEventBus = Signal<CriticalSectionRawMutex, TimeInfo>;
 
-// ============================================================================
-// Clock Task
-// ============================================================================
+/// Clock virtual device - manages time keeping and emits time tick events
+pub struct Clock(&'static ClockNotifier);
+
+impl Clock {
+    /// Create the notifier for Clock
+    #[must_use]
+    pub const fn notifier() -> ClockNotifier {
+        (Channel::new(), Signal::new())
+    }
+
+    /// Create a new Clock device and spawn its task
+    pub fn new(
+        notifier: &'static ClockNotifier,
+        spawner: Spawner,
+    ) -> Self {
+        unwrap!(spawner.spawn(clock_device_loop(notifier)));
+        Self(notifier)
+    }
+
+    /// Subscribe to clock events
+    pub fn subscriber(&self) -> &'static ClockEventBus {
+        &self.0.1
+    }
+
+    /// Send a command to set the time
+    pub async fn set_time(&self, unix: u64, offset_minutes: i32, date_iso: String<16>) {
+        self.0.0.send(ClockCommand::SetTime {
+            unix,
+            offset_minutes,
+            date_iso,
+        }).await;
+    }
+}
 
 #[embassy_executor::task]
-async fn clock_task() -> ! {
+async fn clock_device_loop(notifier: &'static ClockNotifier) -> ! {
+    let err = inner_clock_device_loop(notifier).await.unwrap_err();
+    core::panic!("{err}");
+}
+
+async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Infallible> {
+    let (cmd_channel, event_signal) = notifier;
+    
     let mut unix_utc: u64 = 0;
     let mut offset_minutes: i32 = 0;
     let mut date_iso: String<16> = String::new();
     let mut time_state = TimeState::NotSet;
 
-    let clock_pub = CLOCK_EVENT_BUS.publisher().unwrap();
-
-    info!("Clock task started");
+    info!("Clock device started");
 
     loop {
         // Compute current local time
@@ -292,11 +318,11 @@ async fn clock_task() -> ! {
             };
 
             // Emit tick event
-            clock_pub.publish_immediate(ClockEvent::TimeTick(time_info));
+            event_signal.signal(time_info);
         }
 
         // Wait for either 1 second or a command
-        match select(Timer::after_secs(1), CLOCK_CMD_CHANNEL.receive()).await {
+        match select(Timer::after_secs(1), cmd_channel.receive()).await {
             Either::First(_) => {
                 // Timer elapsed - increment time
                 unix_utc = unix_utc.wrapping_add(1);
@@ -341,7 +367,7 @@ async fn clock_task() -> ! {
                                 state: time_state,
                             };
 
-                            clock_pub.publish_immediate(ClockEvent::TimeTick(time_info));
+                            event_signal.signal(time_info);
                         }
                     }
                 }
@@ -351,17 +377,54 @@ async fn clock_task() -> ! {
 }
 
 // ============================================================================
-// Time Syncer Task
+// TimeSync Virtual Device
 // ============================================================================
 
+pub type TimeSyncNotifier = Signal<CriticalSectionRawMutex, TimeSyncEvent>;
+
+/// TimeSync virtual device - manages NTP synchronization
+pub struct TimeSync(&'static TimeSyncNotifier);
+
+impl TimeSync {
+    /// Create the notifier for TimeSync
+    #[must_use]
+    pub const fn notifier() -> TimeSyncNotifier {
+        Signal::new()
+    }
+
+    /// Create a new TimeSync device and spawn its task
+    pub fn new(
+        stack: &'static embassy_net::Stack<'static>,
+        utc_offset_minutes: i32,
+        notifier: &'static TimeSyncNotifier,
+        spawner: Spawner,
+    ) -> Self {
+        unwrap!(spawner.spawn(time_sync_device_loop(stack, utc_offset_minutes, notifier)));
+        Self(notifier)
+    }
+
+    /// Subscribe to time sync events
+    pub fn subscriber(&self) -> &'static TimeSyncNotifier {
+        self.0
+    }
+}
+
 #[embassy_executor::task]
-async fn time_syncer_task(
+async fn time_sync_device_loop(
     stack: &'static embassy_net::Stack<'static>,
     utc_offset_minutes: i32,
+    sync_notifier: &'static TimeSyncNotifier,
 ) -> ! {
-    let sync_pub = SYNC_EVENT_BUS.publisher().unwrap();
+    let err = inner_time_sync_device_loop(stack, utc_offset_minutes, sync_notifier).await.unwrap_err();
+    core::panic!("{err}");
+}
 
-    info!("TimeSyncer task started (UTC offset: {} minutes)", utc_offset_minutes);
+async fn inner_time_sync_device_loop(
+    stack: &'static embassy_net::Stack<'static>,
+    utc_offset_minutes: i32,
+    sync_notifier: &'static TimeSyncNotifier,
+) -> Result<Infallible> {
+    info!("TimeSync device started (UTC offset: {} minutes)", utc_offset_minutes);
 
     // Initial sync with retry (exponential backoff: 10s, 30s, 60s, then 5min intervals)
     let mut attempt = 0;
@@ -371,38 +434,14 @@ async fn time_syncer_task(
         match fetch_ntp_time(stack).await {
             Ok(unix) => {
                 let date_iso = compute_date_string(unix, utc_offset_minutes);
-
-                CLOCK_CMD_CHANNEL
-                    .send(ClockCommand::SetTime {
-                        unix,
-                        offset_minutes: utc_offset_minutes,
-                        date_iso: date_iso.clone(),
-                    })
-                    .await;
-
-                // Compute TimeInfo for the event
-                #[expect(clippy::cast_possible_wrap, reason = "offset is always small")]
-                let local_seconds = unix.wrapping_add((utc_offset_minutes * 60) as u64);
-
-                #[expect(clippy::cast_possible_truncation, reason = "seconds in day < u32::MAX")]
-                let seconds_in_day = (local_seconds % 86400) as u32;
-
-                #[expect(clippy::arithmetic_side_effects, reason = "bounded time arithmetic")]
-                let time_info = TimeInfo {
-                    unix,
-                    hours: (seconds_in_day / 3600) as u8,
-                    minutes: ((seconds_in_day % 3600) / 60) as u8,
-                    seconds: (seconds_in_day % 60) as u8,
-                    offset_minutes: utc_offset_minutes,
-                    date_iso,
-                    state: TimeState::Synced,
-                };
-
-                sync_pub.publish_immediate(TimeSyncEvent::SyncSuccess(time_info));
+                info!("Initial sync successful: unix={}", unix);
+                
+                sync_notifier.signal(TimeSyncEvent::SyncSuccess { unix, date_iso });
                 break;
             }
             Err(e) => {
-                sync_pub.publish_immediate(TimeSyncEvent::SyncFailed(e));
+                info!("Sync failed: {}", e);
+                sync_notifier.signal(TimeSyncEvent::SyncFailed(e));
                 // Exponential backoff: 10s, 30s, 60s, then 5min intervals
                 let delay_secs = if attempt == 1 {
                     10
@@ -431,38 +470,14 @@ async fn time_syncer_task(
         match fetch_ntp_time(stack).await {
             Ok(unix) => {
                 let date_iso = compute_date_string(unix, utc_offset_minutes);
-
-                CLOCK_CMD_CHANNEL
-                    .send(ClockCommand::SetTime {
-                        unix,
-                        offset_minutes: utc_offset_minutes,
-                        date_iso: date_iso.clone(),
-                    })
-                    .await;
-
-                // Compute TimeInfo for the event
-                #[expect(clippy::cast_possible_wrap, reason = "offset is always small")]
-                let local_seconds = unix.wrapping_add((utc_offset_minutes * 60) as u64);
-
-                #[expect(clippy::cast_possible_truncation, reason = "seconds in day < u32::MAX")]
-                let seconds_in_day = (local_seconds % 86400) as u32;
-
-                #[expect(clippy::arithmetic_side_effects, reason = "bounded time arithmetic")]
-                let time_info = TimeInfo {
-                    unix,
-                    hours: (seconds_in_day / 3600) as u8,
-                    minutes: ((seconds_in_day % 3600) / 60) as u8,
-                    seconds: (seconds_in_day % 60) as u8,
-                    offset_minutes: utc_offset_minutes,
-                    date_iso,
-                    state: TimeState::Synced,
-                };
-
-                sync_pub.publish_immediate(TimeSyncEvent::SyncSuccess(time_info));
+                info!("Periodic sync successful: unix={}", unix);
+                
+                sync_notifier.signal(TimeSyncEvent::SyncSuccess { unix, date_iso });
                 last_success_elapsed = 0; // Reset counter on success
             }
             Err(e) => {
-                sync_pub.publish_immediate(TimeSyncEvent::SyncFailed(e));
+                info!("Sync failed: {}", e);
+                sync_notifier.signal(TimeSyncEvent::SyncFailed(e));
                 info!("Sync failed, will retry in 5 minutes");
             }
         }
