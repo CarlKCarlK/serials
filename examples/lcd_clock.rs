@@ -20,7 +20,7 @@ use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_sync::signal::Signal;
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Instant, Timer};
 use heapless::String;
 use lib::{CharLcd, Error, LcdChannel, Result};
 use panic_probe as _;
@@ -95,6 +95,36 @@ bind_interrupts!(struct Irqs {
 // Types
 // ============================================================================
 
+/// Units-safe wrapper for Unix timestamps (seconds since 1970-01-01 00:00:00 UTC)
+#[repr(transparent)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Format)]
+pub struct UnixSeconds(pub i64);
+
+impl UnixSeconds {
+    /// Convert NTP seconds (since 1900-01-01) to Unix seconds (since 1970-01-01)
+    #[must_use]
+    pub const fn from_ntp_seconds(ntp: u32) -> Option<Self> {
+        // 1900→1970 offset: 70 years * 365.25 days/year * 86400 seconds/day
+        const NTP_TO_UNIX: i64 = 2_208_988_800;
+        // Promote to i64 safely, then subtract
+        let s = (ntp as i64) - NTP_TO_UNIX;
+        // Reject negative (pre-1970)
+        if s >= 0 {
+            Some(Self(s))
+        } else {
+            None
+        }
+    }
+
+    /// Convert to OffsetDateTime with the given timezone offset
+    #[must_use]
+    pub fn to_offset_datetime(self, offset: UtcOffset) -> Option<OffsetDateTime> {
+        OffsetDateTime::from_unix_timestamp(self.0)
+            .ok()
+            .map(|dt| dt.to_offset(offset))
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum TimeState {
     NotSet,
@@ -108,12 +138,12 @@ pub struct TimeInfo {
 }
 
 pub enum ClockCommand {
-    SetTime { unix: u64 },
+    SetTime { unix: UnixSeconds },
 }
 
 #[derive(Clone)]
 pub enum TimeSyncEvent {
-    SyncSuccess { unix: u64 },
+    SyncSuccess { unix: UnixSeconds },
     SyncFailed(&'static str),
 }
 
@@ -147,13 +177,11 @@ impl Clock {
         event_signal.wait().await
         }
 
-        /// Send a command to set the time
-        pub async fn set_time(&self, unix: u64) {
+    /// Send a command to set the time
+    pub async fn set_time(&self, unix: UnixSeconds) {
         let Self((cmd_channel, _)) = self;
         cmd_channel.send(ClockCommand::SetTime { unix }).await;
-    }
-
-    /// Format 24-hour time as 12-hour with AM/PM
+    }    /// Format 24-hour time as 12-hour with AM/PM
     #[must_use]
     pub fn format_12hour(hours: u8) -> (u8, &'static str) {
         if hours == 0 {
@@ -237,9 +265,13 @@ async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Inf
 
     let (cmd_channel, event_signal) = notifier;
 
-    // Start counting from midnight (epoch) when not set - no offset applied yet
-    let mut current_time: Option<OffsetDateTime> = OffsetDateTime::from_unix_timestamp(0).ok();
+    // Monotonic anchor for drift-free timekeeping
+    let mut base_unix: Option<UnixSeconds> = None;
+    let mut base_instant: Option<Instant> = None;
     let mut time_state = TimeState::NotSet;
+
+    // For initial "Time not set" display, start from midnight
+    let mut current_time: Option<OffsetDateTime> = OffsetDateTime::from_unix_timestamp(0).ok();
 
     loop {
         // Emit tick event
@@ -252,8 +284,13 @@ async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Inf
         // Wait for either 1 second or a command
         match select(Timer::after_secs(1), cmd_channel.receive()).await {
             Either::First(_) => {
-                // Timer elapsed - increment time
-                if let Some(dt) = current_time {
+                // Timer elapsed - compute time from monotonic anchor
+                if let (Some(base_unix), Some(base_instant)) = (base_unix, base_instant) {
+                    let elapsed = (Instant::now() - base_instant).as_secs();
+                    let unix_secs = UnixSeconds(base_unix.0.saturating_add(elapsed as i64));
+                    current_time = unix_secs.to_offset_datetime(utc_offset);
+                } else if let Some(dt) = current_time {
+                    // Fallback for "Time not set" - simple increment
                     current_time = dt.checked_add(time::Duration::seconds(1));
                 }
             }
@@ -261,15 +298,17 @@ async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Inf
                 // Command received
                 match cmd {
                     ClockCommand::SetTime { unix } => {
-                        // Convert Unix timestamp to OffsetDateTime
-                        current_time = OffsetDateTime::from_unix_timestamp(unix as i64)
-                            .ok()
-                            .map(|dt| dt.to_offset(utc_offset));
+                        // Set monotonic anchor
+                        base_unix = Some(unix);
+                        base_instant = Some(Instant::now());
                         time_state = TimeState::Synced;
+                        
+                        // Update current time
+                        current_time = unix.to_offset_datetime(utc_offset);
                         
                         info!(
                             "Clock time set: {} (offset={} minutes)",
-                            unix,
+                            unix.0,
                             offset_minutes
                         );
 
@@ -439,7 +478,7 @@ async fn inner_time_sync_device_loop(
         info!("Sync attempt {}", attempt);
         match fetch_ntp_time(stack).await {
             Ok(unix) => {
-                info!("Initial sync successful: unix={}", unix);
+                info!("Initial sync successful: unix={}", unix.0);
 
                 sync_notifier.signal(TimeSyncEvent::SyncSuccess { unix });
                 break;
@@ -477,7 +516,7 @@ async fn inner_time_sync_device_loop(
         );
         match fetch_ntp_time(stack).await {
             Ok(unix) => {
-                info!("Periodic sync successful: unix={}", unix);
+                info!("Periodic sync successful: unix={}", unix.0);
 
                 sync_notifier.signal(TimeSyncEvent::SyncSuccess { unix });
                 last_success_elapsed = 0; // Reset counter on success
@@ -495,7 +534,7 @@ async fn inner_time_sync_device_loop(
 // Network - NTP Fetch
 // ============================================================================
 
-async fn fetch_ntp_time(stack: &embassy_net::Stack<'static>) -> Result<u64, &'static str> {
+async fn fetch_ntp_time(stack: &embassy_net::Stack<'static>) -> Result<UnixSeconds, &'static str> {
     use embassy_net::dns::DnsQueryType;
     use embassy_net::udp::UdpSocket;
 
@@ -568,20 +607,13 @@ async fn fetch_ntp_time(stack: &embassy_net::Stack<'static>) -> Result<u64, &'st
     }
 
     // Extract transmit timestamp (bytes 40-47, big-endian)
-    let seconds = u32::from_be_bytes([response[40], response[41], response[42], response[43]]);
+    let ntp_seconds = u32::from_be_bytes([response[40], response[41], response[42], response[43]]);
 
-    // NTP epoch is 1900-01-01, Unix epoch is 1970-01-01
-    // Difference: 70 years * 365.25 days/year * 86400 seconds/day = 2208988800
-    const NTP_TO_UNIX_OFFSET: u64 = 2208988800;
+    // Convert NTP timestamp to Unix seconds
+    let unix_time = UnixSeconds::from_ntp_seconds(ntp_seconds)
+        .ok_or("Invalid NTP timestamp")?;
 
-    if (seconds as u64) < NTP_TO_UNIX_OFFSET {
-        warn!("Invalid NTP timestamp: {}", seconds);
-        return Err("Invalid NTP timestamp");
-    }
-
-    let unix_time = (seconds as u64) - NTP_TO_UNIX_OFFSET;
-
-    info!("NTP time: {} (unix timestamp)", unix_time);
+    info!("NTP time: {} (unix timestamp)", unix_time.0);
     Ok(unix_time)
 }
 
