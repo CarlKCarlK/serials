@@ -172,28 +172,43 @@ impl Clock {
     pub fn format_display(time_info: &TimeInfo) -> Result<String<64>> {
         let mut text = String::<64>::new();
         
-        match time_info.datetime {
-            None => {
-                fmt::Write::write_str(&mut text, "--:--:-- --\nTime not set")
+        if let Some(dt) = time_info.datetime {
+            let (hour12, am_pm) = Self::format_12hour(dt.hour());
+            
+            match time_info.state {
+                TimeState::NotSet => {
+                    fmt::Write::write_fmt(
+                        &mut text,
+                        format_args!(
+                            "{:2}:{:02}:{:02} {}\nTime not set",
+                            hour12,
+                            dt.minute(),
+                            dt.second(),
+                            am_pm
+                        ),
+                    )
                     .map_err(|_| Error::FormatError)?;
+                }
+                TimeState::Synced => {
+                    fmt::Write::write_fmt(
+                        &mut text,
+                        format_args!(
+                            "{:2}:{:02}:{:02} {}\n{:04}-{:02}-{:02}",
+                            hour12,
+                            dt.minute(),
+                            dt.second(),
+                            am_pm,
+                            dt.year(),
+                            u8::from(dt.month()),
+                            dt.day()
+                        ),
+                    )
+                    .map_err(|_| Error::FormatError)?;
+                }
             }
-            Some(dt) => {
-                let (hour12, am_pm) = Self::format_12hour(dt.hour());
-                fmt::Write::write_fmt(
-                    &mut text,
-                    format_args!(
-                        "{:2}:{:02}:{:02} {}\n{:04}-{:02}-{:02}",
-                        hour12,
-                        dt.minute(),
-                        dt.second(),
-                        am_pm,
-                        dt.year(),
-                        u8::from(dt.month()),
-                        dt.day()
-                    ),
-                )
+        } else {
+            fmt::Write::write_str(&mut text, "--:--:-- --\nTime not set")
                 .map_err(|_| Error::FormatError)?;
-            }
         }
         Ok(text)
     }
@@ -222,7 +237,8 @@ async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Inf
 
     let (cmd_channel, event_signal) = notifier;
 
-    let mut current_time: Option<OffsetDateTime> = None;
+    // Start counting from midnight (epoch) when not set - no offset applied yet
+    let mut current_time: Option<OffsetDateTime> = OffsetDateTime::from_unix_timestamp(0).ok();
     let mut time_state = TimeState::NotSet;
 
     loop {
