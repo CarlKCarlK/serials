@@ -1,0 +1,215 @@
+//! Clock virtual device - manages time keeping and emits time tick events
+
+#![allow(clippy::future_not_send, reason = "single-threaded")]
+
+use core::convert::Infallible;
+use core::fmt;
+use defmt::*;
+use embassy_executor::Spawner;
+use embassy_futures::select::{Either, select};
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::channel::Channel;
+use embassy_sync::signal::Signal;
+use embassy_time::{Instant, Timer};
+use heapless::String;
+use time::{OffsetDateTime, UtcOffset};
+
+use crate::unix_seconds::UnixSeconds;
+use crate::{Error, Result};
+
+// ============================================================================
+// Types
+// ============================================================================
+
+#[derive(Clone, Copy)]
+pub enum TimeState {
+    NotSet,
+    Synced,
+}
+
+#[derive(Clone, Copy)]
+pub struct TimeInfo {
+    pub datetime: Option<OffsetDateTime>,
+    pub state: TimeState,
+}
+
+pub enum ClockCommand {
+    SetTime { unix_seconds: UnixSeconds },
+}
+
+// ============================================================================
+// Clock Virtual Device
+// ============================================================================
+
+pub type ClockNotifier = (ClockCommandChannel, ClockEventBus);
+pub type ClockCommandChannel = Channel<CriticalSectionRawMutex, ClockCommand, 4>;
+pub type ClockEventBus = Signal<CriticalSectionRawMutex, TimeInfo>;
+
+/// Clock virtual device - manages time keeping and emits time tick events
+pub struct Clock(&'static ClockNotifier);
+
+impl Clock {
+    /// Create the notifier for Clock
+    #[must_use]
+    pub const fn notifier() -> ClockNotifier {
+        (Channel::new(), Signal::new())
+    }
+
+    /// Create a new Clock device and spawn its task
+    pub fn new(notifier: &'static ClockNotifier, spawner: Spawner) -> Self {
+        unwrap!(spawner.spawn(clock_device_loop(notifier)));
+        Self(notifier)
+    }
+
+    /// Wait for and return the next clock tick event
+    pub async fn next_event(&self) -> TimeInfo {
+        let Self((_, event_signal)) = self;
+        event_signal.wait().await
+    }
+
+    /// Send a command to set the time
+    pub async fn set_time(&self, unix_seconds: UnixSeconds) {
+        let Self((cmd_channel, _)) = self;
+        cmd_channel.send(ClockCommand::SetTime { unix_seconds }).await;
+    }
+
+    /// Format 24-hour time as 12-hour with AM/PM
+    #[must_use]
+    pub fn format_12hour(hours: u8) -> (u8, &'static str) {
+        if hours == 0 {
+            (12, "AM")
+        } else if hours < 12 {
+            (hours, "AM")
+        } else if hours == 12 {
+            (12, "PM")
+        } else {
+            #[expect(clippy::arithmetic_side_effects, reason = "hour guaranteed 13-23")]
+            (hours - 12, "PM")
+        }
+    }
+
+    /// Format time info as display string
+    pub fn format_display(time_info: &TimeInfo) -> Result<String<64>> {
+        let mut text = String::<64>::new();
+        
+        let dt = time_info.datetime.expect("datetime should always be Some");
+        let (hour12, am_pm) = Self::format_12hour(dt.hour());
+        
+        match time_info.state {
+            TimeState::NotSet => {
+                fmt::Write::write_fmt(
+                    &mut text,
+                    format_args!(
+                        "{:2}:{:02}:{:02} {}\nTime not set",
+                        hour12,
+                        dt.minute(),
+                        dt.second(),
+                        am_pm
+                    ),
+                )
+                .map_err(|_| Error::FormatError)?;
+            }
+            TimeState::Synced => {
+                fmt::Write::write_fmt(
+                    &mut text,
+                    format_args!(
+                        "{:2}:{:02}:{:02} {}\n{:04}-{:02}-{:02}",
+                        hour12,
+                        dt.minute(),
+                        dt.second(),
+                        am_pm,
+                        dt.year(),
+                        u8::from(dt.month()),
+                        dt.day()
+                    ),
+                )
+                .map_err(|_| Error::FormatError)?;
+            }
+        }
+        
+        Ok(text)
+    }
+}
+
+#[embassy_executor::task]
+async fn clock_device_loop(notifier: &'static ClockNotifier) -> ! {
+    let err = inner_clock_device_loop(notifier).await.unwrap_err();
+    core::panic!("{err}");
+}
+
+async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Infallible> {
+    // Read configuration from compile-time environment
+    const UTC_OFFSET_MINUTES: &str = env!("UTC_OFFSET_MINUTES");
+    let offset_minutes: i32 = UTC_OFFSET_MINUTES.parse().unwrap_or(0);
+    
+    // Create UtcOffset from minutes
+    #[expect(clippy::arithmetic_side_effects, reason = "offset bounds checked")]
+    let utc_offset = UtcOffset::from_whole_seconds(offset_minutes * 60)
+        .unwrap_or(UtcOffset::UTC);
+
+    info!(
+        "Clock device started (UTC offset: {} minutes)",
+        offset_minutes
+    );
+
+    let (cmd_channel, event_signal) = notifier;
+
+    // Monotonic anchor for drift-free timekeeping
+    let mut base_unix_seconds: Option<UnixSeconds> = None;
+    let mut base_instant: Option<Instant> = None;
+    let mut time_state = TimeState::NotSet;
+
+    // For initial "Time not set" display, start from midnight
+    let mut current_time: Option<OffsetDateTime> = OffsetDateTime::from_unix_timestamp(0).ok();
+
+    loop {
+        // Emit tick event
+        let time_info = TimeInfo {
+            datetime: current_time,
+            state: time_state,
+        };
+        event_signal.signal(time_info);
+
+        // Wait for either 1 second or a command
+        match select(Timer::after_secs(1), cmd_channel.receive()).await {
+            Either::First(_) => {
+                // Timer elapsed - compute time from monotonic anchor
+                if let (Some(base_unix), Some(base_instant)) = (base_unix_seconds, base_instant) {
+                    let elapsed = (Instant::now() - base_instant).as_secs();
+                    let unix_seconds = UnixSeconds(base_unix.as_i64().saturating_add(elapsed as i64));
+                    current_time = unix_seconds.to_offset_datetime(utc_offset);
+                } else if let Some(dt) = current_time {
+                    // Fallback for "Time not set" - simple increment
+                    current_time = dt.checked_add(time::Duration::seconds(1));
+                }
+            }
+            Either::Second(cmd) => {
+                // Command received
+                match cmd {
+                    ClockCommand::SetTime { unix_seconds } => {
+                        // Set monotonic anchor
+                        base_unix_seconds = Some(unix_seconds);
+                        base_instant = Some(Instant::now());
+                        time_state = TimeState::Synced;
+                        
+                        // Update current time
+                        current_time = unix_seconds.to_offset_datetime(utc_offset);
+                        
+                        info!(
+                            "Clock time set: {} (offset={} minutes)",
+                            unix_seconds.as_i64(),
+                            offset_minutes
+                        );
+
+                        // Emit immediate tick with new time
+                        let time_info = TimeInfo {
+                            datetime: current_time,
+                            state: time_state,
+                        };
+                        event_signal.signal(time_info);
+                    }
+                }
+            }
+        }
+    }
+}
