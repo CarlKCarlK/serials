@@ -32,6 +32,9 @@ pub enum Error {
 
     #[display("MFRC522 version read failed: {_0:?}")]
     Mfrc522Version(#[error(not(source))] PCDErrorCode),
+
+    #[display("Format error")]
+    FormatError,
 }
 
 impl From<Infallible> for Error {

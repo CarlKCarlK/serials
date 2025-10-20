@@ -5,12 +5,13 @@
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
 use core::convert::Infallible;
+use core::fmt;
 use cyw43::JoinOptions;
-use cyw43_pio::{PioSpi, DEFAULT_CLOCK_DIVIDER};
+use cyw43_pio::{DEFAULT_CLOCK_DIVIDER, PioSpi};
 use defmt::*;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{Either, select};
 use embassy_net::{Config, StackResources};
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Level, Output};
@@ -21,7 +22,7 @@ use embassy_sync::channel::Channel;
 use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Timer};
 use heapless::String;
-use lib::{CharLcd, LcdChannel, Result};
+use lib::{CharLcd, Error, LcdChannel, Result};
 use panic_probe as _;
 use static_cell::StaticCell;
 
@@ -69,51 +70,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     loop {
         match select(clock.next_event(), time_sync.next_event()).await {
             Either::First(time_info) => {
-                // Clock tick - display current time
-        
-        // Format time as 12-hour with AM/PM
-        let (hour12, am_pm) = if time_info.hours == 0 {
-            (12, "AM")
-        } else if time_info.hours < 12 {
-            (time_info.hours, "AM")
-        } else if time_info.hours == 12 {
-            (12, "PM")
-        } else {
-            #[expect(clippy::arithmetic_side_effects, reason = "hour guaranteed 13-23")]
-            (time_info.hours - 12, "PM")
-        };
-
-        let mut text = String::<64>::new();
-        match time_info.state {
-            TimeState::NotSet => {
-                core::fmt::Write::write_fmt(
-                    &mut text,
-                    format_args!(
-                        "{:2}:{:02}:{:02} {}\nTime not set",
-                        hour12,
-                        time_info.minutes,
-                        time_info.seconds,
-                        am_pm
-                    ),
-                )
-                .unwrap();
-            }
-            TimeState::Synced => {
-                core::fmt::Write::write_fmt(
-                    &mut text,
-                    format_args!(
-                        "{:2}:{:02}:{:02} {}\n{}",
-                        hour12,
-                        time_info.minutes,
-                        time_info.seconds,
-                        am_pm,
-                        time_info.date_iso.as_str()
-                    ),
-                )
-                .unwrap();
-            }
-        }
-        lcd.display(text, 0);
+                let text = Clock::format_display(&time_info);
+                lcd.display(text, 0);
             }
             Either::Second(TimeSyncEvent::SyncSuccess { unix }) => {
                 info!("Sync successful: unix={}", unix);
@@ -127,7 +85,6 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         }
     }
 }
-
 
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
@@ -183,22 +140,70 @@ impl Clock {
     }
 
     /// Create a new Clock device and spawn its task
-    pub fn new(
-        notifier: &'static ClockNotifier,
-        spawner: Spawner,
-    ) -> Self {
+    pub fn new(notifier: &'static ClockNotifier, spawner: Spawner) -> Self {
         unwrap!(spawner.spawn(clock_device_loop(notifier)));
         Self(notifier)
+        }
+
+        /// Wait for and return the next clock tick event
+        pub async fn next_event(&self) -> TimeInfo {
+        let Self((_, event_signal)) = self;
+        event_signal.wait().await
+        }
+
+        /// Send a command to set the time
+        pub async fn set_time(&self, unix: u64) {
+        let Self((cmd_channel, _)) = self;
+        cmd_channel.send(ClockCommand::SetTime { unix }).await;
     }
 
-    /// Wait for and return the next clock tick event
-    pub async fn next_event(&self) -> TimeInfo {
-        self.0.1.wait().await
+    /// Format 24-hour time as 12-hour with AM/PM
+    #[must_use]
+    pub fn format_12hour(hours: u8) -> (u8, &'static str) {
+        if hours == 0 {
+            (12, "AM")
+        } else if hours < 12 {
+            (hours, "AM")
+        } else if hours == 12 {
+            (12, "PM")
+        } else {
+            #[expect(clippy::arithmetic_side_effects, reason = "hour guaranteed 13-23")]
+            (hours - 12, "PM")
+        }
     }
 
-    /// Send a command to set the time
-    pub async fn set_time(&self, unix: u64) {
-        self.0.0.send(ClockCommand::SetTime { unix }).await;
+    /// Format time info as display string
+    pub fn format_display(time_info: &TimeInfo) -> Result<String<64>> {
+        let (hour12, am_pm) = Self::format_12hour(time_info.hours);
+
+        let mut text = String::<64>::new();
+        match time_info.state {
+            TimeState::NotSet => {
+                fmt::Write::write_fmt(
+                    &mut text,
+                    format_args!(
+                        "{:2}:{:02}:{:02} {}\nTime not set",
+                        hour12, time_info.minutes, time_info.seconds, am_pm
+                    ),
+                )
+                .map_err(|_| Error::FormatError)?;
+            }
+            TimeState::Synced => {
+                fmt::Write::write_fmt(
+                    &mut text,
+                    format_args!(
+                        "{:2}:{:02}:{:02} {}\n{}",
+                        hour12,
+                        time_info.minutes,
+                        time_info.seconds,
+                        am_pm,
+                        time_info.date_iso.as_str()
+                    ),
+                )
+                .map_err(|_| Error::FormatError)?;
+            }
+        }
+        Ok(text)
     }
 }
 
@@ -213,10 +218,13 @@ async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Inf
     const UTC_OFFSET_MINUTES: &str = env!("UTC_OFFSET_MINUTES");
     let offset_minutes: i32 = UTC_OFFSET_MINUTES.parse().unwrap_or(0);
 
-    info!("Clock device started (UTC offset: {} minutes)", offset_minutes);
+    info!(
+        "Clock device started (UTC offset: {} minutes)",
+        offset_minutes
+    );
 
     let (cmd_channel, event_signal) = notifier;
-    
+
     let mut unix_utc: u64 = 0;
     let mut date_iso: String<16> = String::new();
     let mut time_state = TimeState::NotSet;
@@ -264,17 +272,25 @@ async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Inf
                         time_state = TimeState::Synced;
                         info!(
                             "Clock time set: unix={} offset={} date={}",
-                            unix, offset_minutes, date_iso.as_str()
+                            unix,
+                            offset_minutes,
+                            date_iso.as_str()
                         );
 
                         // Emit immediate tick with new time
                         #[expect(clippy::cast_possible_wrap, reason = "offset is always small")]
                         let local_seconds = unix_utc.wrapping_add((offset_minutes * 60) as u64);
 
-                        #[expect(clippy::cast_possible_truncation, reason = "seconds in day < u32::MAX")]
+                        #[expect(
+                            clippy::cast_possible_truncation,
+                            reason = "seconds in day < u32::MAX"
+                        )]
                         let seconds_in_day = (local_seconds % 86400) as u32;
 
-                        #[expect(clippy::arithmetic_side_effects, reason = "bounded time arithmetic")]
+                        #[expect(
+                            clippy::arithmetic_side_effects,
+                            reason = "bounded time arithmetic"
+                        )]
                         {
                             let hours = (seconds_in_day / 3600) as u8;
                             let minutes = ((seconds_in_day % 3600) / 60) as u8;
@@ -327,14 +343,7 @@ impl TimeSync {
         spawner: Spawner,
     ) -> Self {
         unwrap!(spawner.spawn(time_sync_device_loop(
-            pin_23,
-            pin_25,
-            pio0,
-            pin_24,
-            pin_29,
-            dma_ch0,
-            notifier,
-            spawner,
+            pin_23, pin_25, pio0, pin_24, pin_29, dma_ch0, notifier, spawner,
         )));
         Self(notifier)
     }
@@ -460,7 +469,7 @@ async fn inner_time_sync_device_loop(
         match fetch_ntp_time(stack).await {
             Ok(unix) => {
                 info!("Initial sync successful: unix={}", unix);
-                
+
                 sync_notifier.signal(TimeSyncEvent::SyncSuccess { unix });
                 break;
             }
@@ -491,11 +500,14 @@ async fn inner_time_sync_device_loop(
         Timer::after_secs(wait_secs).await;
         last_success_elapsed = last_success_elapsed.saturating_add(wait_secs);
 
-        info!("Periodic sync ({}s since last success)...", last_success_elapsed);
+        info!(
+            "Periodic sync ({}s since last success)...",
+            last_success_elapsed
+        );
         match fetch_ntp_time(stack).await {
             Ok(unix) => {
                 info!("Periodic sync successful: unix={}", unix);
-                
+
                 sync_notifier.signal(TimeSyncEvent::SyncSuccess { unix });
                 last_success_elapsed = 0; // Reset counter on success
             }
@@ -533,7 +545,7 @@ async fn fetch_ntp_time(stack: &embassy_net::Stack<'static>) -> Result<u64, &'st
 
     info!("NTP Server IP: {}", server_addr);
 
-    // Create UDP socket  
+    // Create UDP socket
     let mut rx_meta = [embassy_net::udp::PacketMetadata::EMPTY; 1];
     let mut rx_buffer = [0; 128];
     let mut tx_meta = [embassy_net::udp::PacketMetadata::EMPTY; 1];
@@ -567,19 +579,17 @@ async fn fetch_ntp_time(stack: &embassy_net::Stack<'static>) -> Result<u64, &'st
 
     // Receive response with timeout
     let mut response = [0u8; 48];
-    let (n, _from) = embassy_time::with_timeout(
-        Duration::from_secs(5),
-        socket.recv_from(&mut response),
-    )
-    .await
-    .map_err(|_| {
-        warn!("NTP receive timeout");
-        "NTP receive timeout"
-    })?
-    .map_err(|e| {
-        warn!("NTP receive failed: {:?}", e);
-        "NTP receive failed"
-    })?;
+    let (n, _from) =
+        embassy_time::with_timeout(Duration::from_secs(5), socket.recv_from(&mut response))
+            .await
+            .map_err(|_| {
+                warn!("NTP receive timeout");
+                "NTP receive timeout"
+            })?
+            .map_err(|e| {
+                warn!("NTP receive failed: {:?}", e);
+                "NTP receive failed"
+            })?;
 
     if n < 48 {
         warn!("NTP response too short: {} bytes", n);
@@ -646,7 +656,11 @@ fn compute_date_string(unix: u64, offset_minutes: i32) -> String<16> {
     let (month, day) = compute_month_day(days_in_year);
 
     let mut date = String::<16>::new();
-    core::fmt::write(&mut date, format_args!("{:04}-{:02}-{:02}", year, month, day)).unwrap();
+    core::fmt::write(
+        &mut date,
+        format_args!("{:04}-{:02}-{:02}", year, month, day),
+    )
+    .unwrap();
     date
 }
 
@@ -669,4 +683,3 @@ async fn wifi_task(
 async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'static>>) -> ! {
     runner.run().await
 }
-
