@@ -11,6 +11,7 @@
         "MOSI",
         "picc",
         "refdiv",
-        "reqa"
+        "reqa",
+        "syncer"
     ],
 }
