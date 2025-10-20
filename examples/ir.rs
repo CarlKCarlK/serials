@@ -25,7 +25,7 @@ async fn main(spawner: Spawner) -> ! {
 
     // Main loop: process IR events
     loop {
-        let event = ir.next_event().await;
+        let event = ir.wait().await;
         match event {
             IrNecEvent::Press { addr, cmd } => {
                 info!("IR Button Press - addr=0x{:02X} cmd=0x{:02X}", addr, cmd);

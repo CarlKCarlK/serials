@@ -127,7 +127,7 @@ impl Wifi {
     }
     
     /// Wait for and return the next WiFi event
-    pub async fn next_event(&self) -> WifiEvent {
+    pub async fn wait(&self) -> WifiEvent {
         self.events.wait().await
     }
 

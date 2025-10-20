@@ -112,7 +112,7 @@ impl Rfid<'_> {
     }
 
     /// Wait for the next RFID event
-    pub async fn next_event(&self) -> RfidEvent {
+    pub async fn wait(&self) -> RfidEvent {
         self.notifier.receive().await
     }
 
@@ -121,7 +121,7 @@ impl Rfid<'_> {
         // send read command and await response event
         self.commands.send(RfidCommand::ReadPage(page)).await;
         loop {
-            match self.next_event().await {
+            match self.wait().await {
                 RfidEvent::PageRead { page: p, data } if p == page => return Ok(data),
                 RfidEvent::ErrorEvent => return Err(Error::IndexOutOfBounds),
                 _ => continue,
@@ -133,7 +133,7 @@ impl Rfid<'_> {
     pub async fn write_page(&self, page: u8, data: [u8; 4]) -> Result<()> {
         self.commands.send(RfidCommand::WritePage(page, data)).await;
         loop {
-            match self.next_event().await {
+            match self.wait().await {
                 RfidEvent::PageWritten { page: p } if p == page => return Ok(()),
                 RfidEvent::ErrorEvent => return Err(Error::IndexOutOfBounds),
                 _ => continue,
@@ -145,7 +145,7 @@ impl Rfid<'_> {
     pub async fn lock_page(&self, page: u8) -> Result<()> {
         self.commands.send(RfidCommand::LockPage(page)).await;
         loop {
-            match self.next_event().await {
+            match self.wait().await {
                 RfidEvent::PageLocked { page: p } if p == page => return Ok(()),
                 RfidEvent::ErrorEvent => return Err(Error::IndexOutOfBounds),
                 _ => continue,

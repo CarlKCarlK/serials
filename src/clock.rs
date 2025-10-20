@@ -22,15 +22,15 @@ use crate::{Error, Result};
 // ============================================================================
 
 #[derive(Clone, Copy)]
-pub enum TimeState {
+pub enum ClockState {
     NotSet,
     Synced,
 }
 
 #[derive(Clone, Copy)]
-pub struct TimeInfo {
+pub struct ClockEvent {
     pub datetime: Option<OffsetDateTime>,
-    pub state: TimeState,
+    pub state: ClockState,
 }
 
 pub enum ClockCommand {
@@ -42,7 +42,7 @@ pub enum ClockCommand {
 // ============================================================================
 
 pub type ClockCommands = Channel<CriticalSectionRawMutex, ClockCommand, 4>;
-pub type ClockEvents = Signal<CriticalSectionRawMutex, TimeInfo>;
+pub type ClockEvents = Signal<CriticalSectionRawMutex, ClockEvent>;
 
 /// Resources needed by Clock device
 pub struct ClockNotifier {
@@ -67,16 +67,16 @@ impl Clock {
     }
 
     /// Create a new Clock device and spawn its task
-    pub fn new(resources: &'static ClockNotifier, spawner: Spawner) -> Self {
-        unwrap!(spawner.spawn(clock_device_loop(resources)));
+    pub fn new(notifier: &'static ClockNotifier, spawner: Spawner) -> Self {
+        unwrap!(spawner.spawn(clock_device_loop(notifier)));
         Self {
-            commands: &resources.commands,
-            events: &resources.events,
+            commands: &notifier.commands,
+            events: &notifier.events,
         }
     }
 
     /// Wait for and return the next clock tick event
-    pub async fn next_event(&self) -> TimeInfo {
+    pub async fn wait(&self) -> ClockEvent {
         self.events.wait().await
     }
 
@@ -87,7 +87,7 @@ impl Clock {
 
     /// Format 24-hour time as 12-hour with AM/PM
     #[must_use]
-    pub fn format_12hour(hours: u8) -> (u8, &'static str) {
+    fn format_12hour(hours: u8) -> (u8, &'static str) {
         if hours == 0 {
             (12, "AM")
         } else if hours < 12 {
@@ -101,14 +101,14 @@ impl Clock {
     }
 
     /// Format time info as display string
-    pub fn format_display(time_info: &TimeInfo) -> Result<String<64>> {
+    pub fn format_display(time_info: &ClockEvent) -> Result<String<64>> {
         let mut text = String::<64>::new();
         
         let dt = time_info.datetime.expect("datetime should always be Some");
         let (hour12, am_pm) = Self::format_12hour(dt.hour());
         
         match time_info.state {
-            TimeState::NotSet => {
+            ClockState::NotSet => {
                 fmt::Write::write_fmt(
                     &mut text,
                     format_args!(
@@ -121,7 +121,7 @@ impl Clock {
                 )
                 .map_err(|_| Error::FormatError)?;
             }
-            TimeState::Synced => {
+            ClockState::Synced => {
                 fmt::Write::write_fmt(
                     &mut text,
                     format_args!(
@@ -167,16 +167,16 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
     // Monotonic anchor for drift-free timekeeping
     let mut base_unix_seconds: Option<UnixSeconds> = None;
     let mut base_instant: Option<Instant> = None;
-    let mut time_state = TimeState::NotSet;
+    let mut clock_state = ClockState::NotSet;
 
     // For initial "Time not set" display, start from midnight
     let mut current_time: Option<OffsetDateTime> = OffsetDateTime::from_unix_timestamp(0).ok();
 
     loop {
         // Emit tick event
-        let time_info = TimeInfo {
+        let time_info = ClockEvent {
             datetime: current_time,
-            state: time_state,
+            state: clock_state,
         };
         resources.events.signal(time_info);
 
@@ -184,9 +184,9 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
         match select(Timer::after_secs(1), resources.commands.receive()).await {
             Either::First(_) => {
                 // Timer elapsed - compute time from monotonic anchor
-                if let (Some(base_unix), Some(base_instant)) = (base_unix_seconds, base_instant) {
+                if let (Some(base_unix_seconds), Some(base_instant)) = (base_unix_seconds, base_instant) {
                     let elapsed = (Instant::now() - base_instant).as_secs();
-                    let unix_seconds = UnixSeconds(base_unix.as_i64().saturating_add(elapsed as i64));
+                    let unix_seconds = UnixSeconds(base_unix_seconds.as_i64().saturating_add(elapsed as i64));
                     current_time = unix_seconds.to_offset_datetime(utc_offset);
                 } else if let Some(dt) = current_time {
                     // Fallback for "Time not set" - simple increment
@@ -200,7 +200,7 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
                         // Set monotonic anchor
                         base_unix_seconds = Some(unix_seconds);
                         base_instant = Some(Instant::now());
-                        time_state = TimeState::Synced;
+                        clock_state = ClockState::Synced;
                         
                         // Update current time
                         current_time = unix_seconds.to_offset_datetime(utc_offset);
@@ -212,9 +212,9 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
                         );
 
                         // Emit immediate tick with new time
-                        let time_info = TimeInfo {
+                        let time_info = ClockEvent {
                             datetime: current_time,
-                            state: time_state,
+                            state: clock_state,
                         };
                         resources.events.signal(time_info);
                     }

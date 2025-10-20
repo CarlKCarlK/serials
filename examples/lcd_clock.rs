@@ -58,24 +58,24 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     // Main orchestrator loop - owns LCD and displays clock/sync events
     loop {
-        match select(clock.next_event(), time_sync.next_event()).await {
+        match select(clock.wait(), time_sync.wait()).await {
             // On every tick event, update the LCD display
             Either::First(time_info) => {
                 let text = Clock::format_display(&time_info)?;
-                char_lcd.display(text, 0);
+                char_lcd.display(text, 0).await;
             }
             
             // On time sync events, set clock and display status
             Either::Second(TimeSyncEvent::SyncSuccess { unix_seconds }) => {
                 info!("Sync successful: unix_seconds={}", unix_seconds.as_i64());
                 clock.set_time(unix_seconds).await;
-                char_lcd.display(String::<64>::try_from("Synced!").unwrap(), 800);
+                char_lcd.display(String::<64>::try_from("Synced!").unwrap(), 800).await;
             }
 
             // On sync failure, display error message for at least 8/10th of a second
             Either::Second(TimeSyncEvent::SyncFailed(err)) => {
                 info!("Sync failed: {}", err);
-                char_lcd.display(String::<64>::try_from("Sync failed").unwrap(), 800);
+                char_lcd.display(String::<64>::try_from("Sync failed").unwrap(), 800).await;
             }
         }
     }

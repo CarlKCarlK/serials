@@ -13,7 +13,7 @@ use crate::{Error, Result};
 
 // LCD message types - now all messages include a minimum display duration
 #[derive(Clone, Debug)]
-pub enum LcdMessage {
+pub enum CharLcdMessage {
     /// Display a message for the specified duration (0 = until next message)
     Display {
         text: String<64>, // 64 chars is plenty for a 16x2 LCD
@@ -21,7 +21,7 @@ pub enum LcdMessage {
     },
 }
 
-pub type CharLcdNotifier = Channel<CriticalSectionRawMutex, LcdMessage, 8>;
+pub type CharLcdNotifier = Channel<CriticalSectionRawMutex, CharLcdMessage, 8>;
 
 /// Character LCD with async message-based interface
 pub struct CharLcd {
@@ -58,22 +58,9 @@ impl CharLcd {
         Ok(Self { notifier: char_lcd_notifier })
     }
 
-    /// Send a message to the LCD (non-blocking, returns immediately)
-    pub fn send(&self, msg: LcdMessage) {
-        use defmt::info;
-        if self.notifier.try_send(msg).is_err() {
-            info!("LCD channel full, message dropped");
-        }
-    }
-
-    /// Send a message and wait for it to be queued
-    pub async fn send_await(&self, msg: LcdMessage) {
-        self.notifier.send(msg).await;
-    }
-
-    /// Display text for a specified duration (0 = until next message)
-    pub fn display(&self, text: String<64>, duration_ms: u32) {
-        self.send(LcdMessage::Display { text, duration_ms });
+    /// Send a message to the LCD (async, waits until queued)
+    pub async fn display(&self, text: String<64>, duration_ms: u32) {
+        self.notifier.send(CharLcdMessage::Display { text, duration_ms }).await;
     }
 }
 
@@ -169,7 +156,7 @@ async fn lcd_task(
     loop {
         let msg = commands.receive().await;
         match msg {
-            LcdMessage::Display { text, duration_ms } => {
+            CharLcdMessage::Display { text, duration_ms } => {
                 // Clear and display the text
                 lcd.clear().await;
                 

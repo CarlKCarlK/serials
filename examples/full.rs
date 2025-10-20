@@ -79,7 +79,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         use embassy_futures::select::{Either, select};
 
         info!("Wait for either card detection OR IR button press");
-        match select(rfid_reader.next_event(), ir.next_event()).await {
+        match select(rfid_reader.wait(), ir.wait()).await {
             Either::First(RfidEvent::CardDetected { uid }) => {
                 info!("Card detected");
                 // Look up or assign card name

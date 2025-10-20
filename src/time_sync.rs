@@ -91,7 +91,7 @@ impl TimeSync {
     }
 
     /// Wait for and return the next TimeSync event
-    pub async fn next_event(&self) -> TimeSyncEvent {
+    pub async fn wait(&self) -> TimeSyncEvent {
         self.events.wait().await
     }
 }

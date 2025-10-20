@@ -43,7 +43,7 @@ impl IrNec<'_> {
         Ok(Self { notifier })
     }
 
-    pub async fn next_event(&self) -> IrNecEvent {
+    pub async fn wait(&self) -> IrNecEvent {
         self.notifier.receive().await
     }
 }
