@@ -37,13 +37,7 @@ pub async fn main(spawner: Spawner) -> ! {
 }
 
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
-    // Read configuration from compile-time environment (set by build.rs)
-    const WIFI_SSID: &str = env!("WIFI_SSID");
-    const WIFI_PASS: &str = env!("WIFI_PASS");
-    const UTC_OFFSET_MINUTES: &str = env!("UTC_OFFSET_MINUTES");
-
     info!("Starting LCD Clock (Event-Driven)");
-    info!("UTC Offset: {} minutes", UTC_OFFSET_MINUTES);
 
     // Initialize RP2040 peripherals
     let p = embassy_rp::init(Default::default());
@@ -56,14 +50,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
 
-    let utc_offset_minutes: i32 = UTC_OFFSET_MINUTES.parse().unwrap_or(0);
-
     // Create TimeSync virtual device (handles WiFi initialization internally)
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
     let time_sync = TimeSync::new(
-        WIFI_SSID,
-        WIFI_PASS,
-        utc_offset_minutes,
         p.PIN_23,
         p.PIN_25,
         p.PIO0,
@@ -126,9 +115,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         }
         lcd.display(text, 0);
             }
-            Either::Second(TimeSyncEvent::SyncSuccess { unix, date_iso }) => {
+            Either::Second(TimeSyncEvent::SyncSuccess { unix }) => {
                 info!("Sync successful: unix={}", unix);
-                clock.set_time(unix, utc_offset_minutes, date_iso).await;
+                clock.set_time(unix).await;
                 lcd.display(String::<64>::try_from("Synced!").unwrap(), 800);
             }
             Either::Second(TimeSyncEvent::SyncFailed(err)) => {
@@ -166,16 +155,12 @@ pub struct TimeInfo {
 }
 
 pub enum ClockCommand {
-    SetTime {
-        unix: u64,
-        offset_minutes: i32,
-        date_iso: String<16>,
-    },
+    SetTime { unix: u64 },
 }
 
 #[derive(Clone)]
 pub enum TimeSyncEvent {
-    SyncSuccess { unix: u64, date_iso: String<16> },
+    SyncSuccess { unix: u64 },
     SyncFailed(&'static str),
 }
 
@@ -212,12 +197,8 @@ impl Clock {
     }
 
     /// Send a command to set the time
-    pub async fn set_time(&self, unix: u64, offset_minutes: i32, date_iso: String<16>) {
-        self.0.0.send(ClockCommand::SetTime {
-            unix,
-            offset_minutes,
-            date_iso,
-        }).await;
+    pub async fn set_time(&self, unix: u64) {
+        self.0.0.send(ClockCommand::SetTime { unix }).await;
     }
 }
 
@@ -228,14 +209,17 @@ async fn clock_device_loop(notifier: &'static ClockNotifier) -> ! {
 }
 
 async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Infallible> {
+    // Read configuration from compile-time environment
+    const UTC_OFFSET_MINUTES: &str = env!("UTC_OFFSET_MINUTES");
+    let offset_minutes: i32 = UTC_OFFSET_MINUTES.parse().unwrap_or(0);
+
+    info!("Clock device started (UTC offset: {} minutes)", offset_minutes);
+
     let (cmd_channel, event_signal) = notifier;
     
     let mut unix_utc: u64 = 0;
-    let mut offset_minutes: i32 = 0;
     let mut date_iso: String<16> = String::new();
     let mut time_state = TimeState::NotSet;
-
-    info!("Clock device started");
 
     loop {
         // Compute current local time
@@ -274,18 +258,13 @@ async fn inner_clock_device_loop(notifier: &'static ClockNotifier) -> Result<Inf
             Either::Second(cmd) => {
                 // Command received
                 match cmd {
-                    ClockCommand::SetTime {
-                        unix,
-                        offset_minutes: offset,
-                        date_iso: date,
-                    } => {
+                    ClockCommand::SetTime { unix } => {
                         unix_utc = unix;
-                        offset_minutes = offset;
-                        date_iso = date;
+                        date_iso = compute_date_string(unix, offset_minutes);
                         time_state = TimeState::Synced;
                         info!(
                             "Clock time set: unix={} offset={} date={}",
-                            unix, offset, date_iso.as_str()
+                            unix, offset_minutes, date_iso.as_str()
                         );
 
                         // Emit immediate tick with new time
@@ -337,11 +316,7 @@ impl TimeSync {
     }
 
     /// Create a new TimeSync device and spawn its task
-    #[expect(clippy::too_many_arguments, reason = "WiFi requires many peripherals")]
     pub fn new(
-        wifi_ssid: &'static str,
-        wifi_pass: &'static str,
-        utc_offset_minutes: i32,
         pin_23: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_23>,
         pin_25: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_25>,
         pio0: embassy_rp::Peri<'static, PIO0>,
@@ -352,9 +327,6 @@ impl TimeSync {
         spawner: Spawner,
     ) -> Self {
         unwrap!(spawner.spawn(time_sync_device_loop(
-            wifi_ssid,
-            wifi_pass,
-            utc_offset_minutes,
             pin_23,
             pin_25,
             pio0,
@@ -375,9 +347,6 @@ impl TimeSync {
 
 #[embassy_executor::task]
 async fn time_sync_device_loop(
-    wifi_ssid: &'static str,
-    wifi_pass: &'static str,
-    utc_offset_minutes: i32,
     pin_23: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_23>,
     pin_25: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_25>,
     pio0: embassy_rp::Peri<'static, PIO0>,
@@ -388,9 +357,6 @@ async fn time_sync_device_loop(
     spawner: Spawner,
 ) -> ! {
     let err = inner_time_sync_device_loop(
-        wifi_ssid,
-        wifi_pass,
-        utc_offset_minutes,
         pin_23,
         pin_25,
         pio0,
@@ -406,9 +372,6 @@ async fn time_sync_device_loop(
 }
 
 async fn inner_time_sync_device_loop(
-    wifi_ssid: &'static str,
-    wifi_pass: &'static str,
-    utc_offset_minutes: i32,
     pin_23: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_23>,
     pin_25: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_25>,
     pio0: embassy_rp::Peri<'static, PIO0>,
@@ -418,7 +381,11 @@ async fn inner_time_sync_device_loop(
     sync_notifier: &'static TimeSyncNotifier,
     spawner: Spawner,
 ) -> Result<Infallible> {
-    info!("TimeSync device started (UTC offset: {} minutes)", utc_offset_minutes);
+    // Read WiFi credentials from compile-time environment
+    const WIFI_SSID: &str = env!("WIFI_SSID");
+    const WIFI_PASS: &str = env!("WIFI_PASS");
+
+    info!("TimeSync device started");
 
     // Initialize WiFi and network stack
     let fw = cyw43_firmware::CYW43_43439A0;
@@ -464,10 +431,10 @@ async fn inner_time_sync_device_loop(
     unwrap!(spawner.spawn(net_task(runner)));
 
     // Connect to WiFi
-    info!("Connecting to WiFi: {}", wifi_ssid);
+    info!("Connecting to WiFi: {}", WIFI_SSID);
     loop {
         match control
-            .join(wifi_ssid, JoinOptions::new(wifi_pass.as_bytes()))
+            .join(WIFI_SSID, JoinOptions::new(WIFI_PASS.as_bytes()))
             .await
         {
             Ok(_) => break,
@@ -492,10 +459,9 @@ async fn inner_time_sync_device_loop(
         info!("Sync attempt {}", attempt);
         match fetch_ntp_time(stack).await {
             Ok(unix) => {
-                let date_iso = compute_date_string(unix, utc_offset_minutes);
                 info!("Initial sync successful: unix={}", unix);
                 
-                sync_notifier.signal(TimeSyncEvent::SyncSuccess { unix, date_iso });
+                sync_notifier.signal(TimeSyncEvent::SyncSuccess { unix });
                 break;
             }
             Err(e) => {
@@ -528,10 +494,9 @@ async fn inner_time_sync_device_loop(
         info!("Periodic sync ({}s since last success)...", last_success_elapsed);
         match fetch_ntp_time(stack).await {
             Ok(unix) => {
-                let date_iso = compute_date_string(unix, utc_offset_minutes);
                 info!("Periodic sync successful: unix={}", unix);
                 
-                sync_notifier.signal(TimeSyncEvent::SyncSuccess { unix, date_iso });
+                sync_notifier.signal(TimeSyncEvent::SyncSuccess { unix });
                 last_success_elapsed = 0; // Reset counter on success
             }
             Err(e) => {
