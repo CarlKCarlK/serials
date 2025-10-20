@@ -8,9 +8,10 @@ use embassy_executor::Spawner;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Timer};
+use static_cell::StaticCell;
 
 use crate::unix_seconds::UnixSeconds;
-use crate::wifi::Wifi;
+use crate::wifi::{Wifi, WifiNotifier};
 use crate::Result;
 
 // ============================================================================
@@ -23,45 +24,79 @@ pub enum TimeSyncEvent {
     SyncFailed(&'static str),
 }
 
+pub type TimeSyncNotifierInner = Signal<CriticalSectionRawMutex, TimeSyncEvent>;
+
+/// Resources needed by TimeSync device (includes WiFi resources)
+pub struct TimeSyncNotifier {
+    pub time_sync_notifier: TimeSyncNotifierInner,
+    pub wifi_resources: WifiNotifier,
+    time_sync_cell: StaticCell<TimeSync>,
+}
+
 // ============================================================================
 // TimeSync Virtual Device
 // ============================================================================
 
-pub type TimeSyncNotifier = Signal<CriticalSectionRawMutex, TimeSyncEvent>;
-
-/// TimeSync virtual device - manages NTP synchronization
-pub struct TimeSync(&'static TimeSyncNotifier);
+/// TimeSync virtual device - manages time synchronization
+pub struct TimeSync {
+    notifier: &'static TimeSyncNotifierInner,
+    #[allow(dead_code, reason = "Keeps WiFi alive")]
+    wifi: &'static Wifi,
+}
 
 impl TimeSync {
-    /// Create the notifier for TimeSync
+    /// Create TimeSync resources (includes WiFi)
     #[must_use]
     pub const fn notifier() -> TimeSyncNotifier {
-        Signal::new()
+        TimeSyncNotifier {
+            time_sync_notifier: Signal::new(),
+            wifi_resources: Wifi::notifier(),
+            time_sync_cell: StaticCell::new(),
+        }
     }
 
-    /// Create a new TimeSync device and spawn its task
-    /// 
-    /// The task will await `WifiEvent::Ready` from the wifi device,
-    /// then perform initial NTP sync with backoff, followed by hourly sync loop.
+    /// Create a new TimeSync device (creates WiFi internally) and spawn its task
     pub fn new(
-        wifi: &'static Wifi,
-        notifier: &'static TimeSyncNotifier,
+        resources: &'static TimeSyncNotifier,
+        pin_23: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_23>,
+        pin_25: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_25>,
+        pio0: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
+        pin_24: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_24>,
+        pin_29: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_29>,
+        dma_ch0: embassy_rp::Peri<'static, embassy_rp::peripherals::DMA_CH0>,
         spawner: Spawner,
-    ) -> Self {
-        unwrap!(spawner.spawn(time_sync_device_loop(wifi, notifier)));
-        Self(notifier)
+    ) -> &'static Self {
+        // Create WiFi device
+        let wifi = Wifi::new(
+            &resources.wifi_resources,
+            pin_23,
+            pin_25,
+            pio0,
+            pin_24,
+            pin_29,
+            dma_ch0,
+            spawner,
+        );
+
+        // Spawn TimeSync task
+        unwrap!(spawner.spawn(time_sync_device_loop(wifi, &resources.time_sync_notifier)));
+        
+        resources.time_sync_cell.init(Self {
+            notifier: &resources.time_sync_notifier,
+            wifi,
+        })
     }
 
-    /// Wait for and return the next time sync event
+    /// Wait for and return the next TimeSync event
     pub async fn next_event(&self) -> TimeSyncEvent {
-        self.0.wait().await
+        self.notifier.wait().await
     }
 }
 
 #[embassy_executor::task]
 async fn time_sync_device_loop(
     wifi: &'static Wifi,
-    sync_notifier: &'static TimeSyncNotifier,
+    sync_notifier: &'static TimeSyncNotifierInner,
 ) -> ! {
     let err = inner_time_sync_device_loop(wifi, sync_notifier)
         .await
@@ -71,7 +106,7 @@ async fn time_sync_device_loop(
 
 async fn inner_time_sync_device_loop(
     wifi: &'static Wifi,
-    sync_notifier: &'static TimeSyncNotifier,
+    sync_notifier: &'static TimeSyncNotifierInner,
 ) -> Result<Infallible> {
     info!("TimeSync device awaiting network stack...");
     

@@ -95,25 +95,30 @@ impl StackStorage {
 // WiFi Virtual Device
 // ============================================================================
 
-pub type WifiNotifier = Signal<CriticalSectionRawMutex, WifiEvent>;
+pub type WifiNotifierInner = Signal<CriticalSectionRawMutex, WifiEvent>;
+
+/// Resources needed by the WiFi device (single static)
+pub struct WifiNotifier {
+    pub notifier: WifiNotifierInner,
+    pub stack_storage: StackStorage,
+    wifi_cell: StaticCell<Wifi>,
+}
 
 /// WiFi virtual device - manages WiFi connection and emits network events
 pub struct Wifi {
-    notifier: &'static WifiNotifier,
+    notifier: &'static WifiNotifierInner,
     stack: &'static StackStorage,
 }
 
 impl Wifi {
-    /// Create the notifier for Wifi
+    /// Create WiFi resources (notifier + storage)
     #[must_use]
     pub const fn notifier() -> WifiNotifier {
-        Signal::new()
-    }
-    
-    /// Create the stack storage for Wifi
-    #[must_use]
-    pub const fn stack_storage() -> StackStorage {
-        StackStorage::new()
+        WifiNotifier {
+            notifier: Signal::new(),
+            stack_storage: StackStorage::new(),
+            wifi_cell: StaticCell::new(),
+        }
     }
     
     /// Wait for the network stack to be ready and return a reference to it
@@ -122,21 +127,24 @@ impl Wifi {
     }
 
     /// Create a new Wifi device and spawn its task
+    /// Returns a static reference to the Wifi handle
     pub fn new(
+        resources: &'static WifiNotifier,
         pin_23: Peri<'static, peripherals::PIN_23>,
         pin_25: Peri<'static, peripherals::PIN_25>,
         pio0: Peri<'static, PIO0>,
         pin_24: Peri<'static, peripherals::PIN_24>,
         pin_29: Peri<'static, peripherals::PIN_29>,
         dma_ch0: Peri<'static, DMA_CH0>,
-        notifier: &'static WifiNotifier,
-        stack_storage: &'static StackStorage,
         spawner: Spawner,
-    ) -> Self {
+    ) -> &'static Self {
         unwrap!(spawner.spawn(wifi_device_loop(
-            pin_23, pin_25, pio0, pin_24, pin_29, dma_ch0, notifier, stack_storage, spawner,
+            pin_23, pin_25, pio0, pin_24, pin_29, dma_ch0, &resources.notifier, &resources.stack_storage, spawner,
         )));
-        Self { notifier, stack: stack_storage }
+        resources.wifi_cell.init(Self { 
+            notifier: &resources.notifier, 
+            stack: &resources.stack_storage 
+        })
     }
 
     /// Wait for and return the next WiFi event
@@ -157,7 +165,7 @@ async fn wifi_device_loop(
     pin_24: Peri<'static, peripherals::PIN_24>,
     pin_29: Peri<'static, peripherals::PIN_29>,
     dma_ch0: Peri<'static, DMA_CH0>,
-    wifi_notifier: &'static WifiNotifier,
+    wifi_notifier: &'static WifiNotifierInner,
     stack_storage: &'static StackStorage,
     spawner: Spawner,
 ) -> ! {
