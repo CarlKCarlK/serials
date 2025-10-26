@@ -1,42 +1,20 @@
 //! Virtual LED strip driver for WS2812-style chains (PIO-based).
 
-use embassy_executor::Spawner;
-use embassy_rp::bind_interrupts;
-use embassy_rp::dma::Channel;
-use embassy_rp::pio::{Instance, InterruptHandler, Pio};
-use embassy_rp::pio_programs::ws2812::{PioWs2812, PioWs2812Program};
-use embassy_rp::peripherals;
-use embassy_rp::Peri;
+use embassy_rp::pio::Instance;
+use embassy_rp::pio_programs::ws2812::PioWs2812;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel as EmbassyChannel;
 use smart_leds::RGB8;
 
 use crate::{Error, Result};
 
-bind_interrupts!(struct Pio1Irqs {
-    PIO1_IRQ_0 => InterruptHandler<peripherals::PIO1>;
-});
-
-/// Default LED strip length used throughout the examples.
-pub const LED_STRIP_LEN: usize = 8;
-
 /// RGB color representation re-exported from `smart_leds`.
 pub type Rgb = RGB8;
 
-pub(crate) type LedStripCommands = EmbassyChannel<CriticalSectionRawMutex, LedStripCommand, 8>;
-
-pub(crate) trait LedStripPin<const N: usize, PIO: Instance, DMA: Channel>: Sized {
-    fn spawn_driver(
-        self,
-        spawner: Spawner,
-        pio: Peri<'static, PIO>,
-        dma: Peri<'static, DMA>,
-        commands: &'static LedStripCommands,
-    ) -> Result<()>;
-}
+pub type LedStripCommands = EmbassyChannel<CriticalSectionRawMutex, LedStripCommand, 8>;
 
 #[derive(Clone, Copy)]
-pub(crate) enum LedStripCommand {
+pub enum LedStripCommand {
     Update { index: u16, color: Rgb },
 }
 
@@ -54,7 +32,7 @@ impl LedStripNotifier {
         }
     }
 
-    fn commands(&'static self) -> &'static LedStripCommands {
+    pub fn commands(&'static self) -> &'static LedStripCommands {
         &self.commands
     }
 }
@@ -73,21 +51,7 @@ impl<const N: usize> GenericLedStrip<N> {
     }
 
     /// Creates a new LED strip controller bound to the given notifier.
-    #[allow(private_bounds)]
-    pub fn new<PIN, PIO, DMA>(
-        notifier: &'static LedStripNotifier,
-        pio: Peri<'static, PIO>,
-        dma: Peri<'static, DMA>,
-        pin: PIN,
-        spawner: Spawner,
-    ) -> Result<Self>
-    where
-        PIO: Instance,
-        DMA: Channel,
-        PIN: LedStripPin<N, PIO, DMA>,
-    {
-        pin.spawn_driver(spawner, pio, dma, notifier.commands())?;
-
+    pub fn new(notifier: &'static LedStripNotifier) -> Result<Self> {
         Ok(Self {
             commands: notifier.commands(),
             pixels: [Rgb::default(); N],
@@ -119,10 +83,10 @@ impl<const N: usize> GenericLedStrip<N> {
     }
 }
 
-/// Backwards-compatible alias for the default LED strip length.
-pub type LedStrip = GenericLedStrip<LED_STRIP_LEN>;
+/// Convenience alias to access `GenericLedStrip` with a const length parameter.
+pub type LedStrip<const N: usize> = GenericLedStrip<N>;
 
-async fn led_strip_driver_loop<PIO, const SM: usize, const N: usize>(
+pub async fn led_strip_driver_loop<PIO, const SM: usize, const N: usize>(
     mut driver: PioWs2812<'static, PIO, SM, N>,
     commands: &'static LedStripCommands,
 ) -> !
@@ -144,6 +108,7 @@ where
     }
 }
 
+#[macro_export]
 macro_rules! define_led_strip_targets {
     ($(
         $task:ident : {
@@ -157,48 +122,23 @@ macro_rules! define_led_strip_targets {
     ),+ $(,)?) => {
         $(
             #[embassy_executor::task]
-            async fn $task(
-                pio: Peri<'static, peripherals::$pio>,
-                dma: Peri<'static, peripherals::$dma>,
-                pin: Peri<'static, peripherals::$pin>,
-                commands: &'static LedStripCommands,
+            pub async fn $task(
+                pio: embassy_rp::Peri<'static, embassy_rp::peripherals::$pio>,
+                dma: embassy_rp::Peri<'static, embassy_rp::peripherals::$dma>,
+                pin: embassy_rp::Peri<'static, embassy_rp::peripherals::$pin>,
+                commands: &'static $crate::led_strip::LedStripCommands,
             ) -> ! {
-                let mut pio = Pio::new(pio, $irqs);
-                let program = PioWs2812Program::new(&mut pio.common);
-                let driver = PioWs2812::<peripherals::$pio, $sm_index, $len>::new(
+                let mut pio = embassy_rp::pio::Pio::new(pio, $irqs);
+                let program = embassy_rp::pio_programs::ws2812::PioWs2812Program::new(&mut pio.common);
+                let driver = embassy_rp::pio_programs::ws2812::PioWs2812::<embassy_rp::peripherals::$pio, $sm_index, $len>::new(
                     &mut pio.common,
                     pio.$sm_field,
                     dma,
                     pin,
                     &program,
                 );
-                led_strip_driver_loop::<peripherals::$pio, $sm_index, $len>(driver, commands).await;
-            }
-
-            impl LedStripPin<$len, peripherals::$pio, peripherals::$dma> for Peri<'static, peripherals::$pin> {
-                fn spawn_driver(
-                    self,
-                    spawner: Spawner,
-                    pio: Peri<'static, peripherals::$pio>,
-                    dma: Peri<'static, peripherals::$dma>,
-                    commands: &'static LedStripCommands,
-                ) -> Result<()> {
-                    spawner
-                        .spawn($task(pio, dma, self, commands))
-                        .map_err(Error::TaskSpawn)
-                }
+                $crate::led_strip::led_strip_driver_loop::<embassy_rp::peripherals::$pio, $sm_index, $len>(driver, commands).await;
             }
         )+
     };
-}
-
-define_led_strip_targets! {
-    led_strip_driver_pio1_sm0_pin2_len_default: {
-        pio: PIO1,
-        irqs: Pio1Irqs,
-        sm: { field: sm0, index: 0 },
-        dma: DMA_CH1,
-        pin: PIN_2,
-        len: LED_STRIP_LEN
-    }
 }
