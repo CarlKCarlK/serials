@@ -9,6 +9,7 @@ full = "run --example full --release"
 ir = "run --example ir --release"
 wireless = "run --example wireless --release"
 lcd_clock = "run --example lcd_clock --release"
+led_strip = "run --example led_strip --release"
 
 
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']

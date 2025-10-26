@@ -1435,6 +1435,9 @@ name = "rgb"
 version = "0.8.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c6a884d2998352bb4daf0183589aec883f16a6da1f4dde84d8e2e9a5409a1ce"
+dependencies = [
+ "bytemuck",
+]
 
 [[package]]
 name = "rp-binary-info"
@@ -1520,6 +1523,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83cbcd3f7a0ca7bbe61dc4eb7e202842bee4e27b769a7bf3a4a72fa399d6e404"
 dependencies = [
  "cortex-m",
+ "cortex-m-rt",
  "critical-section",
  "vcell",
 ]
@@ -1575,6 +1579,7 @@ version = "0.0.1"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
+ "critical-section",
  "cyw43",
  "cyw43-firmware",
  "cyw43-pio",
@@ -1598,9 +1603,13 @@ dependencies = [
  "heapless 0.9.1",
  "panic-probe",
  "portable-atomic",
+ "rp2040-boot2",
  "rp2040-hal",
+ "smart-leds",
+ "smart-leds-trait 0.3.2",
  "static_cell",
  "time",
+ "ws2812-pio",
 ]
 
 [[package]]
@@ -1637,7 +1646,16 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "66df34e571fa9993fa6f99131a374d58ca3d694b75f9baac93458fe0d6057bf0"
 dependencies = [
- "smart-leds-trait",
+ "smart-leds-trait 0.3.2",
+]
+
+[[package]]
+name = "smart-leds-trait"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebf6d833fa93f16a1c1874e62c2aebe8567e5bdd436d59bf543ed258b6f7a8e3"
+dependencies = [
+ "rgb",
 ]
 
 [[package]]
@@ -1927,3 +1945,19 @@ name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+
+[[package]]
+name = "ws2812-pio"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef27fde9c7b196ae28a24ee85cd50d73d3e39a3306f971090f871e8c6e7c4d24"
+dependencies = [
+ "cortex-m",
+ "embedded-hal 0.2.7",
+ "fugit",
+ "nb 1.1.0",
+ "pio 0.2.1",
+ "rp2040-hal",
+ "smart-leds-trait 0.2.1",
+ "smart-leds-trait 0.3.2",
+]

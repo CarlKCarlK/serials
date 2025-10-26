@@ -1,0 +1,99 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520" font-family="Inter, 'Segoe UI', sans-serif">
+  <rect width="900" height="520" fill="#fdfaf6"/>
+  <text x="30" y="40" font-size="24" fill="#0f172a" font-weight="600">SunFounder Kepler LED Strip Wiring (Raspberry Pi Pico W)</text>
+  <text x="30" y="65" font-size="16" fill="#475569">Shows connections only for the strip; other peripherals remain on the existing 3.3V rail.</text>
+
+  <!-- Pico W body -->
+  <rect x="40" y="90" width="220" height="320" fill="#e0f2fe" stroke="#0369a1" stroke-width="2" rx="16"/>
+  <text x="150" y="130" font-size="18" text-anchor="middle" fill="#0f172a" font-weight="600">Raspberry Pi Pico W</text>
+  <text x="150" y="154" font-size="12" text-anchor="middle" fill="#0369a1">(top view, USB at top)</text>
+
+  <!-- Pin labels -->
+  <circle cx="260" cy="120" r="7" fill="#fff" stroke="#ea580c" stroke-width="2"/>
+  <text x="268" y="115" font-size="13" fill="#b45309">3V3 OUT (pin 36)</text>
+
+  <circle cx="260" cy="170" r="7" fill="#fff" stroke="#ca8a04" stroke-width="2"/>
+  <text x="268" y="165" font-size="13" fill="#854d0e">GP2 / DIN</text>
+
+  <circle cx="260" cy="260" r="7" fill="#fff" stroke="#dc2626" stroke-width="2"/>
+  <text x="268" y="255" font-size="13" fill="#b91c1c">VSYS (USB 5V)</text>
+
+  <circle cx="260" cy="310" r="7" fill="#fff" stroke="#0f172a" stroke-width="2"/>
+  <text x="268" y="305" font-size="13" fill="#0f172a">GND</text>
+
+  <!-- 3.3V rail highlight -->
+  <rect x="470" y="90" width="320" height="60" fill="#fff7ed" stroke="#ea580c" stroke-dasharray="6 4" rx="8"/>
+  <text x="630" y="110" font-size="14" text-anchor="middle" fill="#b45309">Breadboard red rail (kept at 3.3V for existing devices)</text>
+  <text x="630" y="132" font-size="12" text-anchor="middle" fill="#b45309">Jumper from 3V3 OUT continues as before</text>
+
+  <!-- 3.3V jumper line -->
+  <polyline points="260,120 470,120" fill="none" stroke="#f97316" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow-orange)"/>
+
+  <!-- Data line with resistor -->
+  <polyline points="260,170 340,170" fill="none" stroke="#facc15" stroke-width="4" stroke-linecap="round"/>
+  <rect x="340" y="158" width="50" height="24" fill="#fef3c7" stroke="#d97706" stroke-width="2" rx="4"/>
+  <text x="365" y="174" font-size="12" text-anchor="middle" fill="#92400e">220 ohm data resistor</text>
+  <polyline points="390,170 420,170 420,220 640,220 640,280" fill="none" stroke="#facc15" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow-yellow)"/>
+  <text x="460" y="210" font-size="12" fill="#a16207">Mount the resistor close to DIN on the strip</text>
+
+  <!-- VSYS to LED strip (+5V) -->
+  <polyline points="260,260 340,260 340,240 640,240" fill="none" stroke="#dc2626" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow-red)"/>
+  <text x="410" y="248" font-size="13" fill="#b91c1c">Dedicated jumper from VSYS (5V). Do not tie to the 3.3V rail.</text>
+
+  <!-- Ground line -->
+  <polyline points="260,310 360,310 360,200 470,200" fill="none" stroke="#0f172a" stroke-width="4" stroke-linecap="round"/>
+  <text x="420" y="190" font-size="12" fill="#0f172a">Common ground to blue rail</text>
+  <polyline points="470,200 470,320 640,320" fill="none" stroke="#0f172a" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow-black)"/>
+
+  <!-- Ground rail highlight -->
+  <rect x="470" y="170" width="320" height="60" fill="#e2e8f0" stroke="#1e293b" stroke-dasharray="6 4" rx="8"/>
+  <text x="630" y="195" font-size="14" text-anchor="middle" fill="#1e293b">Breadboard blue rail (ground)</text>
+  <text x="630" y="215" font-size="12" text-anchor="middle" fill="#1e293b">Tie LED ground and peripherals here</text>
+
+  <!-- LED strip representation -->
+  <rect x="640" y="200" width="200" height="160" fill="#fef9c3" stroke="#a16207" stroke-width="2" rx="12"/>
+  <text x="740" y="222" font-size="16" text-anchor="middle" fill="#92400e" font-weight="600">LED strip (SunFounder Kepler)</text>
+  <text x="740" y="242" font-size="12" text-anchor="middle" fill="#92400e">First LED end (arrows -&gt;)</text>
+
+  <!-- LED pads -->
+  <rect x="640" y="232" width="20" height="16" fill="#fecaca" stroke="#b91c1c"/>
+  <text x="665" y="244" font-size="11" fill="#b91c1c">5V</text>
+  <rect x="640" y="272" width="20" height="16" fill="#fef3c7" stroke="#d97706"/>
+  <text x="668" y="284" font-size="11" fill="#d97706">DIN</text>
+  <rect x="640" y="312" width="20" height="16" fill="#cbd5f5" stroke="#1e293b"/>
+  <text x="671" y="324" font-size="11" fill="#1e293b">GND</text>
+
+  <!-- Capacitor symbol -->
+  <line x1="700" y1="240" x2="700" y2="276" stroke="#dc2626" stroke-width="3"/>
+  <line x1="700" y1="284" x2="700" y2="320" stroke="#0f172a" stroke-width="3"/>
+  <line x1="688" y1="276" x2="712" y2="276" stroke="#0f172a" stroke-width="2"/>
+  <line x1="688" y1="284" x2="712" y2="284" stroke="#0f172a" stroke-width="2"/>
+  <text x="720" y="285" font-size="12" fill="#0f172a">&gt;=470uF cap close to strip</text>
+
+  <!-- Wire labels -->
+  <text x="760" y="300" font-size="12" fill="#a16207">Yellow wire to DIN</text>
+  <text x="760" y="262" font-size="12" fill="#b91c1c">Red wire to VSYS</text>
+  <text x="760" y="324" font-size="12" fill="#0f172a">Black wire to ground rail</text>
+
+  <!-- Legend -->
+  <rect x="40" y="425" width="820" height="70" fill="#fff" stroke="#cbd5f5" rx="10"/>
+  <text x="60" y="448" font-size="14" fill="#0f172a" font-weight="600">Notes</text>
+  <text x="60" y="468" font-size="13" fill="#0f172a">- Leave existing 3.3V wiring untouched. - Only the LED strip red wire receives VSYS (5V). - Keep the data resistor and capacitor near the strip input.</text>
+  <text x="60" y="486" font-size="13" fill="#0f172a">- Ensure Pico ground, LED ground, and the blue rail remain tied together.</text>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrow-orange" orient="auto" markerWidth="8" markerHeight="8" refX="1" refY="4">
+      <path d="M0,0 L8,4 L0,8" fill="#f97316"/>
+    </marker>
+    <marker id="arrow-yellow" orient="auto" markerWidth="8" markerHeight="8" refX="1" refY="4">
+      <path d="M0,0 L8,4 L0,8" fill="#facc15"/>
+    </marker>
+    <marker id="arrow-red" orient="auto" markerWidth="8" markerHeight="8" refX="1" refY="4">
+      <path d="M0,0 L8,4 L0,8" fill="#dc2626"/>
+    </marker>
+    <marker id="arrow-black" orient="auto" markerWidth="8" markerHeight="8" refX="1" refY="4">
+      <path d="M0,0 L8,4 L0,8" fill="#0f172a"/>
+    </marker>
+  </defs>
+</svg>
