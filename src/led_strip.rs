@@ -38,12 +38,12 @@ impl LedStripNotifier {
 }
 
 /// Handle used to control a LED strip.
-pub struct LedStrip<const N: usize> {
+pub struct LedStripN<const N: usize> {
     commands: &'static LedStripCommands,
     pixels: [Rgb; N],
 }
 
-impl<const N: usize> LedStrip<N> {
+impl<const N: usize> LedStripN<N> {
     /// Creates LED strip resources.
     #[must_use]
     pub const fn notifier() -> LedStripNotifier {
@@ -83,8 +83,8 @@ impl<const N: usize> LedStrip<N> {
     }
 }
 
-/// Convenience alias to access `GenericLedStrip` with a const length parameter.
-pub type LedStrip<const N: usize> = LedStrip<N>;
+/// Convenience alias to access `LedStripN` with a const length parameter.
+pub type LedStrip<const N: usize> = LedStripN<N>;
 
 pub async fn led_strip_driver_loop<PIO, const SM: usize, const N: usize>(
     mut driver: PioWs2812<'static, PIO, SM, N>,
@@ -114,7 +114,7 @@ macro_rules! define_led_strip {
         $module:ident {
             task: $task:ident,
             pio: $pio:ident,
-            irqs: $irqs:path,
+            irq: $irq:ident,
             sm: { field: $sm_field:ident, index: $sm_index:expr },
             dma: $dma:ident,
             pin: $pin:ident,
@@ -130,6 +130,10 @@ macro_rules! define_led_strip {
                 pub type Strip = $crate::led_strip::LedStrip<LEN>;
                 pub type Notifier = $crate::led_strip::LedStripNotifier;
 
+                embassy_rp::bind_interrupts!(struct Irqs {
+                    $irq => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::$pio>;
+                });
+
                 #[embassy_executor::task]
                 async fn $task(
                     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::$pio>,
@@ -137,7 +141,7 @@ macro_rules! define_led_strip {
                     pin: embassy_rp::Peri<'static, embassy_rp::peripherals::$pin>,
                     commands: &'static $crate::led_strip::LedStripCommands,
                 ) -> ! {
-                    let mut pio = embassy_rp::pio::Pio::new(pio, $irqs);
+                    let mut pio = embassy_rp::pio::Pio::new(pio, Irqs);
                     let program = embassy_rp::pio_programs::ws2812::PioWs2812Program::new(&mut pio.common);
                     let driver = embassy_rp::pio_programs::ws2812::PioWs2812::<embassy_rp::peripherals::$pio, $sm_index, LEN>::new(
                         &mut pio.common,

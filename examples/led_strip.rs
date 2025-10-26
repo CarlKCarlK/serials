@@ -4,22 +4,15 @@
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_rp::bind_interrupts;
-use embassy_rp::pio::InterruptHandler;
-use embassy_rp::peripherals::PIO1;
 use embassy_time::Timer;
 use lib::{define_led_strip, Rgb, Result};
 use panic_probe as _;
-
-bind_interrupts!(struct Pio1Irqs {
-    PIO1_IRQ_0 => InterruptHandler<PIO1>;
-});
 
 define_led_strip! {
     led_strip0 {
         task: led_strip_0_driver,
         pio: PIO1,
-        irqs: crate::Pio1Irqs,
+        irq: PIO1_IRQ_0,
         sm: { field: sm0, index: 0 },
         dma: DMA_CH1,
         pin: PIN_2,
