@@ -9,7 +9,7 @@ use lib::{define_led_strip, Rgb, Result};
 use panic_probe as _;
 
 define_led_strip! {
-    led_strip0 {
+    led_strip0 as LedStrip0 {
         task: led_strip_0_driver,
         pio: PIO1,
         irq: PIO1_IRQ_0,
@@ -25,8 +25,8 @@ define_led_strip! {
 async fn main(spawner: Spawner) -> ! {
     let peripherals = embassy_rp::init(Default::default());
 
-    static LED_STRIP_NOTIFIER: led_strip0::Notifier = led_strip0::notifier();
-    let mut led_strip_0 = led_strip0::new(
+    static LED_STRIP_NOTIFIER: LedStrip0::Notifier = LedStrip0::notifier();
+    let mut led_strip_0 = LedStrip0::new(
         spawner,
         &LED_STRIP_NOTIFIER,
         peripherals.PIO1,
@@ -49,8 +49,8 @@ async fn main(spawner: Spawner) -> ! {
     }
 }
 
-async fn update_rainbow(strip: &mut led_strip0::Strip, base: u8) -> Result<()> {
-    for idx in 0..led_strip0::LEN {
+async fn update_rainbow(strip: &mut LedStrip0::Strip, base: u8) -> Result<()> {
+    for idx in 0..LedStrip0::LEN {
         let offset = base.wrapping_add((idx as u8).wrapping_mul(16));
         strip.update_pixel(idx, wheel(offset)).await?;
     }

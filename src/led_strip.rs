@@ -111,7 +111,7 @@ where
 #[macro_export]
 macro_rules! define_led_strip {
     ($(
-        $module:ident {
+        $module:ident $(as $alias:ident)? {
             $(#[$meta:meta])*
             task: $task:ident,
             /// Which PIO peripheral owns this strip (PIO0/PIO1).
@@ -129,6 +129,7 @@ macro_rules! define_led_strip {
         }
     ),+ $(,)?) => {
         $(
+            #[allow(non_snake_case)]
             #[allow(non_snake_case)]
             pub mod $module {
                 use super::*;
@@ -178,6 +179,7 @@ $crate::led_strip::led_strip_driver_loop::<embassy_rp::peripherals::$pio, $sm_in
                     Strip::new(notifier)
                 }
             }
+            $(pub use $module as $alias;)?
         )+
     };
 }

@@ -18,10 +18,26 @@ use embassy_rp::gpio::Pull;
 use heapless::{String, index_map::FnvIndexMap};
 use lib::{
     CharLcd, CharLcdNotifier, Clock, ClockEvent, ClockNotifier, ClockState, IrNec, IrNecEvent,
-    IrNecNotifier, Result, Rfid, RfidEvent, RfidNotifier, TimeSync, TimeSyncEvent,
-    TimeSyncNotifier, servo_a,
+    IrNecNotifier, Result, Rgb, Rfid, RfidEvent, RfidNotifier, TimeSync,
+    TimeSyncEvent, TimeSyncNotifier, define_led_strip, servo_a,
 };
 use panic_probe as _;
+
+define_led_strip! {
+    led_strip0 as LedStrip0 {
+        task: led_strip0_driver,
+        pio: PIO1,
+        irq: PIO1_IRQ_0,
+        sm: { field: sm0, index: 0 },
+        dma: DMA_CH1,
+        pin: PIN_2,
+        len: 8
+    }
+}
+
+const LED_RED_DIM: Rgb = Rgb { r: 32, g: 0, b: 0 };
+const LED_GREEN_DIM: Rgb = Rgb { r: 0, g: 32, b: 0 };
+const LED_OFF: Rgb = Rgb { r: 0, g: 0, b: 0 };
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -38,6 +54,18 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("Starting servo test...");
     let mut servo = servo_a!(p.PWM_SLICE0, p.PIN_0, 500, 2500); // min=500Âµs (0Â°), max=2500Âµs (180Â°)
     servo.set_degrees(90);
+
+    static LED_STRIP_NOTIFIER: LedStrip0::Notifier = LedStrip0::notifier();
+    let mut led_strip0 = LedStrip0::new(
+        spawner,
+        &LED_STRIP_NOTIFIER,
+        p.PIO1,
+        p.DMA_CH1,
+        p.PIN_2,
+    )?;
+    initialize_led_strip(&mut led_strip0).await?;
+    let mut led_progress_index: usize = 0;
+
 
     // Initialize LCD (GP4=SDA, GP5=SCL)
     static CHAR_LCD_CHANNEL: CharLcdNotifier = CharLcd::notifier();
@@ -141,6 +169,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                         lcd.display(text, 1000).await; // 1 second
                         servo.set_degrees(0);
                     }
+
+                    advance_led_progress(&mut led_strip0, &mut led_progress_index).await?;
                 }
                 Either::Second(ir_nec_event) => {
                     // IR button pressed - check if it's 0-9 for servo control, otherwise reset map
@@ -201,6 +231,36 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
         lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0).await; // 0 = until next message
     }
+}
+
+async fn initialize_led_strip(strip: &mut LedStrip0::Strip) -> Result<()> {
+    for idx in 0..LedStrip0::LEN {
+        let color = if idx == 0 { LED_RED_DIM } else { LED_OFF };
+        strip.update_pixel(idx, color).await?;
+    }
+    Ok(())
+}
+
+async fn advance_led_progress(
+    strip: &mut LedStrip0::Strip,
+    current_red: &mut usize,
+) -> Result<()> {
+    info!("Turning {} to green", *current_red);
+    strip.update_pixel(*current_red, LED_GREEN_DIM).await?;
+    let next = (*current_red + 1) % LedStrip0::LEN;
+    if next == 0 {
+        info!("Resetting LED strip");
+        for idx in 0..LedStrip0::LEN {
+            let color = if idx == 0 { LED_RED_DIM } else { LED_OFF };
+            strip.update_pixel(idx, color).await?;
+        }
+        *current_red = 0;
+    } else {
+        info!("Turning {} to red", next);
+        strip.update_pixel(next, LED_RED_DIM).await?;
+        *current_red = next;
+    }
+    Ok(())
 }
 
 fn append_time_line(text: &mut String<64>, latest_time: Option<ClockEvent>) {
