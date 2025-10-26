@@ -38,12 +38,12 @@ impl LedStripNotifier {
 }
 
 /// Handle used to control a LED strip.
-pub struct GenericLedStrip<const N: usize> {
+pub struct LedStrip<const N: usize> {
     commands: &'static LedStripCommands,
     pixels: [Rgb; N],
 }
 
-impl<const N: usize> GenericLedStrip<N> {
+impl<const N: usize> LedStrip<N> {
     /// Creates LED strip resources.
     #[must_use]
     pub const fn notifier() -> LedStripNotifier {
@@ -84,7 +84,7 @@ impl<const N: usize> GenericLedStrip<N> {
 }
 
 /// Convenience alias to access `GenericLedStrip` with a const length parameter.
-pub type LedStrip<const N: usize> = GenericLedStrip<N>;
+pub type LedStrip<const N: usize> = LedStrip<N>;
 
 pub async fn led_strip_driver_loop<PIO, const SM: usize, const N: usize>(
     mut driver: PioWs2812<'static, PIO, SM, N>,
@@ -111,10 +111,10 @@ where
 #[macro_export]
 macro_rules! define_led_strip {
     ($(
-        $driver:ident {
+        $module:ident {
             task: $task:ident,
             pio: $pio:ident,
-            irqs: $irqs:ident,
+            irqs: $irqs:path,
             sm: { field: $sm_field:ident, index: $sm_index:expr },
             dma: $dma:ident,
             pin: $pin:ident,
@@ -122,47 +122,48 @@ macro_rules! define_led_strip {
         }
     ),+ $(,)?) => {
         $(
-            #[embassy_executor::task]
-            async fn $task(
-                pio: embassy_rp::Peri<'static, embassy_rp::peripherals::$pio>,
-                dma: embassy_rp::Peri<'static, embassy_rp::peripherals::$dma>,
-                pin: embassy_rp::Peri<'static, embassy_rp::peripherals::$pin>,
-                commands: &'static $crate::led_strip::LedStripCommands,
-            ) -> ! {
-                let mut pio = embassy_rp::pio::Pio::new(pio, $irqs);
-                let program = embassy_rp::pio_programs::ws2812::PioWs2812Program::new(&mut pio.common);
-                let driver = embassy_rp::pio_programs::ws2812::PioWs2812::<embassy_rp::peripherals::$pio, $sm_index, $len>::new(
-                    &mut pio.common,
-                    pio.$sm_field,
-                    dma,
-                    pin,
-                    &program,
-                );
-                $crate::led_strip::led_strip_driver_loop::<embassy_rp::peripherals::$pio, $sm_index, $len>(driver, commands).await;
-            }
+            pub mod $module {
+                use super::*;
+                use embassy_executor::Spawner;
 
-            pub struct $driver;
+                pub const LEN: usize = $len;
+                pub type Strip = $crate::led_strip::LedStrip<LEN>;
+                pub type Notifier = $crate::led_strip::LedStripNotifier;
 
-            impl $driver {
-                pub const fn notifier() -> $crate::led_strip::LedStripNotifier {
-                    $crate::led_strip::LedStrip::<$len>::notifier()
-                }
-
-                pub const fn len() -> usize {
-                    $len
-                }
-
-                pub fn new(
-                    spawner: embassy_executor::Spawner,
-                    notifier: &'static $crate::led_strip::LedStripNotifier,
+                #[embassy_executor::task]
+                async fn $task(
                     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::$pio>,
                     dma: embassy_rp::Peri<'static, embassy_rp::peripherals::$dma>,
                     pin: embassy_rp::Peri<'static, embassy_rp::peripherals::$pin>,
-                ) -> $crate::Result<$crate::led_strip::LedStrip<$len>> {
+                    commands: &'static $crate::led_strip::LedStripCommands,
+                ) -> ! {
+                    let mut pio = embassy_rp::pio::Pio::new(pio, $irqs);
+                    let program = embassy_rp::pio_programs::ws2812::PioWs2812Program::new(&mut pio.common);
+                    let driver = embassy_rp::pio_programs::ws2812::PioWs2812::<embassy_rp::peripherals::$pio, $sm_index, LEN>::new(
+                        &mut pio.common,
+                        pio.$sm_field,
+                        dma,
+                        pin,
+                        &program,
+                    );
+                    $crate::led_strip::led_strip_driver_loop::<embassy_rp::peripherals::$pio, $sm_index, LEN>(driver, commands).await;
+                }
+
+                pub const fn notifier() -> Notifier {
+                    Strip::notifier()
+                }
+
+                pub fn new(
+                    spawner: Spawner,
+                    notifier: &'static Notifier,
+                    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::$pio>,
+                    dma: embassy_rp::Peri<'static, embassy_rp::peripherals::$dma>,
+                    pin: embassy_rp::Peri<'static, embassy_rp::peripherals::$pin>,
+                ) -> $crate::Result<Strip> {
                     spawner
                         .spawn($task(pio, dma, pin, notifier.commands()))
                         .map_err($crate::Error::TaskSpawn)?;
-                    $crate::led_strip::LedStrip::<$len>::new(notifier)
+                    Strip::new(notifier)
                 }
             }
         )+

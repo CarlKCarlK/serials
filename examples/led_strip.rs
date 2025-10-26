@@ -8,7 +8,7 @@ use embassy_rp::bind_interrupts;
 use embassy_rp::pio::InterruptHandler;
 use embassy_rp::peripherals::PIO1;
 use embassy_time::Timer;
-use lib::{define_led_strip, LedStrip, LedStripNotifier, Rgb, Result};
+use lib::{define_led_strip, Rgb, Result};
 use panic_probe as _;
 
 bind_interrupts!(struct Pio1Irqs {
@@ -16,10 +16,10 @@ bind_interrupts!(struct Pio1Irqs {
 });
 
 define_led_strip! {
-    LedStrip0 {
+    led_strip0 {
         task: led_strip_0_driver,
         pio: PIO1,
-        irqs: Pio1Irqs,
+        irqs: crate::Pio1Irqs,
         sm: { field: sm0, index: 0 },
         dma: DMA_CH1,
         pin: PIN_2,
@@ -32,8 +32,8 @@ define_led_strip! {
 async fn main(spawner: Spawner) -> ! {
     let peripherals = embassy_rp::init(Default::default());
 
-    static LED_STRIP_NOTIFIER: LedStripNotifier = LedStrip0::notifier();
-    let mut led_strip_0: LedStrip<{ LedStrip0::len() }> = LedStrip0::new(
+    static LED_STRIP_NOTIFIER: led_strip0::Notifier = led_strip0::notifier();
+    let mut led_strip_0 = led_strip0::new(
         spawner,
         &LED_STRIP_NOTIFIER,
         peripherals.PIO1,
@@ -56,11 +56,8 @@ async fn main(spawner: Spawner) -> ! {
     }
 }
 
-async fn update_rainbow(
-    strip: &mut LedStrip<{ LedStrip0::len() }>,
-    base: u8,
-) -> Result<()> {
-    for idx in 0..LedStrip0::len() {
+async fn update_rainbow(strip: &mut led_strip0::Strip, base: u8) -> Result<()> {
+    for idx in 0..led_strip0::LEN {
         let offset = base.wrapping_add((idx as u8).wrapping_mul(16));
         strip.update_pixel(idx, wheel(offset)).await?;
     }
