@@ -111,7 +111,8 @@ where
 #[macro_export]
 macro_rules! define_led_strip_targets {
     ($(
-        $task:ident : {
+        $driver:ident {
+            task: $task:ident,
             pio: $pio:ident,
             irqs: $irqs:ident,
             sm: { field: $sm_field:ident, index: $sm_index:expr },
@@ -122,7 +123,7 @@ macro_rules! define_led_strip_targets {
     ),+ $(,)?) => {
         $(
             #[embassy_executor::task]
-            pub async fn $task(
+            async fn $task(
                 pio: embassy_rp::Peri<'static, embassy_rp::peripherals::$pio>,
                 dma: embassy_rp::Peri<'static, embassy_rp::peripherals::$dma>,
                 pin: embassy_rp::Peri<'static, embassy_rp::peripherals::$pin>,
@@ -138,6 +139,23 @@ macro_rules! define_led_strip_targets {
                     &program,
                 );
                 $crate::led_strip::led_strip_driver_loop::<embassy_rp::peripherals::$pio, $sm_index, $len>(driver, commands).await;
+            }
+
+            pub struct $driver;
+
+            impl $driver {
+                pub fn new(
+                    spawner: embassy_executor::Spawner,
+                    notifier: &'static $crate::led_strip::LedStripNotifier,
+                    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::$pio>,
+                    dma: embassy_rp::Peri<'static, embassy_rp::peripherals::$dma>,
+                    pin: embassy_rp::Peri<'static, embassy_rp::peripherals::$pin>,
+                ) -> $crate::Result<$crate::led_strip::LedStrip<$len>> {
+                    spawner
+                        .spawn($task(pio, dma, pin, notifier.commands()))
+                        .map_err($crate::Error::TaskSpawn)?;
+                    $crate::led_strip::LedStrip::<$len>::new(notifier)
+                }
             }
         )+
     };

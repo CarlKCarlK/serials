@@ -19,7 +19,8 @@ bind_interrupts!(struct Pio1Irqs {
 });
 
 define_led_strip_targets! {
-    led_strip_driver_pio1_sm0_pin2_len_default: {
+    LedStripDriverPio1Sm0Pin2LenDefault {
+        task: led_strip_driver_pio1_sm0_pin2_len_default,
         pio: PIO1,
         irqs: Pio1Irqs,
         sm: { field: sm0, index: 0 },
@@ -35,16 +36,14 @@ async fn main(spawner: Spawner) -> ! {
     let peripherals = embassy_rp::init(Default::default());
 
     static LED_STRIP_NOTIFIER: LedStripNotifier = AppLedStrip::notifier();
-    spawner
-        .spawn(led_strip_driver_pio1_sm0_pin2_len_default(
-            peripherals.PIO1,
-            peripherals.DMA_CH1,
-            peripherals.PIN_2,
-            LED_STRIP_NOTIFIER.commands(),
-        ))
-        .expect("Failed to spawn LED strip driver");
-
-    let mut led_strip = AppLedStrip::new(&LED_STRIP_NOTIFIER).expect("Failed to init LED strip client");
+    let mut led_strip = LedStripDriverPio1Sm0Pin2LenDefault::new(
+        spawner,
+        &LED_STRIP_NOTIFIER,
+        peripherals.PIO1,
+        peripherals.DMA_CH1,
+        peripherals.PIN_2,
+    )
+    .expect("Failed to start LED strip");
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 
