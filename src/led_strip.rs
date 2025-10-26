@@ -112,16 +112,24 @@ where
 macro_rules! define_led_strip {
     ($(
         $module:ident {
+            $(#[$meta:meta])*
             task: $task:ident,
+            /// Which PIO peripheral owns this strip (PIO0/PIO1).
             pio: $pio:ident,
+            /// The IRQ line that matches the selected PIO (PIOx_IRQ_y).
             irq: $irq:ident,
+            /// Which state machine to use (field on `embassy_rp::pio::Pio` + index 0-3).
             sm: { field: $sm_field:ident, index: $sm_index:expr },
+            /// DMA channel feeding the PIO TX FIFO.
             dma: $dma:ident,
+            /// GPIO pin that carries the strip’s data signal.
             pin: $pin:ident,
+            /// Number of LEDs on the strip.
             len: $len:expr
         }
     ),+ $(,)?) => {
         $(
+            #[allow(non_snake_case)]
             pub mod $module {
                 use super::*;
                 use embassy_executor::Spawner;
@@ -150,7 +158,7 @@ macro_rules! define_led_strip {
                         pin,
                         &program,
                     );
-                    $crate::led_strip::led_strip_driver_loop::<embassy_rp::peripherals::$pio, $sm_index, LEN>(driver, commands).await;
+$crate::led_strip::led_strip_driver_loop::<embassy_rp::peripherals::$pio, $sm_index, LEN>(driver, commands).await;
                 }
 
                 pub const fn notifier() -> Notifier {
