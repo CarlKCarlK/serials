@@ -5,7 +5,7 @@
 mod char_lcd;
 pub mod clock;
 mod error;
-mod led_strip;
+pub mod led_strip;
 mod ir_nec;
 mod rfid;
 pub mod servo;

@@ -8,12 +8,12 @@ use embassy_time::Timer;
 use lib::{LedStrip, LedStripNotifier, Rgb, Result, LED_STRIP_LEN};
 use panic_probe as _;
 
-static LED_STRIP_NOTIFIER: LedStripNotifier = LedStrip::notifier();
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
     let peripherals = embassy_rp::init(Default::default());
 
+    static LED_STRIP_NOTIFIER: LedStripNotifier = LedStrip::notifier();
     let mut led_strip = LedStrip::new(
         &LED_STRIP_NOTIFIER,
         peripherals.PIO1,
@@ -37,10 +37,10 @@ async fn main(spawner: Spawner) -> ! {
     }
 }
 
-async fn update_rainbow(led_strip: &mut LedStrip, base: u8) -> Result<()> {
+async fn update_rainbow(strip: &mut LedStrip, base: u8) -> Result<()> {
     for idx in 0..LED_STRIP_LEN {
         let offset = base.wrapping_add((idx as u8).wrapping_mul(16));
-        led_strip.update_pixel(idx, wheel(offset)).await?;
+        strip.update_pixel(idx, wheel(offset)).await?;
     }
     Ok(())
 }
