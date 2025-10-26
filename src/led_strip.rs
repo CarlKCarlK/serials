@@ -109,7 +109,7 @@ where
 }
 
 #[macro_export]
-macro_rules! define_led_strip_targets {
+macro_rules! define_led_strip {
     ($(
         $driver:ident {
             task: $task:ident,
@@ -144,6 +144,14 @@ macro_rules! define_led_strip_targets {
             pub struct $driver;
 
             impl $driver {
+                pub const fn notifier() -> $crate::led_strip::LedStripNotifier {
+                    $crate::led_strip::LedStrip::<$len>::notifier()
+                }
+
+                pub const fn len() -> usize {
+                    $len
+                }
+
                 pub fn new(
                     spawner: embassy_executor::Spawner,
                     notifier: &'static $crate::led_strip::LedStripNotifier,
