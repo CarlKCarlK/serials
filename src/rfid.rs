@@ -72,8 +72,8 @@ impl Rfid<'_> {
         let mfrc522 = init_mfrc522_hardware(spi, sck, mosi, miso, dma_ch0, dma_ch1, cs, rst).await?;
         
         // Spawn the polling task
-        spawner.spawn(rfid_polling_task(mfrc522, notifier))
-                .map_err(Error::TaskSpawn)?;
+        let token = rfid_polling_task(mfrc522, notifier).map_err(Error::TaskSpawn)?;
+        spawner.spawn(token);
         
         Ok(Self { notifier })
     }

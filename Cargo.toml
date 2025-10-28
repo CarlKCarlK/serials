@@ -9,26 +9,41 @@ version = "0.0.1"
 name = "lib"
 path = "src/lib.rs"
 
+[features]
+default = []
+led-strip = [
+    "dep:smart-leds",
+    "dep:smart-leds-trait",
+    "dep:ws2812-pio",
+]
+wifi = [
+    "dep:cyw43",
+    "dep:cyw43-pio",
+    "dep:cyw43-firmware",
+    "dep:embassy-net",
+]
+
 [dependencies]
 defmt = "0.3.10"
 defmt-rtt = "1.1.0"
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 cortex-m-rt = "0.7.5"
 cortex-m = "0.7.7"
-embassy-executor = { version = "0.9.1", features = [
+embassy-executor = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
     "arch-cortex-m",
     "executor-thread",
     "defmt",
 ] }
-embassy-sync = { version = "0.7.2" }
-embassy-rp = { version = "0.8.0", features = [
+embassy-sync = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-rp = { git = "https://github.com/embassy-rs/embassy", branch = "main", default-features = false, features = [
+    "rt",
     "defmt",
     "time-driver",
     "critical-section-impl",
-    "rp2040",
+    "rp235xb",
 ] }
-embassy-futures = { version = "0.1.2" }
-embassy-time = { version = "0.5.0", features = [
+embassy-futures = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-time = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
     "defmt",
     "defmt-timestamp-uptime",
 ] }
@@ -41,12 +56,11 @@ derive_more = { version = "2.0.1", default-features = false, features = [
 # num-bigint = { version = "0.4.6", default-features = false }
 heapless = "0.9.1"
 time = { version = "0.3", default-features = false }
-rp2040-hal = { version = "0.11.0", features = ["rt"] }
-smart-leds = "0.4.0"
-smart-leds-trait = "0.3.2"
-ws2812-pio = "0.9.0"
+rp235x-hal = { git = "https://github.com/rp-rs/rp-hal", branch = "main", package = "rp235x-hal", features = ["rt"] }
+smart-leds = { version = "0.4.0", optional = true }
+smart-leds-trait = { version = "0.3.2", optional = true }
+ws2812-pio = { version = "0.9.0", optional = true }
 critical-section = { version = "1.2.0", features = ["restore-state-u8"] }
-rp2040-boot2 = "0.3.0"
 embedded-hal = "1.0.0"
 embedded-hal-async = "1.0.0"
 embedded-io-async = "0.6.1"
@@ -54,12 +68,22 @@ embedded-hal-bus = { version = "0.3.0", features = ["async", "portable-atomic"] 
 portable-atomic = { version = "1.11.1", features = ["critical-section"] }
 hd44780-driver = "0.4.0"
 esp-hal-mfrc522 = "0.3.2"
-cyw43 = { version = "0.5.0", features = ["defmt", "firmware-logs"] }
-cyw43-pio = { version = "0.8.0", features = ["defmt"] }
-cyw43-firmware = { version = "0.1", features = ["wifi"] }
-embassy-net = { version = "0.7.1", features = ["defmt", "tcp", "udp", "dhcpv4", "dns", "medium-ethernet"] }
+cyw43 = { version = "0.5.0", features = ["defmt", "firmware-logs"], optional = true }
+cyw43-pio = { version = "0.8.0", features = ["defmt"], optional = true }
+cyw43-firmware = { version = "0.1", features = ["wifi"], optional = true }
+embassy-net = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = ["defmt", "tcp", "udp", "dhcpv4", "dns", "medium-ethernet"], optional = true }
 static_cell = "2.1.0"
-embassy-hal-internal = "0.3.0"
+embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = ["cortex-m", "prio-bits-2"] }
+
+[patch.crates-io]
+embassy-executor = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-sync = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-futures = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-time = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-time-driver = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-time-queue-utils = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-net = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 
 [build-dependencies]
 dotenvy = "0.15"

@@ -1,5 +1,5 @@
 [build]
-target = "thumbv6m-none-eabi"
+target = "thumbv8m.main-none-eabihf"
 
 [env]
 DEFMT_LOG = "info"
@@ -10,10 +10,11 @@ ir = "run --example ir --release"
 wireless = "run --example wireless --release"
 lcd_clock = "run --example lcd_clock --release"
 led_strip = "run --example led_strip --release"
+blinky = "run --example blinky --release"
 
 
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
-runner = "probe-rs run --chip=RP2040"
+runner = "probe-rs run --chip=RP235x --probe=2e8a:000c:E6633861A38D5A38"
 rustflags = [
     "-C",
     "link-arg=-Tlink.x",

@@ -83,7 +83,8 @@ impl TimeSync {
         );
 
         // Spawn TimeSync task
-        unwrap!(spawner.spawn(time_sync_device_loop(wifi, &resources.events)));
+        let token = unwrap!(time_sync_device_loop(wifi, &resources.events));
+        spawner.spawn(token);
         
         resources.time_sync_cell.init(Self {
             events: &resources.events,
