@@ -9,12 +9,13 @@ use lib::{define_led_strip, Rgb, Result};
 use panic_probe as _;
 
 define_led_strip! {
-    led_strip0 as LedStrip0 {
-        task: led_strip_0_driver,
-        pio: PIO1,
-        irq: PIO1_IRQ_0,
+    my_strip as LedStrip0 {
+        task: led_strip0_driver,
+        pio: PIO0,
+        irq: PIO0_IRQ_0,
+        irq_name: LedStrip0Irqs,
         sm: { field: sm0, index: 0 },
-        dma: DMA_CH1,
+        dma: DMA_CH0,
         pin: PIN_2,
         len: 8,
         max_current_ma: 480
@@ -30,8 +31,8 @@ async fn main(spawner: Spawner) -> ! {
     let mut led_strip_0 = LedStrip0::new(
         spawner,
         &LED_STRIP_NOTIFIER,
-        peripherals.PIO1,
-        peripherals.DMA_CH1,
+        peripherals.PIO0,
+        peripherals.DMA_CH0,
         peripherals.PIN_2,
     )
     .expect("Failed to start LED strip");

@@ -112,10 +112,8 @@ macro_rules! define_led_strip {
             task: $task:ident,
             /// Which PIO peripheral owns this strip (PIO0/PIO1).
             pio: $pio:ident,
-            /// The IRQ line that matches the selected PIO (PIOx_IRQ_y).
-            irq: $irq:ident,
-            /// Which state machine to use (field on `embassy_rp::pio::Pio` + index 0-3).
-            sm: { field: $sm_field:ident, index: $sm_index:expr },
+            /// Which state machine to use (0-3).
+            sm_index: $sm_index:expr,
             /// DMA channel feeding the PIO TX FIFO.
             dma: $dma:ident,
             /// GPIO pin that carries the strip's data signal.
@@ -145,22 +143,19 @@ macro_rules! define_led_strip {
                     if scale > 255 { 255 } else { scale as u8 }
                 };
 
-                embassy_rp::bind_interrupts!(struct Irqs {
-                    $irq => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::$pio>;
-                });
-
                 #[embassy_executor::task]
                 async fn $task(
-                    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::$pio>,
+                    common: *mut embassy_rp::pio::Common<'static, embassy_rp::peripherals::$pio>,
+                    sm: embassy_rp::pio::StateMachine<'static, embassy_rp::peripherals::$pio, $sm_index>,
                     dma: embassy_rp::Peri<'static, embassy_rp::peripherals::$dma>,
                     pin: embassy_rp::Peri<'static, embassy_rp::peripherals::$pin>,
                     commands: &'static $crate::led_strip::LedStripCommands<LEN>,
                 ) -> ! {
-                    let mut pio = embassy_rp::pio::Pio::new(pio, Irqs);
-                    let program = embassy_rp::pio_programs::ws2812::PioWs2812Program::new(&mut pio.common);
+                    let common = unsafe { &mut *common };
+                    let program = embassy_rp::pio_programs::ws2812::PioWs2812Program::new(common);
                     let driver = embassy_rp::pio_programs::ws2812::PioWs2812::<embassy_rp::peripherals::$pio, $sm_index, LEN>::new(
-                        &mut pio.common,
-                        pio.$sm_field,
+                        common,
+                        sm,
                         dma,
                         pin,
                         &program,
@@ -175,11 +170,12 @@ $crate::led_strip::led_strip_driver_loop::<embassy_rp::peripherals::$pio, $sm_in
                 pub fn new(
                     spawner: Spawner,
                     notifier: &'static Notifier,
-                    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::$pio>,
+                    common: &'static mut embassy_rp::pio::Common<'static, embassy_rp::peripherals::$pio>,
+                    sm: embassy_rp::pio::StateMachine<'static, embassy_rp::peripherals::$pio, $sm_index>,
                     dma: embassy_rp::Peri<'static, embassy_rp::peripherals::$dma>,
                     pin: embassy_rp::Peri<'static, embassy_rp::peripherals::$pin>,
                 ) -> $crate::Result<Strip> {
-                    spawner.spawn($task(pio, dma, pin, notifier.commands()).unwrap());
+                    spawner.spawn($task(common as *mut _, sm, dma, pin, notifier.commands()).unwrap());
                     Strip::new(notifier)
                 }
             }

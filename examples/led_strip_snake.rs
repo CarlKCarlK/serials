@@ -17,6 +17,7 @@ define_led_strip! {
         task: led_strip_2_driver,
         pio: PIO1,
         irq: PIO1_IRQ_0,
+        irq_name: LedStrip2Irqs,
         sm: { field: sm0, index: 0 },
         dma: DMA_CH1,
         pin: PIN_16,

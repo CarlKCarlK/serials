@@ -100,6 +100,16 @@ impl Led24x4 {
         Ok(())
     }
 
+    /// Display "1234" in red, green, blue, and yellow respectively.
+    pub async fn display_1234(&mut self) -> Result<()> {
+        let red = RGB8::new(32, 0, 0);
+        let green = RGB8::new(0, 32, 0);
+        let blue = RGB8::new(0, 0, 32);
+        let yellow = RGB8::new(32, 32, 0);
+        
+        self.display(['1', '2', '3', '4'], [red, green, blue, yellow]).await
+    }
+
     #[inline]
     fn xy_to_index(x: usize, y: usize) -> usize {
         // Column-major with serpentine: even columns go down (top-to-bottom), odd columns go up (bottom-to-top)

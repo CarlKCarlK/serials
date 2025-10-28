@@ -8,6 +8,7 @@
 #![no_std]
 #![no_main]
 #![allow(clippy::future_not_send, reason = "Single-threaded")]
+#![allow(unsafe_code, reason = "PIO Common shared via raw pointer in single-threaded context")]
 
 use core::convert::Infallible;
 use core::fmt::Write;
@@ -15,24 +16,43 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
+use embassy_rp::{bind_interrupts, pio};
+use embassy_rp::pio::{InterruptHandler, Pio};
 use heapless::{String, index_map::FnvIndexMap};
+use static_cell::StaticCell;
 use lib::{
     CharLcd, CharLcdNotifier, Clock, ClockEvent, ClockNotifier, ClockState, IrNec, IrNecEvent,
-    IrNecNotifier, Result, Rgb, Rfid, RfidEvent, RfidNotifier, TimeSync,
-    TimeSyncEvent, TimeSyncNotifier, define_led_strip, servo_a,
+    IrNecNotifier, Result, Rgb, Rfid, RfidEvent, RfidNotifier, Led24x4, define_led_strip, servo_a,
 };
+#[cfg(feature = "wifi")]
+use lib::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 use panic_probe as _;
+
+bind_interrupts!(struct Pio1Irqs {
+    PIO1_IRQ_0 => InterruptHandler<embassy_rp::peripherals::PIO1>;
+});
 
 define_led_strip! {
     led_strip0 as LedStrip0 {
         task: led_strip0_driver,
         pio: PIO1,
-        irq: PIO1_IRQ_0,
-        sm: { field: sm0, index: 0 },
+        sm_index: 0,
         dma: DMA_CH1,
         pin: PIN_2,
         len: 8,
         max_current_ma: 480
+    }
+}
+
+define_led_strip! {
+    led_strip2 as LedStrip2 {
+        task: led_strip2_driver,
+        pio: PIO1,
+        sm_index: 1,
+        dma: DMA_CH4,
+        pin: PIN_14,
+        len: 48,
+        max_current_ma: 2880
     }
 }
 
@@ -50,17 +70,25 @@ pub async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
+    // Initialize PIO1 for LED strips (both strips share PIO1)
+    let Pio { common, sm0, sm1, .. } = Pio::new(p.PIO1, Pio1Irqs);
+    static PIO1_COMMON: StaticCell<pio::Common<'static, embassy_rp::peripherals::PIO1>> = StaticCell::new();
+    let common = PIO1_COMMON.init(common);
+    // SAFETY: We're in single-threaded embassy context and each task accesses different parts of PIO
+    let common_ptr = common as *mut _;
+
     // Test servo: sweep angles 0,45,90,135,180 with 1s pause, 2 times
     // GPIO0 is on PWM0 slice, channel A
     info!("Starting servo test...");
-    let mut servo = servo_a!(p.PWM_SLICE0, p.PIN_0, 500, 2500); // min=500Âµs (0Â°), max=2500Âµs (180Â°)
+    let mut servo = servo_a!(p.PWM_SLICE0, p.PIN_0, 500, 2500); // min=500µs (0°), max=2500µs (180°)
     servo.set_degrees(90);
 
     static LED_STRIP_NOTIFIER: LedStrip0::Notifier = LedStrip0::notifier();
     let mut led_strip0 = LedStrip0::new(
         spawner,
         &LED_STRIP_NOTIFIER,
-        p.PIO1,
+        unsafe { &mut *common_ptr },
+        sm0,
         p.DMA_CH1,
         p.PIN_2,
     )?;
@@ -68,6 +96,17 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     initialize_led_strip(&mut led_strip0, &mut led_pixels).await?;
     let mut led_progress_index: usize = 0;
 
+    static LED_STRIP2_NOTIFIER: LedStrip2::Notifier = LedStrip2::notifier();
+    let led_strip2 = LedStrip2::new(
+        spawner,
+        &LED_STRIP2_NOTIFIER,
+        unsafe { &mut *common_ptr },
+        sm1,
+        p.DMA_CH4,
+        p.PIN_14,
+    )?;
+    let mut led_24x4 = Led24x4::new(led_strip2);
+    led_24x4.display_1234().await?;
 
     // Initialize LCD (GP4=SDA, GP5=SCL)
     static CHAR_LCD_CHANNEL: CharLcdNotifier = CharLcd::notifier();
@@ -79,17 +118,20 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
 
-    static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
-    let time_sync = TimeSync::new(
-        &TIME_SYNC_NOTIFIER,
-        p.PIN_23, // WiFi power enable
-        p.PIN_25, // WiFi chip select
-        p.PIO0,   // WiFi PIO block
-        p.PIN_24, // WiFi MOSI
-        p.PIN_29, // WiFi CLK
-        p.DMA_CH0,
-        spawner,
-    );
+    #[cfg(feature = "wifi")]
+    let time_sync = {
+        static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
+        TimeSync::new(
+            &TIME_SYNC_NOTIFIER,
+            p.PIN_23, // WiFi power enable
+            p.PIN_25, // WiFi chip select
+            p.PIO0,   // WiFi PIO block
+            p.PIN_24, // WiFi MOSI
+            p.PIN_29, // WiFi CLK
+            p.DMA_CH0,
+            spawner,
+        )
+    };
 
     static IR_NEC_NOTIFIER: IrNecNotifier = IrNec::notifier();
     let ir = IrNec::new(
@@ -129,12 +171,19 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         use embassy_futures::select::{Either, select};
 
         // info!("Waiting for RFID/IR/clock/time-sync events");
-        match select(
+        #[cfg(feature = "wifi")]
+        let event = select(
             select(rfid_reader.wait(), ir.wait()),
             select(clock.wait(), time_sync.wait()),
-        )
-        .await
-        {
+        ).await;
+        
+        #[cfg(not(feature = "wifi"))]
+        let event = select(
+            select(rfid_reader.wait(), ir.wait()),
+            clock.wait(),
+        ).await;
+        
+        match event {
             Either::First(device_event) => match device_event {
                 Either::First(RfidEvent::CardDetected { uid }) => {
                     info!("Card detected");
@@ -243,6 +292,8 @@ async fn initialize_led_strip(strip: &mut LedStrip0::Strip, pixels: &mut [Rgb; L
     Ok(())
 }
 
+
+
 async fn advance_led_progress(
     strip: &mut LedStrip0::Strip,
     pixels: &mut [Rgb; LedStrip0::LEN],
@@ -251,29 +302,20 @@ async fn advance_led_progress(
     info!("Turning {} to green", *current_red);
     pixels[*current_red] = LED_GREEN_DIM;
     strip.update_pixels(pixels).await?;
-    log_led_colors(pixels)?;
     let next = (*current_red + 1) % LedStrip0::LEN;
     if next == 0 {
-        info!("Resetting LED strip");
         initialize_led_strip(strip, pixels).await?;
-        log_led_colors(pixels)?;
         *current_red = 0;
     } else {
         info!("Turning {} to red", next);
         pixels[next] = LED_RED_DIM;
         strip.update_pixels(pixels).await?;
-        log_led_colors(pixels)?;
         *current_red = next;
     }
     Ok(())
 }
 
-fn log_led_colors(pixels: &[Rgb; LedStrip0::LEN]) -> Result<()> {
-    for (idx, px) in pixels.iter().enumerate() {
-        info!("LED {} => R:{} G:{} B:{}", idx, px.r, px.g, px.b);
-    }
-    Ok(())
-}
+
 
 fn append_time_line(text: &mut String<64>, latest_time: Option<ClockEvent>) {
     match latest_time {
