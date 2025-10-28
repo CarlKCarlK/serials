@@ -173,9 +173,7 @@ $crate::led_strip::led_strip_driver_loop::<embassy_rp::peripherals::$pio, $sm_in
                     dma: embassy_rp::Peri<'static, embassy_rp::peripherals::$dma>,
                     pin: embassy_rp::Peri<'static, embassy_rp::peripherals::$pin>,
                 ) -> $crate::Result<Strip> {
-                    spawner
-                        .spawn($task(pio, dma, pin, notifier.commands()))
-                        .map_err($crate::Error::TaskSpawn)?;
+                    spawner.spawn($task(pio, dma, pin, notifier.commands()).unwrap());
                     Strip::new(notifier)
                 }
             }

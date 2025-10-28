@@ -589,7 +589,7 @@ dependencies = [
  "embedded-storage-async",
  "fixed",
  "nb 1.1.0",
- "pio 0.3.0",
+ "pio",
  "rand_core 0.6.4",
  "rand_core 0.9.3",
  "rp-pac",
@@ -628,7 +628,7 @@ dependencies = [
  "embedded-storage-async",
  "fixed",
  "nb 1.1.0",
- "pio 0.3.0",
+ "pio",
  "rand_core 0.6.4",
  "rand_core 0.9.3",
  "rp-pac",
@@ -1100,15 +1100,6 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.10.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
@@ -1404,17 +1395,6 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pio"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76e09694b50f89f302ed531c1f2a7569f0be5867aee4ab4f8f729bbeec0078e3"
-dependencies = [
- "arrayvec",
- "num_enum 0.5.11",
- "paste",
-]
-
-[[package]]
-name = "pio"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0ba4153cee9585abc451271aa437d9e8defdea8b468d48ba6b8f098cbe03d7f"
@@ -1577,9 +1557,6 @@ name = "rgb"
 version = "0.8.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c6a884d2998352bb4daf0183589aec883f16a6da1f4dde84d8e2e9a5409a1ce"
-dependencies = [
- "bytemuck",
-]
 
 [[package]]
 name = "riscv"
@@ -1614,23 +1591,8 @@ dependencies = [
 
 [[package]]
 name = "rp-binary-info"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88ed2051a0bf2c726df01cfce378ed8a367be2a6e402fc183857f429a346d429"
-
-[[package]]
-name = "rp-binary-info"
 version = "0.1.2"
 source = "git+https://github.com/rp-rs/rp-hal?branch=main#400ceebb563bccb3099e16ff21208e85f4cbd6f8"
-
-[[package]]
-name = "rp-hal-common"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8288358786b1458fb2caac8c4b40fb529ef4200d6c46467e2695b7a8ba573ae8"
-dependencies = [
- "fugit",
-]
 
 [[package]]
 name = "rp-hal-common"
@@ -1660,60 +1622,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rp2040-hal"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9fb79a4590775204387f334672e6f79c0d734d0a159da23d60677b3c10fa1245"
-dependencies = [
- "bitfield 0.14.0",
- "cortex-m",
- "critical-section",
- "embedded-dma",
- "embedded-hal 0.2.7",
- "embedded-hal 1.0.0",
- "embedded-hal-async",
- "embedded-hal-nb",
- "embedded-io",
- "frunk",
- "fugit",
- "itertools 0.10.5",
- "nb 1.1.0",
- "paste",
- "pio 0.2.1",
- "rand_core 0.6.4",
- "rp-binary-info 0.1.1",
- "rp-hal-common 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rp2040-hal-macros",
- "rp2040-pac",
- "usb-device",
- "vcell",
- "void",
-]
-
-[[package]]
-name = "rp2040-hal-macros"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86479063e497efe1ae81995ef9071f54fd1c7427e04d6c5b84cde545ff672a5e"
-dependencies = [
- "cortex-m-rt",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "rp2040-pac"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83cbcd3f7a0ca7bbe61dc4eb7e202842bee4e27b769a7bf3a4a72fa399d6e404"
-dependencies = [
- "cortex-m",
- "critical-section",
- "vcell",
-]
-
-[[package]]
 name = "rp235x-hal"
 version = "0.3.0"
 source = "git+https://github.com/rp-rs/rp-hal?branch=main#400ceebb563bccb3099e16ff21208e85f4cbd6f8"
@@ -1734,12 +1642,12 @@ dependencies = [
  "itertools 0.13.0",
  "nb 1.1.0",
  "paste",
- "pio 0.3.0",
+ "pio",
  "rand_core 0.9.3",
  "riscv",
  "riscv-rt",
- "rp-binary-info 0.1.2",
- "rp-hal-common 0.1.0 (git+https://github.com/rp-rs/rp-hal?branch=main)",
+ "rp-binary-info",
+ "rp-hal-common",
  "rp235x-hal-macros",
  "rp235x-pac",
  "sha2-const-stable",
@@ -1849,14 +1757,13 @@ dependencies = [
  "esp-hal-mfrc522",
  "hd44780-driver",
  "heapless 0.9.1",
+ "itertools 0.13.0",
  "panic-probe",
  "portable-atomic",
  "rp235x-hal",
  "smart-leds",
- "smart-leds-trait 0.3.2",
  "static_cell",
  "time",
- "ws2812-pio",
 ]
 
 [[package]]
@@ -1908,16 +1815,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "66df34e571fa9993fa6f99131a374d58ca3d694b75f9baac93458fe0d6057bf0"
 dependencies = [
- "smart-leds-trait 0.3.2",
-]
-
-[[package]]
-name = "smart-leds-trait"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebf6d833fa93f16a1c1874e62c2aebe8567e5bdd436d59bf543ed258b6f7a8e3"
-dependencies = [
- "rgb",
+ "smart-leds-trait",
 ]
 
 [[package]]
@@ -2394,19 +2292,3 @@ name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
-
-[[package]]
-name = "ws2812-pio"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef27fde9c7b196ae28a24ee85cd50d73d3e39a3306f971090f871e8c6e7c4d24"
-dependencies = [
- "cortex-m",
- "embedded-hal 0.2.7",
- "fugit",
- "nb 1.1.0",
- "pio 0.2.1",
- "rp2040-hal",
- "smart-leds-trait 0.2.1",
- "smart-leds-trait 0.3.2",
-]

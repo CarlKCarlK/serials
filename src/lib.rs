@@ -5,7 +5,6 @@
 mod char_lcd;
 pub mod clock;
 mod error;
-#[cfg(feature = "led-strip")]
 pub mod led_strip;
 mod ir_nec;
 mod rfid;
@@ -20,8 +19,7 @@ pub mod wifi;
 pub use char_lcd::{CharLcd, CharLcdNotifier, CharLcdMessage};
 pub use clock::{Clock, ClockCommand, ClockNotifier, ClockEvent, ClockState};
 pub use error::{Error, Result};
-#[cfg(feature = "led-strip")]
-pub use led_strip::{LedStrip, LedStripNotifier, Rgb};
+pub use led_strip::{LedStrip, LedStripNotifier};
 pub use ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
 pub use rfid::{RfidEvent, RfidNotifier, Rfid};
 pub use servo::Servo;

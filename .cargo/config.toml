@@ -10,6 +10,7 @@ ir = "run --example ir --release"
 wireless = "run --example wireless --release"
 lcd_clock = "run --example lcd_clock --release"
 led_strip = "run --example led_strip --release"
+led_strip2 = "run --example led_strip2 --release"
 blinky = "run --example blinky --release"
 
 

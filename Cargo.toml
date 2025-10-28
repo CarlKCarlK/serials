@@ -11,11 +11,6 @@ path = "src/lib.rs"
 
 [features]
 default = []
-led-strip = [
-    "dep:smart-leds",
-    "dep:smart-leds-trait",
-    "dep:ws2812-pio",
-]
 wifi = [
     "dep:cyw43",
     "dep:cyw43-pio",
@@ -57,9 +52,8 @@ derive_more = { version = "2.0.1", default-features = false, features = [
 heapless = "0.9.1"
 time = { version = "0.3", default-features = false }
 rp235x-hal = { git = "https://github.com/rp-rs/rp-hal", branch = "main", package = "rp235x-hal", features = ["rt"] }
-smart-leds = { version = "0.4.0", optional = true }
-smart-leds-trait = { version = "0.3.2", optional = true }
-ws2812-pio = { version = "0.9.0", optional = true }
+smart-leds = "0.4.0"
+itertools = { version = "0.13.0", default-features = false }
 critical-section = { version = "1.2.0", features = ["restore-state-u8"] }
 embedded-hal = "1.0.0"
 embedded-hal-async = "1.0.0"
