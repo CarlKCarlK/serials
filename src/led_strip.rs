@@ -72,22 +72,9 @@ impl<const N: usize> LedStripN<N> {
 /// Convenience alias to access `LedStripN` with a const length parameter.
 pub type LedStrip<const N: usize> = LedStripN<N>;
 
-pub async fn led_strip_driver_loop<PIO, const SM: usize, const N: usize>(
-    mut driver: PioWs2812<'static, PIO, SM, N>,
-    commands: &'static LedStripCommands<N>,
-) -> !
-where
-    PIO: Instance,
-{
-    loop {
-        let frame = commands.receive().await;
-        driver.write(&frame).await;
-    }
-}
-
 /// Driver loop with brightness scaling.
 /// Scales all RGB values by `max_brightness / 255` before writing to LEDs.
-pub async fn led_strip_driver_loop_with_brightness<PIO, const SM: usize, const N: usize>(
+pub async fn led_strip_driver_loop<PIO, const SM: usize, const N: usize>(
     mut driver: PioWs2812<'static, PIO, SM, N>,
     commands: &'static LedStripCommands<N>,
     max_brightness: u8,
@@ -95,21 +82,19 @@ pub async fn led_strip_driver_loop_with_brightness<PIO, const SM: usize, const N
 where
     PIO: Instance,
 {
-    let mut scaled_frame = [Rgb::default(); N];
-
     loop {
-        let frame = commands.receive().await;
+        let mut frame = commands.receive().await;
         
-        // Scale all pixels by brightness
-        for i in 0..N {
-            scaled_frame[i] = Rgb::new(
-                scale_brightness(frame[i].r, max_brightness),
-                scale_brightness(frame[i].g, max_brightness),
-                scale_brightness(frame[i].b, max_brightness),
+        // Scale all pixels by brightness in place
+        for color in frame.iter_mut() {
+            *color = Rgb::new(
+                scale_brightness(color.r, max_brightness),
+                scale_brightness(color.g, max_brightness),
+                scale_brightness(color.b, max_brightness),
             );
         }
         
-        driver.write(&scaled_frame).await;
+        driver.write(&frame).await;
     }
 }
 
@@ -180,7 +165,7 @@ macro_rules! define_led_strip {
                         pin,
                         &program,
                     );
-$crate::led_strip::led_strip_driver_loop_with_brightness::<embassy_rp::peripherals::$pio, $sm_index, LEN>(driver, commands, MAX_BRIGHTNESS).await;
+$crate::led_strip::led_strip_driver_loop::<embassy_rp::peripherals::$pio, $sm_index, LEN>(driver, commands, MAX_BRIGHTNESS).await;
                 }
 
                 pub const fn notifier() -> Notifier {

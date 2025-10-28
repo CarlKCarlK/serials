@@ -20,7 +20,7 @@ define_led_strip! {
         dma: DMA_CH1,
         pin: PIN_16,
         len: 48,
-        max_current_ma: 50
+        max_current_ma: 100
     }
 }
 
