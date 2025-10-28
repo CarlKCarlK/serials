@@ -15,7 +15,6 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
-use embassy_rp::pio::Pio;
 use heapless::{String, index_map::FnvIndexMap};
 use lib::{
     CharLcd, CharLcdNotifier, Clock, ClockEvent, ClockNotifier, ClockState, IrNec, IrNecEvent,
@@ -64,9 +63,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let mut servo = servo_a!(p.PWM_SLICE0, p.PIN_0, 500, 2500); // min=500µs (0°), max=2500µs (180°)
     servo.set_degrees(90);
 
-        // Initialize PIO1 for LED strips (both strips share PIO1)
-    let Pio { common, sm0, sm1, .. } = Pio::new(p.PIO1, Pio1Irqs);
-    let pio_bus = PIO1_BUS.init_with(|| lib::led_strip::PioBus::new(common));
+    // Initialize PIO1 for LED strips (both strips share PIO1)
+    let (pio_bus, sm0, sm1, _sm2, _sm3) = init_pio1(p.PIO1);
 
     static LED_STRIP0_NOTIFIER: led_strip0::Notifier = led_strip0::notifier();
     let mut led_strip0_device = led_strip0::new(

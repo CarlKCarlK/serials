@@ -183,9 +183,25 @@ macro_rules! define_led_strips {
             static [<$pio _BUS>]: ::static_cell::StaticCell<
                 $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>
             > = ::static_cell::StaticCell::new();
+
+            // Helper function to initialize the PIO and bus
+            // Returns (bus, sm0, sm1, sm2, sm3)
+            pub fn [<init_ $pio:lower>](
+                pio: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pio>,
+            ) -> (
+                &'static $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>,
+                ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, 0>,
+                ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, 1>,
+                ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, 2>,
+                ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, 3>,
+            ) {
+                let ::embassy_rp::pio::Pio { common, sm0, sm1, sm2, sm3, .. } = ::embassy_rp::pio::Pio::new(pio, [<$pio:camel Irqs>]);
+                let pio_bus = [<$pio _BUS>].init_with(|| {
+                    $crate::led_strip::PioBus::new(common)
+                });
+                (pio_bus, sm0, sm1, sm2, sm3)
+            }
         }
-        
-        // Create strip modules
         
         // Create strip modules
         $(

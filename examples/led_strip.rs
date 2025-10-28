@@ -4,7 +4,6 @@
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_rp::pio::Pio;
 use embassy_time::Timer;
 use lib::{define_led_strips, Rgb, Result};
 use panic_probe as _;
@@ -27,8 +26,7 @@ async fn main(spawner: Spawner) -> ! {
     let peripherals = embassy_rp::init(Default::default());
 
     // Initialize PIO0 bus
-    let Pio { common, sm0, .. } = Pio::new(peripherals.PIO0, Pio0Irqs);
-    let pio_bus = PIO0_BUS.init_with(|| lib::led_strip::PioBus::new(common));
+    let (pio_bus, sm0, _sm1, _sm2, _sm3) = init_pio0(peripherals.PIO0);
 
     static LED_STRIP_NOTIFIER: led_strip0::Notifier = led_strip0::notifier();
     let mut led_strip_0 = led_strip0::new(
