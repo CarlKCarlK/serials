@@ -20,7 +20,7 @@ pub mod wifi;
 pub use char_lcd::{CharLcd, CharLcdNotifier, CharLcdMessage};
 pub use clock::{Clock, ClockCommand, ClockNotifier, ClockEvent, ClockState};
 pub use error::{Error, Result};
-pub use led_strip::{LedStrip, LedStripNotifier};
+pub use led_strip::{LedStrip, LedStripNotifier, Rgb};
 pub use led_24x4::Led24x4;
 pub use ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
 pub use rfid::{RfidEvent, RfidNotifier, Rfid};

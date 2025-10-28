@@ -10,7 +10,9 @@ name = "lib"
 path = "src/lib.rs"
 
 [features]
-default = []
+default = ["pico2"]
+pico1w = ["embassy-rp/rp2040"]
+pico2 = ["embassy-rp/rp235xb", "dep:rp235x-hal"]
 wifi = [
     "dep:cyw43",
     "dep:cyw43-pio",
@@ -35,7 +37,6 @@ embassy-rp = { git = "https://github.com/embassy-rs/embassy", branch = "main", d
     "defmt",
     "time-driver",
     "critical-section-impl",
-    "rp235xb",
 ] }
 embassy-futures = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 embassy-time = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
@@ -51,7 +52,7 @@ derive_more = { version = "2.0.1", default-features = false, features = [
 # num-bigint = { version = "0.4.6", default-features = false }
 heapless = "0.9.1"
 time = { version = "0.3", default-features = false }
-rp235x-hal = { git = "https://github.com/rp-rs/rp-hal", branch = "main", package = "rp235x-hal", features = ["rt"] }
+rp235x-hal = { git = "https://github.com/rp-rs/rp-hal", branch = "main", package = "rp235x-hal", features = ["rt"], optional = true }
 smart-leds = "0.4.0"
 itertools = { version = "0.13.0", default-features = false }
 critical-section = { version = "1.2.0", features = ["restore-state-u8"] }

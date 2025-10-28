@@ -5,6 +5,26 @@ target = "thumbv8m.main-none-eabihf"
 DEFMT_LOG = "info"
 
 [alias]
+# Pico 1W aliases
+full_1w = "run --example full --release --target thumbv6m-none-eabi --no-default-features --features pico1w"
+ir_1w = "run --example ir --release --target thumbv6m-none-eabi --no-default-features --features pico1w"
+wireless_1w = "run --example wireless --release --target thumbv6m-none-eabi --no-default-features --features pico1w,wifi"
+lcd_clock_1w = "run --example lcd_clock --release --target thumbv6m-none-eabi --no-default-features --features pico1w,wifi"
+led_strip_1w = "run --example led_strip --release --target thumbv6m-none-eabi --no-default-features --features pico1w"
+
+# Pico 2 aliases
+full_2 = "run --example full --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2"
+ir_2 = "run --example ir --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2"
+wireless_2 = "run --example wireless --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2"
+lcd_clock_2 = "run --example lcd_clock --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2"
+led_strip_2 = "run --example led_strip --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2"
+led_strip2_2 = "run --example led_strip2 --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2"
+led_24x4_2 = "run --example led_24x4 --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2"
+led_24x4_clock_2 = "run --example led_24x4_clock --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2"
+led_strip_snake_2 = "run --example led_strip_snake --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2"
+blinky_2 = "run --example blinky --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2"
+
+# Default aliases (Pico 2)
 full = "run --example full --release"
 ir = "run --example ir --release"
 wireless = "run --example wireless --release"
@@ -12,10 +32,21 @@ lcd_clock = "run --example lcd_clock --release"
 led_strip = "run --example led_strip --release"
 led_strip2 = "run --example led_strip2 --release"
 led_24x4 = "run --example led_24x4 --release"
+led_24x4_clock = "run --example led_24x4_clock --release"
+led_strip_snake = "run --example led_strip_snake --release"
 blinky = "run --example blinky --release"
 
 
-[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+[target.thumbv6m-none-eabi]
+runner = "probe-rs run --chip=RP2040"
+rustflags = [
+    "-C",
+    "link-arg=-Tlink.x",
+    "-C",
+    "link-arg=-Tdefmt.x",
+]
+
+[target.thumbv8m.main-none-eabihf]
 runner = "probe-rs run --chip=RP235x --probe=2e8a:000c:E6633861A38D5A38"
 rustflags = [
     "-C",
