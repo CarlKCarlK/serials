@@ -126,7 +126,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     loop {
         use embassy_futures::select::{Either, select};
 
-        info!("Waiting for RFID/IR/clock/time-sync events");
+        // info!("Waiting for RFID/IR/clock/time-sync events");
         match select(
             select(rfid_reader.wait(), ir.wait()),
             select(clock.wait(), time_sync.wait()),
@@ -247,18 +247,26 @@ async fn advance_led_progress(
 ) -> Result<()> {
     info!("Turning {} to green", *current_red);
     strip.update_pixel(*current_red, LED_GREEN_DIM).await?;
+    log_led_colors(strip)?;
     let next = (*current_red + 1) % LedStrip0::LEN;
     if next == 0 {
         info!("Resetting LED strip");
-        for idx in 0..LedStrip0::LEN {
-            let color = if idx == 0 { LED_RED_DIM } else { LED_OFF };
-            strip.update_pixel(idx, color).await?;
-        }
+        initialize_led_strip(strip).await?;
+        log_led_colors(strip)?;
         *current_red = 0;
     } else {
         info!("Turning {} to red", next);
         strip.update_pixel(next, LED_RED_DIM).await?;
+        log_led_colors(strip)?;
         *current_red = next;
+    }
+    Ok(())
+}
+
+fn log_led_colors(strip: &LedStrip0::Strip) -> Result<()> {
+    for idx in 0..LedStrip0::LEN {
+        let px = strip.pixel(idx)?;
+        info!("LED {} => R:{} G:{} B:{}", idx, px.r, px.g, px.b);
     }
     Ok(())
 }
@@ -279,4 +287,5 @@ fn append_time_line(text: &mut String<64>, latest_time: Option<ClockEvent>) {
         }
     }
 }
+
 
