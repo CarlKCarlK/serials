@@ -108,6 +108,43 @@ where
     }
 }
 
+/// Driver loop with brightness scaling.
+/// Scales all RGB values by `max_brightness / 255` before writing to LEDs.
+pub async fn led_strip_driver_loop_with_brightness<PIO, const SM: usize, const N: usize>(
+    mut driver: PioWs2812<'static, PIO, SM, N>,
+    commands: &'static LedStripCommands,
+    max_brightness: u8,
+) -> !
+where
+    PIO: Instance,
+{
+    let mut frame = [Rgb::default(); N];
+
+    loop {
+        match commands.receive().await {
+            LedStripCommand::Update { index, color } => {
+                let idx = usize::from(index);
+                if idx < N {
+                    // Scale the color by max_brightness
+                    let scaled = Rgb::new(
+                        scale_brightness(color.r, max_brightness),
+                        scale_brightness(color.g, max_brightness),
+                        scale_brightness(color.b, max_brightness),
+                    );
+                    frame[idx] = scaled;
+                    driver.write(&frame).await;
+                }
+            }
+        }
+    }
+}
+
+/// Scale a single color component by brightness (0-255).
+#[inline]
+fn scale_brightness(value: u8, brightness: u8) -> u8 {
+    ((u16::from(value) * u16::from(brightness)) / 255) as u8
+}
+
 #[macro_export]
 macro_rules! define_led_strip {
     ($(
@@ -122,10 +159,12 @@ macro_rules! define_led_strip {
             sm: { field: $sm_field:ident, index: $sm_index:expr },
             /// DMA channel feeding the PIO TX FIFO.
             dma: $dma:ident,
-            /// GPIO pin that carries the strip’s data signal.
+            /// GPIO pin that carries the strip's data signal.
             pin: $pin:ident,
             /// Number of LEDs on the strip.
-            len: $len:expr
+            len: $len:expr,
+            /// Maximum current budget in milliamps (mA).
+            max_current_ma: $max_current:expr
         }
     ),+ $(,)?) => {
         $(
@@ -138,6 +177,14 @@ macro_rules! define_led_strip {
                 pub const LEN: usize = $len;
                 pub type Strip = $crate::led_strip::LedStrip<LEN>;
                 pub type Notifier = $crate::led_strip::LedStripNotifier;
+
+                // Calculate max brightness from current budget
+                // Each WS2812B LED draws ~60mA at full brightness
+                const WORST_CASE_MA: u32 = (LEN as u32) * 60;
+                pub const MAX_BRIGHTNESS: u8 = {
+                    let scale = ($max_current as u32 * 255) / WORST_CASE_MA;
+                    if scale > 255 { 255 } else { scale as u8 }
+                };
 
                 embassy_rp::bind_interrupts!(struct Irqs {
                     $irq => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::$pio>;
@@ -159,7 +206,7 @@ macro_rules! define_led_strip {
                         pin,
                         &program,
                     );
-$crate::led_strip::led_strip_driver_loop::<embassy_rp::peripherals::$pio, $sm_index, LEN>(driver, commands).await;
+$crate::led_strip::led_strip_driver_loop_with_brightness::<embassy_rp::peripherals::$pio, $sm_index, LEN>(driver, commands, MAX_BRIGHTNESS).await;
                 }
 
                 pub const fn notifier() -> Notifier {
