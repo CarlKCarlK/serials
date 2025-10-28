@@ -5,7 +5,6 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
-use heapless::Vec;
 use lib::define_led_strip;
 use smart_leds::RGB8;
 use panic_probe as _;
@@ -49,9 +48,8 @@ async fn main(spawner: Spawner) -> ! {
     const SNAKE_COLOR: RGB8 = RGB8::new(255, 255, 255); // Full white - will be scaled by max_brightness
     const BACKGROUND: RGB8 = RGB8::new(0, 0, 0);
 
-    // Snake state: heapless buffer starts all background
-    let background_array = [BACKGROUND; LedStrip2::LEN];
-    let mut frame = Vec::<RGB8, { LedStrip2::LEN }>::from_slice(&background_array).unwrap();
+    // Snake state: array buffer starts all background
+    let mut frame = [BACKGROUND; LedStrip2::LEN];
 
     let mut position: usize = 0;
 

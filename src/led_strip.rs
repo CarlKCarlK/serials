@@ -57,19 +57,10 @@ impl<const N: usize> LedStripN<N> {
         })
     }
 
-    /// Updates all LEDs at once from the provided slice.
-    /// 
-    /// # Panics
-    /// Panics if `pixels.len() != N`.
-    pub async fn update_pixels(&mut self, pixels: &[Rgb]) -> Result<()> {
-        assert_eq!(pixels.len(), N, "pixels slice must have exactly {} elements", N);
-        
-        // Copy slice into array to send through channel
-        let mut frame = [Rgb::default(); N];
-        frame.copy_from_slice(pixels);
-        
-        // Send entire frame as one message
-        self.commands.send(frame).await;
+    /// Updates all LEDs at once from the provided array.
+    pub async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
+        // Send entire frame as one message (copy array to send through channel)
+        self.commands.send(*pixels).await;
         
         // Wait for the DMA write to complete
         embassy_time::Timer::after(embassy_time::Duration::from_micros(Self::WRITE_DELAY_US)).await;
