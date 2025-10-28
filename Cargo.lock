@@ -1687,6 +1687,7 @@ dependencies = [
  "heapless 0.9.1",
  "itertools 0.13.0",
  "panic-probe",
+ "paste",
  "portable-atomic",
  "rp235x-hal",
  "smart-leds",

@@ -20,7 +20,7 @@ pub mod wifi;
 pub use char_lcd::{CharLcd, CharLcdNotifier, CharLcdMessage};
 pub use clock::{Clock, ClockCommand, ClockNotifier, ClockEvent, ClockState};
 pub use error::{Error, Result};
-pub use led_strip::{LedStrip, LedStripNotifier, Rgb};
+pub use led_strip::{LedStrip, LedStripNotifier, Rgb, PioBus};
 pub use led_24x4::Led24x4;
 pub use ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
 pub use rfid::{RfidEvent, RfidNotifier, Rfid};
@@ -30,3 +30,6 @@ pub use unix_seconds::UnixSeconds;
 pub use time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 #[cfg(feature = "wifi")]
 pub use wifi::{Wifi, WifiEvent, WifiNotifier};
+
+// Re-export macros (they're already at crate root due to #[macro_export])
+// define_pio_bus and define_led_strips are available as lib::define_pio_bus! and lib::define_led_strips!

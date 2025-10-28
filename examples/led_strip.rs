@@ -4,36 +4,49 @@
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
+use embassy_rp::pio::Pio;
+use embassy_rp::{bind_interrupts, pio::InterruptHandler};
 use embassy_time::Timer;
-use lib::{define_led_strip, Rgb, Result};
+use lib::{define_led_strips, define_pio_bus, Rgb, Result};
 use panic_probe as _;
 
-define_led_strip! {
-    my_strip as LedStrip0 {
-        task: led_strip0_driver,
-        pio: PIO0,
-        irq: PIO0_IRQ_0,
-        irq_name: LedStrip0Irqs,
-        sm: { field: sm0, index: 0 },
-        dma: DMA_CH0,
-        pin: PIN_2,
-        len: 8,
-        max_current_ma: 480
-    }
-}
+bind_interrupts!(struct Pio0Irqs {
+    PIO0_IRQ_0 => InterruptHandler<embassy_rp::peripherals::PIO0>;
+});
 
+define_pio_bus!(PIO0_BUS, PIO0);
+
+define_led_strips! {
+    bus: PIO0_BUS,
+    pio: PIO0,
+    irqs: Pio0Irqs,
+    strips: [
+        led_strip0 {
+            sm: 0,
+            dma: DMA_CH0,
+            pin: PIN_2,
+            len: 8,
+            max_current_ma: 480
+        }
+    ]
+}
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
     let peripherals = embassy_rp::init(Default::default());
 
-    static LED_STRIP_NOTIFIER: LedStrip0::Notifier = LedStrip0::notifier();
-    let mut led_strip_0 = LedStrip0::new(
+    // Initialize PIO0 bus
+    let Pio { common, sm0, .. } = Pio::new(peripherals.PIO0, Pio0Irqs);
+    let pio_bus = PIO0_BUS.init_with(|| lib::led_strip::PioBus::new(common));
+
+    static LED_STRIP_NOTIFIER: led_strip0::Notifier = led_strip0::notifier();
+    let mut led_strip_0 = led_strip0::new(
         spawner,
         &LED_STRIP_NOTIFIER,
-        peripherals.PIO0,
-        peripherals.DMA_CH0,
-        peripherals.PIN_2,
+        pio_bus,
+        sm0,
+        peripherals.DMA_CH0.into(),
+        peripherals.PIN_2.into(),
     )
     .expect("Failed to start LED strip");
 
@@ -51,9 +64,9 @@ async fn main(spawner: Spawner) -> ! {
     }
 }
 
-async fn update_rainbow(strip: &mut LedStrip0::Strip, base: u8) -> Result<()> {
-    let mut pixels = [Rgb { r: 0, g: 0, b: 0 }; LedStrip0::LEN];
-    for idx in 0..LedStrip0::LEN {
+async fn update_rainbow(strip: &mut led_strip0::Strip, base: u8) -> Result<()> {
+    let mut pixels = [Rgb { r: 0, g: 0, b: 0 }; led_strip0::LEN];
+    for idx in 0..led_strip0::LEN {
         let offset = base.wrapping_add((idx as u8).wrapping_mul(16));
         pixels[idx] = wheel(offset);
     }
