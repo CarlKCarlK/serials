@@ -40,40 +40,34 @@ async fn main(spawner: Spawner) -> ! {
     info!("WS2812B 4x12 Matrix demo starting");
     info!("Using PIO1, DMA_CH1, GPIO16");
     info!("Wiring: Red->VSYS(pin39), White->GND(pin38), Green->GPIO16(pin21)");
-    info!("⚠️  Keep brightness low! 48 LEDs at full white = ~2.9A");
 
-    let mut hue: u8 = 0;
+    let mut position: usize = 0;
 
     loop {
-        update_rainbow(&mut led_strip, hue)
+        update_snake(&mut led_strip, position)
             .await
             .expect("pattern update failed");
 
-        hue = hue.wrapping_add(2);
-        Timer::after_millis(50).await;
+        position = (position + 1) % LedStrip2::LEN;
+        Timer::after_millis(100).await;
     }
 }
 
-async fn update_rainbow(strip: &mut LedStrip2::Strip, base: u8) -> Result<()> {
-    // Create rainbow across the 4x12 matrix
+async fn update_snake(strip: &mut LedStrip2::Strip, head_pos: usize) -> Result<()> {
+    const SNAKE_LENGTH: usize = 5;
+    const SNAKE_COLOR: RGB8 = RGB8::new(25, 25, 25); // 10% white
+    const BLACK: RGB8 = RGB8::new(0, 0, 0);
+
+    // Turn off all LEDs
     for idx in 0..LedStrip2::LEN {
-        let offset = base.wrapping_add((idx as u8).wrapping_mul(5));
-        strip.update_pixel(idx, wheel(offset)).await?;
+        strip.update_pixel(idx, BLACK).await?;
     }
-    Ok(())
-}
 
-fn wheel(pos: u8) -> RGB8 {
-    let pos = 255 - pos;
-    let (r, g, b) = if pos < 85 {
-        (255 - pos * 3, 0, pos * 3)
-    } else if pos < 170 {
-        let pos = pos - 85;
-        (0, pos * 3, 255 - pos * 3)
-    } else {
-        let pos = pos - 170;
-        (pos * 3, 255 - pos * 3, 0)
-    };
-    // Scale to 10% brightness
-    RGB8::new(r / 10, g / 10, b / 10)
+    // Light up the snake (5 pixels)
+    for i in 0..SNAKE_LENGTH {
+        let pos = (head_pos + LedStrip2::LEN - i) % LedStrip2::LEN;
+        strip.update_pixel(pos, SNAKE_COLOR).await?;
+    }
+    
+    Ok(())
 }
