@@ -64,7 +64,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     servo.set_degrees(90);
 
     // Initialize PIO1 for LED strips (both strips share PIO1)
-    let (pio_bus, sm0, sm1, _sm2, _sm3) = init_pio1(p.PIO1);
+    let (pio_bus, sm0, sm1, _sm2, _sm3) = pio1_split(p.PIO1);
 
     static LED_STRIP0_NOTIFIER: led_strip0::Notifier = led_strip0::notifier();
     let mut led_strip0_device = led_strip0::new(

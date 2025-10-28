@@ -26,7 +26,7 @@ async fn main(spawner: Spawner) -> ! {
     let peripherals = embassy_rp::init(Default::default());
 
     // Initialize PIO0 bus
-    let (pio_bus, sm0, _sm1, _sm2, _sm3) = init_pio0(peripherals.PIO0);
+    let (pio_bus, sm0, _sm1, _sm2, _sm3) = pio0_split(peripherals.PIO0);
 
     static LED_STRIP_NOTIFIER: led_strip0::Notifier = led_strip0::notifier();
     let mut led_strip_0 = led_strip0::new(

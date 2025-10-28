@@ -184,9 +184,9 @@ macro_rules! define_led_strips {
                 $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>
             > = ::static_cell::StaticCell::new();
 
-            // Helper function to initialize the PIO and bus
+            // Helper function to split the PIO into bus and state machines
             // Returns (bus, sm0, sm1, sm2, sm3)
-            pub fn [<init_ $pio:lower>](
+            pub fn [<$pio:lower _split>](
                 pio: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pio>,
             ) -> (
                 &'static $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>,
