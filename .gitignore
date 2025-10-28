@@ -2,3 +2,4 @@
 target/
 del.s
 all_code.txt
+memory.x

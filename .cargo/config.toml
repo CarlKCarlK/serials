@@ -1,22 +1,32 @@
 [build]
+# Default to Pico 2 (RP2350)
 target = "thumbv8m.main-none-eabihf"
 
 [env]
 DEFMT_LOG = "info"
 
 [alias]
-full = "run --example full --release"
-ir = "run --example ir --release"
-wireless = "run --example wireless --release"
-lcd_clock = "run --example lcd_clock --release"
-led_strip = "run --example led_strip --release"
-led_strip2 = "run --example led_strip2 --release"
-led_24x4 = "run --example led_24x4 --release"
-blinky = "run --example blinky --release"
+# Pico 2 aliases (default hardware - no WiFi)
+full_2 = "run --example full --release"
+ir_2 = "run --example ir --release"
+lcd_clock_2 = "run --example lcd_clock --release"
+led_24x4_clock_2 = "run --example led_24x4_clock --release"
+led_strip_2 = "run --example led_strip --release"
+led_strip_snake_2 = "run --example led_strip_snake --release"
+blinky_2 = "run --example blinky --release"
+
+# Pico 1W aliases (with WiFi)
+full_1w = "run --example full --release --target thumbv6m-none-eabi --features pico1w --no-default-features"
+lcd_clock_1w = "run --example lcd_clock --release --target thumbv6m-none-eabi --features pico1w --no-default-features"
+led_24x4_clock_1w = "run --example led_24x4_clock --release --target thumbv6m-none-eabi --features pico1w --no-default-features"
+led_strip_1w = "run --example led_strip --release --target thumbv6m-none-eabi --features pico1w --no-default-features"
+led_strip_snake_1w = "run --example led_strip_snake --release --target thumbv6m-none-eabi --features pico1w --no-default-features"
+
+# Pico 2W aliases (future - when you get the board)
+full_2w = "run --example full --release --target thumbv8m.main-none-eabihf --features pico2w --no-default-features"
 
 
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
-runner = "probe-rs run --chip=RP235x --probe=2e8a:000c:E6633861A38D5A38"
 rustflags = [
     "-C",
     "link-arg=-Tlink.x",
@@ -25,3 +35,11 @@ rustflags = [
     "-C",
     "link-arg=-Tdefmt.x",
 ]
+
+# Pico 1W (RP2040) - thumbv6m
+[target.thumbv6m-none-eabi]
+runner = "probe-rs run --chip RP2040"
+
+# Pico 2 / 2W (RP2350) - thumbv8m
+[target.thumbv8m.main-none-eabihf]
+runner = "probe-rs run --chip=RP235x --probe=2e8a:000c:E6633861A38D5A38"

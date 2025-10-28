@@ -151,9 +151,14 @@ async fn clock_device_loop(resources: &'static ClockNotifier) -> ! {
 }
 
 async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<Infallible> {
-    // Read configuration from compile-time environment
-    const UTC_OFFSET_MINUTES: &str = env!("UTC_OFFSET_MINUTES");
-    let offset_minutes: i32 = UTC_OFFSET_MINUTES.parse().unwrap_or(0);
+    // Read configuration from compile-time environment (only available with WiFi feature)
+    #[cfg(feature = "wifi")]
+    let offset_minutes: i32 = {
+        const UTC_OFFSET_MINUTES: &str = env!("UTC_OFFSET_MINUTES");
+        UTC_OFFSET_MINUTES.parse().unwrap_or(0)
+    };
+    #[cfg(not(feature = "wifi"))]
+    let offset_minutes: i32 = 0;
     
     // Create UtcOffset from minutes
     #[expect(clippy::arithmetic_side_effects, reason = "offset bounds checked")]

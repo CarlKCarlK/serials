@@ -4,5 +4,6 @@
 channel = "nightly"
 components = [ "rustfmt" ]
 targets = [
-    "thumbv8m.main-none-eabihf"
+    "thumbv6m-none-eabi",       # Pico 1W (RP2040)
+    "thumbv8m.main-none-eabihf" # Pico 2 / 2W (RP2350)
 ]

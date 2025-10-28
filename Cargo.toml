@@ -10,13 +10,19 @@ name = "lib"
 path = "src/lib.rs"
 
 [features]
-default = []
+default = ["pico2"]
+pico1w = ["wifi", "rp2040"]
+pico2 = ["rp2350"]
+pico2w = ["wifi", "rp2350"]
 wifi = [
     "dep:cyw43",
     "dep:cyw43-pio",
     "dep:cyw43-firmware",
     "dep:embassy-net",
 ]
+rp2040 = ["embassy-rp/rp2040", "dep:rp2040-hal", "dep:rp2040-boot2"]
+# Pico 2 uses RP2350B variant (48 GPIO pins) - change to rp235xa for standard Pico 2 (30 pins)
+rp2350 = ["embassy-rp/rp235xb", "dep:rp235x-hal"]
 
 [dependencies]
 defmt = "0.3.10"
@@ -24,6 +30,7 @@ defmt-rtt = "1.1.0"
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 cortex-m-rt = "0.7.5"
 cortex-m = "0.7.7"
+# Git versions for RP2350 support (newer than published crates.io versions)
 embassy-executor = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
     "arch-cortex-m",
     "executor-thread",
@@ -35,7 +42,6 @@ embassy-rp = { git = "https://github.com/embassy-rs/embassy", branch = "main", d
     "defmt",
     "time-driver",
     "critical-section-impl",
-    "rp235xb",
 ] }
 embassy-futures = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 embassy-time = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
@@ -51,7 +57,9 @@ derive_more = { version = "2.0.1", default-features = false, features = [
 # num-bigint = { version = "0.4.6", default-features = false }
 heapless = "0.9.1"
 time = { version = "0.3", default-features = false }
-rp235x-hal = { git = "https://github.com/rp-rs/rp-hal", branch = "main", package = "rp235x-hal", features = ["rt"] }
+rp2040-hal = { version = "0.11.0", features = ["rt"], optional = true }
+rp2040-boot2 = { version = "0.3.0", optional = true }
+rp235x-hal = { git = "https://github.com/rp-rs/rp-hal", branch = "main", package = "rp235x-hal", features = ["rt"], optional = true }
 smart-leds = "0.4.0"
 itertools = { version = "0.13.0", default-features = false }
 critical-section = { version = "1.2.0", features = ["restore-state-u8"] }
@@ -77,7 +85,10 @@ embassy-time = { git = "https://github.com/embassy-rs/embassy", branch = "main" 
 embassy-time-driver = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 embassy-time-queue-utils = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 embassy-net = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-net-driver = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-net-driver-channel = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-rp = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 
 [build-dependencies]
 dotenvy = "0.15"
