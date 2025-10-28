@@ -266,6 +266,20 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
             Either::Second(clock_or_sync_event) => match clock_or_sync_event {
                 Either::First(time_info) => {
                     latest_time = Some(time_info);
+                    let dt = time_info.datetime;
+                    let mm = dt.minute();
+                    let ss = dt.second();
+                    let chars = [
+                        char::from_digit((mm / 10) as u32, 10).unwrap(),
+                        char::from_digit((mm % 10) as u32, 10).unwrap(),
+                        char::from_digit((ss / 10) as u32, 10).unwrap(),
+                        char::from_digit((ss % 10) as u32, 10).unwrap(),
+                    ];
+                    let red = Rgb { r: 32, g: 0, b: 0 };
+                    let green = Rgb { r: 0, g: 32, b: 0 };
+                    let blue = Rgb { r: 0, g: 0, b: 32 };
+                    let yellow = Rgb { r: 32, g: 32, b: 0 };
+                    led_24x4.display(chars, [red, green, blue, yellow]).await?;
                     continue;
                 }
                 Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
@@ -335,3 +349,7 @@ fn append_time_line(text: &mut String<64>, latest_time: Option<ClockEvent>) {
 }
 
 
+// BUGBUG cmk: uses unsafe.
+// BUGBUG cmk: Led24x4 is not a full virtual device.
+// BUGBUG cmk: vs code's problems panel complains about this file.
+// BUGBUG cmk: need to build check all examples x all features
