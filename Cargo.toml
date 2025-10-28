@@ -63,8 +63,8 @@ embedded-hal-bus = { version = "0.3.0", features = ["async", "portable-atomic"] 
 portable-atomic = { version = "1.11.1", features = ["critical-section"] }
 hd44780-driver = "0.4.0"
 esp-hal-mfrc522 = "0.3.2"
-cyw43 = { version = "0.5.0", features = ["defmt", "firmware-logs"], optional = true }
-cyw43-pio = { version = "0.8.0", features = ["defmt"], optional = true }
+cyw43 = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = ["defmt", "firmware-logs"], optional = true }
+cyw43-pio = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = ["defmt"], optional = true }
 cyw43-firmware = { version = "0.1", features = ["wifi"], optional = true }
 embassy-net = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = ["defmt", "tcp", "udp", "dhcpv4", "dns", "medium-ethernet"], optional = true }
 static_cell = "2.1.0"
@@ -79,6 +79,13 @@ embassy-time-driver = { git = "https://github.com/embassy-rs/embassy", branch = 
 embassy-time-queue-utils = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 embassy-net = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-rp = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-usb-driver = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-net-driver = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+embassy-net-driver-channel = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+cyw43 = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
+cyw43-pio = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 
 [build-dependencies]
 dotenvy = "0.15"

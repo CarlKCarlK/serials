@@ -31,7 +31,8 @@ define_led_strip! {
         sm: { field: sm0, index: 0 },
         dma: DMA_CH1,
         pin: PIN_2,
-        len: 8
+        len: 8,
+        max_current_ma: 480
     }
 }
 
@@ -63,7 +64,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         p.DMA_CH1,
         p.PIN_2,
     )?;
-    initialize_led_strip(&mut led_strip0).await?;
+    let mut led_pixels = [LED_OFF; LedStrip0::LEN];
+    initialize_led_strip(&mut led_strip0, &mut led_pixels).await?;
     let mut led_progress_index: usize = 0;
 
 
@@ -170,7 +172,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                         servo.set_degrees(0);
                     }
 
-                    advance_led_progress(&mut led_strip0, &mut led_progress_index).await?;
+                    advance_led_progress(&mut led_strip0, &mut led_pixels, &mut led_progress_index).await?;
                 }
                 Either::Second(ir_nec_event) => {
                     // IR button pressed - check if it's 0-9 for servo control, otherwise reset map
@@ -233,39 +235,41 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     }
 }
 
-async fn initialize_led_strip(strip: &mut LedStrip0::Strip) -> Result<()> {
+async fn initialize_led_strip(strip: &mut LedStrip0::Strip, pixels: &mut [Rgb; LedStrip0::LEN]) -> Result<()> {
     for idx in 0..LedStrip0::LEN {
-        let color = if idx == 0 { LED_RED_DIM } else { LED_OFF };
-        strip.update_pixel(idx, color).await?;
+        pixels[idx] = if idx == 0 { LED_RED_DIM } else { LED_OFF };
     }
+    strip.update_pixels(pixels).await?;
     Ok(())
 }
 
 async fn advance_led_progress(
     strip: &mut LedStrip0::Strip,
+    pixels: &mut [Rgb; LedStrip0::LEN],
     current_red: &mut usize,
 ) -> Result<()> {
     info!("Turning {} to green", *current_red);
-    strip.update_pixel(*current_red, LED_GREEN_DIM).await?;
-    log_led_colors(strip)?;
+    pixels[*current_red] = LED_GREEN_DIM;
+    strip.update_pixels(pixels).await?;
+    log_led_colors(pixels)?;
     let next = (*current_red + 1) % LedStrip0::LEN;
     if next == 0 {
         info!("Resetting LED strip");
-        initialize_led_strip(strip).await?;
-        log_led_colors(strip)?;
+        initialize_led_strip(strip, pixels).await?;
+        log_led_colors(pixels)?;
         *current_red = 0;
     } else {
         info!("Turning {} to red", next);
-        strip.update_pixel(next, LED_RED_DIM).await?;
-        log_led_colors(strip)?;
+        pixels[next] = LED_RED_DIM;
+        strip.update_pixels(pixels).await?;
+        log_led_colors(pixels)?;
         *current_red = next;
     }
     Ok(())
 }
 
-fn log_led_colors(strip: &LedStrip0::Strip) -> Result<()> {
-    for idx in 0..LedStrip0::LEN {
-        let px = strip.pixel(idx)?;
+fn log_led_colors(pixels: &[Rgb; LedStrip0::LEN]) -> Result<()> {
+    for (idx, px) in pixels.iter().enumerate() {
         info!("LED {} => R:{} G:{} B:{}", idx, px.r, px.g, px.b);
     }
     Ok(())
