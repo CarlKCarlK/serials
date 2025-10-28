@@ -8,7 +8,6 @@ use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::channel::Channel as EmbassyChannel;
 use embassy_sync::once_lock::OnceLock;
 use smart_leds::RGB8;
-use static_cell::StaticCell;
 
 use crate::Result;
 
@@ -154,29 +153,13 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
 }
 
 // ============================================================================
-// Macro: define_pio_bus - Creates a shared PIO bus for LED strips
-// ============================================================================
-
-#[macro_export]
-macro_rules! define_pio_bus {
-    ($bus_name:ident, $pio:ident) => {
-        #[allow(non_upper_case_globals)]
-        static $bus_name: ::static_cell::StaticCell<
-            $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>
-        > = ::static_cell::StaticCell::new();
-    };
-}
-
-// ============================================================================
-// Macro: define_led_strips - Creates multiple LED strips on a shared PIO bus
+// Macro: define_led_strips - Creates interrupts, PIO bus, and LED strips
 // ============================================================================
 
 #[macro_export]
 macro_rules! define_led_strips {
     (
-        bus: $bus:ident,
         pio: $pio:ident,
-        irqs: $irqs:ident,
         strips: [
             $(
                 $module:ident {
@@ -189,6 +172,22 @@ macro_rules! define_led_strips {
             ),+ $(,)?
         ]
     ) => {
+        // Generate interrupt binding struct name from PIO name (PIO0 -> Pio0Irqs, PIO1 -> Pio1Irqs)
+        paste::paste! {
+            ::embassy_rp::bind_interrupts!(struct [<$pio:camel Irqs>] {
+                [<$pio _IRQ_0>] => ::embassy_rp::pio::InterruptHandler<::embassy_rp::peripherals::$pio>;
+            });
+
+            // Create the PIO bus
+            #[allow(non_upper_case_globals)]
+            static [<$pio _BUS>]: ::static_cell::StaticCell<
+                $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>
+            > = ::static_cell::StaticCell::new();
+        }
+        
+        // Create strip modules
+        
+        // Create strip modules
         $(
             #[allow(non_snake_case)]
             pub mod $module {

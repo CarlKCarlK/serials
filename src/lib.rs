@@ -32,4 +32,4 @@ pub use time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 pub use wifi::{Wifi, WifiEvent, WifiNotifier};
 
 // Re-export macros (they're already at crate root due to #[macro_export])
-// define_pio_bus and define_led_strips are available as lib::define_pio_bus! and lib::define_led_strips!
+// define_led_strips is available as lib::define_led_strips!

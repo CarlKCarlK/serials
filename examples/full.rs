@@ -16,26 +16,16 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
 use embassy_rp::pio::Pio;
-use embassy_rp::{bind_interrupts, pio::InterruptHandler};
 use heapless::{String, index_map::FnvIndexMap};
-use static_cell::StaticCell;
 use lib::{
     CharLcd, CharLcdNotifier, Clock, ClockEvent, ClockNotifier, ClockState, IrNec, IrNecEvent,
     IrNecNotifier, Result, Rgb, Rfid, RfidEvent, RfidNotifier, Led24x4, define_led_strips,
-    define_pio_bus, servo_a, TimeSync, TimeSyncEvent, TimeSyncNotifier,
+    servo_a, TimeSync, TimeSyncEvent, TimeSyncNotifier,
 };
 use panic_probe as _;
 
-bind_interrupts!(struct Pio1Irqs {
-    PIO1_IRQ_0 => InterruptHandler<embassy_rp::peripherals::PIO1>;
-});
-
-define_pio_bus!(PIO1_BUS, PIO1);
-
 define_led_strips! {
-    bus: PIO1_BUS,
     pio: PIO1,
-    irqs: Pio1Irqs,
     strips: [
         led_strip0 {
             sm: 0,
@@ -44,7 +34,7 @@ define_led_strips! {
             len: 8,
             max_current_ma: 480
         },
-        led_strip2 {
+        led_strip1 {
             sm: 1,
             dma: DMA_CH4,
             pin: PIN_14,
@@ -68,20 +58,20 @@ pub async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
-    // Initialize PIO1 for LED strips (both strips share PIO1)
-    let Pio { common, sm0, sm1, .. } = Pio::new(p.PIO1, Pio1Irqs);
-    let pio_bus = PIO1_BUS.init_with(|| lib::led_strip::PioBus::new(common));
-
     // Test servo: sweep angles 0,45,90,135,180 with 1s pause, 2 times
     // GPIO0 is on PWM0 slice, channel A
     info!("Starting servo test...");
     let mut servo = servo_a!(p.PWM_SLICE0, p.PIN_0, 500, 2500); // min=500µs (0°), max=2500µs (180°)
     servo.set_degrees(90);
 
-    static LED_STRIP_NOTIFIER: led_strip0::Notifier = led_strip0::notifier();
+        // Initialize PIO1 for LED strips (both strips share PIO1)
+    let Pio { common, sm0, sm1, .. } = Pio::new(p.PIO1, Pio1Irqs);
+    let pio_bus = PIO1_BUS.init_with(|| lib::led_strip::PioBus::new(common));
+
+    static LED_STRIP0_NOTIFIER: led_strip0::Notifier = led_strip0::notifier();
     let mut led_strip0_device = led_strip0::new(
         spawner,
-        &LED_STRIP_NOTIFIER,
+        &LED_STRIP0_NOTIFIER,
         pio_bus,
         sm0,
         p.DMA_CH1.into(),
@@ -91,16 +81,16 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     initialize_led_strip(&mut led_strip0_device, &mut led_pixels).await?;
     let mut led_progress_index: usize = 0;
 
-    static LED_STRIP2_NOTIFIER: led_strip2::Notifier = led_strip2::notifier();
-    let led_strip2_device = led_strip2::new(
+    static LED_STRIP1_NOTIFIER: led_strip1::Notifier = led_strip1::notifier();
+    let led_strip1_device = led_strip1::new(
         spawner,
-        &LED_STRIP2_NOTIFIER,
+        &LED_STRIP1_NOTIFIER,
         pio_bus,
         sm1,
         p.DMA_CH4.into(),
         p.PIN_14.into(),
     )?;
-    let mut led_24x4 = Led24x4::new(led_strip2_device);
+    let mut led_24x4 = Led24x4::new(led_strip1_device);
     led_24x4.display_1234().await?;
 
     // Initialize LCD (GP4=SDA, GP5=SCL)

@@ -5,21 +5,12 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::pio::Pio;
-use embassy_rp::{bind_interrupts, pio::InterruptHandler};
 use embassy_time::Timer;
-use lib::{define_led_strips, define_pio_bus, Rgb, Result};
+use lib::{define_led_strips, Rgb, Result};
 use panic_probe as _;
 
-bind_interrupts!(struct Pio0Irqs {
-    PIO0_IRQ_0 => InterruptHandler<embassy_rp::peripherals::PIO0>;
-});
-
-define_pio_bus!(PIO0_BUS, PIO0);
-
 define_led_strips! {
-    bus: PIO0_BUS,
     pio: PIO0,
-    irqs: Pio0Irqs,
     strips: [
         led_strip0 {
             sm: 0,
