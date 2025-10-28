@@ -70,8 +70,6 @@ impl Led24x4 {
                             let idx = Self::xy_to_index(base_col + col, row);
                             let pixel_color = if bit != 0 { color } else { black };
                             self.strip.update_pixel(idx, pixel_color).await?;
-                            // Small delay to ensure DMA completes
-                            embassy_time::Timer::after(embassy_time::Duration::from_millis(10)).await;
                         }
                     }
                 }
@@ -81,7 +79,6 @@ impl Led24x4 {
                         for col in 0..3 {
                             let idx = Self::xy_to_index(base_col + col, row);
                             self.strip.update_pixel(idx, black).await?;
-                            embassy_time::Timer::after(embassy_time::Duration::from_millis(10)).await;
                         }
                     }
                 }
@@ -91,7 +88,6 @@ impl Led24x4 {
                         for col in 0..3 {
                             let idx = Self::xy_to_index(base_col + col, row);
                             self.strip.update_pixel(idx, color).await?;
-                            embassy_time::Timer::after(embassy_time::Duration::from_millis(10)).await;
                         }
                     }
                 }

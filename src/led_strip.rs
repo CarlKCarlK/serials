@@ -79,6 +79,12 @@ impl<const N: usize> LedStripN<N> {
                 color,
             })
             .await;
+        
+        // Wait for DMA write to complete
+        // WS2812B needs ~30µs per LED, so for N LEDs: N * 30µs + safety margin
+        let delay_us = (N as u64 * 30) + 100; // Add 100µs safety margin
+        embassy_time::Timer::after(embassy_time::Duration::from_micros(delay_us)).await;
+        
         Ok(())
     }
 }
