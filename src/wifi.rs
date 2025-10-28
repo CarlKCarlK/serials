@@ -141,9 +141,10 @@ impl Wifi {
         dma_ch0: Peri<'static, DMA_CH0>,
         spawner: Spawner,
     ) -> &'static Self {
-        unwrap!(spawner.spawn(wifi_device_loop(
+        let token = unwrap!(wifi_device_loop(
             pin_23, pin_25, pio0, pin_24, pin_29, dma_ch0, &resources.events, &resources.stack, spawner,
-        )));
+        ));
+        unwrap!(spawner.spawn(token));
         resources.wifi_cell.init(Self { 
             events: &resources.events, 
             stack: &resources.stack,
@@ -194,7 +195,8 @@ async fn wifi_device_loop(
     static STATE: StaticCell<cyw43::State> = StaticCell::new();
     let state = STATE.init(cyw43::State::new());
     let (net_device, mut control, runner) = cyw43::new(state, pwr, spi, fw).await;
-    unwrap!(spawner.spawn(wifi_task(runner)));
+    let wifi_token = unwrap!(wifi_task(runner));
+    unwrap!(spawner.spawn(wifi_token));
 
     control.init(clm).await;
     control
@@ -215,7 +217,8 @@ async fn wifi_device_loop(
     );
     let stack = STACK.init(stack_val);
 
-    unwrap!(spawner.spawn(net_task(runner)));
+    let net_token = unwrap!(net_task(runner));
+    unwrap!(spawner.spawn(net_token));
 
     // Connect to WiFi
     info!("Connecting to WiFi: {}", WIFI_SSID);

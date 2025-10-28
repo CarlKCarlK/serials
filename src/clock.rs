@@ -68,7 +68,8 @@ impl Clock {
 
     /// Create a new Clock device and spawn its task
     pub fn new(notifier: &'static ClockNotifier, spawner: Spawner) -> Self {
-        unwrap!(spawner.spawn(clock_device_loop(notifier)));
+        let token = unwrap!(clock_device_loop(notifier));
+        spawner.spawn(token);
         Self {
             commands: &notifier.commands,
             events: &notifier.events,

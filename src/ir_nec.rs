@@ -37,9 +37,8 @@ impl IrNec<'_> {
     ) -> Result<Self> {
         // Type erase to Peri<'static, AnyPin> (keep the Peri wrapper!)
         let any: Peri<'static, AnyPin> = pin.into();
-        spawner
-            .spawn(nec_ir_task(Input::new(any, pull), notifier))
-            .map_err(Error::TaskSpawn)?;
+        let token = nec_ir_task(Input::new(any, pull), notifier).map_err(Error::TaskSpawn)?;
+        spawner.spawn(token);
         Ok(Self { notifier })
     }
 

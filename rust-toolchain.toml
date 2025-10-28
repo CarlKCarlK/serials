@@ -4,5 +4,5 @@
 channel = "nightly"
 components = [ "rustfmt" ]
 targets = [
-    "thumbv6m-none-eabi"
+    "thumbv8m.main-none-eabihf"
 ]
