@@ -50,11 +50,12 @@ impl Led24x4 {
     /// - `'0'..'9'` = digits from FONT
     /// - any other char = solid 3×4 block
     ///
-    /// Processes one character at a time, updating only the relevant 3×4 pixels.
+    /// Builds the entire frame and updates all pixels at once.
     pub async fn display(&mut self, chars: [char; 4], colors: [RGB8; 4]) -> Result<()> {
         let black = RGB8::new(0, 0, 0);
+        let mut frame = [black; COLS * ROWS];
 
-        // Process each character one at a time
+        // Build the entire frame
         for (ch_i, &ch) in chars.iter().enumerate() {
             let color = colors[ch_i];
             let base_col = ch_i * 3; // leftmost column of this character
@@ -69,7 +70,7 @@ impl Led24x4 {
                             let bit = (row_bits >> (2 - col)) & 1;
                             let idx = Self::xy_to_index(base_col + col, row);
                             let pixel_color = if bit != 0 { color } else { black };
-                            self.strip.update_pixel(idx, pixel_color).await?;
+                            frame[idx] = pixel_color;
                         }
                     }
                 }
@@ -78,7 +79,7 @@ impl Led24x4 {
                     for row in 0..ROWS {
                         for col in 0..3 {
                             let idx = Self::xy_to_index(base_col + col, row);
-                            self.strip.update_pixel(idx, black).await?;
+                            frame[idx] = black;
                         }
                     }
                 }
@@ -87,13 +88,15 @@ impl Led24x4 {
                     for row in 0..ROWS {
                         for col in 0..3 {
                             let idx = Self::xy_to_index(base_col + col, row);
-                            self.strip.update_pixel(idx, color).await?;
+                            frame[idx] = color;
                         }
                     }
                 }
             }
         }
 
+        // Update all pixels at once
+        self.strip.update_pixels(&frame).await?;
         Ok(())
     }
 

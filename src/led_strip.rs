@@ -6,24 +6,22 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel as EmbassyChannel;
 use smart_leds::RGB8;
 
-use crate::{Error, Result};
+use crate::Result;
 
 /// RGB color representation re-exported from `smart_leds`.
 pub type Rgb = RGB8;
 
-pub type LedStripCommands = EmbassyChannel<CriticalSectionRawMutex, LedStripCommand, 8>;
+/// Maximum supported LED strip length
+pub const MAX_LEDS: usize = 256;
 
-#[derive(Clone, Copy)]
-pub enum LedStripCommand {
-    Update { index: u16, color: Rgb },
-}
+pub type LedStripCommands<const N: usize> = EmbassyChannel<CriticalSectionRawMutex, [Rgb; N], 2>;
 
 /// Notifier used to construct LED strip instances.
-pub struct LedStripNotifier {
-    commands: LedStripCommands,
+pub struct LedStripNotifier<const N: usize> {
+    commands: LedStripCommands<N>,
 }
 
-impl LedStripNotifier {
+impl<const N: usize> LedStripNotifier<N> {
     /// Creates notifier resources.
     #[must_use]
     pub const fn notifier() -> Self {
@@ -32,58 +30,49 @@ impl LedStripNotifier {
         }
     }
 
-    pub fn commands(&'static self) -> &'static LedStripCommands {
+    pub fn commands(&'static self) -> &'static LedStripCommands<N> {
         &self.commands
     }
 }
 
 /// Handle used to control a LED strip.
 pub struct LedStripN<const N: usize> {
-    commands: &'static LedStripCommands,
-    pixels: [Rgb; N],
+    commands: &'static LedStripCommands<N>,
 }
 
 impl<const N: usize> LedStripN<N> {
+    /// WS2812B timing: ~30µs per LED + 100µs safety margin
+    const WRITE_DELAY_US: u64 = (N as u64 * 30) + 100;
+
     /// Creates LED strip resources.
     #[must_use]
-    pub const fn notifier() -> LedStripNotifier {
+    pub const fn notifier() -> LedStripNotifier<N> {
         LedStripNotifier::notifier()
     }
 
     /// Creates a new LED strip controller bound to the given notifier.
-    pub fn new(notifier: &'static LedStripNotifier) -> Result<Self> {
+    pub fn new(notifier: &'static LedStripNotifier<N>) -> Result<Self> {
         Ok(Self {
             commands: notifier.commands(),
-            pixels: [Rgb::default(); N],
         })
     }
 
-    /// Returns the current color at `index`.
-    pub fn pixel(&self, index: usize) -> Result<Rgb> {
-        if index >= N {
-            return Err(Error::IndexOutOfBounds);
-        }
-        Ok(self.pixels[index])
-    }
-
-    /// Updates a single LED and immediately pushes the change.
-    pub async fn update_pixel(&mut self, index: usize, color: Rgb) -> Result<()> {
-        if index >= N {
-            return Err(Error::IndexOutOfBounds);
-        }
-
-        self.pixels[index] = color;
-        self.commands
-            .send(LedStripCommand::Update {
-                index: index as u16,
-                color,
-            })
-            .await;
+    /// Updates all LEDs at once from the provided slice.
+    /// 
+    /// # Panics
+    /// Panics if `pixels.len() != N`.
+    pub async fn update_pixels(&mut self, pixels: &[Rgb]) -> Result<()> {
+        assert_eq!(pixels.len(), N, "pixels slice must have exactly {} elements", N);
         
-        // Wait for DMA write to complete
-        // WS2812B needs ~30µs per LED, so for N LEDs: N * 30µs + safety margin
-        let delay_us = (N as u64 * 30) + 100; // Add 100µs safety margin
-        embassy_time::Timer::after(embassy_time::Duration::from_micros(delay_us)).await;
+        // Copy slice into array to send through channel
+        let mut frame = [Rgb::default(); N];
+        frame.copy_from_slice(pixels);
+        
+        // Send entire frame as one message
+        self.commands.send(frame).await;
+        
+        // Wait for the DMA write to complete
+        embassy_time::Timer::after(embassy_time::Duration::from_micros(Self::WRITE_DELAY_US)).await;
         
         Ok(())
     }
@@ -94,23 +83,14 @@ pub type LedStrip<const N: usize> = LedStripN<N>;
 
 pub async fn led_strip_driver_loop<PIO, const SM: usize, const N: usize>(
     mut driver: PioWs2812<'static, PIO, SM, N>,
-    commands: &'static LedStripCommands,
+    commands: &'static LedStripCommands<N>,
 ) -> !
 where
     PIO: Instance,
 {
-    let mut frame = [Rgb::default(); N];
-
     loop {
-        match commands.receive().await {
-            LedStripCommand::Update { index, color } => {
-                let idx = usize::from(index);
-                if idx < N {
-                    frame[idx] = color;
-                    driver.write(&frame).await;
-                }
-            }
-        }
+        let frame = commands.receive().await;
+        driver.write(&frame).await;
     }
 }
 
@@ -118,30 +98,27 @@ where
 /// Scales all RGB values by `max_brightness / 255` before writing to LEDs.
 pub async fn led_strip_driver_loop_with_brightness<PIO, const SM: usize, const N: usize>(
     mut driver: PioWs2812<'static, PIO, SM, N>,
-    commands: &'static LedStripCommands,
+    commands: &'static LedStripCommands<N>,
     max_brightness: u8,
 ) -> !
 where
     PIO: Instance,
 {
-    let mut frame = [Rgb::default(); N];
+    let mut scaled_frame = [Rgb::default(); N];
 
     loop {
-        match commands.receive().await {
-            LedStripCommand::Update { index, color } => {
-                let idx = usize::from(index);
-                if idx < N {
-                    // Scale the color by max_brightness
-                    let scaled = Rgb::new(
-                        scale_brightness(color.r, max_brightness),
-                        scale_brightness(color.g, max_brightness),
-                        scale_brightness(color.b, max_brightness),
-                    );
-                    frame[idx] = scaled;
-                    driver.write(&frame).await;
-                }
-            }
+        let frame = commands.receive().await;
+        
+        // Scale all pixels by brightness
+        for i in 0..N {
+            scaled_frame[i] = Rgb::new(
+                scale_brightness(frame[i].r, max_brightness),
+                scale_brightness(frame[i].g, max_brightness),
+                scale_brightness(frame[i].b, max_brightness),
+            );
         }
+        
+        driver.write(&scaled_frame).await;
     }
 }
 
@@ -182,7 +159,7 @@ macro_rules! define_led_strip {
 
                 pub const LEN: usize = $len;
                 pub type Strip = $crate::led_strip::LedStrip<LEN>;
-                pub type Notifier = $crate::led_strip::LedStripNotifier;
+                pub type Notifier = $crate::led_strip::LedStripNotifier<LEN>;
 
                 // Calculate max brightness from current budget
                 // Each WS2812B LED draws ~60mA at full brightness
@@ -201,7 +178,7 @@ macro_rules! define_led_strip {
                     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::$pio>,
                     dma: embassy_rp::Peri<'static, embassy_rp::peripherals::$dma>,
                     pin: embassy_rp::Peri<'static, embassy_rp::peripherals::$pin>,
-                    commands: &'static $crate::led_strip::LedStripCommands,
+                    commands: &'static $crate::led_strip::LedStripCommands<LEN>,
                 ) -> ! {
                     let mut pio = embassy_rp::pio::Pio::new(pio, Irqs);
                     let program = embassy_rp::pio_programs::ws2812::PioWs2812Program::new(&mut pio.common);

@@ -5,7 +5,8 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
-use lib::{define_led_strip, Result};
+use heapless::Vec;
+use lib::define_led_strip;
 use smart_leds::RGB8;
 use panic_probe as _;
 
@@ -44,33 +45,30 @@ async fn main(spawner: Spawner) -> ! {
     info!("Max brightness: {}  ({}mA budget)", LedStrip2::MAX_BRIGHTNESS, 500);
     info!("Wiring: Red->VSYS(pin39), White->GND(pin38), Green->GPIO16(pin21)");
 
+    const SNAKE_LENGTH: usize = 5;
+    const SNAKE_COLOR: RGB8 = RGB8::new(255, 255, 255); // Full white - will be scaled by max_brightness
+    const BACKGROUND: RGB8 = RGB8::new(0, 0, 0);
+
+    // Snake state: heapless buffer starts all background
+    let background_array = [BACKGROUND; LedStrip2::LEN];
+    let mut frame = Vec::<RGB8, { LedStrip2::LEN }>::from_slice(&background_array).unwrap();
+
     let mut position: usize = 0;
 
     loop {
-        update_snake(&mut led_strip, position)
-            .await
-            .expect("pattern update failed");
+        // Turn on the head
+        let head_pos = position % LedStrip2::LEN;
+        frame[head_pos] = SNAKE_COLOR;
+
+        // Turn off the tail
+        let tail_pos = (position + LedStrip2::LEN - SNAKE_LENGTH) % LedStrip2::LEN;
+        frame[tail_pos] = BACKGROUND;
+
+        // Send entire frame
+        led_strip.update_pixels(&frame).await.expect("pattern update failed");
 
         position = (position + 1) % LedStrip2::LEN;
         Timer::after_millis(100).await;
     }
 }
 
-async fn update_snake(strip: &mut LedStrip2::Strip, head_pos: usize) -> Result<()> {
-    const SNAKE_LENGTH: usize = 5;
-    const SNAKE_COLOR: RGB8 = RGB8::new(255, 255, 255); // Full white - will be scaled by max_brightness
-    const BLACK: RGB8 = RGB8::new(0, 0, 0);
-
-    // Turn off all LEDs
-    for idx in 0..LedStrip2::LEN {
-        strip.update_pixel(idx, BLACK).await?;
-    }
-
-    // Light up the snake (5 pixels)
-    for i in 0..SNAKE_LENGTH {
-        let pos = (head_pos + LedStrip2::LEN - i) % LedStrip2::LEN;
-        strip.update_pixel(pos, SNAKE_COLOR).await?;
-    }
-    
-    Ok(())
-}
