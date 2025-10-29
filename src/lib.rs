@@ -26,6 +26,7 @@ pub use ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
 pub use rfid::{RfidEvent, RfidNotifier, Rfid};
 pub use servo::Servo;
 pub use unix_seconds::UnixSeconds;
+pub use smart_leds::colors;
 #[cfg(feature = "wifi")]
 pub use time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 #[cfg(feature = "wifi")]

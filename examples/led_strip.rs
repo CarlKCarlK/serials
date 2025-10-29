@@ -54,7 +54,7 @@ async fn main(spawner: Spawner) -> ! {
 }
 
 async fn update_rainbow(strip: &mut led_strip0::Strip, base: u8) -> Result<()> {
-    let mut pixels = [Rgb { r: 0, g: 0, b: 0 }; led_strip0::LEN];
+    let mut pixels = [BLACK; led_strip0::LEN];
     for idx in 0..led_strip0::LEN {
         let offset = base.wrapping_add((idx as u8).wrapping_mul(16));
         pixels[idx] = wheel(offset);

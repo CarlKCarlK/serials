@@ -17,11 +17,13 @@ use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
 use heapless::{String, index_map::FnvIndexMap};
 use lib::{
-    CharLcd, CharLcdNotifier, Clock, ClockEvent, ClockNotifier, ClockState, IrNec, IrNecEvent,
-    IrNecNotifier, Result, Rgb, Rfid, RfidEvent, RfidNotifier, Led24x4, define_led_strips,
-    servo_a, TimeSync, TimeSyncEvent, TimeSyncNotifier,
+    colors, CharLcd, CharLcdNotifier, Clock, ClockEvent, ClockNotifier, ClockState, IrNec,
+    IrNecEvent, IrNecNotifier, Led24x4, Result, Rfid, RfidEvent, RfidNotifier, Rgb,
+    TimeSync, TimeSyncEvent, TimeSyncNotifier, define_led_strips, servo_a,
 };
 use panic_probe as _;
+
+use colors::{RED, GREEN, BLUE, YELLOW, BLACK};
 
 define_led_strips! {
     pio: PIO1,
@@ -31,21 +33,17 @@ define_led_strips! {
             dma: DMA_CH1,
             pin: PIN_2,
             len: 8,
-            max_current_ma: 480
+            max_current_ma: 50
         },
         led_strip1 {
             sm: 1,
             dma: DMA_CH4,
             pin: PIN_14,
             len: 48,
-            max_current_ma: 2880
+            max_current_ma: 100
         }
     ]
 }
-
-const LED_RED_DIM: Rgb = Rgb { r: 32, g: 0, b: 0 };
-const LED_GREEN_DIM: Rgb = Rgb { r: 0, g: 32, b: 0 };
-const LED_OFF: Rgb = Rgb { r: 0, g: 0, b: 0 };
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -75,7 +73,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         p.DMA_CH1.into(),
         p.PIN_2.into(),
     )?;
-    let mut led_pixels = [LED_OFF; led_strip0::LEN];
+    let mut led_pixels = [BLACK; led_strip0::LEN];
     initialize_led_strip(&mut led_strip0_device, &mut led_pixels).await?;
     let mut led_progress_index: usize = 0;
 
@@ -89,7 +87,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         p.PIN_14.into(),
     )?;
     let mut led_24x4 = Led24x4::new(led_strip1_device);
-    led_24x4.display_1234().await?;
+    led_24x4.display(['0', '0', '0', '0'], [RED, GREEN, BLUE, YELLOW]).await?;
 
     // Initialize LCD (GP4=SDA, GP5=SCL)
     static CHAR_LCD_CHANNEL: CharLcdNotifier = CharLcd::notifier();
@@ -248,11 +246,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                         char::from_digit((ss / 10) as u32, 10).unwrap(),
                         char::from_digit((ss % 10) as u32, 10).unwrap(),
                     ];
-                    let red = Rgb { r: 32, g: 0, b: 0 };
-                    let green = Rgb { r: 0, g: 32, b: 0 };
-                    let blue = Rgb { r: 0, g: 0, b: 32 };
-                    let yellow = Rgb { r: 32, g: 32, b: 0 };
-                    led_24x4.display(chars, [red, green, blue, yellow]).await?;
+                    led_24x4.display(chars, [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW]).await?;
                     continue;
                 }
                 Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
@@ -273,7 +267,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
 async fn initialize_led_strip(strip: &mut led_strip0::Strip, pixels: &mut [Rgb; led_strip0::LEN]) -> Result<()> {
     for idx in 0..led_strip0::LEN {
-        pixels[idx] = if idx == 0 { LED_RED_DIM } else { LED_OFF };
+        pixels[idx] = if idx == 0 { RED } else { BLACK };
     }
     strip.update_pixels(pixels).await?;
     Ok(())
@@ -287,7 +281,7 @@ async fn advance_led_progress(
     current_red: &mut usize,
 ) -> Result<()> {
     info!("Turning {} to green", *current_red);
-    pixels[*current_red] = LED_GREEN_DIM;
+    pixels[*current_red] = GREEN;
     strip.update_pixels(pixels).await?;
     let next = (*current_red + 1) % led_strip0::LEN;
     if next == 0 {
@@ -295,7 +289,7 @@ async fn advance_led_progress(
         *current_red = 0;
     } else {
         info!("Turning {} to red", next);
-        pixels[next] = LED_RED_DIM;
+        pixels[next] = RED;
         strip.update_pixels(pixels).await?;
         *current_red = next;
     }
@@ -321,8 +315,6 @@ fn append_time_line(text: &mut String<64>, latest_time: Option<ClockEvent>) {
     }
 }
 
-
-// BUGBUG cmk: uses unsafe.
 // BUGBUG cmk: Led24x4 is not a full virtual device.
 // BUGBUG cmk: vs code's problems panel complains about this file.
 // BUGBUG cmk: need to build check all examples x all features
