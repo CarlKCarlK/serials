@@ -1,0 +1,602 @@
+//! WiFi Web Server AP - host a tiny web page from a soft access point.
+//!
+//! This example places the Pico W into access-point mode, serves a minimal HTTP page,
+//! and keeps all networking on-device. Connect from a phone or laptop directly to the
+//! advertised SSID and browse to the logged IP address.
+//!
+//! Environment overrides (optional):
+//!   - `PICO_AP_SSID` for the Wi-Fi name (default: `pico-serials`)
+//!   - `PICO_AP_PASSWORD` for the WPA2 password (default: `picoserials`, empty for open AP)
+//!   - `PICO_AP_CHANNEL` for the channel number (default: 6)
+//!
+//! Run with:
+//!   - Pico 1 W: `cargo wifi_web_1w`
+//!   - Pico 2 W: `cargo wifi_web_2w`
+
+#![no_std]
+#![no_main]
+#![allow(async_fn_in_trait)]
+#![allow(clippy::future_not_send, reason = "single-threaded")]
+
+use core::fmt::Write as _;
+use core::str::from_utf8;
+use cyw43_pio::{DEFAULT_CLOCK_DIVIDER, PioSpi};
+use defmt::{debug, error, info, trace, warn, Debug2Format};
+use embassy_executor::Spawner;
+use embassy_net::tcp::TcpSocket;
+use embassy_net::udp::{self, UdpSocket};
+use embassy_net::{Config, IpAddress, Ipv4Address, Ipv4Cidr, StackResources};
+use embassy_rp::bind_interrupts;
+use embassy_rp::gpio::{Level, Output};
+use embassy_rp::peripherals::{DMA_CH0, PIO0};
+use embassy_rp::pio::{InterruptHandler, Pio};
+use embassy_time::{Duration, Instant, Timer};
+use embedded_io_async::Write as _;
+use heapless::String;
+use static_cell::StaticCell;
+use {defmt_rtt as _, panic_probe as _};
+
+bind_interrupts!(struct Irqs {
+    PIO0_IRQ_0 => InterruptHandler<PIO0>;
+});
+
+#[embassy_executor::task]
+async fn cyw43_task(
+    runner: cyw43::Runner<'static, Output<'static>, PioSpi<'static, PIO0, 0, DMA_CH0>>,
+) -> ! {
+    runner.run().await
+}
+
+#[embassy_executor::task]
+async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'static>>) -> ! {
+    runner.run().await
+}
+
+fn ap_ssid() -> &'static str {
+    option_env!("PICO_AP_SSID").unwrap_or("pico-serials")
+}
+
+fn ap_password() -> &'static str {
+    option_env!("PICO_AP_PASSWORD").unwrap_or("picoserials")
+}
+
+fn ap_channel() -> u8 {
+    option_env!("PICO_AP_CHANNEL")
+        .and_then(|raw| raw.parse::<u8>().ok())
+        .filter(|ch| (1..=11).contains(ch))
+        .unwrap_or(6)
+}
+
+const DHCP_SERVER_PORT: u16 = 67;
+const DHCP_CLIENT_PORT: u16 = 68;
+const DHCP_MAGIC_COOKIE: [u8; 4] = [99, 130, 83, 99];
+const DHCP_LEASE_SECONDS: u32 = 4 * 60 * 60; // 4-hour leases keep clients around without being permanent
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, defmt::Format)]
+enum DhcpMessageType {
+    Discover,
+    Request,
+    Decline,
+    Release,
+    Inform,
+    Other(u8),
+}
+
+struct DhcpMessage {
+    msg_type: DhcpMessageType,
+    transaction_id: u32,
+    hardware_type: u8,
+    hardware_len: u8,
+    flags: u16,
+    client_mac: [u8; 6],
+    client_ip: Option<Ipv4Address>,
+    requested_ip: Option<Ipv4Address>,
+    server_id: Option<Ipv4Address>,
+}
+
+struct DhcpLease {
+    mac: [u8; 6],
+    ip: Ipv4Address,
+    expires_at: Instant,
+}
+
+fn parse_dhcp_message(frame: &[u8]) -> Option<DhcpMessage> {
+    if frame.len() < 240 {
+        return None;
+    }
+
+    if frame[0] != 1 {
+        // Only process BOOTREQUEST packets
+        return None;
+    }
+
+    let hardware_type = frame[1];
+    let hardware_len = frame[2];
+    if hardware_type != 1 || hardware_len != 6 {
+        // Only support Ethernet clients with 6-byte MACs for now
+        return None;
+    }
+
+    let transaction_id = u32::from_be_bytes([frame[4], frame[5], frame[6], frame[7]]);
+    let flags = u16::from_be_bytes([frame[10], frame[11]]);
+
+    if frame[236..240] != DHCP_MAGIC_COOKIE {
+        return None;
+    }
+
+    let mut msg_type = None;
+    let mut requested_ip = None;
+    let mut server_id = None;
+
+    let mut idx = 240;
+    while idx < frame.len() {
+        let opt = frame[idx];
+        idx += 1;
+        match opt {
+            0 => continue,
+            255 => break,
+            _ => {
+                if idx >= frame.len() {
+                    break;
+                }
+                let len = frame[idx] as usize;
+                idx += 1;
+                if idx + len > frame.len() {
+                    break;
+                }
+                let data = &frame[idx..idx + len];
+                match opt {
+                    50 if len == 4 => {
+                        requested_ip = Some(Ipv4Address::new(data[0], data[1], data[2], data[3]));
+                    }
+                    53 if len == 1 => {
+                        msg_type = Some(match data[0] {
+                            1 => DhcpMessageType::Discover,
+                            3 => DhcpMessageType::Request,
+                            4 => DhcpMessageType::Decline,
+                            7 => DhcpMessageType::Release,
+                            8 => DhcpMessageType::Inform,
+                            other => DhcpMessageType::Other(other),
+                        });
+                    }
+                    54 if len == 4 => {
+                        server_id = Some(Ipv4Address::new(data[0], data[1], data[2], data[3]));
+                    }
+                    _ => {}
+                }
+                idx += len;
+            }
+        }
+    }
+
+    let ciaddr = Ipv4Address::new(frame[12], frame[13], frame[14], frame[15]);
+    let client_ip = if ciaddr == Ipv4Address::UNSPECIFIED {
+        None
+    } else {
+        Some(ciaddr)
+    };
+
+    let mut client_mac = [0u8; 6];
+    client_mac.copy_from_slice(&frame[28..34]);
+
+    Some(DhcpMessage {
+        msg_type: msg_type?,
+        transaction_id,
+        hardware_type,
+        hardware_len,
+        flags,
+        client_mac,
+        client_ip,
+        requested_ip,
+        server_id,
+    })
+}
+
+fn append_option(dest: &mut [u8], code: u8, payload: &[u8]) -> Option<usize> {
+    let needed = payload.len().saturating_add(2);
+    if dest.len() < needed {
+        return None;
+    }
+    dest[0] = code;
+    dest[1] = payload.len() as u8;
+    dest[2..2 + payload.len()].copy_from_slice(payload);
+    Some(needed)
+}
+
+fn build_dhcp_reply(
+    scratch: &mut [u8],
+    request: &DhcpMessage,
+    offered_ip: Ipv4Address,
+    server_ip: Ipv4Address,
+    netmask: Ipv4Address,
+    broadcast_ip: Ipv4Address,
+    response_kind: DhcpMessageType,
+) -> Option<usize> {
+    if scratch.len() < 300 {
+        return None;
+    }
+
+    scratch.fill(0);
+    scratch[0] = 2; // BOOTREPLY
+    scratch[1] = request.hardware_type;
+    scratch[2] = request.hardware_len;
+    scratch[3] = 0; // hops
+    scratch[4..8].copy_from_slice(&request.transaction_id.to_be_bytes());
+    scratch[10..12].copy_from_slice(&request.flags.to_be_bytes());
+    scratch[16..20].copy_from_slice(&offered_ip.octets());
+    let server_bytes = server_ip.octets();
+    let netmask_bytes = netmask.octets();
+    let broadcast_bytes = broadcast_ip.octets();
+
+    scratch[20..24].copy_from_slice(&server_bytes);
+    scratch[28..34].copy_from_slice(&request.client_mac);
+    scratch[236..240].copy_from_slice(&DHCP_MAGIC_COOKIE);
+
+    let lease = DHCP_LEASE_SECONDS;
+    let renewal = lease / 2;
+    let rebinding = (lease as u64 * 7 / 8) as u32;
+
+    let mut idx = 240;
+    idx += append_option(&mut scratch[idx..], 53, &[match response_kind {
+        DhcpMessageType::Discover => 2, // Offer
+        DhcpMessageType::Request => 5,  // Ack
+        DhcpMessageType::Other(code) => code,
+        DhcpMessageType::Decline => 6,
+        DhcpMessageType::Release => 7,
+        DhcpMessageType::Inform => 8,
+    }])?;
+    idx += append_option(&mut scratch[idx..], 54, &server_bytes)?; // Server identifier
+    idx += append_option(&mut scratch[idx..], 51, &lease.to_be_bytes())?; // Lease time
+    idx += append_option(&mut scratch[idx..], 58, &renewal.to_be_bytes())?; // Renewal (T1)
+    idx += append_option(&mut scratch[idx..], 59, &rebinding.to_be_bytes())?; // Rebinding (T2)
+    idx += append_option(&mut scratch[idx..], 1, &netmask_bytes)?; // Subnet mask
+    idx += append_option(&mut scratch[idx..], 3, &server_bytes)?; // Router
+    idx += append_option(&mut scratch[idx..], 6, &server_bytes)?; // DNS server
+    idx += append_option(&mut scratch[idx..], 28, &broadcast_bytes)?; // Broadcast address
+    scratch[idx] = 255; // End option
+    idx += 1;
+
+    Some(idx)
+}
+
+fn bump_ipv4(base: Ipv4Address, offset: u8) -> Ipv4Address {
+    let base_u32 = u32::from_be_bytes(base.octets());
+    let candidate = base_u32.saturating_add(offset as u32);
+    let octets = candidate.to_be_bytes();
+    Ipv4Address::new(octets[0], octets[1], octets[2], octets[3])
+}
+
+fn ip_in_pool(ip: Ipv4Address, pool_start: Ipv4Address, pool_size: u8) -> bool {
+    if pool_size == 0 {
+        return false;
+    }
+    let start = u32::from_be_bytes(pool_start.octets());
+    let end = start + pool_size as u32 - 1;
+    let value = u32::from_be_bytes(ip.octets());
+    value >= start && value <= end
+}
+
+fn ensure_lease(
+    leases: &mut heapless::Vec<DhcpLease, 8>,
+    mac: [u8; 6],
+    pool_start: Ipv4Address,
+    pool_size: u8,
+    requested: Option<Ipv4Address>,
+) -> Option<Ipv4Address> {
+    let now = Instant::now();
+    leases.retain(|lease| lease.expires_at > now);
+
+    let expiry = now + Duration::from_secs(DHCP_LEASE_SECONDS as u64);
+    let desired_ip = requested
+        .filter(|ip| ip_in_pool(*ip, pool_start, pool_size))
+        .filter(|ip| leases.iter().all(|lease| lease.mac == mac || lease.ip != *ip));
+
+    if let Some(existing) = leases.iter_mut().find(|lease| lease.mac == mac) {
+        if let Some(ip) = desired_ip {
+            existing.ip = ip;
+        }
+        existing.expires_at = expiry;
+        return Some(existing.ip);
+    }
+
+    if let Some(ip) = desired_ip {
+        if leases.push(DhcpLease { mac, ip, expires_at: expiry }).is_ok() {
+            return Some(ip);
+        }
+    }
+
+    for idx in 0..pool_size {
+        let candidate = bump_ipv4(pool_start, idx);
+        if leases.iter().any(|lease| lease.ip == candidate) {
+            continue;
+        }
+        if leases.push(DhcpLease { mac, ip: candidate, expires_at: expiry }).is_ok() {
+            return Some(candidate);
+        }
+    }
+
+    None
+}
+
+fn message_kind_label(kind: DhcpMessageType) -> &'static str {
+    match kind {
+        DhcpMessageType::Discover => "DISCOVER",
+        DhcpMessageType::Request => "REQUEST",
+        DhcpMessageType::Decline => "DECLINE",
+        DhcpMessageType::Release => "RELEASE",
+        DhcpMessageType::Inform => "INFORM",
+        DhcpMessageType::Other(_) => "OTHER",
+    }
+}
+
+#[embassy_executor::task]
+async fn dhcp_server_task(
+    stack: embassy_net::Stack<'static>,
+    server_ip: Ipv4Address,
+    netmask: Ipv4Address,
+    pool_start: Ipv4Address,
+    pool_size: u8,
+) -> ! {
+    let mut rx_meta = [udp::PacketMetadata::EMPTY; 4];
+    let mut rx_buffer = [0u8; 768];
+    let mut tx_meta = [udp::PacketMetadata::EMPTY; 4];
+    let mut tx_buffer = [0u8; 768];
+    let mut socket = UdpSocket::new(stack, &mut rx_meta, &mut rx_buffer, &mut tx_meta, &mut tx_buffer);
+
+    if let Err(err) = socket.bind(DHCP_SERVER_PORT) {
+        error!("DHCP server failed to bind: {:?}", err);
+        defmt::panic!("Unable to bind DHCP port");
+    }
+
+    let broadcast_ip = Ipv4Address::new(
+        server_ip.octets()[0],
+        server_ip.octets()[1],
+        server_ip.octets()[2],
+        255,
+    );
+
+    info!("DHCP server listening on {}", server_ip);
+
+    let mut leases: heapless::Vec<DhcpLease, 8> = heapless::Vec::new();
+    let mut frame = [0u8; 768];
+    let mut response = [0u8; 768];
+
+    loop {
+        let recv = socket.recv_from(&mut frame).await;
+        let (len, remote) = match recv {
+            Ok(data) => data,
+            Err(err) => {
+                warn!("DHCP recv error: {:?}", err);
+                continue;
+            }
+        };
+
+        let Some(message) = parse_dhcp_message(&frame[..len]) else {
+            trace!("Ignoring malformed DHCP packet from {:?}", remote);
+            continue;
+        };
+
+        let label = message_kind_label(message.msg_type);
+        debug!(
+            "DHCP {} from {}",
+            label,
+            Debug2Format(&message.client_mac)
+        );
+
+        if matches!(message.msg_type, DhcpMessageType::Request)
+            && message.server_id.is_some()
+            && message.server_id != Some(server_ip)
+        {
+            trace!("DHCP REQUEST for different server, ignoring");
+            continue;
+        }
+
+        let offer_ip = match message.msg_type {
+            DhcpMessageType::Discover | DhcpMessageType::Request => {
+                ensure_lease(
+                    &mut leases,
+                    message.client_mac,
+                    pool_start,
+                    pool_size,
+                    message.requested_ip.or(message.client_ip),
+                )
+                .unwrap_or(pool_start)
+            }
+            DhcpMessageType::Decline | DhcpMessageType::Release => {
+                leases.retain(|lease| lease.mac != message.client_mac);
+                continue;
+            }
+            DhcpMessageType::Inform | DhcpMessageType::Other(_) => continue,
+        };
+
+        let response_kind = match message.msg_type {
+            DhcpMessageType::Discover => DhcpMessageType::Discover,
+            DhcpMessageType::Request => DhcpMessageType::Request,
+            _ => message.msg_type,
+        };
+
+        let Some(response_len) = build_dhcp_reply(
+            &mut response,
+            &message,
+            offer_ip,
+            server_ip,
+            netmask,
+            broadcast_ip,
+            response_kind,
+        ) else {
+            warn!("Failed to build DHCP response");
+            continue;
+        };
+
+        let response_label = match response_kind {
+            DhcpMessageType::Discover => "OFFER",
+            DhcpMessageType::Request => "ACK",
+            DhcpMessageType::Decline => "DECLINE",
+            DhcpMessageType::Release => "RELEASE",
+            DhcpMessageType::Inform => "INFORM",
+            DhcpMessageType::Other(_) => "OTHER",
+        };
+
+        if let Err(err) = socket
+            .send_to(
+                &response[..response_len],
+                (IpAddress::Ipv4(Ipv4Address::BROADCAST), DHCP_CLIENT_PORT),
+            )
+            .await
+        {
+            warn!("Failed to send DHCP response: {:?}", err);
+        } else {
+            info!(
+                "Sent DHCP {} for {}",
+                response_label,
+                offer_ip
+            );
+        }
+    }
+}
+
+#[embassy_executor::main]
+async fn main(spawner: Spawner) -> ! {
+    info!("Starting WiFi access-point web server example");
+
+    let p = embassy_rp::init(Default::default());
+
+    let fw = cyw43_firmware::CYW43_43439A0;
+    let clm = cyw43_firmware::CYW43_43439A0_CLM;
+
+    let pwr = Output::new(p.PIN_23, Level::Low);
+    let cs = Output::new(p.PIN_25, Level::High);
+    let mut pio = Pio::new(p.PIO0, Irqs);
+    let spi = PioSpi::new(
+        &mut pio.common,
+        pio.sm0,
+        DEFAULT_CLOCK_DIVIDER,
+        pio.irq0,
+        cs,
+        p.PIN_24,
+        p.PIN_29,
+        p.DMA_CH0,
+    );
+
+    static STATE: StaticCell<cyw43::State> = StaticCell::new();
+    let state = STATE.init(cyw43::State::new());
+    let (net_device, mut control, runner) = cyw43::new(state, pwr, spi, fw).await;
+    spawner.spawn(defmt::unwrap!(cyw43_task(runner)));
+
+    control.init(clm).await;
+    control
+        .set_power_management(cyw43::PowerManagementMode::PowerSave)
+        .await;
+
+    let ap_ip = Ipv4Address::new(192, 168, 4, 1);
+    let network = Ipv4Cidr::new(ap_ip, 24);
+    let netmask = network.netmask();
+    let pool_start = bump_ipv4(ap_ip, 1);
+    let pool_size: u8 = 8;
+
+    let static_cfg = embassy_net::StaticConfigV4 {
+        address: network,
+        gateway: None,
+        dns_servers: heapless::Vec::new(),
+    };
+    let config = Config::ipv4_static(static_cfg);
+
+    static NET_RESOURCES: StaticCell<StackResources<4>> = StaticCell::new();
+    let (stack, net_runner) = embassy_net::new(
+        net_device,
+        config,
+        NET_RESOURCES.init(StackResources::new()),
+        0x1357_2468_9abc_def0,
+    );
+    spawner.spawn(defmt::unwrap!(net_task(net_runner)));
+    spawner.spawn(defmt::unwrap!(dhcp_server_task(
+        stack,
+        ap_ip,
+        netmask,
+        pool_start,
+        pool_size,
+    )));
+
+    let ssid = ap_ssid();
+    let password = ap_password();
+    let channel = ap_channel();
+
+    if password.is_empty() {
+        info!("Starting OPEN access point \"{}\" on channel {}", ssid, channel);
+        control.start_ap_open(ssid, channel).await;
+    } else {
+        if !(8..=63).contains(&password.len()) {
+            error!("PICO_AP_PASSWORD must be 8-63 characters long (got {})", password.len());
+            defmt::panic!("Invalid AP password length");
+        }
+        info!("Starting WPA2 access point \"{}\" on channel {}", ssid, channel);
+        control.start_ap_wpa2(ssid, password, channel).await;
+    }
+
+    info!("Access point ready — connect to SSID \"{}\"", ssid);
+    if password.is_empty() {
+        info!("Network is open (no password)");
+    } else {
+        info!("Password: {}", password);
+    }
+    info!("Device IP address: {}", ap_ip);
+    info!("Configure a client with static IP (e.g. 192.168.4.2/24, gateway {})", ap_ip);
+
+    // Static HTTP response body (ASCII only)
+    const BODY: &str = r#"<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pico AP</title>
+<style>body{font-family:system-ui;background:#0b172a;color:#f3f4f6;text-align:center;padding-top:3rem;}section{background:#111c33;display:inline-block;padding:1.5rem 2rem;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,0.25);}h1{margin:0 0 0.75rem;font-size:2rem;}p{margin:0.5rem 0;}code{display:inline-block;margin-top:1rem;padding:0.35rem 0.75rem;border-radius:6px;background:#0b264d;color:#9ad1ff;font-family:monospace;}</style>
+</head><body><section><h1>Hello from Pico!</h1><p>You are connected directly to the board.</p><p>Enjoy your stay.</p><code>embassy-net access-point demo</code></section></body></html>"#;
+    let body_bytes = BODY.as_bytes();
+
+    let mut rx_buffer = [0u8; 1024];
+    let mut tx_buffer = [0u8; 1024];
+    let mut request = [0u8; 512];
+
+    loop {
+        let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
+        socket.set_timeout(Some(Duration::from_secs(30)));
+
+        info!("Listening for HTTP clients on port 80...");
+        if let Err(err) = socket.accept(80).await {
+            warn!("accept error: {:?}", err);
+            Timer::after_millis(500).await;
+            continue;
+        }
+
+        info!("Client connected: {:?}", socket.remote_endpoint());
+
+        match socket.read(&mut request).await {
+            Ok(n) if n > 0 => {
+                let preview = from_utf8(&request[..n]).unwrap_or("<non-UTF8>");
+                info!("Request preview: {}", preview);
+            }
+            Ok(_) => info!("Client closed without sending data"),
+            Err(err) => warn!("Read error: {:?}", err),
+        }
+
+        let mut headers = String::<160>::new();
+        write!(
+            &mut headers,
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body_bytes.len()
+        )
+        .unwrap();
+
+        if let Err(err) = socket.write_all(headers.as_bytes()).await {
+            warn!("Failed to write headers: {:?}", err);
+            socket.abort();
+            continue;
+        }
+        if let Err(err) = socket.write_all(body_bytes).await {
+            warn!("Failed to write body: {:?}", err);
+            socket.abort();
+            continue;
+        }
+
+        let _ = socket.flush().await;
+        socket.close();
+
+        info!("Response sent; connection closed");
+        Timer::after_millis(200).await;
+    }
+}

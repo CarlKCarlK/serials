@@ -116,7 +116,7 @@ dependencies = [
  "embedded-io",
  "embedded-io-async",
  "futures-intrusive",
- "heapless 0.8.0",
+ "heapless",
 ]
 
 [[package]]
@@ -264,7 +264,7 @@ dependencies = [
  "embedded-hal 1.0.0",
  "embedded-io-async",
  "futures",
- "heapless 0.8.0",
+ "heapless",
  "num_enum 0.5.11",
 ]
 
@@ -512,7 +512,7 @@ dependencies = [
  "embassy-time",
  "embedded-io-async",
  "embedded-nal-async",
- "heapless 0.8.0",
+ "heapless",
  "managed",
  "smoltcp",
 ]
@@ -584,7 +584,7 @@ dependencies = [
  "embedded-io-async",
  "futures-core",
  "futures-sink",
- "heapless 0.8.0",
+ "heapless",
 ]
 
 [[package]]
@@ -617,7 +617,7 @@ version = "0.3.0"
 source = "git+https://github.com/embassy-rs/embassy?branch=main#05663c231ebd82af0491dfb9d418fd0566cb02ff"
 dependencies = [
  "embassy-executor-timer-queue",
- "heapless 0.8.0",
+ "heapless",
 ]
 
 [[package]]
@@ -760,7 +760,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b0756a5a9787391021a7430c7988e384529a620473d61df4c3522e1e0c46721"
 dependencies = [
  "embedded-hal-async",
- "heapless 0.8.0",
+ "heapless",
  "log",
 ]
 
@@ -996,16 +996,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bfb9eb618601c89945a70e254898da93b13be0388091d42117462b265bb3fad"
 dependencies = [
  "defmt 0.3.100",
- "hash32",
- "stable_deref_trait",
-]
-
-[[package]]
-name = "heapless"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1edcd5a338e64688fbdcb7531a846cfd3476a54784dcb918a0844682bc7ada5"
-dependencies = [
  "hash32",
  "stable_deref_trait",
 ]
@@ -1684,7 +1674,7 @@ dependencies = [
  "embedded-io-async",
  "esp-hal-mfrc522",
  "hd44780-driver",
- "heapless 0.9.1",
+ "heapless",
  "itertools 0.13.0",
  "panic-probe",
  "paste",
@@ -1766,7 +1756,7 @@ dependencies = [
  "byteorder",
  "cfg-if",
  "defmt 0.3.100",
- "heapless 0.8.0",
+ "heapless",
  "managed",
 ]
 
@@ -1982,7 +1972,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98816b1accafbb09085168b90f27e93d790b4bfa19d883466b5e53315b5f06a6"
 dependencies = [
- "heapless 0.8.0",
+ "heapless",
  "portable-atomic",
 ]
 

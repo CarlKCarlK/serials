@@ -13,6 +13,7 @@ wireless_1w = "run --example wireless --release --target thumbv6m-none-eabi --no
 lcd_clock_1w = "run --example lcd_clock --release --target thumbv6m-none-eabi --no-default-features --features pico1w,wifi"
 led_strip_1w = "run --example led_strip --release --target thumbv6m-none-eabi --no-default-features --features pico1w"
 log_time_1w = "run --example log_time --release --target thumbv6m-none-eabi --no-default-features --features pico1w,wifi"
+wifi_web_1w = "run --example wifi_web --release --target thumbv6m-none-eabi --no-default-features --features pico1w,wifi"
 
 # Pico 2 aliases
 full_2 = "run --example full --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2"
@@ -26,6 +27,7 @@ led_24x4_clock_2 = "run --example led_24x4_clock --release --target thumbv8m.mai
 led_strip_snake_2 = "run --example led_strip_snake --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2"
 blinky_2 = "run --example blinky --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2"
 log_time_2w = "run --example log_time --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2,wifi"
+wifi_web_2w = "run --example wifi_web --release --target thumbv8m.main-none-eabihf --no-default-features --features pico2,wifi"
 
 # Default aliases (Pico 2)
 full = "run --example full --release"
