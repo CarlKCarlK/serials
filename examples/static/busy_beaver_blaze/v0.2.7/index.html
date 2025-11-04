@@ -81,6 +81,26 @@
             padding: 0;
             border: none;
         }
+        .captive-warning {
+            border: 1px solid #cbd5f5;
+            background: #f8fafc;
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            line-height: 1.5;
+            text-align: left;
+        }
+        .captive-warning h2 {
+            margin-top: 0;
+            font-size: 1.25rem;
+        }
+        .captive-warning code {
+            display: inline-block;
+            margin: 0.6rem 0;
+            padding: 0.35rem 0.6rem;
+            background: #e2e8f0;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -470,6 +490,123 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             const paletteMode = document.getElementById('paletteMode');
             const colorPickers = document.getElementById('colorPickers');
 
+            function escapeHtml(value) {
+                return String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function interpretWorkerFailure(source, payload) {
+                let message = 'Unknown worker error';
+                let detail = '';
+                let kind = '';
+                let portalFlag = false;
+                const candidate = payload ?? {};
+
+                if (candidate instanceof Error) {
+                    message = candidate.message || candidate.toString();
+                    detail = typeof candidate.detail === 'string'
+                        ? candidate.detail
+                        : (candidate.stack || '');
+                    kind = typeof candidate.kind === 'string' ? candidate.kind : (candidate.name || '');
+                    if (typeof candidate.portalBlocked === 'boolean') {
+                        portalFlag = candidate.portalBlocked;
+                    }
+                } else if (typeof candidate === 'string') {
+                    message = candidate;
+                } else if (typeof candidate === 'object') {
+                    if (typeof candidate.error === 'string') {
+                        message = candidate.error;
+                    } else if (candidate.error && typeof candidate.error.message === 'string') {
+                        message = candidate.error.message;
+                    } else if (typeof candidate.message === 'string') {
+                        message = candidate.message;
+                    } else if (typeof candidate.type === 'string') {
+                        message = candidate.type;
+                    }
+
+                    if (typeof candidate.detail === 'string') {
+                        detail = candidate.detail;
+                    } else if (typeof candidate.stack === 'string') {
+                        detail = candidate.stack;
+                    } else if (candidate.error && typeof candidate.error.stack === 'string') {
+                        detail = candidate.error.stack;
+                    }
+
+                    if (typeof candidate.kind === 'string') {
+                        kind = candidate.kind;
+                    } else if (typeof candidate.category === 'string') {
+                        kind = candidate.category;
+                    } else if (typeof candidate.name === 'string') {
+                        kind = candidate.name;
+                    } else if (typeof candidate.type === 'string') {
+                        kind = candidate.type;
+                    }
+
+                    if (typeof candidate.portalBlocked === 'boolean') {
+                        portalFlag = candidate.portalBlocked;
+                    }
+                } else {
+                    message = String(candidate);
+                }
+
+                const normalizedKind = (kind || '').toLowerCase();
+                const fingerprint = `${message} ${detail}`.toLowerCase();
+                const portalBlocked = portalFlag
+                    || normalizedKind === 'wasm-blocked'
+                    || normalizedKind === 'worker-blocked'
+                    || normalizedKind === 'wasm-runtime'
+                    || fingerprint.includes('webassembly')
+                    || (fingerprint.includes('worker') && fingerprint.includes('security'))
+                    || fingerprint.includes('cross-origin-isolated')
+                    || fingerprint.includes('sharedarraybuffer');
+
+                return {
+                    source,
+                    message,
+                    detail,
+                    kind: normalizedKind,
+                    portalBlocked,
+                };
+            }
+
+            function showPortalFallback(message, detail) {
+                const status = document.getElementById('status');
+                const portalUrl = `${window.location.origin}/index.html`;
+                const safeMessage = escapeHtml(message || 'Busy Beaver Blaze needs a full browser.');
+                const detailHtml = detail
+                    ? `<p style="font-size:0.9rem;color:#475569;">Technical detail: ${escapeHtml(detail)}</p>`
+                    : '';
+                if (lastBlobUrl) {
+                    URL.revokeObjectURL(lastBlobUrl);
+                    lastBlobUrl = null;
+                }
+                container.innerHTML = `<div class="captive-warning"><h2>Open Busy Beaver Blaze in your browser</h2><p>This captive portal window blocks WebAssembly and workers, so the visualizer cannot run here.</p><p>${safeMessage}</p><p>Choose <strong>Open in browser</strong> or copy this link:</p><p><code>${escapeHtml(portalUrl)}</code></p><p>If nothing happens, close this sign-in window and visit the link manually.</p>${detailHtml}</div>`;
+                status.textContent = 'Worker status: unsupported in captive portal';
+                status.classList.add('visible');
+                if (progressTimer) {
+                    clearTimeout(progressTimer);
+                    progressTimer = null;
+                }
+                isRunning = false;
+                const controls = document.querySelectorAll('.controls');
+                controls.forEach(c => c.classList.remove('disabled'));
+                const runButton = document.getElementById('runButton');
+                runButton.textContent = 'Run';
+                runButton.classList.remove('loading');
+                document.getElementById('runTime').textContent = 'blocked';
+                document.getElementById('stepCount').textContent = '-';
+                document.getElementById('onesCount').textContent = '-';
+                document.getElementById('haltedStatus').textContent = '-';
+                pendingRunResolve = null;
+                pendingRunReject = null;
+                console.warn('[page] Captive portal blocked Busy Beaver Blaze', message, detail);
+                return true;
+            }
+
             // Add handler for stretch toggle
             stretchImage.addEventListener('change', () => {
                 updateHashFromUI();
@@ -546,12 +683,17 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             function handleWorkerMessage(e) {
                 const data = e.data;
                 if (!data || !data.success) {
-                    const errorMessage = (data && data.error) ? data.error : 'Unknown worker error';
-                    
+                    const failure = interpretWorkerFailure('message', data);
                     if (pendingRunReject) {
-                        pendingRunReject(new Error(errorMessage));
+                        const err = new Error(failure.message);
+                        err.detail = failure.detail;
+                        err.kind = failure.kind;
+                        err.portalBlocked = failure.portalBlocked;
+                        pendingRunReject(err);
                         pendingRunReject = null;
                         pendingRunResolve = null;
+                    } else if (failure.portalBlocked) {
+                        showPortalFallback(failure.message, failure.detail);
                     }
                     return;
                 }
@@ -611,14 +753,40 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 worker = new Worker('./worker.js', { type: 'module' });
                 worker.onmessage = handleWorkerMessage;
                 worker.onerror = (err) => {
-                    
-                    const status = document.getElementById('status');
-                    status.textContent = 'Worker status: error';
-                    status.classList.add('visible');
+                    if (typeof err.preventDefault === 'function') {
+                        err.preventDefault();
+                    }
+                    const locationParts = [];
+                    if (typeof err.filename === 'string' && err.filename) {
+                        locationParts.push(err.filename);
+                    }
+                    if (typeof err.lineno === 'number' && err.lineno) {
+                        locationParts.push(String(err.lineno));
+                    }
+                    if (typeof err.colno === 'number' && err.colno) {
+                        locationParts.push(String(err.colno));
+                    }
+                    const failure = interpretWorkerFailure('worker', {
+                        error: err.message || err.type || 'Worker error',
+                        detail: locationParts.join(':'),
+                        kind: (err.error && err.error.name) ? err.error.name : err.type,
+                    });
+
                     if (pendingRunReject) {
-                        pendingRunReject(err);
+                        const forwarded = new Error(failure.message);
+                        forwarded.detail = failure.detail;
+                        forwarded.kind = failure.kind;
+                        forwarded.portalBlocked = failure.portalBlocked;
+                        pendingRunReject(forwarded);
                         pendingRunReject = null;
                         pendingRunResolve = null;
+                    } else if (failure.portalBlocked) {
+                        showPortalFallback(failure.message, failure.detail);
+                    } else {
+                        const status = document.getElementById('status');
+                        status.textContent = 'Worker status: error';
+                        status.classList.add('visible');
+                        container.textContent = `Error: ${failure.message}`;
                     }
                 };
             }
@@ -652,6 +820,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 isRunning = true;
                 ensureWorker();
                 wasStopped = false;
+                let fallbackDisplayed = false;
 
                 try {
                     const controls = document.querySelectorAll('.controls');
@@ -724,19 +893,28 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         document.getElementById('haltedStatus').textContent = result.is_halted ? 'Halted' : 'Not Halted';
                     }
                 } catch (e) {
-                    status.textContent = 'Worker status: error';
-                    setTimeout(() => status.classList.remove('visible'), 2000);
-                    clearTimeout(progressTimer);
-                    const errorMessage = e.message || e.toString();
-                    
-                    container.textContent = `Error: ${errorMessage}`;
-                    document.getElementById('runTime').textContent = 'error';
-                    document.getElementById('stepCount').textContent = '-';
-                    document.getElementById('onesCount').textContent = '-';
-                    document.getElementById('haltedStatus').textContent = '-';
+                    if (progressTimer) {
+                        clearTimeout(progressTimer);
+                        progressTimer = null;
+                    }
+                    const failure = interpretWorkerFailure('run', e);
+                    if (failure.portalBlocked) {
+                        fallbackDisplayed = showPortalFallback(failure.message, failure.detail);
+                    } else {
+                        status.textContent = 'Worker status: error';
+                        status.classList.add('visible');
+                        container.textContent = `Error: ${failure.message}`;
+                        document.getElementById('runTime').textContent = 'error';
+                        document.getElementById('stepCount').textContent = '-';
+                        document.getElementById('onesCount').textContent = '-';
+                        document.getElementById('haltedStatus').textContent = '-';
+                        console.error('[page] Worker error', failure);
+                    }
                 } finally {
                     isRunning = false;
-                    setTimeout(() => status.classList.remove('visible'), 2000);
+                    if (!fallbackDisplayed) {
+                        setTimeout(() => status.classList.remove('visible'), 2000);
+                    }
                     // Keep worker alive for live recoloring
                     const controls = document.querySelectorAll('.controls');
                     controls.forEach(c => c.classList.remove('disabled'));

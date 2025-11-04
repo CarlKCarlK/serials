@@ -81,23 +81,96 @@ struct StaticAsset {
     body: &'static [u8],
 }
 
-const CAPTIVE_PORTAL_PATHS: &[&str] = &[
-    "/generate_204",
-    "/gen_204",
-    "/hotspot-detect.html",
-    "/library/test/success.html",
-    "/connecttest.txt",
-    "/ncsi.txt",
-    "/success.txt",
-];
+struct CaptivePortalResponse {
+    path: &'static str,
+    status_line: &'static str,
+    content_type: &'static str,
+    body: &'static [u8],
+    location: Option<&'static str>,
+}
 
-const CAPTIVE_PORTAL_TEXTS: &[(&str, &[u8])] = &[
-    ("/connecttest.txt", b"Microsoft Connect Test"),
-    ("/ncsi.txt", b"Microsoft NCSI"),
-    ("/success.txt", b"success"),
-];
+const CAPTIVE_PORTAL_BODY: &[u8] = b"<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Busy Beaver Blaze Captive Portal</title><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>body{font-family:Arial,sans-serif;margin:0;padding:2rem;background:#f4f4f4;color:#111;text-align:center;}main{background:#fff;border-radius:8px;max-width:520px;margin:4vh auto;padding:2rem;box-shadow:0 2px 8px rgba(0,0,0,0.1);}main h1{margin-top:0;}main p{margin:0.8rem 0;line-height:1.5;}code{display:inline-block;padding:0.35rem 0.6rem;background:#f1f5f9;border-radius:4px;font-size:0.9rem;}a.button{display:inline-block;margin-top:1.2rem;padding:0.75rem 1.5rem;background:#2563eb;color:#fff;text-decoration:none;border-radius:4px;font-weight:600;}a.button:active{background:#1e40af;}footer{margin-top:1.6rem;font-size:0.85rem;color:#555;}</style></head><body><main><h1>Busy Beaver Blaze</h1><p>This sign-in window cannot run the visualization. Captive portal browsers disable WebAssembly and workers.</p><p>Open the full experience in your normal browser:</p><code>http://192.168.4.1/index.html</code><p>Copy the link above or choose the button below.</p><a class=\"button\" href=\"http://192.168.4.1/index.html\">Open in Browser</a><footer>If nothing opens automatically, close this window and visit the link manually.</footer></main></body></html>";
 
-const CAPTIVE_PORTAL_BODY: &[u8] = b"<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Continue to Busy Beaver Blaze</title><style>body{font-family:Arial,sans-serif;margin:0;padding:2rem;background:#f4f4f4;text-align:center;}main{background:#fff;border-radius:8px;max-width:480px;margin:5vh auto;padding:2rem;box-shadow:0 2px 6px rgba(0,0,0,0.15);}a.button{display:inline-block;margin-top:1.5rem;padding:0.75rem 1.5rem;background:#2563eb;color:#fff;text-decoration:none;border-radius:4px;font-weight:600;}a.button:active{background:#1e40af;}</style></head><body><main><h1>Busy Beaver Blaze</h1><p>Open the full page in your browser to run the visualizer.</p><a class='button' href='http://192.168.4.1/index.html'>Open full page</a></main></body></html>";
+const CAPTIVE_PORTAL_TEXT_BODY: &[u8] =
+    b"Sign-in required. Open http://192.168.4.1/portal\r\n";
+const CAPTIVE_PORTAL_MSFT_TEXT: &[u8] =
+    b"Busy Beaver Blaze captive portal. Visit http://192.168.4.1/portal\r\n";
+const CAPTIVE_PORTAL_REDIRECT_BODY: &[u8] =
+    b"Redirecting to http://192.168.4.1/portal\r\n";
+const PORTAL_LOCATION: &str = "http://192.168.4.1/portal";
+
+static CAPTIVE_PORTAL_RESPONSES: &[CaptivePortalResponse] = &[
+    CaptivePortalResponse {
+        path: "/",
+        status_line: "HTTP/1.1 200 OK\r\n",
+        content_type: "text/html; charset=utf-8",
+        body: CAPTIVE_PORTAL_BODY,
+        location: None,
+    },
+    CaptivePortalResponse {
+        path: "/portal",
+        status_line: "HTTP/1.1 200 OK\r\n",
+        content_type: "text/html; charset=utf-8",
+        body: CAPTIVE_PORTAL_BODY,
+        location: None,
+    },
+    CaptivePortalResponse {
+        path: "/generate_204",
+        status_line: "HTTP/1.1 200 OK\r\n",
+        content_type: "text/html; charset=utf-8",
+        body: CAPTIVE_PORTAL_BODY,
+        location: None,
+    },
+    CaptivePortalResponse {
+        path: "/gen_204",
+        status_line: "HTTP/1.1 200 OK\r\n",
+        content_type: "text/html; charset=utf-8",
+        body: CAPTIVE_PORTAL_BODY,
+        location: None,
+    },
+    CaptivePortalResponse {
+        path: "/hotspot-detect.html",
+        status_line: "HTTP/1.1 200 OK\r\n",
+        content_type: "text/html; charset=utf-8",
+        body: CAPTIVE_PORTAL_BODY,
+        location: None,
+    },
+    CaptivePortalResponse {
+        path: "/library/test/success.html",
+        status_line: "HTTP/1.1 200 OK\r\n",
+        content_type: "text/html; charset=utf-8",
+        body: CAPTIVE_PORTAL_BODY,
+        location: None,
+    },
+    CaptivePortalResponse {
+        path: "/connecttest.txt",
+        status_line: "HTTP/1.1 302 Found\r\n",
+        content_type: "text/plain; charset=utf-8",
+        body: CAPTIVE_PORTAL_MSFT_TEXT,
+        location: Some(PORTAL_LOCATION),
+    },
+    CaptivePortalResponse {
+        path: "/ncsi.txt",
+        status_line: "HTTP/1.1 200 OK\r\n",
+        content_type: "text/plain; charset=utf-8",
+        body: CAPTIVE_PORTAL_TEXT_BODY,
+        location: None,
+    },
+    CaptivePortalResponse {
+        path: "/success.txt",
+        status_line: "HTTP/1.1 200 OK\r\n",
+        content_type: "text/plain; charset=utf-8",
+        body: CAPTIVE_PORTAL_TEXT_BODY,
+        location: None,
+    },
+    CaptivePortalResponse {
+        path: "/redirect",
+        status_line: "HTTP/1.1 302 Found\r\n",
+        content_type: "text/plain; charset=utf-8",
+        body: CAPTIVE_PORTAL_REDIRECT_BODY,
+        location: Some(PORTAL_LOCATION),
+    },
+];
 
 static STATIC_ASSETS: &[StaticAsset] = &[
     StaticAsset {
@@ -419,22 +492,37 @@ fn ensure_lease(
     None
 }
 
-fn dns_question_len(packet: &[u8]) -> Option<(usize, u16, u16)> {
+struct DnsQuestion {
+    len: usize,
+    qtype: u16,
+    qclass: u16,
+    name: heapless::String<253>,
+}
+
+fn parse_dns_question(packet: &[u8]) -> Option<DnsQuestion> {
     if packet.len() < 12 {
         return None;
     }
 
     let mut idx = 12;
+    let mut name = heapless::String::<253>::new();
+
     loop {
         let label_len = *packet.get(idx)? as usize;
         idx += 1;
         if label_len == 0 {
             break;
         }
-        idx = idx.checked_add(label_len)?;
-        if idx > packet.len() {
+        if idx + label_len > packet.len() {
             return None;
         }
+        let label_bytes = &packet[idx..idx + label_len];
+        let label = from_utf8(label_bytes).ok()?;
+        if !name.is_empty() {
+            name.push('.').ok()?;
+        }
+        name.push_str(label).ok()?;
+        idx += label_len;
     }
 
     if idx + 4 > packet.len() {
@@ -445,20 +533,26 @@ fn dns_question_len(packet: &[u8]) -> Option<(usize, u16, u16)> {
     let qclass = u16::from_be_bytes([packet[idx + 2], packet[idx + 3]]);
     idx += 4;
 
-    Some((idx - 12, qtype, qclass))
+    Some(DnsQuestion {
+        len: idx - 12,
+        qtype,
+        qclass,
+        name,
+    })
 }
 
 fn build_dns_response(
     query: &[u8],
     response: &mut [u8],
     answer_ip: Ipv4Address,
-) -> Option<(usize, bool)> {
+    question: &DnsQuestion,
+) -> Option<usize> {
     if query.len() < 12 || response.len() < 12 {
         return None;
     }
 
-    let (question_len, qtype, qclass) = dns_question_len(query)?;
-    if response.len() < 12 + question_len {
+    let question_end = 12 + question.len;
+    if response.len() < question_end {
         return None;
     }
 
@@ -467,34 +561,27 @@ fn build_dns_response(
     response[2] = 0x81; // standard response + recursion available
     response[3] = 0x80;
     response[4..6].copy_from_slice(&query[4..6]); // QDCOUNT
-
-    let answered = qtype == 1 && qclass == 1;
-    if answered {
-        response[6..8].copy_from_slice(&1u16.to_be_bytes());
-    }
+    response[6..8].copy_from_slice(&1u16.to_be_bytes());
 
     // NSCOUNT and ARCOUNT remain zero (already zeroed)
 
-    let question_end = 12 + question_len;
     response[12..question_end].copy_from_slice(&query[12..question_end]);
 
     let mut offset = question_end;
-
-    if answered {
-        if response.len() < offset + 16 {
-            return None;
-        }
-        response[offset] = 0xC0;
-        response[offset + 1] = 0x0C; // pointer to question name
-        response[offset + 2..offset + 4].copy_from_slice(&qtype.to_be_bytes());
-        response[offset + 4..offset + 6].copy_from_slice(&qclass.to_be_bytes());
-        response[offset + 6..offset + 10].copy_from_slice(&DNS_RESPONSE_TTL.to_be_bytes());
-        response[offset + 10..offset + 12].copy_from_slice(&4u16.to_be_bytes());
-        response[offset + 12..offset + 16].copy_from_slice(&answer_ip.octets());
-        offset += 16;
+    if response.len() < offset + 16 {
+        return None;
     }
 
-    Some((offset, answered))
+    response[offset] = 0xC0;
+    response[offset + 1] = 0x0C; // pointer to question name
+    response[offset + 2..offset + 4].copy_from_slice(&1u16.to_be_bytes());
+    response[offset + 4..offset + 6].copy_from_slice(&1u16.to_be_bytes());
+    response[offset + 6..offset + 10].copy_from_slice(&DNS_RESPONSE_TTL.to_be_bytes());
+    response[offset + 10..offset + 12].copy_from_slice(&4u16.to_be_bytes());
+    response[offset + 12..offset + 16].copy_from_slice(&answer_ip.octets());
+    offset += 16;
+
+    Some(offset)
 }
 
 fn message_kind_label(kind: DhcpMessageType) -> &'static str {
@@ -659,10 +746,14 @@ async fn dns_server_task(stack: embassy_net::Stack<'static>, answer_ip: Ipv4Addr
             continue;
         };
 
-        let Some((resp_len, answered)) =
-            build_dns_response(&frame[..len], &mut response, answer_ip)
-        else {
+        let query = &frame[..len];
+        let Some(question) = parse_dns_question(query) else {
             trace!("Ignoring malformed DNS query");
+            continue;
+        };
+
+        let Some(resp_len) = build_dns_response(query, &mut response, answer_ip, &question) else {
+            trace!("Failed to build DNS response");
             continue;
         };
 
@@ -671,11 +762,17 @@ async fn dns_server_task(stack: embassy_net::Stack<'static>, answer_ip: Ipv4Addr
             continue;
         }
 
-        if answered {
-            debug!("DNS answered with {}", answer_ip);
+        let name = if question.name.is_empty() {
+            "(root)"
         } else {
-            trace!("DNS query without A/IN answer");
-        }
+            question.name.as_str()
+        };
+        info!(
+            "DNS {} -> {} (qtype {})",
+            name,
+            answer_ip,
+            question.qtype
+        );
     }
 }
 
@@ -840,18 +937,19 @@ async fn main(spawner: Spawner) -> ! {
             match method {
                 "GET" | "HEAD" => {
                     send_body = method == "GET";
-                    if CAPTIVE_PORTAL_PATHS.contains(&path) {
-                        status_line = "HTTP/1.1 200 OK\r\n";
-                        if let Some((_, text_body)) =
-                            CAPTIVE_PORTAL_TEXTS.iter().find(|(p, _)| *p == path)
-                        {
-                            content_type = "text/plain; charset=utf-8";
-                            body = text_body;
-                        } else {
-                            content_type = "text/html; charset=utf-8";
-                            body = CAPTIVE_PORTAL_BODY;
-                        }
+                    if let Some(captive) =
+                        CAPTIVE_PORTAL_RESPONSES.iter().find(|resp| resp.path == path)
+                    {
+                        status_line = captive.status_line;
+                        content_type = captive.content_type;
+                        body = captive.body;
+                        location = captive.location;
                         cache_control = Some("no-store, max-age=0");
+                        info!(
+                            "Captive portal response {} {}",
+                            path,
+                            captive.status_line.trim()
+                        );
                     } else if let Some(asset) = find_asset(path) {
                         status_line = "HTTP/1.1 200 OK\r\n";
                         content_type = asset.content_type;

@@ -9,6 +9,98 @@ let currentColors = null;     // Uint8Array(15) - always 5 colors
 let stopRequested = false;    // flag to stop stepping but keep machine
 let runCounter = 0;           // increment per start to tag logs
 
+function normalizeError(err) {
+    let message = 'Unknown worker error';
+    let detail = '';
+    let kind = 'runtime';
+
+    if (err instanceof Error) {
+        message = err.message || err.toString();
+        detail = err.stack || '';
+        const name = (err.name || '').toLowerCase();
+        if (name.includes('security')) {
+            kind = 'worker-blocked';
+        } else if (name.includes('wasm') || name.includes('webassembly')) {
+            kind = 'wasm-blocked';
+        } else if (name) {
+            kind = name;
+        }
+    } else if (err && typeof err === 'object') {
+        if (typeof err.message === 'string' && err.message) {
+            message = err.message;
+        } else if (typeof err.error === 'string') {
+            message = err.error;
+        } else if (err.error && typeof err.error.message === 'string') {
+            message = err.error.message;
+        } else if (typeof err.type === 'string') {
+            message = err.type;
+        } else if (typeof err.toString === 'function') {
+            message = err.toString();
+        }
+
+        if (typeof err.stack === 'string') {
+            detail = err.stack;
+        } else if (typeof err.detail === 'string') {
+            detail = err.detail;
+        } else if (err.error && typeof err.error.stack === 'string') {
+            detail = err.error.stack;
+        }
+
+        if (typeof err.kind === 'string') {
+            kind = err.kind;
+        } else if (typeof err.category === 'string') {
+            kind = err.category;
+        } else if (typeof err.name === 'string') {
+            kind = err.name;
+        } else if (typeof err.type === 'string') {
+            kind = err.type;
+        }
+    } else if (typeof err === 'string') {
+        message = err;
+    } else {
+        message = String(err);
+    }
+
+    const lower = `${message} ${detail}`.toLowerCase();
+    const normalizedKind = (kind || '').toLowerCase();
+    let category = normalizedKind || 'runtime';
+
+    if (
+        lower.includes('webassembly') ||
+        lower.includes('wasm') ||
+        lower.includes('instantiate') ||
+        lower.includes('compile') ||
+        lower.includes('module script')
+    ) {
+        category = 'wasm-blocked';
+    } else if (
+        lower.includes('worker') && lower.includes('security')
+    ) {
+        category = 'worker-blocked';
+    } else if (
+        lower.includes('sharedarraybuffer') ||
+        lower.includes('cross-origin-isolated')
+    ) {
+        category = 'worker-blocked';
+    } else if (normalizedKind.includes('security')) {
+        category = 'worker-blocked';
+    }
+
+    return { message, detail, kind: category };
+}
+
+function postWorkerError(source, err) {
+    const info = normalizeError(err);
+    console.error('[worker] error', source, info.message, info.detail);
+    self.postMessage({
+        success: false,
+        error: info.message,
+        detail: info.detail,
+        kind: info.kind,
+        source,
+    });
+}
+
 function formatPalette(bytes) {
     if (!bytes || bytes.length !== 15) return '(invalid)';
     const toHex = (v) => v.toString(16).padStart(2, '0');
@@ -52,7 +144,7 @@ async function renderAndPost(intermediate) {
             is_halted: space_by_time_machine.is_halted()
         });
     } catch (e) {
-        self.postMessage({ success: false, error: e.toString() });
+        postWorkerError('render', e);
     }
 }
 
@@ -113,8 +205,8 @@ self.onmessage = async function (e) {
             return;
         }
 
-        self.postMessage({ success: false, error: `Unknown message type: ${type}` });
+        postWorkerError('protocol', { message: `Unknown message type: ${type}`, kind: 'protocol' });
     } catch (err) {
-        self.postMessage({ success: false, error: err.toString() });
+        postWorkerError(type, err);
     }
 };
