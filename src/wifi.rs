@@ -1,18 +1,21 @@
 //! WiFi virtual device - manages WiFi connection and network stack
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
-#![allow(unsafe_code, reason = "StackStorage uses UnsafeCell in single-threaded context")]
+#![allow(
+    unsafe_code,
+    reason = "StackStorage uses UnsafeCell in single-threaded context"
+)]
 
+use core::cell::UnsafeCell;
 use cyw43::JoinOptions;
 use cyw43_pio::{DEFAULT_CLOCK_DIVIDER, PioSpi};
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_net::{Config, Stack, StackResources};
-use embassy_rp::{Peri, bind_interrupts};
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0};
 use embassy_rp::pio::{InterruptHandler, Pio};
-use core::cell::UnsafeCell;
+use embassy_rp::{Peri, bind_interrupts};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_sync::waitqueue::AtomicWaker;
@@ -31,7 +34,7 @@ pub enum WifiEvent {
 }
 
 /// Single-threaded once-storage for network stack
-/// 
+///
 /// SAFETY: This is safe in single-threaded Embassy context
 pub struct StackStorage {
     initialized: AtomicBool,
@@ -52,22 +55,22 @@ impl StackStorage {
             value: UnsafeCell::new(None),
         }
     }
-    
+
     /// Initialize the stack storage (can only be called once)
     pub fn init(&self, stack: &'static Stack<'static>) {
         if self.initialized.swap(true, Ordering::Release) {
             // Already initialized - this is a bug
             return;
         }
-        
+
         // SAFETY: We just checked that we're the only initializer
         unsafe {
             *self.value.get() = Some(stack);
         }
-        
+
         self.waker.wake();
     }
-    
+
     /// Wait for the stack to be initialized and return it
     pub async fn get(&self) -> &'static Stack<'static> {
         core::future::poll_fn(|cx| {
@@ -85,7 +88,8 @@ impl StackStorage {
                     core::task::Poll::Pending
                 }
             }
-        }).await
+        })
+        .await
     }
 }
 
@@ -118,12 +122,12 @@ impl Wifi {
             wifi_cell: StaticCell::new(),
         }
     }
-    
+
     /// Wait for the network stack to be ready and return a reference to it
     pub async fn stack(&self) -> &'static Stack<'static> {
         self.stack.get().await
     }
-    
+
     /// Wait for and return the next WiFi event
     pub async fn wait(&self) -> WifiEvent {
         self.events.wait().await
@@ -142,11 +146,19 @@ impl Wifi {
         spawner: Spawner,
     ) -> &'static Self {
         let token = unwrap!(wifi_device_loop(
-            pin_23, pin_25, pio0, pin_24, pin_29, dma_ch0, &resources.events, &resources.stack, spawner,
+            pin_23,
+            pin_25,
+            pio0,
+            pin_24,
+            pin_29,
+            dma_ch0,
+            &resources.events,
+            &resources.stack,
+            spawner,
         ));
         spawner.spawn(token);
-        resources.wifi_cell.init(Self { 
-            events: &resources.events, 
+        resources.wifi_cell.init(Self {
+            events: &resources.events,
             stack: &resources.stack,
         })
     }
@@ -243,7 +255,7 @@ async fn wifi_device_loop(
     }
 
     info!("WiFi device ready");
-    
+
     // Store stack reference and emit Ready event
     stack_storage.init(stack);
     wifi_events.signal(WifiEvent::Ready);

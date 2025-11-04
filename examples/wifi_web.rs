@@ -21,7 +21,7 @@
 use core::fmt::Write as _;
 use core::str::from_utf8;
 use cyw43_pio::{DEFAULT_CLOCK_DIVIDER, PioSpi};
-use defmt::{debug, error, info, trace, warn, Debug2Format};
+use defmt::{Debug2Format, debug, error, info, trace, warn};
 use embassy_executor::Spawner;
 use embassy_net::tcp::TcpSocket;
 use embassy_net::udp::{self, UdpSocket};
@@ -81,6 +81,18 @@ struct StaticAsset {
     body: &'static [u8],
 }
 
+const CAPTIVE_PORTAL_PATHS: &[&str] = &[
+    "/generate_204",
+    "/gen_204",
+    "/hotspot-detect.html",
+    "/library/test/success.html",
+    "/connecttest.txt",
+    "/ncsi.txt",
+    "/success.txt",
+];
+
+const CAPTIVE_PORTAL_BODY: &[u8] = b"<html><head><meta http-equiv=\"refresh\" content=\"0; url=/\"></head><body>Redirecting...</body></html>";
+
 static STATIC_ASSETS: &[StaticAsset] = &[
     StaticAsset {
         path: "/index.html",
@@ -100,12 +112,26 @@ static STATIC_ASSETS: &[StaticAsset] = &[
     StaticAsset {
         path: "/pkg/busy_beaver_blaze.js",
         content_type: "application/javascript; charset=utf-8",
-        body: include_bytes!("../examples/static/busy_beaver_blaze/v0.2.7/pkg/busy_beaver_blaze.js"),
+        body: include_bytes!(
+            "../examples/static/busy_beaver_blaze/v0.2.7/pkg/busy_beaver_blaze.js"
+        ),
     },
     StaticAsset {
         path: "/pkg/busy_beaver_blaze_bg.wasm",
         content_type: "application/wasm",
-        body: include_bytes!("../examples/static/busy_beaver_blaze/v0.2.7/pkg/busy_beaver_blaze_bg.wasm"),
+        body: include_bytes!(
+            "../examples/static/busy_beaver_blaze/v0.2.7/pkg/busy_beaver_blaze_bg.wasm"
+        ),
+    },
+    StaticAsset {
+        path: "/favicon.ico",
+        content_type: "image/x-icon",
+        body: include_bytes!("../examples/static/busy_beaver_blaze/favicon.ico"),
+    },
+    StaticAsset {
+        path: "/busy_beaver_blaze/favicon.ico",
+        content_type: "image/x-icon",
+        body: include_bytes!("../examples/static/busy_beaver_blaze/favicon.ico"),
     },
 ];
 
@@ -284,14 +310,18 @@ fn build_dhcp_reply(
     let rebinding = (lease as u64 * 7 / 8) as u32;
 
     let mut idx = 240;
-    idx += append_option(&mut scratch[idx..], 53, &[match response_kind {
-        DhcpMessageType::Discover => 2, // Offer
-        DhcpMessageType::Request => 5,  // Ack
-        DhcpMessageType::Other(code) => code,
-        DhcpMessageType::Decline => 6,
-        DhcpMessageType::Release => 7,
-        DhcpMessageType::Inform => 8,
-    }])?;
+    idx += append_option(
+        &mut scratch[idx..],
+        53,
+        &[match response_kind {
+            DhcpMessageType::Discover => 2, // Offer
+            DhcpMessageType::Request => 5,  // Ack
+            DhcpMessageType::Other(code) => code,
+            DhcpMessageType::Decline => 6,
+            DhcpMessageType::Release => 7,
+            DhcpMessageType::Inform => 8,
+        }],
+    )?;
     idx += append_option(&mut scratch[idx..], 54, &server_bytes)?; // Server identifier
     idx += append_option(&mut scratch[idx..], 51, &lease.to_be_bytes())?; // Lease time
     idx += append_option(&mut scratch[idx..], 58, &renewal.to_be_bytes())?; // Renewal (T1)
@@ -336,7 +366,11 @@ fn ensure_lease(
     let expiry = now + Duration::from_secs(DHCP_LEASE_SECONDS as u64);
     let desired_ip = requested
         .filter(|ip| ip_in_pool(*ip, pool_start, pool_size))
-        .filter(|ip| leases.iter().all(|lease| lease.mac == mac || lease.ip != *ip));
+        .filter(|ip| {
+            leases
+                .iter()
+                .all(|lease| lease.mac == mac || lease.ip != *ip)
+        });
 
     if let Some(existing) = leases.iter_mut().find(|lease| lease.mac == mac) {
         if let Some(ip) = desired_ip {
@@ -347,7 +381,14 @@ fn ensure_lease(
     }
 
     if let Some(ip) = desired_ip {
-        if leases.push(DhcpLease { mac, ip, expires_at: expiry }).is_ok() {
+        if leases
+            .push(DhcpLease {
+                mac,
+                ip,
+                expires_at: expiry,
+            })
+            .is_ok()
+        {
             return Some(ip);
         }
     }
@@ -357,7 +398,14 @@ fn ensure_lease(
         if leases.iter().any(|lease| lease.ip == candidate) {
             continue;
         }
-        if leases.push(DhcpLease { mac, ip: candidate, expires_at: expiry }).is_ok() {
+        if leases
+            .push(DhcpLease {
+                mac,
+                ip: candidate,
+                expires_at: expiry,
+            })
+            .is_ok()
+        {
             return Some(candidate);
         }
     }
@@ -466,7 +514,13 @@ async fn dhcp_server_task(
     let mut rx_buffer = [0u8; 768];
     let mut tx_meta = [udp::PacketMetadata::EMPTY; 4];
     let mut tx_buffer = [0u8; 768];
-    let mut socket = UdpSocket::new(stack, &mut rx_meta, &mut rx_buffer, &mut tx_meta, &mut tx_buffer);
+    let mut socket = UdpSocket::new(
+        stack,
+        &mut rx_meta,
+        &mut rx_buffer,
+        &mut tx_meta,
+        &mut tx_buffer,
+    );
 
     if let Err(err) = socket.bind(DHCP_SERVER_PORT) {
         error!("DHCP server failed to bind: {:?}", err);
@@ -502,11 +556,7 @@ async fn dhcp_server_task(
         };
 
         let label = message_kind_label(message.msg_type);
-        debug!(
-            "DHCP {} from {}",
-            label,
-            Debug2Format(&message.client_mac)
-        );
+        debug!("DHCP {} from {}", label, Debug2Format(&message.client_mac));
 
         if matches!(message.msg_type, DhcpMessageType::Request)
             && message.server_id.is_some()
@@ -517,16 +567,14 @@ async fn dhcp_server_task(
         }
 
         let offer_ip = match message.msg_type {
-            DhcpMessageType::Discover | DhcpMessageType::Request => {
-                ensure_lease(
-                    &mut leases,
-                    message.client_mac,
-                    pool_start,
-                    pool_size,
-                    message.requested_ip.or(message.client_ip),
-                )
-                .unwrap_or(pool_start)
-            }
+            DhcpMessageType::Discover | DhcpMessageType::Request => ensure_lease(
+                &mut leases,
+                message.client_mac,
+                pool_start,
+                pool_size,
+                message.requested_ip.or(message.client_ip),
+            )
+            .unwrap_or(pool_start),
             DhcpMessageType::Decline | DhcpMessageType::Release => {
                 leases.retain(|lease| lease.mac != message.client_mac);
                 continue;
@@ -571,11 +619,7 @@ async fn dhcp_server_task(
         {
             warn!("Failed to send DHCP response: {:?}", err);
         } else {
-            info!(
-                "Sent DHCP {} for {}",
-                response_label,
-                offer_ip
-            );
+            info!("Sent DHCP {} for {}", response_label, offer_ip);
         }
     }
 }
@@ -586,7 +630,13 @@ async fn dns_server_task(stack: embassy_net::Stack<'static>, answer_ip: Ipv4Addr
     let mut rx_buffer = [0u8; 768];
     let mut tx_meta = [udp::PacketMetadata::EMPTY; 4];
     let mut tx_buffer = [0u8; 768];
-    let mut socket = UdpSocket::new(stack, &mut rx_meta, &mut rx_buffer, &mut tx_meta, &mut tx_buffer);
+    let mut socket = UdpSocket::new(
+        stack,
+        &mut rx_meta,
+        &mut rx_buffer,
+        &mut tx_meta,
+        &mut tx_buffer,
+    );
 
     if let Err(err) = socket.bind(DNS_SERVER_PORT) {
         error!("DNS server failed to bind: {:?}", err);
@@ -603,7 +653,9 @@ async fn dns_server_task(stack: embassy_net::Stack<'static>, answer_ip: Ipv4Addr
             continue;
         };
 
-        let Some((resp_len, answered)) = build_dns_response(&frame[..len], &mut response, answer_ip) else {
+        let Some((resp_len, answered)) =
+            build_dns_response(&frame[..len], &mut response, answer_ip)
+        else {
             trace!("Ignoring malformed DNS query");
             continue;
         };
@@ -676,11 +728,7 @@ async fn main(spawner: Spawner) -> ! {
     );
     spawner.spawn(defmt::unwrap!(net_task(net_runner)));
     spawner.spawn(defmt::unwrap!(dhcp_server_task(
-        stack,
-        ap_ip,
-        netmask,
-        pool_start,
-        pool_size,
+        stack, ap_ip, netmask, pool_start, pool_size,
     )));
     spawner.spawn(defmt::unwrap!(dns_server_task(stack, ap_ip)));
 
@@ -689,14 +737,23 @@ async fn main(spawner: Spawner) -> ! {
     let channel = ap_channel();
 
     if password.is_empty() {
-        info!("Starting OPEN access point \"{}\" on channel {}", ssid, channel);
+        info!(
+            "Starting OPEN access point \"{}\" on channel {}",
+            ssid, channel
+        );
         control.start_ap_open(ssid, channel).await;
     } else {
         if !(8..=63).contains(&password.len()) {
-            error!("PICO_AP_PASSWORD must be 8-63 characters long (got {})", password.len());
+            error!(
+                "PICO_AP_PASSWORD must be 8-63 characters long (got {})",
+                password.len()
+            );
             defmt::panic!("Invalid AP password length");
         }
-        info!("Starting WPA2 access point \"{}\" on channel {}", ssid, channel);
+        info!(
+            "Starting WPA2 access point \"{}\" on channel {}",
+            ssid, channel
+        );
         control.start_ap_wpa2(ssid, password, channel).await;
     }
 
@@ -707,7 +764,10 @@ async fn main(spawner: Spawner) -> ! {
         info!("Password: {}", password);
     }
     info!("Device IP address: {}", ap_ip);
-    info!("Configure a client with static IP (e.g. 192.168.4.2/24, gateway {})", ap_ip);
+    info!(
+        "Configure a client with static IP (e.g. 192.168.4.2/24, gateway {})",
+        ap_ip
+    );
 
     let mut rx_buffer = [0u8; 2048];
     let mut tx_buffer = [0u8; 4096];
@@ -759,33 +819,45 @@ async fn main(spawner: Spawner) -> ! {
             "/"
         };
 
-        let mut headers = String::<256>::new();
-        let mut status_line = "HTTP/1.1 200 OK\r\n";
+        let mut headers = String::<512>::new();
+        let status_line;
         let mut content_type = "text/plain; charset=utf-8";
-        let mut body: &[u8] = b"";
+        let body: &[u8];
         let mut send_body = true;
+        let mut location: Option<&str> = None;
+        let mut cache_control: Option<&str> = None;
 
         if method.is_empty() {
             status_line = "HTTP/1.1 400 Bad Request\r\n";
             body = b"Bad Request";
-            send_body = true;
         } else {
             match method {
                 "GET" | "HEAD" => {
-                    if let Some(asset) = find_asset(path) {
+                    send_body = method == "GET";
+                    if CAPTIVE_PORTAL_PATHS.contains(&path) {
+                        status_line = "HTTP/1.1 302 Found\r\n";
+                        content_type = "text/html; charset=utf-8";
+                        body = CAPTIVE_PORTAL_BODY;
+                        location = Some("/");
+                        cache_control = Some("no-store, max-age=0");
+                    } else if let Some(asset) = find_asset(path) {
                         status_line = "HTTP/1.1 200 OK\r\n";
                         content_type = asset.content_type;
                         body = asset.body;
-                        send_body = method == "GET";
+                        cache_control = Some("no-store, max-age=0");
+                        if send_body {
+                            info!("Serving asset {} ({} bytes)", asset.path, asset.body.len());
+                        } else {
+                            info!("HEAD {}", asset.path);
+                        }
                     } else {
                         status_line = "HTTP/1.1 404 Not Found\r\n";
-                        content_type = "text/plain; charset=utf-8";
                         body = b"Not Found";
+                        cache_control = Some("no-store, max-age=0");
                     }
                 }
                 _ => {
                     status_line = "HTTP/1.1 405 Method Not Allowed\r\n";
-                    content_type = "text/plain; charset=utf-8";
                     body = b"Method Not Allowed";
                 }
             }
@@ -794,8 +866,11 @@ async fn main(spawner: Spawner) -> ! {
         headers.push_str(status_line).unwrap();
         write!(&mut headers, "Content-Type: {}\r\n", content_type).unwrap();
         write!(&mut headers, "Content-Length: {}\r\n", body.len()).unwrap();
-        if matches!(method, "GET" | "HEAD") {
-            headers.push_str("Cache-Control: no-store, max-age=0\r\n").unwrap();
+        if let Some(loc) = location {
+            write!(&mut headers, "Location: {}\r\n", loc).unwrap();
+        }
+        if let Some(cache) = cache_control {
+            write!(&mut headers, "Cache-Control: {}\r\n", cache).unwrap();
         }
         if status_line.contains("405") {
             headers.push_str("Allow: GET, HEAD\r\n").unwrap();

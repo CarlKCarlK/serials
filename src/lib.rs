@@ -5,30 +5,30 @@
 mod char_lcd;
 pub mod clock;
 mod error;
-pub mod led_strip;
-pub mod led_24x4;
 mod ir_nec;
+pub mod led_24x4;
+pub mod led_strip;
 mod rfid;
 pub mod servo;
-pub mod unix_seconds;
 #[cfg(feature = "wifi")]
 pub mod time_sync;
+pub mod unix_seconds;
 #[cfg(feature = "wifi")]
 pub mod wifi;
 
 // Re-export commonly used items
-pub use char_lcd::{CharLcd, CharLcdNotifier, CharLcdMessage};
-pub use clock::{Clock, ClockCommand, ClockNotifier, ClockEvent, ClockState};
+pub use char_lcd::{CharLcd, CharLcdMessage, CharLcdNotifier};
+pub use clock::{Clock, ClockCommand, ClockEvent, ClockNotifier, ClockState};
 pub use error::{Error, Result};
-pub use led_strip::{LedStrip, LedStripNotifier, Rgb, PioBus};
-pub use led_24x4::Led24x4;
 pub use ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
-pub use rfid::{RfidEvent, RfidNotifier, Rfid};
+pub use led_24x4::Led24x4;
+pub use led_strip::{LedStrip, LedStripNotifier, PioBus, Rgb};
+pub use rfid::{Rfid, RfidEvent, RfidNotifier};
 pub use servo::Servo;
-pub use unix_seconds::UnixSeconds;
 pub use smart_leds::colors;
 #[cfg(feature = "wifi")]
 pub use time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
+pub use unix_seconds::UnixSeconds;
 #[cfg(feature = "wifi")]
 pub use wifi::{Wifi, WifiEvent, WifiNotifier};
 

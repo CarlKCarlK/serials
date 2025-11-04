@@ -47,7 +47,6 @@ impl IrNec<'_> {
     }
 }
 
-
 #[embassy_executor::task]
 async fn nec_ir_task(mut pin: Input<'static>, notifier: &'static IrNecNotifier) -> ! {
     let mut decoder_state: DecoderState = DecoderState::Idle;
@@ -67,12 +66,15 @@ async fn nec_ir_task(mut pin: Input<'static>, notifier: &'static IrNecNotifier) 
         // Active-low receiver: every edge toggles the level.
         // Toggle instead of reading pin to avoid race conditions and glitches
         level_low = !level_low;
-        
+
         // Sanity check: verify our toggle matches the actual pin state
         let actual_level_low = pin.is_low();
         if level_low != actual_level_low {
-            defmt::warn!("IR: Pin state mismatch! Expected {}, got {} (missed edge?)", 
-                        level_low, actual_level_low);
+            defmt::warn!(
+                "IR: Pin state mismatch! Expected {}, got {} (missed edge?)",
+                level_low,
+                actual_level_low
+            );
             // Resync to actual pin state
             level_low = actual_level_low;
             // Reset decoder to avoid processing corrupt data
@@ -93,7 +95,6 @@ async fn nec_ir_task(mut pin: Input<'static>, notifier: &'static IrNecNotifier) 
     }
 }
 
-
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum DecoderState {
     Idle,
@@ -101,7 +102,7 @@ enum DecoderState {
     LdrHigh,
     BitLow { n: u8, v: u32 },
     BitHigh { n: u8, v: u32 },
-    StopBit { addr: u8, cmd: u8 },  // Waiting for final stop bit after 32 bits
+    StopBit { addr: u8, cmd: u8 }, // Waiting for final stop bit after 32 bits
     RepeatTail,
 }
 
@@ -134,13 +135,13 @@ fn nec_ok(f: u32) -> Option<(u8, u8)> {
 
 // µs windows - RELAXED TOLERANCES for better reliability
 const GLITCH: u32 = 120;
-const MIN_IDLE: u32 = 5_000;  // Require 5ms of idle before starting decode (filters SPI crosstalk)
-const LDR_LOW: (u32, u32) = (7_000, 11_000);      // was (7_500, 10_500) - ±15%
-const LDR_HIGH: (u32, u32) = (3_500, 5_500);      // was (3_700, 5_300) - ±22%
-const REP_HIGH: (u32, u32) = (1_500, 3_000);      // was (1_750, 2_750) - ±33%
-const BIT_LOW: (u32, u32) = (300, 900);           // was (360, 760) - ±40%
-const BIT0_HIGH: (u32, u32) = (250, 900);         // was (310, 810) - ±56%
-const BIT1_HIGH: (u32, u32) = (1_000, 2_400);     // was (1_190, 2_190) - ±40%
+const MIN_IDLE: u32 = 5_000; // Require 5ms of idle before starting decode (filters SPI crosstalk)
+const LDR_LOW: (u32, u32) = (7_000, 11_000); // was (7_500, 10_500) - ±15%
+const LDR_HIGH: (u32, u32) = (3_500, 5_500); // was (3_700, 5_300) - ±22%
+const REP_HIGH: (u32, u32) = (1_500, 3_000); // was (1_750, 2_750) - ±33%
+const BIT_LOW: (u32, u32) = (300, 900); // was (360, 760) - ±40%
+const BIT0_HIGH: (u32, u32) = (250, 900); // was (310, 810) - ±56%
+const BIT1_HIGH: (u32, u32) = (1_000, 2_400); // was (1_190, 2_190) - ±40%
 
 // cmk move into an impl
 fn feed(
@@ -219,7 +220,10 @@ fn feed(
                     decoder_state = StopBit { addr: a, cmd: c };
                 } else {
                     decoder_state = Idle;
-                    defmt::info!("IR: Decode failed (checksum validation failed, v=0x{:08X})", v);
+                    defmt::info!(
+                        "IR: Decode failed (checksum validation failed, v=0x{:08X})",
+                        v
+                    );
                 }
             } else {
                 decoder_state = BitLow { n: n2, v };
@@ -230,7 +234,11 @@ fn feed(
             if !level_low && inr(dt, BIT_LOW) {
                 decoder_state = Idle;
                 // Stop bit validated - emit the event
-                return (decoder_state, Some(IrNecEvent::Press { addr, cmd }), last_code);
+                return (
+                    decoder_state,
+                    Some(IrNecEvent::Press { addr, cmd }),
+                    last_code,
+                );
             } else {
                 decoder_state = Idle;
                 defmt::info!("IR: Decode failed (missing or bad stop bit, dt={}µs)", dt);

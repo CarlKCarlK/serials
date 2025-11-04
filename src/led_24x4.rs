@@ -2,7 +2,7 @@
 //!
 //! The display maps four characters (3×4 pixels each) onto a 12×4 LED strip (row-major).
 
-use crate::{led_strip::LedStrip, Result};
+use crate::{Result, led_strip::LedStrip};
 use smart_leds::RGB8;
 
 /// 3×4 font for digits 0..9. Each entry is 4 rows of 3 bits (LSB = rightmost column).
@@ -106,8 +106,9 @@ impl Led24x4 {
         let green = RGB8::new(0, 32, 0);
         let blue = RGB8::new(0, 0, 32);
         let yellow = RGB8::new(32, 32, 0);
-        
-        self.display(['1', '2', '3', '4'], [red, green, blue, yellow]).await
+
+        self.display(['1', '2', '3', '4'], [red, green, blue, yellow])
+            .await
     }
 
     #[inline]

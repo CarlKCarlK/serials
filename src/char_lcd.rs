@@ -1,8 +1,8 @@
 //! Character LCD driver with async message passing
 
 use embassy_executor::Spawner;
-use embassy_rp::i2c::{self, Config as I2cConfig, SclPin, SdaPin};
 use embassy_rp::Peri;
+use embassy_rp::i2c::{self, Config as I2cConfig, SclPin, SdaPin};
 use embassy_rp::peripherals::I2C0;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
@@ -36,7 +36,7 @@ impl CharLcd {
     }
 
     /// Create a new CharLcd device
-    /// 
+    ///
     /// Note: Hardcoded to I2C0 peripheral (like WiFi's internal pins).
     /// However, SCL and SDA can be any pins compatible with I2C0.
     pub fn new<SCL, SDA>(
@@ -54,12 +54,16 @@ impl CharLcd {
         let i2c = i2c::I2c::new_blocking(i2c_peripheral, scl, sda, I2cConfig::default());
         let token = lcd_task(i2c, char_lcd_notifier).map_err(Error::TaskSpawn)?;
         spawner.spawn(token);
-        Ok(Self { notifier: char_lcd_notifier })
+        Ok(Self {
+            notifier: char_lcd_notifier,
+        })
     }
 
     /// Send a message to the LCD (async, waits until queued)
     pub async fn display(&self, text: String<64>, duration_ms: u32) {
-        self.notifier.send(CharLcdMessage::Display { text, duration_ms }).await;
+        self.notifier
+            .send(CharLcdMessage::Display { text, duration_ms })
+            .await;
     }
 }
 
@@ -81,7 +85,7 @@ impl LcdDriver {
 
     async fn init(&mut self) {
         Timer::after_millis(50).await;
-        
+
         // Initialize in 4-bit mode
         self.write_nibble(0x03, false).await;
         Timer::after_millis(5).await;
@@ -89,7 +93,7 @@ impl LcdDriver {
         Timer::after_micros(150).await;
         self.write_nibble(0x03, false).await;
         self.write_nibble(0x02, false).await;
-        
+
         // Function set: 4-bit, 2 lines, 5x8 font
         self.write_byte_internal(0x28, false).await;
         // Display control: display on, cursor off, blink off
@@ -105,16 +109,16 @@ impl LcdDriver {
     async fn write_nibble(&mut self, nibble: u8, rs: bool) {
         let rs_bit = if rs { LCD_RS } else { 0 };
         let data = (nibble << 4) | LCD_BACKLIGHT | rs_bit;
-        
+
         // Write with enable high
         let _ = self.i2c.blocking_write(self.address, &[data | LCD_ENABLE]);
         Timer::after_micros(1).await;
-        
+
         // Write with enable low
         let _ = self.i2c.blocking_write(self.address, &[data]);
         Timer::after_micros(50).await;
     }
-    
+
     async fn write_byte_internal(&mut self, byte: u8, rs: bool) {
         self.write_nibble((byte >> 4) & 0x0F, rs).await;
         self.write_nibble(byte & 0x0F, rs).await;
@@ -158,14 +162,14 @@ async fn lcd_task(
             CharLcdMessage::Display { text, duration_ms } => {
                 // Clear and display the text
                 lcd.clear().await;
-                
+
                 // Split text by newline and display on separate lines
                 let text_str = text.as_str();
                 if let Some(newline_pos) = text_str.find('\n') {
                     // Two-line display
                     let (line1, rest) = text_str.split_at(newline_pos);
                     let line2 = &rest[1..]; // Skip the \n character
-                    
+
                     // Display line 1
                     lcd.print(line1).await;
                     // Move to line 2
@@ -176,7 +180,7 @@ async fn lcd_task(
                     // Single-line display
                     lcd.print(text_str).await;
                 }
-                
+
                 // Wait for the minimum display duration
                 if duration_ms > 0 {
                     Timer::after_millis(duration_ms.into()).await;

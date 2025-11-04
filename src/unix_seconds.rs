@@ -23,11 +23,7 @@ impl UnixSeconds {
         // Promote to i64 safely, then subtract
         let s = (ntp as i64) - NTP_TO_UNIX_SECONDS;
         // Reject negative (pre-1970)
-        if s >= 0 {
-            Some(Self(s))
-        } else {
-            None
-        }
+        if s >= 0 { Some(Self(s)) } else { None }
     }
 
     /// Convert to OffsetDateTime with the given timezone offset

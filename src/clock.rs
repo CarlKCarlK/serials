@@ -83,7 +83,9 @@ impl Clock {
 
     /// Send a command to set the time
     pub async fn set_time(&self, unix_seconds: UnixSeconds) {
-        self.commands.send(ClockCommand::SetTime { unix_seconds }).await;
+        self.commands
+            .send(ClockCommand::SetTime { unix_seconds })
+            .await;
     }
 
     /// Format 24-hour time as 12-hour with AM/PM
@@ -104,10 +106,10 @@ impl Clock {
     /// Format time info as display string
     pub fn format_display(time_info: &ClockEvent) -> Result<String<64>> {
         let mut text = String::<64>::new();
-        
+
         let dt = time_info.datetime;
         let (hour12, am_pm) = Self::format_12hour(dt.hour());
-        
+
         match time_info.state {
             ClockState::NotSet => {
                 fmt::Write::write_fmt(
@@ -139,7 +141,7 @@ impl Clock {
                 .map_err(|_| Error::FormatError)?;
             }
         }
-        
+
         Ok(text)
     }
 }
@@ -154,11 +156,10 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
     // Read configuration from compile-time environment
     const UTC_OFFSET_MINUTES: &str = env!("UTC_OFFSET_MINUTES");
     let offset_minutes: i32 = UTC_OFFSET_MINUTES.parse().unwrap_or(0);
-    
+
     // Create UtcOffset from minutes
     #[expect(clippy::arithmetic_side_effects, reason = "offset bounds checked")]
-    let utc_offset = UtcOffset::from_whole_seconds(offset_minutes * 60)
-        .unwrap_or(UtcOffset::UTC);
+    let utc_offset = UtcOffset::from_whole_seconds(offset_minutes * 60).unwrap_or(UtcOffset::UTC);
 
     info!(
         "Clock device started (UTC offset: {} minutes)",
@@ -171,7 +172,8 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
     let mut clock_state = ClockState::NotSet;
 
     // For initial "Time not set" display, start from midnight
-    let mut current_time: OffsetDateTime = OffsetDateTime::from_unix_timestamp(0).expect("midnight is valid");
+    let mut current_time: OffsetDateTime =
+        OffsetDateTime::from_unix_timestamp(0).expect("midnight is valid");
 
     loop {
         // Emit tick event
@@ -185,13 +187,20 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
         match select(Timer::after_secs(1), resources.commands.receive()).await {
             Either::First(_) => {
                 // Timer elapsed - compute time from monotonic anchor
-                if let (Some(base_unix_seconds), Some(base_instant)) = (base_unix_seconds, base_instant) {
+                if let (Some(base_unix_seconds), Some(base_instant)) =
+                    (base_unix_seconds, base_instant)
+                {
                     let elapsed = (Instant::now() - base_instant).as_secs();
-                    let unix_seconds = UnixSeconds(base_unix_seconds.as_i64().saturating_add(elapsed as i64));
-                    current_time = unix_seconds.to_offset_datetime(utc_offset).expect("valid offset datetime");
+                    let unix_seconds =
+                        UnixSeconds(base_unix_seconds.as_i64().saturating_add(elapsed as i64));
+                    current_time = unix_seconds
+                        .to_offset_datetime(utc_offset)
+                        .expect("valid offset datetime");
                 } else {
                     // Fallback for "Time not set" - simple increment
-                    current_time = current_time.checked_add(time::Duration::seconds(1)).unwrap_or(current_time);
+                    current_time = current_time
+                        .checked_add(time::Duration::seconds(1))
+                        .unwrap_or(current_time);
                 }
             }
             Either::Second(cmd) => {
@@ -202,10 +211,12 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
                         base_unix_seconds = Some(unix_seconds);
                         base_instant = Some(Instant::now());
                         clock_state = ClockState::Synced;
-                        
+
                         // Update current time
-                        current_time = unix_seconds.to_offset_datetime(utc_offset).expect("valid offset datetime");
-                        
+                        current_time = unix_seconds
+                            .to_offset_datetime(utc_offset)
+                            .expect("valid offset datetime");
+
                         info!(
                             "Clock time set: {} (offset={} minutes)",
                             unix_seconds.as_i64(),

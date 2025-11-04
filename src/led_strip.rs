@@ -1,10 +1,10 @@
 //! Virtual LED strip driver for WS2812-style chains (PIO-based).
 
 use core::cell::RefCell;
-use embassy_rp::pio::{Instance, Common};
+use embassy_rp::pio::{Common, Instance};
 use embassy_rp::pio_programs::ws2812::{PioWs2812, PioWs2812Program};
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::blocking_mutex::Mutex;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel as EmbassyChannel;
 use embassy_sync::once_lock::OnceLock;
 use smart_leds::RGB8;
@@ -109,10 +109,10 @@ impl<const N: usize> LedStripN<N> {
     pub async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
         // Send entire frame as one message (copy array to send through channel)
         self.commands.send(*pixels).await;
-        
+
         // Wait for the DMA write to complete
         embassy_time::Timer::after(embassy_time::Duration::from_micros(Self::WRITE_DELAY_US)).await;
-        
+
         Ok(())
     }
 }
@@ -132,7 +132,7 @@ where
 {
     loop {
         let mut frame = commands.receive().await;
-        
+
         // Scale all pixels by brightness in place
         for color in frame.iter_mut() {
             *color = Rgb::new(
@@ -141,7 +141,7 @@ where
                 scale_brightness(color.b, max_brightness),
             );
         }
-        
+
         driver.write(&frame).await;
     }
 }
@@ -202,7 +202,7 @@ macro_rules! define_led_strips {
                 (pio_bus, sm0, sm1, sm2, sm3)
             }
         }
-        
+
         // Create strip modules
         $(
             #[allow(non_snake_case)]

@@ -1,15 +1,14 @@
-﻿//! Minimal async blink example for Raspberry Pi Pico 2.
+//! Minimal async blink example for Raspberry Pi Pico 2.
 //! Emits SOS in Morse code on the onboard LED using Embassy timers.
 #![no_std]
 #![no_main]
 
+use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Level, Output};
 use embassy_time::Timer;
 use panic_probe as _;
-use defmt::info;
-
 
 const DOT_MS: u64 = 200;
 const DASH_MS: u64 = DOT_MS * 3;

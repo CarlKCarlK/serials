@@ -6,8 +6,8 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use lib::define_led_strip;
-use smart_leds::RGB8;
 use panic_probe as _;
+use smart_leds::RGB8;
 
 // WS2812B 4x12 LED matrix (48 pixels)
 // Uses PIO1, State Machine 0, DMA_CH1, GPIO16 (pin 21)
@@ -42,7 +42,11 @@ async fn main(spawner: Spawner) -> ! {
 
     info!("WS2812B 4x12 Matrix demo starting");
     info!("Using PIO1, DMA_CH1, GPIO16");
-    info!("Max brightness: {}  ({}mA budget)", LedStrip2::MAX_BRIGHTNESS, 500);
+    info!(
+        "Max brightness: {}  ({}mA budget)",
+        LedStrip2::MAX_BRIGHTNESS,
+        500
+    );
     info!("Wiring: Red->VSYS(pin39), White->GND(pin38), Green->GPIO16(pin21)");
 
     const SNAKE_LENGTH: usize = 5;
@@ -64,10 +68,12 @@ async fn main(spawner: Spawner) -> ! {
         frame[tail_pos] = BACKGROUND;
 
         // Send entire frame
-        led_strip.update_pixels(&frame).await.expect("pattern update failed");
+        led_strip
+            .update_pixels(&frame)
+            .await
+            .expect("pattern update failed");
 
         position = (position + 1) % LedStrip2::LEN;
         Timer::after_millis(100).await;
     }
 }
-

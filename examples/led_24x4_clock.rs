@@ -4,10 +4,10 @@
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_time::{Timer, Duration};
-use lib::{define_led_strip, Led24x4};
-use smart_leds::RGB8;
+use embassy_time::{Duration, Timer};
+use lib::{Led24x4, define_led_strip};
 use panic_probe as _;
+use smart_leds::RGB8;
 
 // 4x12 panel (48 pixels) using PIO1, SM0, DMA_CH1, GPIO16
 // Max current 50 mA
@@ -49,10 +49,10 @@ async fn main(spawner: Spawner) -> ! {
     // Cycle: 12 hours * 60 minutes = 720 minutes
     let mut minute = 0u16;
     let colors = [
-        RGB8::new(255, 0, 0),     // digit 1: red
-        RGB8::new(0, 255, 0),     // digit 2: green
-        RGB8::new(0, 0, 255),     // digit 3: blue
-        RGB8::new(255, 255, 0),   // digit 4: yellow
+        RGB8::new(255, 0, 0),   // digit 1: red
+        RGB8::new(0, 255, 0),   // digit 2: green
+        RGB8::new(0, 0, 255),   // digit 3: blue
+        RGB8::new(255, 255, 0), // digit 4: yellow
     ];
 
     loop {
@@ -74,7 +74,10 @@ async fn main(spawner: Spawner) -> ! {
             (m2 + b'0') as char,
         ];
 
-        display.display(chars, colors).await.expect("display failed");
+        display
+            .display(chars, colors)
+            .await
+            .expect("display failed");
         info!("Clock: {:02}:{:02}", hour_display, min);
 
         // Sleep ~100ms (simulates 1 minute on clock - 10x faster)

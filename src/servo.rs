@@ -3,23 +3,23 @@
 //! - Clock-independent: computes divider from clk_sys so 1 tick ≈ 1 µs
 //! - Updates duty WITHOUT reconfiguring the slice
 
-use embassy_rp::clocks::clk_sys_freq;
-use embassy_rp::pwm::{Pwm, Config};
 use defmt::info;
+use embassy_rp::clocks::clk_sys_freq;
+use embassy_rp::pwm::{Config, Pwm};
 
 pub const SERVO_PERIOD_US: u16 = 20_000; // 20 ms
 
 /// Convenience macros to create a servo in one line.
-/// 
+///
 /// The macro expands to call `Pwm::new_output_a()` (or `_b()`) internally,
 /// so you don't need to create the PWM manually. The type checker will verify
 /// that the slice and pin are compatible with the chosen channel (A or B).
-/// 
+///
 /// # Examples
 /// ```ignore
 /// // Channel A servo on GPIO0 (PWM slice 0)
 /// let mut servo_a = servo_a!(p.PWM_SLICE0, p.PIN_0, 500, 2500);
-/// 
+///
 /// // Channel B servo on GPIO1 (PWM slice 0)
 /// let mut servo_b = servo_b!(p.PWM_SLICE0, p.PIN_1, 500, 2500);
 /// ```
@@ -52,11 +52,11 @@ macro_rules! servo_b {
 
 pub struct Servo<'d> {
     pwm: Pwm<'d>,
-    cfg: Config,  // Store config to avoid recreating default (which resets divider)
+    cfg: Config, // Store config to avoid recreating default (which resets divider)
     top: u16,
     min_us: u16,
     max_us: u16,
-    channel: ServoChannel,  // Track which channel (A or B) this servo uses
+    channel: ServoChannel, // Track which channel (A or B) this servo uses
 }
 
 /// Which PWM channel the servo is on.
@@ -92,21 +92,24 @@ impl<'d> Servo<'d> {
         cfg.phase_correct = false; // edge-aligned => exact 1 µs steps
         // Apply divider: use the integer part as u8 which has a From impl
         cfg.divider = (div_int as u8).into();
-        
+
         // Set the appropriate compare register based on channel
         match channel {
-            ServoChannel::A => cfg.compare_a = 1500,  // start ~center
-            ServoChannel::B => cfg.compare_b = 1500,  // start ~center
+            ServoChannel::A => cfg.compare_a = 1500, // start ~center
+            ServoChannel::B => cfg.compare_b = 1500, // start ~center
         }
-        
-        cfg.enable = true;         // Enable PWM output
+
+        cfg.enable = true; // Enable PWM output
         pwm.set_config(&cfg);
 
-        info!("servo clk={}Hz div={}.{} top={}", clk, div_int, div_frac, top);
+        info!(
+            "servo clk={}Hz div={}.{} top={}",
+            clk, div_int, div_frac, top
+        );
 
         let mut s = Self {
             pwm,
-            cfg,  // Store config to avoid losing divider on reconfiguration
+            cfg, // Store config to avoid losing divider on reconfiguration
             top,
             min_us,
             max_us,
@@ -124,8 +127,7 @@ impl<'d> Servo<'d> {
     /// Set position in degrees 0..=180 (clamped) mapped into [min_us, max_us].
     pub fn set_degrees(&mut self, deg: i32) {
         let d = deg.clamp(0, 180) as u16;
-        let us = self.min_us as u32
-            + (d as u32) * (self.max_us as u32 - self.min_us as u32) / 180;
+        let us = self.min_us as u32 + (d as u32) * (self.max_us as u32 - self.min_us as u32) / 180;
         info!("Servo set_degrees({}) -> {}µs", deg, us);
         self.set_pulse_us(us as u16);
     }
@@ -158,11 +160,3 @@ impl<'d> Servo<'d> {
         self.pwm.set_config(&self.cfg);
     }
 }
-
-
-
-
-
-
-
-

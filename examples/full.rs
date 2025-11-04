@@ -17,13 +17,13 @@ use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
 use heapless::{String, index_map::FnvIndexMap};
 use lib::{
-    colors, CharLcd, CharLcdNotifier, Clock, ClockEvent, ClockNotifier, ClockState, IrNec,
-    IrNecEvent, IrNecNotifier, Led24x4, Result, Rfid, RfidEvent, RfidNotifier, Rgb,
-    TimeSync, TimeSyncEvent, TimeSyncNotifier, define_led_strips, servo_a,
+    CharLcd, CharLcdNotifier, Clock, ClockEvent, ClockNotifier, ClockState, IrNec, IrNecEvent,
+    IrNecNotifier, Led24x4, Result, Rfid, RfidEvent, RfidNotifier, Rgb, TimeSync, TimeSyncEvent,
+    TimeSyncNotifier, colors, define_led_strips, servo_a,
 };
 use panic_probe as _;
 
-use colors::{RED, GREEN, BLUE, YELLOW, BLACK};
+use colors::{BLACK, BLUE, GREEN, RED, YELLOW};
 
 define_led_strips! {
     pio: PIO1,
@@ -87,12 +87,15 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         p.PIN_14.into(),
     )?;
     let mut led_24x4 = Led24x4::new(led_strip1_device);
-    led_24x4.display(['0', '0', '0', '0'], [RED, GREEN, BLUE, YELLOW]).await?;
+    led_24x4
+        .display(['0', '0', '0', '0'], [RED, GREEN, BLUE, YELLOW])
+        .await?;
 
     // Initialize LCD (GP4=SDA, GP5=SCL)
     static CHAR_LCD_CHANNEL: CharLcdNotifier = CharLcd::notifier();
     let lcd = CharLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &CHAR_LCD_CHANNEL, spawner)?;
-    lcd.display(String::<64>::try_from("Starting RFID...").unwrap(), 0).await;
+    lcd.display(String::<64>::try_from("Starting RFID...").unwrap(), 0)
+        .await;
 
     info!("LCD initialized");
 
@@ -135,7 +138,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     )
     .await?;
 
-    lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0).await;
+    lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0)
+        .await;
 
     // Card tracking - map UID to assigned name (A-D for first 4 cards)
     // heapless requires power-of-2 capacity, so using 4
@@ -152,8 +156,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         let event = select(
             select(rfid_reader.wait(), ir.wait()),
             select(clock.wait(), time_sync.wait()),
-        ).await;
-        
+        )
+        .await;
+
         match event {
             Either::First(device_event) => match device_event {
                 Either::First(RfidEvent::CardDetected { uid }) => {
@@ -192,7 +197,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                         servo.set_degrees(0);
                     }
 
-                    advance_led_progress(&mut led_strip0_device, &mut led_pixels, &mut led_progress_index).await?;
+                    advance_led_progress(
+                        &mut led_strip0_device,
+                        &mut led_pixels,
+                        &mut led_progress_index,
+                    )
+                    .await?;
                 }
                 Either::Second(ir_nec_event) => {
                     // IR button pressed - check if it's 0-9 for servo control, otherwise reset map
@@ -201,17 +211,17 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
                     // Map button codes to digits 0-9
                     let button_digit = match cmd {
-                        0x16 => Some(0),  // Button 0
-                        0x0C => Some(1),  // Button 1
-                        0x18 => Some(2),  // Button 2
-                        0x5E => Some(3),  // Button 3
-                        0x08 => Some(4),  // Button 4
-                        0x1C => Some(5),  // Button 5
-                        0x5A => Some(6),  // Button 6
-                        0x42 => Some(7),  // Button 7
-                        0x52 => Some(8),  // Button 8
-                        0x4A => Some(9),  // Button 9
-                        _ => None,        // Any other button
+                        0x16 => Some(0), // Button 0
+                        0x0C => Some(1), // Button 1
+                        0x18 => Some(2), // Button 2
+                        0x5E => Some(3), // Button 3
+                        0x08 => Some(4), // Button 4
+                        0x1C => Some(5), // Button 5
+                        0x5A => Some(6), // Button 6
+                        0x42 => Some(7), // Button 7
+                        0x52 => Some(8), // Button 8
+                        0x4A => Some(9), // Button 9
+                        _ => None,       // Any other button
                     };
 
                     if let Some(digit) = button_digit {
@@ -222,7 +232,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                         )]
                         let angle = digit * 20;
                         servo.set_degrees(angle);
-                        
+
                         let mut text = String::<64>::new();
                         write!(text, "Servo:\n{} degrees", angle).unwrap();
                         lcd.display(text, 1000).await; // 1 second
@@ -230,7 +240,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                         // Any other button: reset the card map
                         info!("IR button pressed, resetting card map");
                         card_map.clear();
-                        lcd.display(String::<64>::try_from("Map Reset").unwrap(), 500).await; // 0.5 seconds
+                        lcd.display(String::<64>::try_from("Map Reset").unwrap(), 500)
+                            .await; // 0.5 seconds
                     }
                 }
             },
@@ -246,34 +257,43 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                         char::from_digit((ss / 10) as u32, 10).unwrap(),
                         char::from_digit((ss % 10) as u32, 10).unwrap(),
                     ];
-                    led_24x4.display(chars, [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW]).await?;
+                    led_24x4
+                        .display(
+                            chars,
+                            [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
+                        )
+                        .await?;
                     continue;
                 }
                 Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
                     info!("Time sync success: unix_seconds={}", unix_seconds.as_i64());
                     clock.set_time(unix_seconds).await;
-                    lcd.display(String::<64>::try_from("Synced!").unwrap(), 800).await;
+                    lcd.display(String::<64>::try_from("Synced!").unwrap(), 800)
+                        .await;
                 }
                 Either::Second(TimeSyncEvent::Failed(err)) => {
                     info!("Time sync failed: {}", err);
-                    lcd.display(String::<64>::try_from("Sync failed").unwrap(), 800).await;
+                    lcd.display(String::<64>::try_from("Sync failed").unwrap(), 800)
+                        .await;
                 }
             },
         }
 
-        lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0).await; // 0 = until next message
+        lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0)
+            .await; // 0 = until next message
     }
 }
 
-async fn initialize_led_strip(strip: &mut led_strip0::Strip, pixels: &mut [Rgb; led_strip0::LEN]) -> Result<()> {
+async fn initialize_led_strip(
+    strip: &mut led_strip0::Strip,
+    pixels: &mut [Rgb; led_strip0::LEN],
+) -> Result<()> {
     for idx in 0..led_strip0::LEN {
         pixels[idx] = if idx == 0 { RED } else { BLACK };
     }
     strip.update_pixels(pixels).await?;
     Ok(())
 }
-
-
 
 async fn advance_led_progress(
     strip: &mut led_strip0::Strip,
@@ -296,14 +316,19 @@ async fn advance_led_progress(
     Ok(())
 }
 
-
-
 fn append_time_line(text: &mut String<64>, latest_time: Option<ClockEvent>) {
     match latest_time {
         Some(time_info) => match time_info.state {
             ClockState::Synced => {
                 let dt = time_info.datetime;
-                write!(text, "\n{:02}:{:02}:{:02}", dt.hour(), dt.minute(), dt.second()).unwrap();
+                write!(
+                    text,
+                    "\n{:02}:{:02}:{:02}",
+                    dt.hour(),
+                    dt.minute(),
+                    dt.second()
+                )
+                .unwrap();
             }
             ClockState::NotSet => {
                 text.push_str("\nTime not set").unwrap();

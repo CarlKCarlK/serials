@@ -5,17 +5,17 @@
 use core::convert::Infallible;
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_rp::peripherals::{PIN_23, PIN_24, PIN_25, PIN_29, PIO0, DMA_CH0};
 use embassy_net::{Stack, dns, udp};
 use embassy_rp::Peri;
+use embassy_rp::peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Timer};
 use static_cell::StaticCell;
 
+use crate::Result;
 use crate::unix_seconds::UnixSeconds;
 use crate::wifi::{Wifi, WifiNotifier};
-use crate::Result;
 
 // ============================================================================
 // Types
@@ -85,7 +85,7 @@ impl TimeSync {
         // Spawn TimeSync task
         let token = unwrap!(time_sync_device_loop(wifi, &resources.events));
         spawner.spawn(token);
-        
+
         resources.time_sync_cell.init(Self {
             events: &resources.events,
             wifi,
@@ -99,10 +99,7 @@ impl TimeSync {
 }
 
 #[embassy_executor::task]
-async fn time_sync_device_loop(
-    wifi: &'static Wifi,
-    sync_events: &'static TimeSyncEvents,
-) -> ! {
+async fn time_sync_device_loop(wifi: &'static Wifi, sync_events: &'static TimeSyncEvents) -> ! {
     let err = inner_time_sync_device_loop(wifi, sync_events)
         .await
         .unwrap_err();
@@ -114,11 +111,11 @@ async fn inner_time_sync_device_loop(
     sync_events: &'static TimeSyncEvents,
 ) -> Result<Infallible> {
     info!("TimeSync device awaiting network stack...");
-    
+
     // Wait for WiFi to be ready and get the stack
     let stack = wifi.stack().await;
     info!("TimeSync received network stack");
-    
+
     info!("TimeSync device started");
 
     // Initial sync with retry (exponential backoff: 10s, 30s, 60s, then 5min intervals)
@@ -128,7 +125,10 @@ async fn inner_time_sync_device_loop(
         info!("Sync attempt {}", attempt);
         match fetch_ntp_time(stack).await {
             Ok(unix_seconds) => {
-                info!("Initial sync successful: unix_seconds={}", unix_seconds.as_i64());
+                info!(
+                    "Initial sync successful: unix_seconds={}",
+                    unix_seconds.as_i64()
+                );
 
                 sync_events.signal(TimeSyncEvent::Success { unix_seconds });
                 break;
@@ -166,7 +166,10 @@ async fn inner_time_sync_device_loop(
         );
         match fetch_ntp_time(stack).await {
             Ok(unix_seconds) => {
-                info!("Periodic sync successful: unix_seconds={}", unix_seconds.as_i64());
+                info!(
+                    "Periodic sync successful: unix_seconds={}",
+                    unix_seconds.as_i64()
+                );
 
                 sync_events.signal(TimeSyncEvent::Success { unix_seconds });
                 last_success_elapsed = 0; // reset backoff
@@ -260,8 +263,7 @@ async fn fetch_ntp_time(stack: &Stack<'static>) -> Result<UnixSeconds, &'static 
     let ntp_seconds = u32::from_be_bytes([response[40], response[41], response[42], response[43]]);
 
     // Convert NTP timestamp to Unix seconds
-    let unix_time = UnixSeconds::from_ntp_seconds(ntp_seconds)
-        .ok_or("Invalid NTP timestamp")?;
+    let unix_time = UnixSeconds::from_ntp_seconds(ntp_seconds).ok_or("Invalid NTP timestamp")?;
 
     info!("NTP time: {} (unix timestamp)", unix_time.as_i64());
     Ok(unix_time)
