@@ -422,6 +422,11 @@
     let pendingRunReject = null;  // reject on worker error
     let wasStopped = false;       // track if last action was an explicit stop
     let lastBlobUrl = null;       // track last image URL to revoke
+    let moduleWorkerSupported = true; // assume until capability probe runs
+    let inlineRunner = null;     // fallback runner handle when no workers available
+    let inlineStopRequested = false;
+    let inlineMachine = null;    // last inline machine instance for recoloring
+    let inlineColorsBytes = null; // active palette when running inline
 
         async function run() {
             // Remove init() call since it's now in the worker
@@ -555,7 +560,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
 
                 const normalizedKind = (kind || '').toLowerCase();
                 const fingerprint = `${message} ${detail}`.toLowerCase();
-                const portalBlocked = portalFlag
+                let portalBlocked = portalFlag
                     || normalizedKind === 'wasm-blocked'
                     || normalizedKind === 'worker-blocked'
                     || normalizedKind === 'wasm-runtime'
@@ -563,6 +568,19 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     || (fingerprint.includes('worker') && fingerprint.includes('security'))
                     || fingerprint.includes('cross-origin-isolated')
                     || fingerprint.includes('sharedarraybuffer');
+
+                const normalizedMessage = (message || '').trim().toLowerCase();
+                const detailEmpty = !detail || !detail.trim();
+                const blankish =
+                    normalizedMessage === '' ||
+                    normalizedMessage === 'error' ||
+                    normalizedMessage === 'worker error';
+
+                if (!portalBlocked && blankish && detailEmpty) {
+                    if (source === 'worker' || source === 'run' || source === 'message') {
+                        portalBlocked = true;
+                    }
+                }
 
                 return {
                     source,
@@ -601,10 +619,196 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 document.getElementById('stepCount').textContent = '-';
                 document.getElementById('onesCount').textContent = '-';
                 document.getElementById('haltedStatus').textContent = '-';
+                if (worker) {
+                    try {
+                        worker.terminate();
+                    } catch (_) {
+                        // ignore termination errors
+                    }
+                    worker = null;
+                }
                 pendingRunResolve = null;
                 pendingRunReject = null;
                 console.warn('[page] Captive portal blocked Busy Beaver Blaze', message, detail);
                 return true;
+            }
+
+            let capabilityProbePromise = null;
+            let wasmModuleLoadPromise = null;
+
+            function wasmSmokeTestBytes() {
+                return new Uint8Array([
+                    0x00, 0x61, 0x73, 0x6d, // \0asm
+                    0x01, 0x00, 0x00, 0x00, // version 1
+                    0x01, 0x04, 0x01, 0x60, 0x00, 0x00, // type section: one func type () -> ()
+                    0x03, 0x02, 0x01, 0x00, // func section: one function
+                    0x07, 0x07, 0x01, 0x03, 0x72, 0x75, 0x6e, 0x00, 0x00, // export "run"
+                    0x0a, 0x04, 0x01, 0x02, 0x00, 0x0b, // code section: empty body
+                ]);
+            }
+
+            async function ensureCapabilities() {
+                if (capabilityProbePromise) {
+                    return capabilityProbePromise;
+                }
+                capabilityProbePromise = (async () => {
+                    if (typeof Worker === 'undefined' || typeof WebAssembly === 'undefined') {
+                        return {
+                            supported: false,
+                            reason: 'WebAssembly or Web Workers are unavailable in this captive portal.',
+                        };
+                    }
+
+                    try {
+                        const testModule = wasmSmokeTestBytes();
+                        await WebAssembly.instantiate(testModule);
+                    } catch (err) {
+                        const info = interpretWorkerFailure('probe-wasm', err);
+                        return {
+                            supported: false,
+                            reason: info.message || 'WebAssembly instantiate failed.',
+                            detail: info.detail,
+                        };
+                    }
+
+                    try {
+                        const blob = new Blob([
+                            'self.postMessage("ok");'
+                        ], { type: 'application/javascript' });
+                        const url = URL.createObjectURL(blob);
+                        const probe = new Worker(url, { type: 'module' });
+                        moduleWorkerSupported = true;
+                        probe.terminate();
+                        URL.revokeObjectURL(url);
+                    } catch (err) {
+                        const info = interpretWorkerFailure('probe-worker', err);
+                        moduleWorkerSupported = false;
+                        return {
+                            supported: true,
+                            worker: false,
+                            reason: info.message || 'Module workers are blocked in this browser mode.',
+                            detail: info.detail,
+                        };
+                    }
+
+                    return { supported: true, worker: true };
+                })();
+                return capabilityProbePromise;
+            }
+
+            async function ensureWasmModule() {
+                if (wasmModuleLoadPromise) {
+                    return wasmModuleLoadPromise;
+                }
+                wasmModuleLoadPromise = (async () => {
+                    const module = await import('./pkg/busy_beaver_blaze.js');
+                    if (typeof module.default === 'function') {
+                        await module.default();
+                    }
+                    return module;
+                })();
+                return wasmModuleLoadPromise;
+            }
+
+            function postMachineFrame(machine, colorsBytes, intermediate) {
+                if (!machine || !colorsBytes || colorsBytes.length !== 15) {
+                    return;
+                }
+                try {
+                    const png = machine.to_png(colorsBytes);
+                    handleWorkerMessage({
+                        data: {
+                            success: true,
+                            intermediate,
+                            png_data: png,
+                            step_count: machine.step_count(),
+                            ones_count: machine.count_nonblanks(),
+                            is_halted: machine.is_halted(),
+                        },
+                    });
+                } catch (err) {
+                    const failure = interpretWorkerFailure('inline-frame', err);
+                    console.error('[inline] frame error', failure);
+                }
+            }
+
+            function updateInlineColors(colorsBytes) {
+                inlineColorsBytes = colorsBytes;
+                if (inlineMachine) {
+                    postMachineFrame(inlineMachine, inlineColorsBytes, true);
+                }
+            }
+
+            async function runInlineComputation(payload) {
+                inlineStopRequested = false;
+                inlineRunner = {
+                    stop: () => {
+                        inlineStopRequested = true;
+                    },
+                };
+
+                let machine = null;
+                try {
+                    const module = await ensureWasmModule();
+                    const { SpaceByTimeMachine } = module;
+                    machine = new SpaceByTimeMachine(
+                        payload.programText,
+                        payload.goal_x,
+                        payload.goal_y,
+                        payload.binning,
+                        0n,
+                    );
+                    inlineMachine = machine;
+                    inlineColorsBytes = payload.colorsBytes;
+                    console.log('[inline] SpaceByTimeMachine ready');
+
+                    const emitFrame = (intermediate) => {
+                        postMachineFrame(machine, inlineColorsBytes, intermediate);
+                    };
+
+                    while (!inlineStopRequested) {
+                        const keepGoing = machine.step_for_secs(0.1, payload.early_stop, 10_000n);
+                        if (!keepGoing || inlineStopRequested) {
+                            break;
+                        }
+                        emitFrame(true);
+                        await new Promise((resolve) => setTimeout(resolve, 0));
+                    }
+
+                    if (inlineStopRequested) {
+                        handleWorkerMessage({ data: { success: true, stopped: true } });
+                        return;
+                    }
+
+                    emitFrame(false);
+                    console.log('[inline] final frame posted');
+                } catch (err) {
+                    const failure = interpretWorkerFailure('inline', err);
+                    if (pendingRunReject) {
+                        const forwarded = new Error(failure.message);
+                        forwarded.detail = failure.detail;
+                        forwarded.kind = failure.kind;
+                        forwarded.portalBlocked = failure.portalBlocked;
+                        pendingRunReject(forwarded);
+                        pendingRunReject = null;
+                        pendingRunResolve = null;
+                    } else if (failure.portalBlocked) {
+                        showPortalFallback(failure.message, failure.detail);
+                    } else {
+                        console.error('[inline] error', failure);
+                        const status = document.getElementById('status');
+                        status.textContent = 'Worker status: error';
+                        status.classList.add('visible');
+                        container.textContent = `Error: ${failure.message}`;
+                    }
+                } finally {
+                    inlineRunner = null;
+                    inlineStopRequested = false;
+                    if (!machine) {
+                        inlineMachine = null;
+                        inlineColorsBytes = null;
+                    }
+                }
             }
 
             // Add handler for stretch toggle
@@ -807,9 +1011,23 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     runButton.classList.remove('loading');
                     const controls = document.querySelectorAll('.controls');
                     controls.forEach(c => c.classList.remove('disabled'));
-                    if (worker) {
+                    if (worker && moduleWorkerSupported) {
                         worker.postMessage({ type: 'stop' });
                     }
+                    if (inlineRunner) {
+                        inlineStopRequested = true;
+                    }
+                    return;
+                }
+
+                const capability = await ensureCapabilities();
+                if (!capability.supported) {
+                    const message = capability.reason
+                        || 'WebAssembly is blocked in this captive browser view.';
+                    const detail = capability.detail && capability.detail !== capability.reason
+                        ? capability.detail
+                        : '';
+                    showPortalFallback(message, detail);
                     return;
                 }
 
@@ -817,8 +1035,11 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 status.textContent = 'Worker status: starting...';
                 status.classList.add('visible');
 
+                moduleWorkerSupported = capability.worker !== false;
                 isRunning = true;
-                ensureWorker();
+                if (moduleWorkerSupported) {
+                    ensureWorker();
+                }
                 wasStopped = false;
                 let fallbackDisplayed = false;
 
@@ -845,36 +1066,46 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     updateProgress();
 
                     status.textContent = 'Worker status: computing...';
+                    const colorsBytes = (() => {
+                        if (currentColorsBytes && currentColorsBytes.length === 15) {
+                            return currentColorsBytes;
+                        }
+                        const mode = document.getElementById('paletteMode')?.value || 'light';
+                        if (mode === 'edit') {
+                            const bytes = getBytesFromPickers();
+                            currentColorsBytes = bytes;
+                            return bytes;
+                        }
+                        const bytes = paletteBytesForMode(mode);
+                        currentColorsBytes = bytes;
+                        return bytes;
+                    })();
+
+                    console.log('[page] start colors (mode=%s): %s', document.getElementById('paletteMode')?.value, formatPalette(colorsBytes));
+
+                    const runPayload = {
+                        programText: textarea.value,
+                        goal_x: Number(container.style.width.replace('px','')) || undefined,
+                        goal_y: Number(container.style.height.replace('px','')) || undefined,
+                        early_stop,
+                        binning: document.getElementById('binning').checked,
+                        darkMode: (document.getElementById('paletteMode')?.value === 'dark'),
+                        colorsBytes: new Uint8Array(colorsBytes),
+                    };
+
                     const result = await new Promise((resolve, reject) => {
                         pendingRunResolve = resolve;
                         pendingRunReject = reject;
 
-                        const colorsBytes = (() => {
-                            if (currentColorsBytes && currentColorsBytes.length === 15) {
-                                return currentColorsBytes;
-                            }
-                            const mode = document.getElementById('paletteMode')?.value || 'light';
-                            if (mode === 'edit') {
-                                const bytes = getBytesFromPickers();
-                                currentColorsBytes = bytes;
-                                return bytes;
-                            }
-                            const bytes = paletteBytesForMode(mode);
-                            currentColorsBytes = bytes;
-                            return bytes;
-                        })();
-
-                        console.log('[page] start colors (mode=%s): %s', document.getElementById('paletteMode')?.value, formatPalette(colorsBytes));
-                        worker.postMessage({
-                            type: 'start',
-                            programText: textarea.value,
-                            goal_x: Number(container.style.width.replace('px','')) || undefined,
-                            goal_y: Number(container.style.height.replace('px','')) || undefined,
-                            early_stop,
-                            binning: document.getElementById('binning').checked,
-                            darkMode: (document.getElementById('paletteMode')?.value === 'dark'),
-                            colorsBytes: new Uint8Array(colorsBytes)
-                        });
+                        if (moduleWorkerSupported) {
+                            worker.postMessage({ type: 'start', ...runPayload });
+                        } else {
+                            runInlineComputation(runPayload).catch(err => {
+                                if (pendingRunReject) {
+                                    pendingRunReject(err);
+                                }
+                            });
+                        }
                     });
 
                     clearTimeout(progressTimer);
@@ -1005,9 +1236,11 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         const colorsBytes = paletteBytesForMode(mode);
                         currentColorsBytes = colorsBytes;
                         updateHashFromUI();
-                        if (worker) {
+                        if (moduleWorkerSupported && worker) {
                             console.log('[page] paletteMode=%s posting colors: %s', mode, formatPalette(colorsBytes));
                             worker.postMessage({ type: 'colors', colorsBytes, darkMode: (mode === 'dark') });
+                        } else {
+                            updateInlineColors(colorsBytes);
                         }
                     }
                 });
@@ -1021,11 +1254,15 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             const sendPickerColors = debounced(() => {
                 const mode = document.getElementById('paletteMode')?.value || 'light';
                 const isDark = mode === 'dark';
-                if (mode === 'edit' && worker) {
+                if (mode === 'edit') {
                     const bytes = getBytesFromPickers();
                     currentColorsBytes = bytes;
-                    console.log('[page] edit input; posting colors: %s', formatPalette(bytes));
-                    worker.postMessage({ type: 'colors', colorsBytes: bytes, darkMode: isDark });
+                    if (moduleWorkerSupported && worker) {
+                        console.log('[page] edit input; posting colors: %s', formatPalette(bytes));
+                        worker.postMessage({ type: 'colors', colorsBytes: bytes, darkMode: isDark });
+                    } else {
+                        updateInlineColors(bytes);
+                    }
                 }
                 // Keep URL in sync during live edits where supported
                 updateHashFromUI();
@@ -1033,12 +1270,14 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 const sendPickerColorsImmediate = () => {
                     const mode = document.getElementById('paletteMode')?.value || 'light';
                     const isDark = mode === 'dark';
-            if (mode === 'edit') {
+                    if (mode === 'edit') {
                         const bytes = getBytesFromPickers();
                         currentColorsBytes = bytes;
-                        if (worker) {
-                console.log('[page] edit change; posting colors: %s', formatPalette(bytes));
+                        if (moduleWorkerSupported && worker) {
+                            console.log('[page] edit change; posting colors: %s', formatPalette(bytes));
                             worker.postMessage({ type: 'colors', colorsBytes: bytes, darkMode: isDark });
+                        } else {
+                            updateInlineColors(bytes);
                         }
                     }
                     // Update URL immediately when the picker closes
