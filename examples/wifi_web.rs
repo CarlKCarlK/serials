@@ -72,6 +72,9 @@ const DHCP_CLIENT_PORT: u16 = 68;
 const DHCP_MAGIC_COOKIE: [u8; 4] = [99, 130, 83, 99];
 const DHCP_LEASE_SECONDS: u32 = 4 * 60 * 60; // 4-hour leases keep clients around without being permanent
 
+const DNS_SERVER_PORT: u16 = 53;
+const DNS_RESPONSE_TTL: u32 = 60;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, defmt::Format)]
 enum DhcpMessageType {
     Discover,
@@ -318,6 +321,84 @@ fn ensure_lease(
     None
 }
 
+fn dns_question_len(packet: &[u8]) -> Option<(usize, u16, u16)> {
+    if packet.len() < 12 {
+        return None;
+    }
+
+    let mut idx = 12;
+    loop {
+        let label_len = *packet.get(idx)? as usize;
+        idx += 1;
+        if label_len == 0 {
+            break;
+        }
+        idx = idx.checked_add(label_len)?;
+        if idx > packet.len() {
+            return None;
+        }
+    }
+
+    if idx + 4 > packet.len() {
+        return None;
+    }
+
+    let qtype = u16::from_be_bytes([packet[idx], packet[idx + 1]]);
+    let qclass = u16::from_be_bytes([packet[idx + 2], packet[idx + 3]]);
+    idx += 4;
+
+    Some((idx - 12, qtype, qclass))
+}
+
+fn build_dns_response(
+    query: &[u8],
+    response: &mut [u8],
+    answer_ip: Ipv4Address,
+) -> Option<(usize, bool)> {
+    if query.len() < 12 || response.len() < 12 {
+        return None;
+    }
+
+    let (question_len, qtype, qclass) = dns_question_len(query)?;
+    if response.len() < 12 + question_len {
+        return None;
+    }
+
+    response.fill(0);
+    response[0..2].copy_from_slice(&query[0..2]);
+    response[2] = 0x81; // standard response + recursion available
+    response[3] = 0x80;
+    response[4..6].copy_from_slice(&query[4..6]); // QDCOUNT
+
+    let answered = qtype == 1 && qclass == 1;
+    if answered {
+        response[6..8].copy_from_slice(&1u16.to_be_bytes());
+    }
+
+    // NSCOUNT and ARCOUNT remain zero (already zeroed)
+
+    let question_end = 12 + question_len;
+    response[12..question_end].copy_from_slice(&query[12..question_end]);
+
+    let mut offset = question_end;
+
+    if answered {
+        if response.len() < offset + 16 {
+            return None;
+        }
+        response[offset] = 0xC0;
+        response[offset + 1] = 0x0C; // pointer to question name
+        response[offset + 2..offset + 4].copy_from_slice(&qtype.to_be_bytes());
+        response[offset + 4..offset + 6].copy_from_slice(&qclass.to_be_bytes());
+        response[offset + 6..offset + 10].copy_from_slice(&DNS_RESPONSE_TTL.to_be_bytes());
+        response[offset + 10..offset + 12].copy_from_slice(&4u16.to_be_bytes());
+        response[offset + 12..offset + 16].copy_from_slice(&answer_ip.octets());
+        offset += 16;
+    }
+
+    Some((offset, answered))
+}
+
 fn message_kind_label(kind: DhcpMessageType) -> &'static str {
     match kind {
         DhcpMessageType::Discover => "DISCOVER",
@@ -455,6 +536,47 @@ async fn dhcp_server_task(
     }
 }
 
+#[embassy_executor::task]
+async fn dns_server_task(stack: embassy_net::Stack<'static>, answer_ip: Ipv4Address) -> ! {
+    let mut rx_meta = [udp::PacketMetadata::EMPTY; 4];
+    let mut rx_buffer = [0u8; 768];
+    let mut tx_meta = [udp::PacketMetadata::EMPTY; 4];
+    let mut tx_buffer = [0u8; 768];
+    let mut socket = UdpSocket::new(stack, &mut rx_meta, &mut rx_buffer, &mut tx_meta, &mut tx_buffer);
+
+    if let Err(err) = socket.bind(DNS_SERVER_PORT) {
+        error!("DNS server failed to bind: {:?}", err);
+        defmt::panic!("Unable to bind DNS port");
+    }
+
+    info!("DNS server responding with {}", answer_ip);
+
+    let mut frame = [0u8; 512];
+    let mut response = [0u8; 512];
+
+    loop {
+        let Ok((len, remote)) = socket.recv_from(&mut frame).await else {
+            continue;
+        };
+
+        let Some((resp_len, answered)) = build_dns_response(&frame[..len], &mut response, answer_ip) else {
+            trace!("Ignoring malformed DNS query");
+            continue;
+        };
+
+        if let Err(err) = socket.send_to(&response[..resp_len], remote).await {
+            warn!("DNS send error: {:?}", err);
+            continue;
+        }
+
+        if answered {
+            debug!("DNS answered with {}", answer_ip);
+        } else {
+            trace!("DNS query without A/IN answer");
+        }
+    }
+}
+
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
     info!("Starting WiFi access-point web server example");
@@ -516,6 +638,7 @@ async fn main(spawner: Spawner) -> ! {
         pool_start,
         pool_size,
     )));
+    spawner.spawn(defmt::unwrap!(dns_server_task(stack, ap_ip)));
 
     let ssid = ap_ssid();
     let password = ap_password();
@@ -545,7 +668,7 @@ async fn main(spawner: Spawner) -> ! {
     // Static HTTP response body (ASCII only)
     const BODY: &str = r#"<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pico AP</title>
 <style>body{font-family:system-ui;background:#0b172a;color:#f3f4f6;text-align:center;padding-top:3rem;}section{background:#111c33;display:inline-block;padding:1.5rem 2rem;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,0.25);}h1{margin:0 0 0.75rem;font-size:2rem;}p{margin:0.5rem 0;}code{display:inline-block;margin-top:1rem;padding:0.35rem 0.75rem;border-radius:6px;background:#0b264d;color:#9ad1ff;font-family:monospace;}</style>
-</head><body><section><h1>Hello from Pico!</h1><p>You are connected directly to the board.</p><p>Enjoy your stay.</p><code>embassy-net access-point demo</code></section></body></html>"#;
+</head><body><section><h1>Hello from Pico 1W!</h1><p>You are connected directly to the board.</p><p>Enjoy your stay.</p><code>embassy-net access-point demo</code></section></body></html>"#;
     let body_bytes = BODY.as_bytes();
 
     let mut rx_buffer = [0u8; 1024];
