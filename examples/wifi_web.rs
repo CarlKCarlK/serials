@@ -57,7 +57,7 @@ fn ap_ssid() -> &'static str {
 }
 
 fn ap_password() -> &'static str {
-    option_env!("PICO_AP_PASSWORD").unwrap_or("picoserials")
+    option_env!("PICO_AP_PASSWORD").unwrap_or("")
 }
 
 fn ap_channel() -> u8 {
@@ -91,7 +91,13 @@ const CAPTIVE_PORTAL_PATHS: &[&str] = &[
     "/success.txt",
 ];
 
-const CAPTIVE_PORTAL_BODY: &[u8] = b"<html><head><meta http-equiv=\"refresh\" content=\"0; url=/\"></head><body>Redirecting...</body></html>";
+const CAPTIVE_PORTAL_TEXTS: &[(&str, &[u8])] = &[
+    ("/connecttest.txt", b"Microsoft Connect Test"),
+    ("/ncsi.txt", b"Microsoft NCSI"),
+    ("/success.txt", b"success"),
+];
+
+const CAPTIVE_PORTAL_BODY: &[u8] = b"<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Continue to Busy Beaver Blaze</title><style>body{font-family:Arial,sans-serif;margin:0;padding:2rem;background:#f4f4f4;text-align:center;}main{background:#fff;border-radius:8px;max-width:480px;margin:5vh auto;padding:2rem;box-shadow:0 2px 6px rgba(0,0,0,0.15);}a.button{display:inline-block;margin-top:1.5rem;padding:0.75rem 1.5rem;background:#2563eb;color:#fff;text-decoration:none;border-radius:4px;font-weight:600;}a.button:active{background:#1e40af;}</style></head><body><main><h1>Busy Beaver Blaze</h1><p>Open the full page in your browser to run the visualizer.</p><a class='button' href='http://192.168.4.1/index.html'>Open full page</a></main></body></html>";
 
 static STATIC_ASSETS: &[StaticAsset] = &[
     StaticAsset {
@@ -835,10 +841,16 @@ async fn main(spawner: Spawner) -> ! {
                 "GET" | "HEAD" => {
                     send_body = method == "GET";
                     if CAPTIVE_PORTAL_PATHS.contains(&path) {
-                        status_line = "HTTP/1.1 302 Found\r\n";
-                        content_type = "text/html; charset=utf-8";
-                        body = CAPTIVE_PORTAL_BODY;
-                        location = Some("/");
+                        status_line = "HTTP/1.1 200 OK\r\n";
+                        if let Some((_, text_body)) =
+                            CAPTIVE_PORTAL_TEXTS.iter().find(|(p, _)| *p == path)
+                        {
+                            content_type = "text/plain; charset=utf-8";
+                            body = text_body;
+                        } else {
+                            content_type = "text/html; charset=utf-8";
+                            body = CAPTIVE_PORTAL_BODY;
+                        }
                         cache_control = Some("no-store, max-age=0");
                     } else if let Some(asset) = find_asset(path) {
                         status_line = "HTTP/1.1 200 OK\r\n";

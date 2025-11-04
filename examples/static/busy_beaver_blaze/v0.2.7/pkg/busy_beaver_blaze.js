@@ -377,11 +377,12 @@ async function __wbg_load(module, imports) {
                 return await WebAssembly.instantiateStreaming(module, imports);
 
             } catch (e) {
-                if (module.headers.get('Content-Type') != 'application/wasm') {
+                const contentType = module.headers.get('Content-Type');
+                if (contentType !== 'application/wasm') {
                     console.warn("`WebAssembly.instantiateStreaming` failed because your server does not serve Wasm with `application/wasm` MIME type. Falling back to `WebAssembly.instantiate` which is slower. Original error:\n", e);
 
                 } else {
-                    throw e;
+                    console.warn("`WebAssembly.instantiateStreaming` failed. Falling back to ArrayBuffer-based instantiation. Original error:\n", e);
                 }
             }
         }
