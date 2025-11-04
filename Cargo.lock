@@ -116,7 +116,7 @@ dependencies = [
  "embedded-io",
  "embedded-io-async",
  "futures-intrusive",
- "heapless 0.8.0",
+ "heapless 0.9.1",
 ]
 
 [[package]]
@@ -577,7 +577,7 @@ dependencies = [
 [[package]]
 name = "embassy-sync"
 version = "0.7.2"
-source = "git+https://github.com/embassy-rs/embassy?branch=main#05663c231ebd82af0491dfb9d418fd0566cb02ff"
+source = "git+https://github.com/embassy-rs/embassy?branch=main#345efc383fa9afabaf23b629f0937855ea4c754f"
 dependencies = [
  "cfg-if",
  "critical-section",

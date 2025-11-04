@@ -32,6 +32,7 @@ SECTIONS {
         __start_block_addr = .;
         KEEP(*(.start_block));
         KEEP(*(.boot_info));
+        . = ALIGN(4);
     } > FLASH
 
 } INSERT AFTER .vector_table;
@@ -63,6 +64,13 @@ SECTIONS {
      *
      * Goes after everything in our program, so it can contain a signature.
      */
+    .defmt_rtt_buffer (NOLOAD) : ALIGN(4)
+    {
+        __defmt_rtt_buffer_start = .;
+        KEEP(*(.uninit.defmt-rtt.BUFFER));
+        . = ALIGN(4);
+    } > SRAM8
+
     .end_block : ALIGN(4)
     {
         __end_block_addr = .;
