@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Busy Beaver</title>
+    <link rel="icon" type="image/x-icon" href="/busy_beaver_blaze/favicon.ico">
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Open Graph Metadata for Social Media Previews -->
+    <meta property="og:title" content="Busy Beaver Blaze">
+    <meta property="og:description" content="Explore Turing Machines and Busy Beavers with this interactive Rust-powered WASM emulator.">
+    <meta property="og:image" content="https://carlkcarlk.github.io/busy_beaver_blaze/preview.png?v=2">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="https://carlkcarlk.github.io/busy_beaver_blaze/">
+    <meta property="og:type" content="website">
+
+    <!-- Twitter Card Metadata -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Busy Beaver Blaze">
+    <meta name="twitter:description" content="Explore Turing Machines and Busy Beavers with this interactive Rust-powered WASM emulator.">
+    <meta name="twitter:image" content="https://carlkcarlk.github.io/busy_beaver_blaze/preview.png?v=2">
+    <style>
+        /* Toggle Switch for Quality/Speed */
+        .quality-toggle {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 16px; /* Reduced from 24px */
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 16px; /* Adjusted to match new height */
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 10px; /* Reduced from 16px */
+            width: 10px; /* Reduced from 16px */
+            left: 3px; /* Adjusted for smaller knob */
+            bottom: 3px; /* Adjusted for smaller knob */
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #0078D7; /* Changed from #2196F3 to match checkbox blue */
+        }
+        input:focus + .slider {
+            box-shadow: 0 0 1px #0078D7; /* Changed to match new color */
+        }
+        input:checked + .slider:before {
+            transform: translateX(24px); /* Adjusted for narrower width */
+        }
+        /* Make color boxes narrower while keeping height */
+        #colorPickers label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        #colorPickers input[type="color"] {
+            width: 26px; /* narrower; height remains default */
+            padding: 0;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-container">
+        <h1>Busy Beaver Blaze</h1>
+        <div class="subtitle" style="text-align: center; display: flex; justify-content: center; gap: 1em;">
+            <a href="https://github.com/CarlKCarlK/busy_beaver_blaze/" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://en.wikipedia.org/wiki/Busy_beaver" target="_blank" rel="noopener">Wikipedia</a>
+            <a href="https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1" target="_blank" rel="noopener">Made with Rust WASM</a>
+        </div>
+    </div>
+    <div>
+        <div class="controls">
+            <label>
+                <input type="checkbox" id="useEarlyStop" checked>
+                Stop Early at
+            </label>
+            <label for="earlyStopValue">
+                <input type="number" id="earlyStopValue" value="50000000" min="1">
+                steps
+            </label>
+        </div>
+        <div style="display: flex; align-items: start; gap: 1em;">
+            <label for="programInput">Turing Machine Program:</label>
+            <select id="programSelect">
+                <option value="custom">Custom Program</option>
+                <option value="bb2">BB(2,2) Champion</option>
+                <option value="bb3_sum">BB(3,2) Sum Champion</option>
+                <option value="bb3_steps">BB(3,2) Steps Champion</option>
+                <option value="bb4">BB(4,2) Champion</option>
+                <option value="bb5">BB(5,2) Champion</option>
+                <option value="bb5_69_420_121">BB(5,2) #69,420,121</option>
+                <option value="bb6" selected>BB(6,2) Contender</option>
+                <option value="bb6_no_name1">BB(6,2) no name</option>
+                <!-- New program choices -->
+                <option value="bb_3_3_355317">BB(3,3) Runs 355,317 Steps </option>
+                <option value="bigfoot33">BB(3,3) Bigfoot</option>
+                <option value="brady">BB(3,3) Brady's Surprise</option>
+                <option value="bb_2_5_champ_aug25">BB(2,5) Contender (as Aug 25)</option>
+                <option value="bb_3_3_zig_zag">BB(3,3) Zig Zag</option>
+                <option value="bb_3_3_mud_piles">BB(3,3) Mud Piles</option>
+                <option value="bb_3_3_receding_hills">BB(3,3) Receding Hills</option>
+                <option value="bb_2_5_waterfall">BB(2,5) Waterfall</option>
+                <option value="bb_2_5_jagged_mountain">BB(2,5) Jagged Mountain</option>
+                <option value="bb_2_5_hills_of_color">BB(2,5) Hills of Color</option>
+                <option value="bb_2_5_stairs_without_railings">BB(2,5) Stairs without Railings</option>
+                <option value="bb_2_5_infinite_hawaiian_ice">BB(2,5) Infinite Hawaiian Ice</option>
+            </select>
+            <a href="https://bbchallenge.org/#zoology" target="_blank" rel="noopener" style="margin-left: 1em;">Visit the BB Challenge Zoo</a>
+        </div>
+        <textarea id="programInput" aria-label="Turing machine program input">	A	B	C	D	E	F
+0	1RB	1RC	1LC	0LE	1LF	0RC
+1	0LD	0RF	1LA	1RH	0RB	0RE</textarea>
+        <div class="controls">
+            Size: 
+            <select id="sizePreset">
+                <option value="360,432">Small (360×432)</option>
+                <option value="720,864">Medium (720×864)</option>
+                <option value="1440,1728">Large (1440×1728)</option>
+                <option value="custom">Custom Size...</option>
+            </select>
+            <span id="customSize" class="custom-size">
+                Width: <input type="number" id="customWidth" value="360" min="100" max="2000">
+                Height: <input type="number" id="customHeight" value="432" min="100" max="2000">
+            </span>
+            <label style="margin-left: 0.5em;">
+                <input type="checkbox" id="stretchImage" checked>
+                Stretch?
+            </label>
+            <div class="quality-toggle" style="display: inline-block; margin-left: 0.5em;">
+                <span>Speed</span>
+                <label class="switch">
+                    <input type="checkbox" id="binning" checked>
+                    <span class="slider"></span>
+                </label>
+                <span>Quality</span>
+            </div>
+            <label style="margin-left: 0.5em;">
+                Colors:
+                <select id="paletteMode" aria-label="Color palette mode">
+                    <option value="light">Light</option>
+                    <option value="light2">Light 2 (WYCOM)</option>
+                    <option value="dark">Dark</option>
+                    <option value="edit">Edit</option>
+                </select>
+            </label>
+        </div>
+        <div id="colorPickers" class="controls" style="display: none; gap: 0.5em; flex-wrap: wrap;">
+            <label><input type="color" id="color0" value="#ffffff" aria-label="Symbol 0 color"> 0</label>
+            <label><input type="color" id="color1" value="#ffa500" aria-label="Symbol 1 color"> 1</label>
+            <label><input type="color" id="color2" value="#ffff00" aria-label="Symbol 2 color"> 2</label>
+            <label><input type="color" id="color3" value="#ff00ff" aria-label="Symbol 3 color"> 3</label>
+            <label><input type="color" id="color4" value="#00ffff" aria-label="Symbol 4 color"> 4</label>
+        </div>
+        <button id="runButton">Run</button>
+        <div class="run-time" style="margin: 0.5em 0; font-style: italic; color: #666;">
+            Time: <span id="runTime">not run yet</span>
+            • Steps: <span id="stepCount">-</span>
+            • NonZeros: <span id="onesCount">-</span>
+            • <span id="haltedStatus">-</span>
+        </div>
+        <div id="imageContainer" class="image-container">No diagram yet
+            <br><br>
+            Tips:
+            <ul style="margin-top: 0.5em; text-align: left;">
+                <li>Press "Run" to start.</li>
+                <li>Try changing the Stop Early steps.</li>
+                <li>Select programs or edit/paste them.</li>
+                <li>It accepts programs in 3 popular formats:
+                    <ul>
+                        <li>Symbol Major</li>
+                        <li>State Major</li>
+                        <li>BB Challenge Standard Format</li>
+                    </ul>
+                </li>
+                <li>Supports billions and billions of steps. OK, to turn off Stop Early.</li>
+                <li>Choose "Quality" for full pixel averaging or "Speed" for fast sampling.</li>
+                <li>You can set settings via the URL hash fragment, for example, <code>#program=bb5&earlyStop=false</code>. Include <code>run=true</code> to run the program immediately.</li>
+
+            </ul>
+        </div>
+        <div id="status" class="status">Worker status: initializing...</div>
+    </div>
+    <script type="module">
+        // Add URL state management functions at the start
+        function getHashParams() {
+            const hash = window.location.hash.substring(1);
+            return new URLSearchParams(hash);
+        }
+
+        // Shared default palette helper (5 colors x 3 bytes = 15 bytes)
+        function defaultPaletteBytes(isDark) {
+            if (isDark) {
+                return [
+                    255, 255, 255, // white (symbol 0)
+                    0, 0, 0,       // black (symbol 1)
+                    128, 128, 128, // 50% gray (symbol 2)
+                    64, 64, 64,    // 25% gray (symbol 3)
+                    192, 192, 192  // 75% gray (symbol 4)
+                ];
+            }
+            return [
+                255, 255, 255, // white (symbol 0)
+                255, 165, 0,   // orange (symbol 1)
+                255, 255, 0,   // yellow (symbol 2)
+                255, 0, 255,   // magenta (symbol 3)
+                0, 255, 255    // cyan (symbol 4)
+            ];
+        }
+
+        // Resolve palette bytes for a given mode
+        function paletteBytesForMode(mode) {
+            switch ((mode || 'light')) {
+                case 'dark':
+                    return new Uint8Array(defaultPaletteBytes(true));
+                case 'light':
+                    return new Uint8Array(defaultPaletteBytes(false));
+                case 'light2': // WYCOM: white, yellow, cyan, orange, magenta
+                    return new Uint8Array([
+                        255, 255, 255, // white (symbol 0)
+                        255, 255, 0,   // yellow (symbol 1)
+                        0, 255, 255,   // cyan (symbol 2)
+                        255, 165, 0,   // orange (symbol 3)
+                        255, 0, 255    // magenta (symbol 4)
+                    ]);
+                case 'edit':
+                default:
+                    return new Uint8Array(defaultPaletteBytes(false));
+            }
+        }
+
+        function updateHashFromUI() {
+            const params = new URLSearchParams();
+            
+            // Capture all UI state
+            const programSelect = document.getElementById('programSelect');
+            const textarea = document.getElementById('programInput');
+            if (programSelect.value === 'custom') {
+                params.set('customProgram', textarea.value);
+            } else if (programSelect.value !== 'bb6') {
+                params.set('program', programSelect.value);
+            }
+            
+            const useEarlyStop = document.getElementById('useEarlyStop');
+            if (!useEarlyStop.checked) params.set('earlyStop', 'false');
+            
+            const earlyStopValue = document.getElementById('earlyStopValue');
+            if (earlyStopValue.value !== '50000000') params.set('steps', earlyStopValue.value);
+            
+            const sizePreset = document.getElementById('sizePreset');
+            if (sizePreset.value !== '360,432') params.set('size', sizePreset.value);
+            
+            const stretchImage = document.getElementById('stretchImage');
+            if (!stretchImage.checked) params.set('stretch', 'false');
+
+            const binning = document.getElementById('binning');
+            if (!binning.checked) params.set('binning', 'false');
+            
+            const paletteMode = document.getElementById('paletteMode');
+            if (paletteMode && paletteMode.value !== 'light') {
+                params.set('palette', paletteMode.value);
+            }
+
+            // Colors: only persist for Edit mode
+            (function addColorsIfNonDefault() {
+                const mode = (document.getElementById('paletteMode')?.value) || 'light';
+                if (mode !== 'edit') return;
+                // Read directly from pickers for edit mode only
+                const ids = ['color0','color1','color2','color3','color4'];
+                const hexes = [];
+                for (const id of ids) {
+                    const el = document.getElementById(id);
+                    if (!el) continue;
+                    const h = el.value.startsWith('#') ? el.value.slice(1) : el.value;
+                    hexes.push(h.toLowerCase());
+                }
+                params.set('colors', hexes.join(','));
+            })();
+
+            // Update URL without reloading
+            window.location.hash = params.toString();
+        }
+
+        function applyHashToUI() {
+            const params = getHashParams();
+            
+            // Apply params to UI elements first
+            if (params.has('customProgram')) {
+                const programSelect = document.getElementById('programSelect');
+                const textarea = document.getElementById('programInput');
+                programSelect.value = 'custom';
+                textarea.value = params.get('customProgram');
+            } else if (params.has('program')) {
+                const programSelect = document.getElementById('programSelect');
+                programSelect.value = params.get('program');
+                programSelect.dispatchEvent(new Event('change'));
+            }
+            
+            if (params.has('earlyStop')) {
+                document.getElementById('useEarlyStop').checked = params.get('earlyStop') === 'true';
+            }
+            
+            if (params.has('steps')) {
+                document.getElementById('earlyStopValue').value = params.get('steps');
+            }
+            
+            if (params.has('size')) {
+                const sizePreset = document.getElementById('sizePreset');
+                sizePreset.value = params.get('size');
+                sizePreset.dispatchEvent(new Event('change'));
+            }
+            
+            if (params.has('stretch')) {
+                document.getElementById('stretchImage').checked = params.get('stretch') === 'true';
+            }
+
+            if (params.has('binning')) {
+                document.getElementById('binning').checked = params.get('binning') === 'true';
+            }
+            
+            // Palette mode: prefer new 'palette', fallback to legacy 'dark'; map old custom->edit
+            const paletteSel = document.getElementById('paletteMode');
+            let convertedLegacyDark = false;
+            if (params.has('palette')) {
+                let pal = params.get('palette');
+                if (pal === 'custom') pal = 'edit';
+                if (!['light','light2','dark','edit'].includes(pal)) pal = 'light';
+                paletteSel.value = pal;
+            } else if (params.has('dark') && params.get('dark') === 'true') {
+                paletteSel.value = 'dark';
+                convertedLegacyDark = true;
+            } else if (params.has('dark') && params.get('dark') === 'false') {
+                // Explicitly map to light when legacy dark=false provided
+                paletteSel.value = 'light';
+                convertedLegacyDark = true;
+            } else {
+                paletteSel.value = 'light';
+            }
+
+            // Derive currentColorsBytes solely from palette mode on load
+            const mode = paletteSel.value;
+            if (mode === 'edit') {
+                if (params.has('colors')) {
+                    const raw = params.get('colors');
+                    const parts = raw.split(',');
+                    if (parts.length === 5 && parts.every(p => /^[0-9a-fA-F]{6}$/.test(p))) {
+                        const bytes = new Uint8Array(15);
+                        for (let i = 0; i < 5; i++) {
+                            const h = parts[i];
+                            bytes[i*3] = parseInt(h.slice(0,2),16);
+                            bytes[i*3+1] = parseInt(h.slice(2,4),16);
+                            bytes[i*3+2] = parseInt(h.slice(4,6),16);
+                        }
+                        currentColorsBytes = bytes;
+                    } else {
+                        currentColorsBytes = paletteBytesForMode('light');
+                    }
+                } else {
+                    currentColorsBytes = paletteBytesForMode('light');
+                }
+            } else {
+                currentColorsBytes = paletteBytesForMode(mode);
+            }
+
+            // If we consumed legacy dark=true/false, reflect it in the URL using the new format
+            if (convertedLegacyDark) {
+                updateHashFromUI();
+            }
+
+            // Return whether we should auto-run
+            return params.get('run') === 'true';
+        }
+
+    let worker = null;
+    let isRunning = false;
+    let progressTimer = null;  // Move this to global scope
+    let currentColorsBytes = null; // active 5-color palette
+    let pendingRunResolve = null; // resolve current run when final frame or stop
+    let pendingRunReject = null;  // reject on worker error
+    let wasStopped = false;       // track if last action was an explicit stop
+    let lastBlobUrl = null;       // track last image URL to revoke
+
+        async function run() {
+            // Remove init() call since it's now in the worker
+            const PROGRAMS = {
+                bb2: `	A	B
+0	1RB	1LA
+1	1LB	1RH`, 
+                bb3_sum: `	A	B	C
+0	1RB	0RC	1LC
+1	1RH	1RB	1LA`,
+                bb3_steps: `	A	B	C
+0	1RB	1LB	1LC
+1	1RH	0RC	1LA`,
+                bb4: `	A	B	C	D
+0	1RB	1LA	1RH	1RD
+1	1LB	0LC	1LD	0RA`,
+                bb5: `	A	B	C	D	E
+0	1RB	1RC	1RD	1LA	1RH
+1	1LC	1RB	0LE	1LD	0LA`,
+                bb6: `	A	B	C	D	E	F
+0	1RB	1RC	1LC	0LE	1LF	0RC
+1	0LD	0RF	1LA	1RH	0RB	0RE`,
+bb5_69_420_121: `1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---`,
+bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
+
+                // New program strings
+                bb_3_3_355317: `1RB2LA1RA_1LA1RZ1RC_2RB1RC2RB`,
+                bigfoot33: `1RB2RA1LC_2LC1RB2RB_---2LA1LA`,
+                brady: `1RB2LB1LC_1LA2RB1RB_1RZ2LA0LC`,
+                bb_2_5_champ_aug25: `1RB3LA4RB0RB2LA_1LB2LA3LA1RA1RZ`,
+                bb_3_3_zig_zag: `1RB---0LC_2LC2RC1LB_0RA2RB0LB`,
+                bb_3_3_mud_piles: `1RB0LB0RC_2LC2LA1RA_1RA1LC---`,
+                bb_3_3_receding_hills: `1RB1LC---_0LC2RB1LB_2LA0RC1RC`,
+                bb_2_5_waterfall: `1RB4LA1LB2LA0RB_2LB3RB4LA---1RA`,
+                bb_2_5_jagged_mountain: `1RB---4LB1RA4RA_2LB2LA3RA4LB0RB`,
+                bb_2_5_hills_of_color: `1RB3LA3LA2RA3RA_2LB2RA---4RB1LB`,
+                bb_2_5_stairs_without_railings: `1RB3RA3LB0LA3RB_2LA3RB4RA1LA---`,
+                bb_2_5_infinite_hawaiian_ice: `1RB2LA1RA2LB---_0LA4RB3RB1LA2RA`,
+
+            };
+
+            const textarea = document.getElementById('programInput');
+            const programSelect = document.getElementById('programSelect');
+            
+            // Update programSelect change to NOT auto-run
+            programSelect.addEventListener('change', () => {
+                const selected = programSelect.value;
+                textarea.value = selected === 'custom' ? textarea.value : PROGRAMS[selected];
+                updateHashFromUI();
+            });
+
+            // Add textarea input handler to switch to custom program
+            textarea.addEventListener('input', () => {
+                programSelect.value = 'custom';
+                updateHashFromUI();
+            });
+
+            const useEarlyStop = document.getElementById('useEarlyStop');
+            const earlyStopValue = document.getElementById('earlyStopValue');
+            const sizePreset = document.getElementById('sizePreset');
+            const customSize = document.getElementById('customSize');
+            const customWidth = document.getElementById('customWidth');
+            const customHeight = document.getElementById('customHeight');
+            const container = document.getElementById('imageContainer');
+            const stretchImage = document.getElementById('stretchImage');
+            const paletteMode = document.getElementById('paletteMode');
+            const colorPickers = document.getElementById('colorPickers');
+
+            // Add handler for stretch toggle
+            stretchImage.addEventListener('change', () => {
+                updateHashFromUI();
+                const img = container.querySelector('img');
+                if (img) {
+                    img.classList.toggle('stretch', stretchImage.checked);
+                }
+            });
+
+            function updateImageScaling(img, originalWidth, originalHeight, targetWidth, targetHeight) {
+                
+                if (originalWidth <= targetWidth || originalHeight <= targetHeight || !stretchImage.checked) {
+                    img.style.imageRendering = 'pixelated';
+                } else {
+                    img.style.imageRendering = 'auto';
+                }
+                img.classList.toggle('stretch', stretchImage.checked);
+            }
+
+            function updateSize() {
+                const [width, height] = sizePreset.value === 'custom' ? [customWidth.value, customHeight.value] : sizePreset.value.split(',').map(Number);
+                container.style.width = width + 'px';
+                container.style.height = height + 'px';
+                return [width, height];
+            }
+
+            function hexToRgb(hex) {
+                const h = hex.startsWith('#') ? hex.slice(1) : hex;
+                const int = parseInt(h, 16);
+                return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
+            }
+
+            function rgbToHex(r, g, b) {
+                const toHex = (v) => v.toString(16).padStart(2, '0');
+                return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+            }
+
+            // defaultPaletteBytes is now defined at module scope
+
+            function setPickersFromBytes(bytes) {
+                const ids = ['color0','color1','color2','color3','color4'];
+                for (let i = 0; i < ids.length; i++) {
+                    const el = document.getElementById(ids[i]);
+                    if (!el) continue;
+                    const r = bytes[i*3], g = bytes[i*3+1], b = bytes[i*3+2];
+                    el.value = rgbToHex(r, g, b);
+                }
+            }
+
+            function getBytesFromPickers() {
+                const ids = ['color0','color1','color2','color3','color4'];
+                const arr = [];
+                for (const id of ids) {
+                    const el = document.getElementById(id);
+                    if (!el) continue;
+                    const [r,g,b] = hexToRgb(el.value);
+                    arr.push(r,g,b);
+                }
+                return new Uint8Array(arr);
+            }
+
+            function formatPalette(bytes) {
+                if (!bytes || bytes.length !== 15) return '(invalid)';
+                const toHex = (v) => v.toString(16).padStart(2, '0');
+                const out = [];
+                for (let i = 0; i < 5; i++) {
+                    const r = bytes[i*3], g = bytes[i*3+1], b = bytes[i*3+2];
+                    out.push(`#${toHex(r)}${toHex(g)}${toHex(b)}`);
+                }
+                return out.join(', ');
+            }
+
+            // Persistent worker setup and message handling
+            function handleWorkerMessage(e) {
+                const data = e.data;
+                if (!data || !data.success) {
+                    const errorMessage = (data && data.error) ? data.error : 'Unknown worker error';
+                    
+                    if (pendingRunReject) {
+                        pendingRunReject(new Error(errorMessage));
+                        pendingRunReject = null;
+                        pendingRunResolve = null;
+                    }
+                    return;
+                }
+
+                const statusEl = document.getElementById('status');
+
+                // Stop acknowledgment
+                if (data.stopped) {
+                    statusEl.textContent = 'Worker status: stopped';
+                    statusEl.classList.add('visible');
+                    setTimeout(() => statusEl.classList.remove('visible'), 2000);
+                    wasStopped = true;
+                    if (pendingRunResolve) {
+                        pendingRunResolve({ stopped: true });
+                        pendingRunResolve = null;
+                        pendingRunReject = null;
+                    }
+                    return;
+                }
+
+                // Render image for both intermediate and final frames
+                const blob = new Blob([data.png_data], { type: 'image/png' });
+                container.innerHTML = '<img alt="Space-time diagram">';
+                const img = container.querySelector('img');
+                const [goal_x, goal_y] = updateSize();
+                img.onload = () => {
+                    updateImageScaling(img, img.naturalWidth, img.naturalHeight, goal_x, goal_y);
+                };
+                img.onerror = (err) => {
+                    
+                };
+                if (lastBlobUrl) {
+                    URL.revokeObjectURL(lastBlobUrl);
+                }
+                lastBlobUrl = URL.createObjectURL(blob);
+                img.src = lastBlobUrl;
+
+                document.getElementById('stepCount').textContent = data.step_count.toLocaleString();
+                document.getElementById('onesCount').textContent = data.ones_count.toLocaleString();
+                document.getElementById('haltedStatus').textContent = data.is_halted ? 'Halted' : (isRunning ? 'Running' : 'Not Halted');
+
+                if (!data.intermediate) {
+                    if (!wasStopped) {
+                        statusEl.textContent = 'Worker status: completed';
+                        setTimeout(() => statusEl.classList.remove('visible'), 2000);
+                    }
+                    if (pendingRunResolve) {
+                        pendingRunResolve(data);
+                        pendingRunResolve = null;
+                        pendingRunReject = null;
+                    }
+                }
+            }
+
+            function ensureWorker() {
+                if (worker) return;
+                worker = new Worker('./worker.js', { type: 'module' });
+                worker.onmessage = handleWorkerMessage;
+                worker.onerror = (err) => {
+                    
+                    const status = document.getElementById('status');
+                    status.textContent = 'Worker status: error';
+                    status.classList.add('visible');
+                    if (pendingRunReject) {
+                        pendingRunReject(err);
+                        pendingRunReject = null;
+                        pendingRunResolve = null;
+                    }
+                };
+            }
+
+            async function runMachine() {
+                // If already running, treat click as Cancel and send stop to worker
+                if (isRunning) {
+                    const status = document.getElementById('status');
+                    status.textContent = 'Worker status: stopping...';
+                    status.classList.add('visible');
+                    if (progressTimer) {
+                        clearTimeout(progressTimer);
+                        progressTimer = null;
+                    }
+                    isRunning = false;
+                    const runButton = document.getElementById('runButton');
+                    runButton.textContent = 'Run';
+                    runButton.classList.remove('loading');
+                    const controls = document.querySelectorAll('.controls');
+                    controls.forEach(c => c.classList.remove('disabled'));
+                    if (worker) {
+                        worker.postMessage({ type: 'stop' });
+                    }
+                    return;
+                }
+
+                const status = document.getElementById('status');
+                status.textContent = 'Worker status: starting...';
+                status.classList.add('visible');
+
+                isRunning = true;
+                ensureWorker();
+                wasStopped = false;
+
+                try {
+                    const controls = document.querySelectorAll('.controls');
+                    controls.forEach(c => c.classList.add('disabled'));
+                    const runButton = document.getElementById('runButton');
+                    runButton.textContent = 'Cancel';
+                    runButton.classList.add('loading');
+                    container.textContent = 'Computing...';
+                    const startTime = performance.now();
+                    const early_stop = useEarlyStop.checked ? BigInt(earlyStopValue.value) : undefined;
+                    updateSize();
+                    
+                    const updateProgress = () => {
+                        if (!isRunning) {
+                            clearTimeout(progressTimer);
+                            return;
+                        }
+                        document.getElementById('runTime').textContent = 
+                            `${((performance.now() - startTime) / 1000).toFixed(2)}s`;
+                        progressTimer = setTimeout(updateProgress, 100);
+                    };
+                    updateProgress();
+
+                    status.textContent = 'Worker status: computing...';
+                    const result = await new Promise((resolve, reject) => {
+                        pendingRunResolve = resolve;
+                        pendingRunReject = reject;
+
+                        const colorsBytes = (() => {
+                            if (currentColorsBytes && currentColorsBytes.length === 15) {
+                                return currentColorsBytes;
+                            }
+                            const mode = document.getElementById('paletteMode')?.value || 'light';
+                            if (mode === 'edit') {
+                                const bytes = getBytesFromPickers();
+                                currentColorsBytes = bytes;
+                                return bytes;
+                            }
+                            const bytes = paletteBytesForMode(mode);
+                            currentColorsBytes = bytes;
+                            return bytes;
+                        })();
+
+                        console.log('[page] start colors (mode=%s): %s', document.getElementById('paletteMode')?.value, formatPalette(colorsBytes));
+                        worker.postMessage({
+                            type: 'start',
+                            programText: textarea.value,
+                            goal_x: Number(container.style.width.replace('px','')) || undefined,
+                            goal_y: Number(container.style.height.replace('px','')) || undefined,
+                            early_stop,
+                            binning: document.getElementById('binning').checked,
+                            darkMode: (document.getElementById('paletteMode')?.value === 'dark'),
+                            colorsBytes: new Uint8Array(colorsBytes)
+                        });
+                    });
+
+                    clearTimeout(progressTimer);
+                    const endTime = performance.now();
+                    document.getElementById('runTime').textContent = `${((endTime - startTime) / 1000).toFixed(2)}s`;
+                    if (result && result.stopped) {
+                        status.textContent = 'Worker status: stopped';
+                    } else {
+                        status.textContent = 'Worker status: completed';
+                    }
+                    setTimeout(() => status.classList.remove('visible'), 2000);
+                    
+                    if (result && !result.stopped) {
+                        document.getElementById('stepCount').textContent = result.step_count.toLocaleString();
+                        document.getElementById('onesCount').textContent = result.ones_count.toLocaleString();
+                        document.getElementById('haltedStatus').textContent = result.is_halted ? 'Halted' : 'Not Halted';
+                    }
+                } catch (e) {
+                    status.textContent = 'Worker status: error';
+                    setTimeout(() => status.classList.remove('visible'), 2000);
+                    clearTimeout(progressTimer);
+                    const errorMessage = e.message || e.toString();
+                    
+                    container.textContent = `Error: ${errorMessage}`;
+                    document.getElementById('runTime').textContent = 'error';
+                    document.getElementById('stepCount').textContent = '-';
+                    document.getElementById('onesCount').textContent = '-';
+                    document.getElementById('haltedStatus').textContent = '-';
+                } finally {
+                    isRunning = false;
+                    setTimeout(() => status.classList.remove('visible'), 2000);
+                    // Keep worker alive for live recoloring
+                    const controls = document.querySelectorAll('.controls');
+                    controls.forEach(c => c.classList.remove('disabled'));
+                    const runButton = document.getElementById('runButton');
+                    runButton.textContent = 'Run';
+                    runButton.classList.remove('loading');
+                }
+            }
+            
+            // Update size-related changes to NOT auto-run
+            sizePreset.addEventListener('change', () => {
+                const customSize = document.getElementById('customSize');
+                customSize.classList.toggle('visible', sizePreset.value === 'custom');
+                updateHashFromUI();
+                updateSize();
+            });
+            customWidth.addEventListener('change', () => {
+                updateHashFromUI();
+                updateSize();
+            });
+            customHeight.addEventListener('change', () => {
+                updateHashFromUI();
+                updateSize();
+            });
+
+            // Add event listeners for early stop controls
+            useEarlyStop.addEventListener('change', () => {
+                updateHashFromUI();
+            });
+            earlyStopValue.addEventListener('change', () => {
+                updateHashFromUI();
+            });
+
+            // Function to reset the image container to show instructions
+            function resetImageContainer() {
+                const container = document.getElementById('imageContainer');
+                // Only reset if there's an image currently displayed
+                if (container.querySelector('img')) {
+                    container.innerHTML = `No diagram yet
+                        <br><br>
+                        Tips:
+                        <ul style="margin-top: 0.5em; text-align: left;">
+                            <li>Press "Run" to start.</li>
+                            <li>Try changing the Stop Early steps.</li>
+                            <li>Select programs or edit/paste them.</li>
+                            <li>It accepts programs in 3 popular formats:
+                                <ul>
+                                    <li>Symbol Major</li>
+                                    <li>State Major</li>
+                                    <li>BB Challenge Standard Format</li>
+                                </ul>
+                            </li>
+                            <li>Supports billions and billions of steps. OK, to turn off Stop Early.</li>
+                            <li>Choose "Quality" for full pixel averaging or "Speed" for fast sampling.</li>
+                            <li>You can set settings via the URL hash fragment, for example, <code>#program=bb5&earlyStop=false</code>. Include <code>run=true</code> to run the program immediately.</li>
+                        </ul>`;
+                    
+                    // Reset status counters
+                    document.getElementById('stepCount').textContent = '-';
+                    document.getElementById('onesCount').textContent = '-';
+                    document.getElementById('haltedStatus').textContent = '-';
+                    document.getElementById('runTime').textContent = 'not run yet';
+                }
+            }
+
+            // Add event listener for binning control
+            document.getElementById('binning').addEventListener('change', () => {
+                updateHashFromUI();
+                resetImageContainer();
+            });
+
+            // Palette mode change: show pickers only for edit; snap to defaults for light/dark/light2
+            if (paletteMode) {
+                paletteMode.addEventListener('change', () => {
+                    const mode = paletteMode.value;
+                    if (mode === 'edit') {
+                        colorPickers.style.display = 'flex';
+                        if (currentColorsBytes && currentColorsBytes.length === 15) {
+                            setPickersFromBytes(currentColorsBytes);
+                        } else {
+                            const bytes = paletteBytesForMode('light');
+                            currentColorsBytes = bytes;
+                            setPickersFromBytes(bytes);
+                        }
+                        updateHashFromUI();
+                    } else {
+                        colorPickers.style.display = 'none';
+                        const colorsBytes = paletteBytesForMode(mode);
+                        currentColorsBytes = colorsBytes;
+                        updateHashFromUI();
+                        if (worker) {
+                            console.log('[page] paletteMode=%s posting colors: %s', mode, formatPalette(colorsBytes));
+                            worker.postMessage({ type: 'colors', colorsBytes, darkMode: (mode === 'dark') });
+                        }
+                    }
+                });
+            }
+
+            // Live recoloring when adjusting pickers
+            const debounced = (fn, delay) => {
+                let t = null;
+                return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };
+            };
+            const sendPickerColors = debounced(() => {
+                const mode = document.getElementById('paletteMode')?.value || 'light';
+                const isDark = mode === 'dark';
+                if (mode === 'edit' && worker) {
+                    const bytes = getBytesFromPickers();
+                    currentColorsBytes = bytes;
+                    console.log('[page] edit input; posting colors: %s', formatPalette(bytes));
+                    worker.postMessage({ type: 'colors', colorsBytes: bytes, darkMode: isDark });
+                }
+                // Keep URL in sync during live edits where supported
+                updateHashFromUI();
+            }, 75);
+                const sendPickerColorsImmediate = () => {
+                    const mode = document.getElementById('paletteMode')?.value || 'light';
+                    const isDark = mode === 'dark';
+            if (mode === 'edit') {
+                        const bytes = getBytesFromPickers();
+                        currentColorsBytes = bytes;
+                        if (worker) {
+                console.log('[page] edit change; posting colors: %s', formatPalette(bytes));
+                            worker.postMessage({ type: 'colors', colorsBytes: bytes, darkMode: isDark });
+                        }
+                    }
+                    // Update URL immediately when the picker closes
+                    updateHashFromUI();
+                };
+            ['color0','color1','color2','color3','color4'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', sendPickerColors);
+                        el.addEventListener('change', sendPickerColorsImmediate);
+                }
+            });
+
+            // Initial custom size visibility
+            customSize.classList.toggle('visible', sizePreset.value === 'custom');
+
+            // Apply initial state from URL and check if we should auto-run
+            const shouldAutoRun = applyHashToUI();
+            updateSize();
+            // Ensure pickers visibility/state matches palette mode on load
+            if (paletteMode) {
+                const mode = paletteMode.value;
+                if (mode === 'edit') {
+                    colorPickers.style.display = 'flex';
+                    if (currentColorsBytes && currentColorsBytes.length === 15) {
+                        setPickersFromBytes(currentColorsBytes);
+                    } else {
+                        const bytes = paletteBytesForMode('light');
+                        currentColorsBytes = bytes;
+                        setPickersFromBytes(bytes);
+                    }
+                } else {
+                    colorPickers.style.display = 'none';
+                }
+            }
+            
+            // Auto-run if specified in URL
+            if (shouldAutoRun) {
+                runMachine().catch(console.error);
+            }
+
+            // Listen for hash changes without running
+            window.addEventListener('hashchange', () => {
+                applyHashToUI();
+                updateSize();
+                // Update pickers visibility/state based on palette mode
+                if (paletteMode) {
+                    const mode = paletteMode.value;
+                    if (mode === 'edit') {
+                        colorPickers.style.display = 'flex';
+                        if (currentColorsBytes && currentColorsBytes.length === 15) {
+                            setPickersFromBytes(currentColorsBytes);
+                        } else {
+                            const bytes = paletteBytesForMode('light');
+                            currentColorsBytes = bytes;
+                            setPickersFromBytes(bytes);
+                        }
+                    } else {
+                        colorPickers.style.display = 'none';
+                    }
+                }
+            });
+
+            // Only run button triggers the machine
+            document.getElementById('runButton').addEventListener('click', () => runMachine().catch(console.error));
+        }
+
+        run();
+    </script>
+</body>
+</html>

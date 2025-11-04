@@ -1,0 +1,157 @@
+body {
+    margin: 0;
+    padding: 20px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+/* Add wrapper for content after header */
+.header-container + div {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;  /* Required for proper flex child scrolling */
+}
+
+/* Make image wrapper take remaining space */
+.header-container + div > div:has(.image-container) {
+    flex: 1;
+    min-height: 0;  /* Required for proper flex child scrolling */
+}
+
+textarea {
+    width: 100%;
+    min-height: 50px;
+    font-family: monospace;
+    margin: 10px 0;
+}
+
+.image-container {
+    width: 360px;
+    height: 100%;  /* Changed from flex: 1 */
+    min-height: 0;  /* Changed from min-height: 432px */
+    background: #fff;
+    border: 1px solid #ccc;
+    display: flex;
+    flex-direction: column;  /* Add this */
+    align-items: flex-start;  /* Change from center to flex-start */
+    justify-content: flex-start;
+    font-family: sans-serif;
+    color: #666;
+    font-style: italic;
+    text-align: left;      /* Change from center to left */
+    overflow: auto;  /* Add scrolling when not stretched */
+    padding: 1em;            /* Add padding for better spacing */
+}
+
+.image-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;  /* Changed from none to contain */
+    object-position: left top;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+.image-container img.stretch {
+    object-fit: fill;  /* Apply stretching when class is present */
+}
+
+#earlyStopValue {
+    font-family: monospace;
+    text-align: right;
+    width: 10em;
+}
+
+.custom-size {
+    display: none;
+    margin-left: 1em;
+}
+
+.custom-size.visible {
+    display: inline;
+}
+
+.header-container {
+    margin-bottom: 2em;
+    text-align: center;
+}
+
+.header-container h1 {
+    margin: 0 0 0.5em 0;
+}
+
+.subtitle {
+    display: flex;
+    justify-content: center;
+    gap: 1em;
+    font-size: 0.85em;
+    color: #666;
+    font-weight: 500;
+}
+
+.subtitle a {
+    color: #0366d6;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.subtitle a:hover {
+    text-decoration: underline;
+    color: #1a7f37;
+}
+
+.subtitle a::after {
+    content: "•";
+    color: #666;
+    margin: 0 0.5em;
+    font-weight: normal;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.subtitle a:last-child::after {
+    content: none;
+}
+
+.controls {
+    opacity: 1;
+    transition: opacity 0.2s;
+}
+
+.controls.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+#runButton {
+    width: 100px;  /* Changed from min-width to fixed width */
+}
+
+.loading {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.status {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-family: monospace;
+    display: none;
+}
+
+.status.visible {
+    display: block;
+}

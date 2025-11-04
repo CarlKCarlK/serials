@@ -75,6 +75,50 @@ const DHCP_LEASE_SECONDS: u32 = 4 * 60 * 60; // 4-hour leases keep clients aroun
 const DNS_SERVER_PORT: u16 = 53;
 const DNS_RESPONSE_TTL: u32 = 60;
 
+struct StaticAsset {
+    path: &'static str,
+    content_type: &'static str,
+    body: &'static [u8],
+}
+
+static STATIC_ASSETS: &[StaticAsset] = &[
+    StaticAsset {
+        path: "/index.html",
+        content_type: "text/html; charset=utf-8",
+        body: include_bytes!("../examples/static/busy_beaver_blaze/v0.2.7/index.html"),
+    },
+    StaticAsset {
+        path: "/styles.css",
+        content_type: "text/css; charset=utf-8",
+        body: include_bytes!("../examples/static/busy_beaver_blaze/v0.2.7/styles.css"),
+    },
+    StaticAsset {
+        path: "/worker.js",
+        content_type: "application/javascript; charset=utf-8",
+        body: include_bytes!("../examples/static/busy_beaver_blaze/v0.2.7/worker.js"),
+    },
+    StaticAsset {
+        path: "/pkg/busy_beaver_blaze.js",
+        content_type: "application/javascript; charset=utf-8",
+        body: include_bytes!("../examples/static/busy_beaver_blaze/v0.2.7/pkg/busy_beaver_blaze.js"),
+    },
+    StaticAsset {
+        path: "/pkg/busy_beaver_blaze_bg.wasm",
+        content_type: "application/wasm",
+        body: include_bytes!("../examples/static/busy_beaver_blaze/v0.2.7/pkg/busy_beaver_blaze_bg.wasm"),
+    },
+];
+
+fn find_asset(path: &str) -> Option<&'static StaticAsset> {
+    let normalized = if path == "/" || path.is_empty() {
+        "/index.html"
+    } else {
+        path
+    };
+
+    STATIC_ASSETS.iter().find(|asset| asset.path == normalized)
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, defmt::Format)]
 enum DhcpMessageType {
     Discover,
@@ -665,15 +709,9 @@ async fn main(spawner: Spawner) -> ! {
     info!("Device IP address: {}", ap_ip);
     info!("Configure a client with static IP (e.g. 192.168.4.2/24, gateway {})", ap_ip);
 
-    // Static HTTP response body (ASCII only)
-    const BODY: &str = r#"<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pico AP</title>
-<style>body{font-family:system-ui;background:#0b172a;color:#f3f4f6;text-align:center;padding-top:3rem;}section{background:#111c33;display:inline-block;padding:1.5rem 2rem;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,0.25);}h1{margin:0 0 0.75rem;font-size:2rem;}p{margin:0.5rem 0;}code{display:inline-block;margin-top:1rem;padding:0.35rem 0.75rem;border-radius:6px;background:#0b264d;color:#9ad1ff;font-family:monospace;}</style>
-</head><body><section><h1>Hello from Pico 1W!</h1><p>You are connected directly to the board.</p><p>Enjoy your stay.</p><code>embassy-net access-point demo</code></section></body></html>"#;
-    let body_bytes = BODY.as_bytes();
-
-    let mut rx_buffer = [0u8; 1024];
-    let mut tx_buffer = [0u8; 1024];
-    let mut request = [0u8; 512];
+    let mut rx_buffer = [0u8; 2048];
+    let mut tx_buffer = [0u8; 4096];
+    let mut request = [0u8; 1024];
 
     loop {
         let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
@@ -688,32 +726,93 @@ async fn main(spawner: Spawner) -> ! {
 
         info!("Client connected: {:?}", socket.remote_endpoint());
 
-        match socket.read(&mut request).await {
-            Ok(n) if n > 0 => {
+        let request_len = match socket.read(&mut request).await {
+            Ok(0) => {
+                info!("Client closed without sending data");
+                let _ = socket.flush().await;
+                socket.close();
+                continue;
+            }
+            Ok(n) => {
                 let preview = from_utf8(&request[..n]).unwrap_or("<non-UTF8>");
                 info!("Request preview: {}", preview);
+                n
             }
-            Ok(_) => info!("Client closed without sending data"),
-            Err(err) => warn!("Read error: {:?}", err),
+            Err(err) => {
+                warn!("Read error: {:?}", err);
+                let _ = socket.flush().await;
+                socket.close();
+                continue;
+            }
+        };
+
+        let request_text = from_utf8(&request[..request_len]).unwrap_or("");
+        let mut lines = request_text.lines();
+        let request_line = lines.next().unwrap_or("");
+        let mut parts = request_line.split_whitespace();
+        let method = parts.next().unwrap_or("");
+        let raw_path = parts.next().unwrap_or("/");
+        let cleaned_path = raw_path.split('?').next().unwrap_or("/");
+        let path = if cleaned_path.starts_with('/') {
+            cleaned_path
+        } else {
+            "/"
+        };
+
+        let mut headers = String::<256>::new();
+        let mut status_line = "HTTP/1.1 200 OK\r\n";
+        let mut content_type = "text/plain; charset=utf-8";
+        let mut body: &[u8] = b"";
+        let mut send_body = true;
+
+        if method.is_empty() {
+            status_line = "HTTP/1.1 400 Bad Request\r\n";
+            body = b"Bad Request";
+            send_body = true;
+        } else {
+            match method {
+                "GET" | "HEAD" => {
+                    if let Some(asset) = find_asset(path) {
+                        status_line = "HTTP/1.1 200 OK\r\n";
+                        content_type = asset.content_type;
+                        body = asset.body;
+                        send_body = method == "GET";
+                    } else {
+                        status_line = "HTTP/1.1 404 Not Found\r\n";
+                        content_type = "text/plain; charset=utf-8";
+                        body = b"Not Found";
+                    }
+                }
+                _ => {
+                    status_line = "HTTP/1.1 405 Method Not Allowed\r\n";
+                    content_type = "text/plain; charset=utf-8";
+                    body = b"Method Not Allowed";
+                }
+            }
         }
 
-        let mut headers = String::<160>::new();
-        write!(
-            &mut headers,
-            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-            body_bytes.len()
-        )
-        .unwrap();
+        headers.push_str(status_line).unwrap();
+        write!(&mut headers, "Content-Type: {}\r\n", content_type).unwrap();
+        write!(&mut headers, "Content-Length: {}\r\n", body.len()).unwrap();
+        if matches!(method, "GET" | "HEAD") {
+            headers.push_str("Cache-Control: no-store, max-age=0\r\n").unwrap();
+        }
+        if status_line.contains("405") {
+            headers.push_str("Allow: GET, HEAD\r\n").unwrap();
+        }
+        headers.push_str("Connection: close\r\n\r\n").unwrap();
 
         if let Err(err) = socket.write_all(headers.as_bytes()).await {
             warn!("Failed to write headers: {:?}", err);
             socket.abort();
             continue;
         }
-        if let Err(err) = socket.write_all(body_bytes).await {
-            warn!("Failed to write body: {:?}", err);
-            socket.abort();
-            continue;
+        if send_body {
+            if let Err(err) = socket.write_all(body).await {
+                warn!("Failed to write body: {:?}", err);
+                socket.abort();
+                continue;
+            }
         }
 
         let _ = socket.flush().await;
