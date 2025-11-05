@@ -11,6 +11,7 @@ full_no_wifi_1w = "run --example full --release --target thumbv6m-none-eabi --no
 ir_1w = "run --example ir --release --target thumbv6m-none-eabi --no-default-features --features pico1w"
 wireless_1w = "run --example wireless --release --target thumbv6m-none-eabi --no-default-features --features pico1w,wifi"
 lcd_clock_1w = "run --example lcd_clock --release --target thumbv6m-none-eabi --no-default-features --features pico1w,wifi"
+clock_4led_wifi_1w = "run --example clock_4led_wifi --release --target thumbv6m-none-eabi --no-default-features --features pico1w,wifi"
 led_strip_1w = "run --example led_strip --release --target thumbv6m-none-eabi --no-default-features --features pico1w"
 log_time_1w = "run --example log_time --release --target thumbv6m-none-eabi --no-default-features --features pico1w,wifi"
 wifi_web_1w = "run --example wifi_web --release --target thumbv6m-none-eabi --no-default-features --features pico1w,wifi"

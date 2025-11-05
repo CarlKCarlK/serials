@@ -21,6 +21,9 @@ pub enum Error {
     #[display("bits_to_indexes does not have enough preallocated space")]
     BitsToIndexesNotEnoughSpace,
 
+    #[display("BitsToIndexes is full")]
+    BitsToIndexesFull,
+
     #[display("Error setting output state")]
     CannotSetOutputState,
 
@@ -40,5 +43,11 @@ pub enum Error {
 impl From<Infallible> for Error {
     fn from(_: Infallible) -> Self {
         Self::CannotSetOutputState
+    }
+}
+
+impl From<embassy_executor::SpawnError> for Error {
+    fn from(err: embassy_executor::SpawnError) -> Self {
+        Self::TaskSpawn(err)
     }
 }
