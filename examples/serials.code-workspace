@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../../busy_beaver_blaze"
+		}
+	],
+	"settings": {
+		"rust-analyzer.cargo.target": "thumbv6m-none-eabi",
+		"rust-analyzer.cargo.allTargets": false
+	}
+}

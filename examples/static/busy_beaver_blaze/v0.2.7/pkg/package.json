@@ -1,15 +1,11 @@
 {
   "name": "busy_beaver_blaze",
-  "type": "module",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "files": [
     "busy_beaver_blaze_bg.wasm",
     "busy_beaver_blaze.js",
     "busy_beaver_blaze.d.ts"
   ],
-  "main": "busy_beaver_blaze.js",
-  "types": "busy_beaver_blaze.d.ts",
-  "sideEffects": [
-    "./snippets/*"
-  ]
+  "browser": "busy_beaver_blaze.js",
+  "types": "busy_beaver_blaze.d.ts"
 }

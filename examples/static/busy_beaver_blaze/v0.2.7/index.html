@@ -224,7 +224,67 @@
         </div>
         <div id="status" class="status">Worker status: initializing...</div>
     </div>
-    <script type="module">
+    <!-- Test script to verify inline execution works -->
+    <script>
+        console.log('[inline-test] Inline script executed immediately');
+        window.INLINE_SCRIPT_WORKED = true;
+        
+        // Detect captive portal or restricted browser early
+        setTimeout(() => {
+            if (!window.EXTERNAL_SCRIPT_LOADED) {
+                console.warn('[early-detect] External script did not load within 2 seconds');
+                const container = document.getElementById('imageContainer');
+                const status = document.getElementById('status');
+                if (container) {
+                    container.innerHTML = `
+                        <div class="captive-warning">
+                            <h2>Open this page in Chrome or Firefox</h2>
+                            <p>This restricted browser view cannot load the required files.</p>
+                            <p><strong>Steps:</strong></p>
+                            <ol style="text-align: left; margin: 1em auto; max-width: 400px;">
+                                <li>Dismiss this sign-in window (tap "Use network as is" or similar)</li>
+                                <li>Open <strong>Chrome</strong> or <strong>Firefox</strong></li>
+                                <li>Navigate to: <code style="display:block;margin:0.5em 0;padding:0.5em;background:#e2e8f0;">http://192.168.4.1/</code></li>
+                            </ol>
+                            <p>The Busy Beaver visualizer needs WebAssembly which works in full browsers but not in captive portal views.</p>
+                        </div>`;
+                }
+                if (status) {
+                    status.textContent = 'Restricted browser detected - open in Chrome';
+                    status.classList.add('visible');
+                }
+            }
+        }, 2000);
+    </script>
+    <!-- Load WASM JS wrapper as classic script (no-modules build) - defer ensures it loads before DOMContentLoaded -->
+    <script src="./pkg/busy_beaver_blaze.js" defer onerror="console.error('[script-load] Failed to load busy_beaver_blaze.js'); window.EXTERNAL_SCRIPT_FAILED = true;" onload="console.log('[script-load] busy_beaver_blaze.js loaded successfully'); window.EXTERNAL_SCRIPT_LOADED = true;"></script>
+    <script defer>
+        // EARLY CAPTIVE PORTAL DETECTION
+        // Check immediately if we're in a restricted browser context
+        (function() {
+            const userAgent = navigator.userAgent || '';
+            const isCaptivePortal = userAgent.includes('CaptiveNetworkSupport') ||
+                userAgent.includes('captive') ||
+                (window.navigator && window.navigator.standalone === false);
+            
+            if (isCaptivePortal) {
+                console.log('[early-detect] Captive portal browser detected');
+                // Wait for DOM, then show message
+                document.addEventListener('DOMContentLoaded', () => {
+                    const container = document.getElementById('imageContainer');
+                    if (container) {
+                        container.innerHTML = `<div class="captive-warning"><h2>Open Busy Beaver Blaze in your browser</h2><p>This captive portal sign-in window blocks WebAssembly.</p><p>Copy this link and paste it in your browser:</p><p><code>http://192.168.4.1/</code></p><p>Or choose "Use network as is" to dismiss this popup, then open Chrome/Firefox and visit the link above.</p></div>`;
+                    }
+                    const status = document.getElementById('status');
+                    if (status) {
+                        status.textContent = 'Captive portal detected - open in regular browser';
+                        status.classList.add('visible');
+                    }
+                });
+                return; // Stop further execution
+            }
+        })();
+
         // Add URL state management functions at the start
         function getHashParams() {
             const hash = window.location.hash.substring(1);
@@ -652,6 +712,31 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     return capabilityProbePromise;
                 }
                 capabilityProbePromise = (async () => {
+                    const isSecureContext = window.isSecureContext || false;
+                    const isCrossOriginIsolated = self.crossOriginIsolated || false;
+                    const hasSAB = typeof SharedArrayBuffer !== 'undefined';
+                    const userAgent = navigator.userAgent || '';
+                    
+                    // Detect captive portal webview
+                    const isCaptivePortal = userAgent.includes('CaptiveNetworkSupport') ||
+                        userAgent.includes('captive') ||
+                        (window.navigator && window.navigator.standalone === false);
+                    
+                    console.log('[probe] Secure context:', isSecureContext);
+                    console.log('[probe] crossOriginIsolated:', isCrossOriginIsolated);
+                    console.log('[probe] SharedArrayBuffer:', hasSAB);
+                    console.log('[probe] location:', window.location.href);
+                    console.log('[probe] userAgent:', userAgent);
+                    console.log('[probe] Captive portal detected:', isCaptivePortal);
+                    
+                    // Force portal message if in captive webview
+                    if (isCaptivePortal) {
+                        return {
+                            supported: false,
+                            reason: 'This is a captive portal sign-in window. Please open in your browser.',
+                        };
+                    }
+                    
                     if (typeof Worker === 'undefined' || typeof WebAssembly === 'undefined') {
                         return {
                             supported: false,
@@ -659,6 +744,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         };
                     }
 
+                    // Test basic WASM
                     try {
                         const testModule = wasmSmokeTestBytes();
                         await WebAssembly.instantiate(testModule);
@@ -671,6 +757,8 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         };
                     }
 
+                    // Check if module workers are available
+                    // On non-secure contexts (http://192.168.x.x), workers may fail or lack SAB
                     try {
                         const blob = new Blob([
                             'self.postMessage("ok");'
@@ -681,17 +769,22 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         probe.terminate();
                         URL.revokeObjectURL(url);
                     } catch (err) {
-                        const info = interpretWorkerFailure('probe-worker', err);
+                        console.warn('[probe] Module workers unavailable:', err.message);
                         moduleWorkerSupported = false;
-                        return {
-                            supported: true,
-                            worker: false,
-                            reason: info.message || 'Module workers are blocked in this browser mode.',
-                            detail: info.detail,
-                        };
                     }
 
-                    return { supported: true, worker: true };
+                    // If we're not in a secure context or lack SAB, prefer inline mode
+                    // Workers that need SharedArrayBuffer won't work anyway
+                    if (!isSecureContext || !hasSAB) {
+                        console.log('[probe] Non-secure or no SAB - will try inline execution');
+                        moduleWorkerSupported = false;
+                    }
+
+                    return { 
+                        supported: true, 
+                        worker: moduleWorkerSupported,
+                        reason: !moduleWorkerSupported ? 'Using inline mode (non-secure context)' : undefined
+                    };
                 })();
                 return capabilityProbePromise;
             }
@@ -701,11 +794,48 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     return wasmModuleLoadPromise;
                 }
                 wasmModuleLoadPromise = (async () => {
-                    const module = await import('./pkg/busy_beaver_blaze.js');
-                    if (typeof module.default === 'function') {
-                        await module.default();
+                    try {
+                        console.log('[wasm] Waiting for wasm_bindgen to load...');
+                        console.log('[wasm] INLINE_SCRIPT_WORKED =', window.INLINE_SCRIPT_WORKED);
+                        console.log('[wasm] EXTERNAL_SCRIPT_LOADED =', window.EXTERNAL_SCRIPT_LOADED);
+                        console.log('[wasm] EXTERNAL_SCRIPT_FAILED =', window.EXTERNAL_SCRIPT_FAILED);
+                        console.log('[wasm] typeof wasm_bindgen =', typeof wasm_bindgen);
+                        console.log('[wasm] window.wasm_bindgen =', window.wasm_bindgen);
+                        
+                        // If external script failed to load, show helpful error immediately
+                        if (window.EXTERNAL_SCRIPT_FAILED) {
+                            throw new Error('External script ./pkg/busy_beaver_blaze.js failed to load. Check browser console for network errors.');
+                        }
+                        
+                        // Wait for wasm_bindgen to be available (script may still be loading)
+                        // Increased timeout for slow connections: 300 attempts × 100ms = 30 seconds
+                        let attempts = 0;
+                        while (typeof wasm_bindgen === 'undefined' && attempts < 300) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                            attempts++;
+                            if (attempts % 10 === 0) {
+                                console.log('[wasm] Still waiting... attempt', attempts, '/300');
+                            }
+                        }
+                        
+                        console.log('[wasm] After wait: attempts =', attempts, 'typeof =', typeof wasm_bindgen);
+                        
+                        if (typeof wasm_bindgen === 'undefined') {
+                            throw new Error('wasm_bindgen not found after waiting ' + (attempts * 100) + 'ms. Script loaded but did not define wasm_bindgen global.');
+                        }
+                        
+                        console.log('[wasm] wasm_bindgen loaded, initializing WASM...');
+                        
+                        // Call wasm_bindgen() with the path to the WASM file
+                        await wasm_bindgen('./pkg/busy_beaver_blaze_bg.wasm');
+                        console.log('[wasm] WASM initialized successfully');
+                        
+                        // Return the wasm_bindgen object which now has the exports
+                        return wasm_bindgen;
+                    } catch (err) {
+                        console.error('[wasm] Failed to load WASM module:', err);
+                        throw err;
                     }
-                    return module;
                 })();
                 return wasmModuleLoadPromise;
             }
@@ -749,7 +879,9 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
 
                 let machine = null;
                 try {
+                    console.log('[inline] Starting WASM module load...');
                     const module = await ensureWasmModule();
+                    console.log('[inline] WASM module loaded, extracting SpaceByTimeMachine...');
                     const { SpaceByTimeMachine } = module;
                     machine = new SpaceByTimeMachine(
                         payload.programText,
@@ -954,45 +1086,55 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
 
             function ensureWorker() {
                 if (worker) return;
-                worker = new Worker('./worker.js', { type: 'module' });
-                worker.onmessage = handleWorkerMessage;
-                worker.onerror = (err) => {
-                    if (typeof err.preventDefault === 'function') {
-                        err.preventDefault();
-                    }
-                    const locationParts = [];
-                    if (typeof err.filename === 'string' && err.filename) {
-                        locationParts.push(err.filename);
-                    }
-                    if (typeof err.lineno === 'number' && err.lineno) {
-                        locationParts.push(String(err.lineno));
-                    }
-                    if (typeof err.colno === 'number' && err.colno) {
-                        locationParts.push(String(err.colno));
-                    }
-                    const failure = interpretWorkerFailure('worker', {
-                        error: err.message || err.type || 'Worker error',
-                        detail: locationParts.join(':'),
-                        kind: (err.error && err.error.name) ? err.error.name : err.type,
-                    });
+                try {
+                    worker = new Worker('./worker.js', { type: 'module' });
+                    worker.onmessage = handleWorkerMessage;
+                    worker.onerror = (err) => {
+                        console.error('[worker] onerror fired:', err);
+                        if (typeof err.preventDefault === 'function') {
+                            err.preventDefault();
+                        }
+                        
+                        // Worker failed - switch to inline mode
+                        console.warn('[worker] Worker failed, forcing inline execution');
+                        moduleWorkerSupported = false;
+                        
+                        const locationParts = [];
+                        if (typeof err.filename === 'string' && err.filename) {
+                            locationParts.push(err.filename);
+                        }
+                        if (typeof err.lineno === 'number' && err.lineno) {
+                            locationParts.push(String(err.lineno));
+                        }
+                        if (typeof err.colno === 'number' && err.colno) {
+                            locationParts.push(String(err.colno));
+                        }
+                        const failure = interpretWorkerFailure('worker', {
+                            error: err.message || err.type || 'Worker error',
+                            detail: locationParts.join(':'),
+                            kind: (err.error && err.error.name) ? err.error.name : err.type,
+                        });
 
-                    if (pendingRunReject) {
-                        const forwarded = new Error(failure.message);
-                        forwarded.detail = failure.detail;
-                        forwarded.kind = failure.kind;
-                        forwarded.portalBlocked = failure.portalBlocked;
-                        pendingRunReject(forwarded);
-                        pendingRunReject = null;
-                        pendingRunResolve = null;
-                    } else if (failure.portalBlocked) {
-                        showPortalFallback(failure.message, failure.detail);
-                    } else {
-                        const status = document.getElementById('status');
-                        status.textContent = 'Worker status: error';
-                        status.classList.add('visible');
-                        container.textContent = `Error: ${failure.message}`;
-                    }
-                };
+                        if (pendingRunReject) {
+                            const forwarded = new Error(failure.message);
+                            forwarded.detail = failure.detail;
+                            forwarded.kind = failure.kind;
+                            forwarded.portalBlocked = failure.portalBlocked;
+                            pendingRunReject(forwarded);
+                            pendingRunReject = null;
+                            pendingRunResolve = null;
+                        } else if (failure.portalBlocked) {
+                            showPortalFallback(failure.message, failure.detail);
+                        } else {
+                            // Retry with inline mode
+                            console.log('[worker] Will retry with inline execution');
+                        }
+                    };
+                } catch (err) {
+                    console.error('[worker] Failed to create worker:', err);
+                    moduleWorkerSupported = false;
+                    worker = null;
+                }
             }
 
             async function runMachine() {
@@ -1030,6 +1172,13 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     showPortalFallback(message, detail);
                     return;
                 }
+
+                // Show debug info on screen for troubleshooting
+                const debugDiv = document.createElement('div');
+                debugDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#000;color:#0f0;padding:4px;font:10px monospace;z-index:9999;';
+                debugDiv.textContent = `[DEBUG] secure:${window.isSecureContext} SAB:${typeof SharedArrayBuffer!=='undefined'} worker:${capability.worker} mode:${capability.worker?'worker':'inline'}`;
+                document.body.appendChild(debugDiv);
+                setTimeout(() => debugDiv.remove(), 5000);
 
                 const status = document.getElementById('status');
                 status.textContent = 'Worker status: starting...';
@@ -1129,6 +1278,28 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         progressTimer = null;
                     }
                     const failure = interpretWorkerFailure('run', e);
+                    
+                    // Create detailed error display
+                    const errorDiv = document.createElement('div');
+                    errorDiv.style.cssText = `
+                        position: fixed;
+                        top: 10px;
+                        left: 10px;
+                        right: 10px;
+                        background: #ff4444;
+                        color: white;
+                        padding: 15px;
+                        border-radius: 6px;
+                        z-index: 10001;
+                        font-family: monospace;
+                        font-size: 12px;
+                        white-space: pre-wrap;
+                        word-wrap: break-word;
+                    `;
+                    errorDiv.textContent = `ERROR:\n${failure.message}\n\nDetails: ${failure.detail}\n\nOriginal: ${e.message || e}`;
+                    document.body.appendChild(errorDiv);
+                    setTimeout(() => errorDiv.remove(), 15000);
+                    
                     if (failure.portalBlocked) {
                         fallbackDisplayed = showPortalFallback(failure.message, failure.detail);
                     } else {

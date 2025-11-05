@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Page</title>
+    <script>
+        console.log('Inline script executed');
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.innerHTML = '<h1>JavaScript Works!</h1><p>If you see this, scripts are executing.</p>';
+        });
+    </script>
+</head>
+<body>
+    <h1>Static HTML Works!</h1>
+    <p>If you see this message, the Pico is serving HTML correctly.</p>
+    <script>
+        document.body.innerHTML += '<p>Second inline script executed!</p>';
+    </script>
+</body>
+</html>

@@ -89,7 +89,7 @@ struct CaptivePortalResponse {
     location: Option<&'static str>,
 }
 
-const CAPTIVE_PORTAL_BODY: &[u8] = b"<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Busy Beaver Blaze Captive Portal</title><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>body{font-family:Arial,sans-serif;margin:0;padding:2rem;background:#f4f4f4;color:#111;text-align:center;}main{background:#fff;border-radius:8px;max-width:520px;margin:4vh auto;padding:2rem;box-shadow:0 2px 8px rgba(0,0,0,0.1);}main h1{margin-top:0;}main p{margin:0.8rem 0;line-height:1.5;}code{display:inline-block;padding:0.35rem 0.6rem;background:#f1f5f9;border-radius:4px;font-size:0.9rem;}a.button{display:inline-block;margin-top:1.2rem;padding:0.75rem 1.5rem;background:#2563eb;color:#fff;text-decoration:none;border-radius:4px;font-weight:600;}a.button:active{background:#1e40af;}footer{margin-top:1.6rem;font-size:0.85rem;color:#555;}</style></head><body><main><h1>Busy Beaver Blaze</h1><p>This sign-in window cannot run the visualization. Captive portal browsers disable WebAssembly and workers.</p><p>Open the full experience in your normal browser:</p><code>http://192.168.4.1/index.html</code><p>Copy the link above or choose the button below.</p><a class=\"button\" href=\"http://192.168.4.1/index.html\">Open in Browser</a><footer>If nothing opens automatically, close this window and visit the link manually.</footer></main></body></html>";
+const CAPTIVE_PORTAL_BODY: &[u8] = b"<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Busy Beaver Blaze Captive Portal</title><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>body{font-family:Arial,sans-serif;margin:0;padding:2rem;background:#f4f4f4;color:#111;text-align:center;}main{background:#fff;border-radius:8px;max-width:520px;margin:4vh auto;padding:2rem;box-shadow:0 2px 8px rgba(0,0,0,0.1);}main h1{margin-top:0;}main p{margin:0.8rem 0;line-height:1.5;}code{display:inline-block;padding:0.35rem 0.6rem;background:#f1f5f9;border-radius:4px;font-size:0.9rem;}a.button{display:inline-block;margin-top:1.2rem;padding:0.75rem 1.5rem;background:#2563eb;color:#fff;text-decoration:none;border-radius:4px;font-weight:600;}a.button:active{background:#1e40af;}footer{margin-top:1.6rem;font-size:0.85rem;color:#555;}ol{max-width:420px;margin:1.2rem auto;text-align:left;line-height:1.4;padding-left:1.2rem;}ol li{margin:0.35rem 0;}</style></head><body><main><h1>Busy Beaver Blaze</h1><p>This sign-in window cannot run the visualization. Captive portal browsers disable WebAssembly and workers.</p><p>To run the WASM visualizer:</p><ol><li>Choose <strong>Use network as is</strong> or dismiss this window.</li><li>Open Chrome or Firefox.</li><li>Visit <code>http://192.168.4.1/index.html</code> (tap the button below to copy the link).</li></ol><a class=\"button\" href=\"http://192.168.4.1/index.html\">Open in Browser</a><footer>If nothing opens automatically, close this window and visit the link manually.</footer></main></body></html>";
 
 const CAPTIVE_PORTAL_TEXT_BODY: &[u8] =
     b"Sign-in required. Open http://192.168.4.1/portal\r\n";
@@ -100,13 +100,7 @@ const CAPTIVE_PORTAL_REDIRECT_BODY: &[u8] =
 const PORTAL_LOCATION: &str = "http://192.168.4.1/portal";
 
 static CAPTIVE_PORTAL_RESPONSES: &[CaptivePortalResponse] = &[
-    CaptivePortalResponse {
-        path: "/",
-        status_line: "HTTP/1.1 200 OK\r\n",
-        content_type: "text/html; charset=utf-8",
-        body: CAPTIVE_PORTAL_BODY,
-        location: None,
-    },
+    // Note: "/" removed from captive responses so it serves the actual app
     CaptivePortalResponse {
         path: "/portal",
         status_line: "HTTP/1.1 200 OK\r\n",
@@ -116,23 +110,30 @@ static CAPTIVE_PORTAL_RESPONSES: &[CaptivePortalResponse] = &[
     },
     CaptivePortalResponse {
         path: "/generate_204",
-        status_line: "HTTP/1.1 200 OK\r\n",
-        content_type: "text/html; charset=utf-8",
-        body: CAPTIVE_PORTAL_BODY,
+        status_line: "HTTP/1.1 204 No Content\r\n",
+        content_type: "text/plain; charset=utf-8",
+        body: b"",
         location: None,
     },
     CaptivePortalResponse {
         path: "/gen_204",
-        status_line: "HTTP/1.1 200 OK\r\n",
-        content_type: "text/html; charset=utf-8",
-        body: CAPTIVE_PORTAL_BODY,
+        status_line: "HTTP/1.1 204 No Content\r\n",
+        content_type: "text/plain; charset=utf-8",
+        body: b"",
+        location: None,
+    },
+    CaptivePortalResponse {
+        path: "/canonical.html",
+        status_line: "HTTP/1.1 204 No Content\r\n",
+        content_type: "text/plain; charset=utf-8",
+        body: b"",
         location: None,
     },
     CaptivePortalResponse {
         path: "/hotspot-detect.html",
         status_line: "HTTP/1.1 200 OK\r\n",
         content_type: "text/html; charset=utf-8",
-        body: CAPTIVE_PORTAL_BODY,
+        body: b"<!doctype html><html><head><title>Success</title></head><body>Success</body></html>",
         location: None,
     },
     CaptivePortalResponse {
@@ -144,16 +145,23 @@ static CAPTIVE_PORTAL_RESPONSES: &[CaptivePortalResponse] = &[
     },
     CaptivePortalResponse {
         path: "/connecttest.txt",
-        status_line: "HTTP/1.1 302 Found\r\n",
+        status_line: "HTTP/1.1 200 OK\r\n",
         content_type: "text/plain; charset=utf-8",
-        body: CAPTIVE_PORTAL_MSFT_TEXT,
-        location: Some(PORTAL_LOCATION),
+        body: b"Microsoft Connect Test",
+        location: None,
     },
     CaptivePortalResponse {
         path: "/ncsi.txt",
         status_line: "HTTP/1.1 200 OK\r\n",
         content_type: "text/plain; charset=utf-8",
-        body: CAPTIVE_PORTAL_TEXT_BODY,
+        body: b"Microsoft NCSI",
+        location: None,
+    },
+    CaptivePortalResponse {
+        path: "/check_network_status.txt",
+        status_line: "HTTP/1.1 200 OK\r\n",
+        content_type: "text/plain; charset=utf-8",
+        body: b"NetworkManager is online",
         location: None,
     },
     CaptivePortalResponse {
@@ -173,6 +181,11 @@ static CAPTIVE_PORTAL_RESPONSES: &[CaptivePortalResponse] = &[
 ];
 
 static STATIC_ASSETS: &[StaticAsset] = &[
+    StaticAsset {
+        path: "/test.html",
+        content_type: "text/html; charset=utf-8",
+        body: include_bytes!("../examples/static/busy_beaver_blaze/v0.2.7/test.html"),
+    },
     StaticAsset {
         path: "/index.html",
         content_type: "text/html; charset=utf-8",
@@ -495,6 +508,7 @@ fn ensure_lease(
 struct DnsQuestion {
     len: usize,
     qtype: u16,
+    #[allow(dead_code)]
     qclass: u16,
     name: heapless::String<253>,
 }
@@ -929,6 +943,7 @@ async fn main(spawner: Spawner) -> ! {
         let mut send_body = true;
         let mut location: Option<&str> = None;
         let mut cache_control: Option<&str> = None;
+        let mut _is_captive_probe = false;
 
         if method.is_empty() {
             status_line = "HTTP/1.1 400 Bad Request\r\n";
@@ -945,6 +960,7 @@ async fn main(spawner: Spawner) -> ! {
                         body = captive.body;
                         location = captive.location;
                         cache_control = Some("no-store, max-age=0");
+                        _is_captive_probe = true;
                         info!(
                             "Captive portal response {} {}",
                             path,
@@ -982,6 +998,11 @@ async fn main(spawner: Spawner) -> ! {
         if let Some(cache) = cache_control {
             write!(&mut headers, "Cache-Control: {}\r\n", cache).unwrap();
         }
+        
+        // Note: COOP/COEP headers are NOT added because http://192.168.4.1 is not a secure context.
+        // Cross-origin isolation requires HTTPS (or localhost). The JS code detects this and uses
+        // inline WASM execution instead of workers that need SharedArrayBuffer.
+        
         if status_line.contains("405") {
             headers.push_str("Allow: GET, HEAD\r\n").unwrap();
         }
