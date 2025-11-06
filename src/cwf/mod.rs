@@ -18,5 +18,6 @@ pub use clock_state::ClockState;
 pub use clock_time::ClockTime;
 pub use hardware::Hardware;
 pub use leds::Leds;
+pub use output_array::OutputArray;
 pub use shared_constants::*;
-pub use time_sync::{TimeSync, TimeSyncNotifier};
+pub use time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
