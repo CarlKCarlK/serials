@@ -22,19 +22,28 @@
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
 use core::convert::Infallible;
+use cortex_m::peripheral::SCB;
 use defmt::{info, unwrap};
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
+use embassy_rp::flash::{Blocking, Flash};
+use embassy_time::Timer;
+use lib::credential_store::INTERNAL_FLASH_SIZE;
 use lib::{
-    Clock, ClockNotifier, Result, TimeSync, TimeSyncEvent, TimeSyncNotifier,
-    WifiMode, collect_wifi_credentials, dns_server_task,
+    Clock, ClockNotifier, Result, TimeSync, TimeSyncEvent, TimeSyncNotifier, WifiMode,
+    collect_wifi_credentials, credential_store, dns_server_task,
 };
 use panic_probe as _;
+use static_cell::StaticCell;
 
 // ============================================================================
 // Main
 // ============================================================================
+
+static FLASH_STORAGE: StaticCell<
+    Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
+> = StaticCell::new();
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -48,16 +57,27 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     // Initialize RP2040 peripherals
     let p = embassy_rp::init(Default::default());
 
+    // Prepare flash storage for WiFi credentials
+    let flash = FLASH_STORAGE.init(Flash::<_, Blocking, INTERNAL_FLASH_SIZE>::new_blocking(
+        p.FLASH,
+    ));
+    let stored_credentials = credential_store::load(&mut *flash)?;
+
     // Create Clock device (starts ticking immediately)
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
 
-    // Determine WiFi mode based on compile-time flag
-    // For now, we'll start in AP mode to demonstrate the configuration flow
-    // In a real application, you'd check if credentials are saved
-    let wifi_mode = WifiMode::AccessPoint;
-    
-    info!("Starting WiFi in AP mode for configuration...");
+    // Determine WiFi mode based on persisted credentials
+    let wifi_mode = if let Some(credentials) = stored_credentials {
+        info!(
+            "Stored WiFi credentials found for SSID: {}",
+            credentials.ssid
+        );
+        WifiMode::ClientConfigured(credentials)
+    } else {
+        info!("No stored WiFi credentials - starting configuration access point");
+        WifiMode::AccessPoint
+    };
 
     // Create TimeSync virtual device (creates WiFi internally)
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
@@ -69,24 +89,25 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         p.PIN_24,  // WiFi SPI MOSI
         p.PIN_29,  // WiFi SPI CLK
         p.DMA_CH0, // WiFi DMA channel for SPI
-        wifi_mode,
+        wifi_mode.clone(),
         spawner,
     );
 
-    if wifi_mode == WifiMode::AccessPoint {
+    if matches!(wifi_mode, WifiMode::AccessPoint) {
+        info!("Starting WiFi in AP mode for configuration...");
         info!("WiFi AP mode - starting HTTP configuration server...");
-        
+
         // Wait for WiFi stack to be ready
         let stack = time_sync.wifi().stack().await;
         info!("Network stack available for AP mode");
-        
+
         // Spawn DNS server for captive portal detection
         // This makes Android/iOS show "Sign in to network" notification
         let ap_ip = embassy_net::Ipv4Address::new(192, 168, 4, 1);
         let dns_token = unwrap!(dns_server_task(stack, ap_ip));
         spawner.spawn(dns_token);
         info!("DNS server started - captive portal detection enabled");
-        
+
         info!("Collecting WiFi credentials from web interface...");
         info!("Connect to WiFi 'PicoConfig' and open browser to http://192.168.4.1");
         info!("(Android/iOS should show 'Sign in to network' notification)");
@@ -95,27 +116,25 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         info!("WAITING FOR CONFIGURATION");
         info!("==========================================================");
         info!("");
-        
+
         // Collect credentials from user via web interface
         let credentials = collect_wifi_credentials(stack, spawner).await?;
-        
+
         info!("==========================================================");
         info!("CREDENTIALS RECEIVED!");
         info!("==========================================================");
         info!("SSID: {}", credentials.ssid);
         info!("Password: [hidden]");
         info!("");
-        info!("To connect to this network:");
-        info!("1. Set environment variables in .env file:");
-        info!("   WIFI_SSID=\"{}\"", credentials.ssid);
-        info!("   WIFI_PASS=\"<your password>\"");
-        info!("2. Power cycle the device to restart in client mode");
-        info!("");
-        info!("TODO: Implement automatic mode switching without restart");
+        info!("Persisting credentials to flash storage...");
+        credential_store::save(&mut *flash, &credentials)?;
+        info!("Device will reboot and connect using the stored credentials.");
         info!("==========================================================");
-        
-        // For now, just stay in AP mode
-        // TODO: Switch to client mode without restart
+
+        Timer::after_millis(750).await;
+        SCB::sys_reset();
+    } else {
+        info!("Using stored WiFi credentials - starting client mode directly");
     }
 
     info!("WiFi and time sync initialized, waiting for events...");

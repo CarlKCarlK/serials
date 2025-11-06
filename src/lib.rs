@@ -6,6 +6,12 @@ mod button;
 mod char_lcd;
 pub mod clock;
 pub mod clock_4led;
+#[cfg(feature = "wifi")]
+pub mod credential_store;
+#[cfg(feature = "wifi")]
+mod dhcp_server;
+#[cfg(feature = "wifi")]
+mod dns_server;
 mod error;
 mod ir_nec;
 pub mod led_24x4;
@@ -20,19 +26,19 @@ pub mod unix_seconds;
 pub mod wifi;
 #[cfg(feature = "wifi")]
 pub mod wifi_config;
-#[cfg(feature = "wifi")]
-mod dhcp_server;
-#[cfg(feature = "wifi")]
-mod dns_server;
 // Re-export commonly used items
-pub use button::{Button, PressDuration, BUTTON_DEBOUNCE_DELAY, LONG_PRESS_DURATION};
+pub use button::{BUTTON_DEBOUNCE_DELAY, Button, LONG_PRESS_DURATION, PressDuration};
 pub use char_lcd::{CharLcd, CharLcdMessage, CharLcdNotifier};
 pub use clock::{Clock, ClockCommand, ClockEvent, ClockNotifier, ClockState};
-pub use clock_4led::{Clock4Led, Clock4LedNotifier, ClockCommand as Clock4LedCommand, ClockState as Clock4LedState};
+pub use clock_4led::{
+    Clock4Led, Clock4LedNotifier, ClockCommand as Clock4LedCommand, ClockState as Clock4LedState,
+};
+#[cfg(feature = "wifi")]
+pub use dns_server::dns_server_task;
 pub use error::{Error, Result};
 pub use ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
+pub use led_4seg::{BlinkState, Led4Seg, Led4SegNotifier, OutputArray, Text as Led4SegText};
 pub use led_24x4::Led24x4;
-pub use led_4seg::{Led4Seg, Led4SegNotifier, BlinkState, Text as Led4SegText, OutputArray};
 pub use led_strip::{LedStrip, LedStripNotifier, PioBus, Rgb};
 pub use rfid::{Rfid, RfidEvent, RfidNotifier};
 pub use servo::Servo;
@@ -43,9 +49,7 @@ pub use unix_seconds::UnixSeconds;
 #[cfg(feature = "wifi")]
 pub use wifi::{Wifi, WifiEvent, WifiMode, WifiNotifier};
 #[cfg(feature = "wifi")]
-pub use wifi_config::{collect_wifi_credentials, http_config_server_task, WifiCredentials};
-#[cfg(feature = "wifi")]
-pub use dns_server::dns_server_task;
+pub use wifi_config::{WifiCredentials, collect_wifi_credentials, http_config_server_task};
 
 // Re-export macros (they're already at crate root due to #[macro_export])
 // define_led_strips is available as lib::define_led_strips!

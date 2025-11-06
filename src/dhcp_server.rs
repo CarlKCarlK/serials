@@ -5,7 +5,10 @@
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
 use defmt::*;
-use embassy_net::{Ipv4Address, Stack, udp::{self, UdpSocket}};
+use embassy_net::{
+    Ipv4Address, Stack,
+    udp::{self, UdpSocket},
+};
 use embassy_time::{Duration, Instant};
 
 const DHCP_SERVER_PORT: u16 = 67;
@@ -317,10 +320,15 @@ pub async fn dhcp_server_task(
             continue;
         };
 
-        debug!("DHCP {:?} from {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
+        debug!(
+            "DHCP {:?} from {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
             message.msg_type,
-            message.client_mac[0], message.client_mac[1], message.client_mac[2],
-            message.client_mac[3], message.client_mac[4], message.client_mac[5]
+            message.client_mac[0],
+            message.client_mac[1],
+            message.client_mac[2],
+            message.client_mac[3],
+            message.client_mac[4],
+            message.client_mac[5]
         );
 
         if matches!(message.msg_type, DhcpMessageType::Request)
@@ -366,7 +374,10 @@ pub async fn dhcp_server_task(
         };
 
         let broadcast_addr = (broadcast_ip, 68);
-        if let Err(err) = socket.send_to(&response[..response_len], broadcast_addr).await {
+        if let Err(err) = socket
+            .send_to(&response[..response_len], broadcast_addr)
+            .await
+        {
             warn!("DHCP send error: {:?}", err);
         } else {
             debug!("DHCP offered {} to client", offer_ip);

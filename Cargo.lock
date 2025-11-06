@@ -227,6 +227,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crc32fast"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9481c1c90cbf2ac953f07c8d4a58aa3945c425b7185c9154d67a65e4230da511"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "critical-section"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -577,7 +586,7 @@ dependencies = [
 [[package]]
 name = "embassy-sync"
 version = "0.7.2"
-source = "git+https://github.com/embassy-rs/embassy?branch=main#05663c231ebd82af0491dfb9d418fd0566cb02ff"
+source = "git+https://github.com/embassy-rs/embassy?branch=main#d4d961e0a9d31967fc57556986ba2331a30ba63f"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -1653,6 +1662,7 @@ version = "0.0.1"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
+ "crc32fast",
  "critical-section",
  "cyw43",
  "cyw43-firmware",

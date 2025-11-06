@@ -55,6 +55,7 @@ time = { version = "0.3", default-features = false }
 rp235x-hal = { git = "https://github.com/rp-rs/rp-hal", branch = "main", package = "rp235x-hal", features = ["rt"], optional = true }
 smart-leds = "0.4.0"
 itertools = { version = "0.13.0", default-features = false }
+crc32fast = { version = "1.4.0", default-features = false }
 critical-section = { version = "1.2.0", features = ["restore-state-u8"] }
 embedded-hal = "1.0.0"
 embedded-hal-async = "1.0.0"

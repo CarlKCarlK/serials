@@ -64,7 +64,7 @@ impl TimeSync {
     }
 
     /// Create a new TimeSync device (creates WiFi internally) and spawn its task
-    /// 
+    ///
     /// # Arguments
     /// * `mode` - WiFi mode (AccessPoint or Client)
     pub fn new(
@@ -100,7 +100,7 @@ impl TimeSync {
             wifi,
         })
     }
-    
+
     /// Get reference to WiFi device (useful for AP mode configuration)
     pub fn wifi(&self) -> &'static Wifi {
         self.wifi
@@ -128,7 +128,7 @@ async fn inner_time_sync_device_loop(
 
     // Wait for WiFi to be ready and get the stack
     let stack = wifi.stack().await;
-    
+
     // Check what kind of WiFi event we got
     let wifi_event = wifi.wait().await;
     match wifi_event {
@@ -144,7 +144,7 @@ async fn inner_time_sync_device_loop(
             info!("TimeSync: WiFi in client mode - starting NTP sync");
         }
     }
-    
+
     info!("TimeSync received network stack");
 
     info!("TimeSync device started");

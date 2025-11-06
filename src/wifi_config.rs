@@ -25,7 +25,7 @@ use crate::Result;
 // ============================================================================
 
 /// WiFi credentials collected from user
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WifiCredentials {
     pub ssid: heapless::String<32>,
     pub password: heapless::String<64>,
@@ -54,16 +54,16 @@ pub async fn collect_wifi_credentials(
     spawner: embassy_executor::Spawner,
 ) -> Result<WifiCredentials> {
     info!("Starting credential collection...");
-    
+
     // Spawn the HTTP server task
     let token = unwrap!(http_config_server_task(stack));
     spawner.spawn(token);
     info!("HTTP configuration task spawned");
-    
+
     // Wait for credentials to be submitted
     info!("Waiting for user to submit credentials via web interface...");
     let credentials = CREDENTIAL_CHANNEL.receive().await;
-    
+
     info!("Credentials received!");
     Ok(credentials)
 }
@@ -73,12 +73,12 @@ pub async fn collect_wifi_credentials(
 // ============================================================================
 
 /// HTTP server task for WiFi configuration
-/// 
+///
 /// Serves a simple configuration page and accepts WiFi credentials via POST
 #[embassy_executor::task]
 pub async fn http_config_server_task(stack: &'static Stack<'static>) -> ! {
     info!("HTTP config server starting on port 80");
-    
+
     let mut rx_buffer = [0u8; 2048];
     let mut tx_buffer = [0u8; 4096];
     let mut request = [0u8; 1024];
@@ -131,10 +131,10 @@ pub async fn http_config_server_task(stack: &'static Stack<'static>) -> ! {
                 info!("Received WiFi credentials:");
                 info!("  SSID: {}", credentials.ssid);
                 info!("  Password: [hidden]");
-                
+
                 // Send credentials through channel
                 CREDENTIAL_CHANNEL.send(credentials).await;
-                
+
                 generate_success_page()
             } else {
                 warn!("Failed to parse credentials");
@@ -147,7 +147,7 @@ pub async fn http_config_server_task(stack: &'static Stack<'static>) -> ! {
         if let Err(e) = socket.write_all(response.as_bytes()).await {
             warn!("Write error: {:?}", e);
         }
-        
+
         let _ = socket.flush().await;
         socket.close();
         Timer::after_millis(100).await;

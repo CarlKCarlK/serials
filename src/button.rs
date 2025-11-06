@@ -1,7 +1,7 @@
 //! Button virtual device - handles button press detection and debouncing
 
 use defmt::info;
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{Either, select};
 use embassy_rp::gpio::Input;
 use embassy_time::{Duration, Timer};
 

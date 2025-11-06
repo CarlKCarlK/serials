@@ -7,14 +7,14 @@ use core::num::NonZeroU8;
 use core::ops::{BitOrAssign, Index, IndexMut};
 use defmt::{info, unwrap};
 use embassy_executor::{SpawnError, Spawner};
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{Either, select};
 use embassy_rp::gpio::{self, Level};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Timer};
 use heapless::{LinearMap, Vec};
 
-use crate::error::Error::{self, IndexOutOfBounds};
 use crate::Result;
+use crate::error::Error::{self, IndexOutOfBounds};
 
 // ============================================================================
 // Constants
@@ -87,13 +87,39 @@ impl Leds {
     /// ASCII table mapping characters to their 7-segment display representations.
     pub const ASCII_TABLE: [u8; 128] = [
         // Control characters (0-31) + space (32)
-        0b_0000_0000, 0b_0000_0000, 0b_0000_0000, 0b_0000_0000, 0b_0000_0000,
-        0b_0000_0000, 0b_0000_0000, 0b_0000_0000, 0b_0000_0000, 0b_0000_0000,
-        0b_0000_0000, 0b_0000_0000, 0b_0000_0000, 0b_0000_0000, 0b_0000_0000,
-        0b_0000_0000, 0b_0000_0000, 0b_0000_0000, 0b_0000_0000, 0b_0000_0000,
-        0b_0000_0000, 0b_0000_0000, 0b_0000_0000, 0b_0000_0000, 0b_0000_0000,
-        0b_0000_0000, 0b_0000_0000, 0b_0000_0000, 0b_0000_0000, 0b_0000_0000,
-        0b_0000_0000, 0b_0000_0000, 0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
+        0b_0000_0000,
         // Symbols (33-47)
         0b_1000_0110, // !
         0b_0000_0000, // "
@@ -255,11 +281,9 @@ impl BitMatrix {
         for (&bits, index) in self.iter().zip(0..CELL_COUNT_U8) {
             if let Some(nonzero_bits) = NonZeroU8::new(bits) {
                 if let Some(vec) = bits_to_index.get_mut(&nonzero_bits) {
-                    vec.push(index)
-                        .map_err(|_| Error::BitsToIndexesFull)?;
+                    vec.push(index).map_err(|_| Error::BitsToIndexesFull)?;
                 } else {
-                    let vec = Vec::from_slice(&[index])
-                        .map_err(|_| Error::BitsToIndexesFull)?;
+                    let vec = Vec::from_slice(&[index]).map_err(|_| Error::BitsToIndexesFull)?;
                     bits_to_index
                         .insert(nonzero_bits, vec)
                         .map_err(|_| Error::BitsToIndexesFull)?;
@@ -524,8 +548,7 @@ async fn display_with_timeout(
     match bits_to_indexes.iter().next() {
         None => {
             // Display is empty, just wait for timeout
-            if let Either::First(new_state) = select(notifier.wait(), Timer::after(timeout)).await
-            {
+            if let Either::First(new_state) = select(notifier.wait(), Timer::after(timeout)).await {
                 Some(new_state)
             } else {
                 None

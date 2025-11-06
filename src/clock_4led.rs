@@ -6,12 +6,12 @@
 use core::ops::AddAssign;
 use defmt::{info, unwrap};
 use embassy_executor::{SpawnError, Spawner};
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Instant, Timer};
 
-use crate::led_4seg::{BlinkState, Led4Seg, Text};
 use crate::UnixSeconds;
+use crate::led_4seg::{BlinkState, Led4Seg, Text};
 
 // ============================================================================
 // Constants
@@ -69,9 +69,9 @@ impl ClockState {
         button: &mut crate::Button<'_>,
         time_sync: &crate::TimeSync,
     ) -> Self {
-        use embassy_futures::select::{select, Either};
         use crate::PressDuration;
-        
+        use embassy_futures::select::{Either, select};
+
         match select(button.press_duration(), time_sync.wait()).await {
             Either::First(PressDuration::Short) => Self::MinutesSeconds,
             Either::First(PressDuration::Long) => Self::EditUtcOffset,
@@ -88,9 +88,9 @@ impl ClockState {
         button: &mut crate::Button<'_>,
         time_sync: &crate::TimeSync,
     ) -> Self {
-        use embassy_futures::select::{select, Either};
         use crate::PressDuration;
-        
+        use embassy_futures::select::{Either, select};
+
         match select(button.press_duration(), time_sync.wait()).await {
             Either::First(PressDuration::Short) => Self::HoursMinutes,
             Either::First(PressDuration::Long) => Self::EditUtcOffset,
@@ -107,7 +107,7 @@ impl ClockState {
         button: &mut crate::Button<'_>,
     ) -> Self {
         use crate::PressDuration;
-        
+
         match button.press_duration().await {
             PressDuration::Short => {
                 clock.adjust_utc_offset_hours(1).await;
@@ -119,10 +119,13 @@ impl ClockState {
 
     async fn handle_time_sync_event(clock: &Clock4Led<'_>, event: crate::TimeSyncEvent) {
         use defmt::info;
-        
+
         match event {
             crate::TimeSyncEvent::Success { unix_seconds } => {
-                info!("Time sync success: setting clock to {}", unix_seconds.as_i64());
+                info!(
+                    "Time sync success: setting clock to {}",
+                    unix_seconds.as_i64()
+                );
                 clock.set_time_from_unix(unix_seconds).await;
             }
             crate::TimeSyncEvent::Failed(msg) => {
@@ -197,11 +200,7 @@ const fn tens_digit(value: u8) -> char {
 #[inline]
 const fn tens_hours(value: u8) -> char {
     debug_assert!(1 <= value && value <= 12);
-    if value >= 10 {
-        '1'
-    } else {
-        ' '
-    }
+    if value >= 10 { '1' } else { ' ' }
 }
 
 #[expect(
@@ -252,7 +251,8 @@ impl ClockTime {
         let millis_since_midnight = seconds_since_midnight * 1000;
 
         let current_instant_ticks = Instant::now().as_ticks() % TICKS_IN_ONE_DAY;
-        let target_ticks = Duration::from_millis(millis_since_midnight).as_ticks() % TICKS_IN_ONE_DAY;
+        let target_ticks =
+            Duration::from_millis(millis_since_midnight).as_ticks() % TICKS_IN_ONE_DAY;
 
         let offset_ticks = if target_ticks >= current_instant_ticks {
             target_ticks - current_instant_ticks
@@ -465,9 +465,7 @@ impl Clock4Led<'_> {
 
     /// Adjusts the UTC offset by the given number of hours.
     pub async fn adjust_utc_offset_hours(&self, hours: i32) {
-        self.0
-            .send(ClockCommand::AdjustUtcOffsetHours(hours))
-            .await;
+        self.0.send(ClockCommand::AdjustUtcOffsetHours(hours)).await;
     }
 }
 
@@ -490,7 +488,7 @@ async fn clock_4led_device_loop(
         led_display.write_text(blink_mode, text);
 
         info!("Sleep for {:?}", sleep_duration);
-        
+
         // Sleep or wait for command
         if let Either::First(command) =
             select(notifier.receive(), Timer::after(sleep_duration)).await

@@ -5,7 +5,10 @@
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
 use defmt::*;
-use embassy_net::{Ipv4Address, Stack, udp::{self, UdpSocket}};
+use embassy_net::{
+    Ipv4Address, Stack,
+    udp::{self, UdpSocket},
+};
 
 const DNS_SERVER_PORT: u16 = 53;
 
@@ -57,7 +60,7 @@ pub async fn dns_server_task(stack: &'static Stack<'static>, answer_ip: Ipv4Addr
         response[7] = 0x01;
 
         let mut pos = len;
-        
+
         // Add answer record
         // NAME: pointer to question name
         if pos + 16 <= response.len() {

@@ -38,6 +38,14 @@ pub enum Error {
 
     #[display("Format error")]
     FormatError,
+
+    #[cfg(feature = "wifi")]
+    #[display("Flash operation failed: {_0:?}")]
+    Flash(#[error(not(source))] embassy_rp::flash::Error),
+
+    #[cfg(feature = "wifi")]
+    #[display("WiFi credential storage is invalid")]
+    CredentialStorageCorrupted,
 }
 
 impl From<Infallible> for Error {

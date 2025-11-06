@@ -1,5 +1,5 @@
 //! WiFi virtual device - manages WiFi connection and network stack
-//! 
+//!
 //! Supports two modes:
 //! 1. AP Mode: Start as access point for configuration
 //! 2. Client Mode: Connect to existing WiFi network
@@ -26,8 +26,8 @@ use embassy_time::Timer;
 use portable_atomic::{AtomicBool, Ordering};
 use static_cell::StaticCell;
 
-use crate::wifi_config::WifiCredentials;
 use crate::dhcp_server::dhcp_server_task;
+use crate::wifi_config::WifiCredentials;
 
 // ============================================================================
 // Types
@@ -42,12 +42,14 @@ pub enum WifiEvent {
 }
 
 /// WiFi operating mode
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum WifiMode {
     /// Start in AP mode for configuration (no credentials needed)
     AccessPoint,
-    /// Connect to existing WiFi network (requires credentials from env vars)
-    Client,
+    /// Connect to existing WiFi network with compile-time credentials
+    ClientStatic,
+    /// Connect to WiFi network using runtime-provided credentials
+    ClientConfigured(WifiCredentials),
 }
 
 /// Single-threaded once-storage for network stack
@@ -77,7 +79,7 @@ impl StackStorage {
     pub fn init(&self, stack: &'static Stack<'static>) {
         // SAFETY: This is called once from WiFi device loop
         unsafe {
-            *self.value.get() = Some(stack);  
+            *self.value.get() = Some(stack);
         }
         self.initialized.store(true, Ordering::Release);
         self.ready.signal(());
@@ -135,7 +137,7 @@ impl Wifi {
 
     /// Create a new Wifi device and spawn its task
     /// Returns a static reference to the Wifi handle
-    /// 
+    ///
     /// # Arguments
     /// * `mode` - WiFi mode (AccessPoint or Client)
     pub fn new(
@@ -167,7 +169,7 @@ impl Wifi {
             stack: &resources.stack,
         })
     }
-    
+
     /// Reconfigure WiFi to client mode with provided credentials
     /// This is called after collecting credentials in AP mode
     pub async fn switch_to_client_mode(
@@ -201,15 +203,46 @@ async fn wifi_device_loop(
     match mode {
         WifiMode::AccessPoint => {
             wifi_device_loop_ap(
-                pin_23, pin_25, pio0, pin_24, pin_29, dma_ch0,
-                wifi_events, stack_storage, spawner,
-            ).await
+                pin_23,
+                pin_25,
+                pio0,
+                pin_24,
+                pin_29,
+                dma_ch0,
+                wifi_events,
+                stack_storage,
+                spawner,
+            )
+            .await
         }
-        WifiMode::Client => {
-            wifi_device_loop_client(
-                pin_23, pin_25, pio0, pin_24, pin_29, dma_ch0,
-                wifi_events, stack_storage, spawner,
-            ).await
+        WifiMode::ClientStatic => {
+            wifi_device_loop_client_static(
+                pin_23,
+                pin_25,
+                pio0,
+                pin_24,
+                pin_29,
+                dma_ch0,
+                wifi_events,
+                stack_storage,
+                spawner,
+            )
+            .await
+        }
+        WifiMode::ClientConfigured(credentials) => {
+            wifi_device_loop_client_configured(
+                pin_23,
+                pin_25,
+                pio0,
+                pin_24,
+                pin_29,
+                dma_ch0,
+                wifi_events,
+                stack_storage,
+                spawner,
+                credentials,
+            )
+            .await
         }
     }
 }
@@ -260,18 +293,17 @@ async fn wifi_device_loop_ap(
     // Start AP mode
     const AP_SSID: &str = "PicoConfig";
     const AP_PASSWORD: &str = ""; // Open network
-    
+
     info!("Starting AP mode: {}", AP_SSID);
-    
+
     // Configure static IP for AP mode (we are the gateway)
     let config = Config::ipv4_static(embassy_net::StaticConfigV4 {
         address: embassy_net::Ipv4Cidr::new(embassy_net::Ipv4Address::new(192, 168, 4, 1), 24),
         gateway: Some(embassy_net::Ipv4Address::new(192, 168, 4, 1)),
-        dns_servers: heapless::Vec::from_slice(&[
-            embassy_net::Ipv4Address::new(192, 168, 4, 1),
-        ]).unwrap(),
+        dns_servers: heapless::Vec::from_slice(&[embassy_net::Ipv4Address::new(192, 168, 4, 1)])
+            .unwrap(),
     });
-    
+
     let seed = 0x0bad_cafe_dead_beef;
 
     static RESOURCES: StaticCell<StackResources<5>> = StaticCell::new();
@@ -295,7 +327,7 @@ async fn wifi_device_loop_ap(
     }
 
     info!("AP mode started! SSID: {}", AP_SSID);
-    
+
     stack.wait_config_up().await;
 
     if let Some(config) = stack.config_v4() {
@@ -307,16 +339,12 @@ async fn wifi_device_loop_ap(
     let netmask = embassy_net::Ipv4Address::new(255, 255, 255, 0);
     let pool_start = embassy_net::Ipv4Address::new(192, 168, 4, 2);
     let pool_size = 253; // 192.168.4.2 - 192.168.4.254
-    
+
     let dhcp_token = unwrap!(dhcp_server_task(
-        stack,
-        server_ip,
-        netmask,
-        pool_start,
-        pool_size,
+        stack, server_ip, netmask, pool_start, pool_size,
     ));
     spawner.spawn(dhcp_token);
-    
+
     info!("DHCP server started (pool: 192.168.4.2-254)");
     info!("WiFi AP ready - connect to '{}'", AP_SSID);
 
@@ -330,8 +358,8 @@ async fn wifi_device_loop_ap(
     }
 }
 
-/// WiFi device loop for client mode (original implementation)
-async fn wifi_device_loop_client(
+/// WiFi device loop for client mode with compile-time credentials
+async fn wifi_device_loop_client_static(
     pin_23: Peri<'static, PIN_23>,
     pin_25: Peri<'static, PIN_25>,
     pio0: Peri<'static, PIO0>,
@@ -342,11 +370,79 @@ async fn wifi_device_loop_client(
     stack_storage: &'static StackStorage,
     spawner: Spawner,
 ) -> ! {
-    // Read WiFi credentials from compile-time environment
     const WIFI_SSID: &str = env!("WIFI_SSID");
     const WIFI_PASS: &str = env!("WIFI_PASS");
 
+    let mut ssid = heapless::String::<32>::new();
+    let mut password = heapless::String::<64>::new();
+    unwrap!(ssid.push_str(WIFI_SSID));
+    unwrap!(password.push_str(WIFI_PASS));
+
+    wifi_device_loop_client_impl(
+        pin_23,
+        pin_25,
+        pio0,
+        pin_24,
+        pin_29,
+        dma_ch0,
+        wifi_events,
+        stack_storage,
+        spawner,
+        ssid,
+        password,
+    )
+    .await
+}
+
+/// WiFi device loop for client mode with runtime credentials
+async fn wifi_device_loop_client_configured(
+    pin_23: Peri<'static, PIN_23>,
+    pin_25: Peri<'static, PIN_25>,
+    pio0: Peri<'static, PIO0>,
+    pin_24: Peri<'static, PIN_24>,
+    pin_29: Peri<'static, PIN_29>,
+    dma_ch0: Peri<'static, DMA_CH0>,
+    wifi_events: &'static WifiEvents,
+    stack_storage: &'static StackStorage,
+    spawner: Spawner,
+    credentials: WifiCredentials,
+) -> ! {
+    let WifiCredentials { ssid, password } = credentials;
+
+    wifi_device_loop_client_impl(
+        pin_23,
+        pin_25,
+        pio0,
+        pin_24,
+        pin_29,
+        dma_ch0,
+        wifi_events,
+        stack_storage,
+        spawner,
+        ssid,
+        password,
+    )
+    .await
+}
+
+/// Shared client-mode implementation.
+async fn wifi_device_loop_client_impl(
+    pin_23: Peri<'static, PIN_23>,
+    pin_25: Peri<'static, PIN_25>,
+    pio0: Peri<'static, PIO0>,
+    pin_24: Peri<'static, PIN_24>,
+    pin_29: Peri<'static, PIN_29>,
+    dma_ch0: Peri<'static, DMA_CH0>,
+    wifi_events: &'static WifiEvents,
+    stack_storage: &'static StackStorage,
+    spawner: Spawner,
+    ssid: heapless::String<32>,
+    password: heapless::String<64>,
+) -> ! {
     info!("WiFi device initializing in client mode");
+
+    let ssid_str = ssid;
+    let password_str = password;
 
     // Initialize WiFi hardware
     let fw = cyw43_firmware::CYW43_43439A0;
@@ -395,10 +491,10 @@ async fn wifi_device_loop_client(
     spawner.spawn(net_token);
 
     // Connect to WiFi
-    info!("Connecting to WiFi: {}", WIFI_SSID);
+    info!("Connecting to WiFi: {}", ssid_str);
     loop {
         match control
-            .join(WIFI_SSID, JoinOptions::new(WIFI_PASS.as_bytes()))
+            .join(ssid_str.as_str(), JoinOptions::new(password_str.as_bytes()))
             .await
         {
             Ok(_) => break,
