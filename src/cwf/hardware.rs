@@ -1,6 +1,6 @@
 use embassy_rp::{
-    gpio::{self, Level},
     Peripherals,
+    gpio::{self, Level},
 };
 
 use crate::cwf::output_array::OutputArray;

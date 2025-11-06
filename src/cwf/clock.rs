@@ -1,6 +1,6 @@
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Timer};
 
@@ -52,14 +52,14 @@ impl Clock<'_> {
     }
 
     pub(crate) async fn adjust_utc_offset_hours(&self, hours: i32) {
-        self.0
-            .send(ClockNotice::AdjustUtcOffsetHours(hours))
-            .await;
+        self.0.send(ClockNotice::AdjustUtcOffsetHours(hours)).await;
     }
 
     /// Display the completion message for flash-clearing workflows.
     pub async fn show_clearing_done(&self) {
-        self.0.send(ClockNotice::SetState(ClockState::ClearingDone)).await;
+        self.0
+            .send(ClockNotice::SetState(ClockState::ClearingDone))
+            .await;
     }
 
     /// Display the access point setup prompt while waiting for credentials.
@@ -106,10 +106,7 @@ impl ClockNotice {
 }
 
 #[embassy_executor::task]
-async fn device_loop(
-    clock_notifier: &'static ClockOuterNotifier,
-    blinker: Blinker<'static>,
-) -> ! {
+async fn device_loop(clock_notifier: &'static ClockOuterNotifier, blinker: Blinker<'static>) -> ! {
     let mut clock_time = ClockTime::default();
     let mut clock_state = ClockState::default();
 

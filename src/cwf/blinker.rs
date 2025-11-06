@@ -1,8 +1,8 @@
+use crate::Result;
 use crate::cwf::blink_state::BlinkState;
 use crate::cwf::display::{Display, DisplayNotifier};
 use crate::cwf::output_array::OutputArray;
 use crate::cwf::shared_constants::{CELL_COUNT, SEGMENT_COUNT};
-use crate::Result;
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
@@ -48,7 +48,7 @@ async fn device_loop(
 ) -> ! {
     let mut blink_state = BlinkState::default();
     let mut text = [' '; CELL_COUNT];
-    #[expect(clippy::shadow_unrelated, reason = "False positive; not shadowing")] 
+    #[expect(clippy::shadow_unrelated, reason = "False positive; not shadowing")]
     loop {
         (blink_state, text) = blink_state.execute(outer_notifier, &display, text).await;
     }

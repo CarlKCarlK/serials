@@ -71,7 +71,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         ..
     } = peripherals;
 
-    let flash = FLASH_STORAGE.init(Flash::<_, Blocking, INTERNAL_FLASH_SIZE>::new_blocking(FLASH));
+    let flash = FLASH_STORAGE.init(Flash::<_, Blocking, INTERNAL_FLASH_SIZE>::new_blocking(
+        FLASH,
+    ));
     let stored_credentials = credential_store::load(&mut *flash)?;
     let stored_offset = load_timezone_offset(&mut *flash)?.unwrap_or(0);
     set_initial_utc_offset_minutes(stored_offset);
@@ -102,7 +104,10 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let mut button = Button::new(gpio::Input::new(PIN_13, gpio::Pull::Down));
 
     let wifi_mode = if let Some(credentials) = stored_credentials {
-        info!("Stored Wi-Fi credentials found for SSID: {}", credentials.ssid);
+        info!(
+            "Stored Wi-Fi credentials found for SSID: {}",
+            credentials.ssid
+        );
         WifiMode::ClientConfigured(credentials)
     } else {
         info!("No stored Wi-Fi credentials - starting configuration access point");
@@ -136,8 +141,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         let submission = collect_wifi_credentials(stack, spawner).await?;
         info!(
             "Credentials received for SSID: {} (offset {} minutes)",
-            submission.credentials.ssid,
-            submission.timezone_offset_minutes
+            submission.credentials.ssid, submission.timezone_offset_minutes
         );
 
         credential_store::save(&mut *flash, &submission.credentials)?;
@@ -151,7 +155,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("Wi-Fi ready; awaiting time synchronisation events");
 
     let mut persisted_offset = stored_offset;
-    let mut state = ClockState::default();
+    let mut state = if matches!(wifi_mode, WifiMode::AccessPoint) {
+        ClockState::default()
+    } else {
+        ClockState::Connecting
+    };
+
     loop {
         info!("State: {:?}", state);
         state = state.execute(&mut clock, &mut button, time_sync).await;

@@ -1,5 +1,5 @@
-use crate::error::Error::IndexOutOfBounds;
 use crate::Result;
+use crate::error::Error::IndexOutOfBounds;
 use core::num::NonZeroU8;
 use embassy_rp::gpio::{self, Level};
 

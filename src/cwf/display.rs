@@ -1,13 +1,13 @@
 use core::convert::Infallible;
 
+use crate::Result;
+use crate::cwf::Leds;
 use crate::cwf::bit_matrix::BitMatrix;
 use crate::cwf::output_array::OutputArray;
 use crate::cwf::shared_constants::{BitsToIndexes, CELL_COUNT, MULTIPLEX_SLEEP, SEGMENT_COUNT};
-use crate::cwf::Leds;
-use crate::Result;
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{Either, select};
 use embassy_rp::gpio::Level;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;

@@ -49,7 +49,8 @@ impl ClockTime {
         let millis_since_midnight = seconds_since_midnight * 1000;
 
         let current_instant_ticks = Instant::now().as_ticks() % TICKS_IN_ONE_DAY;
-        let target_ticks = Duration::from_millis(millis_since_midnight).as_ticks() % TICKS_IN_ONE_DAY;
+        let target_ticks =
+            Duration::from_millis(millis_since_midnight).as_ticks() % TICKS_IN_ONE_DAY;
 
         let offset_ticks = if target_ticks >= current_instant_ticks {
             target_ticks - current_instant_ticks

@@ -1,13 +1,13 @@
-pub mod shared_constants;
-pub mod output_array;
 pub mod bit_matrix;
-pub mod display;
 pub mod blink_state;
 pub mod blinker;
-pub mod clock_time;
-pub mod clock_state;
 pub mod clock;
+pub mod clock_state;
+pub mod clock_time;
+pub mod display;
 pub mod hardware;
+pub mod output_array;
+pub mod shared_constants;
 pub mod time_sync;
 
 pub use crate::led_4seg::Leds;

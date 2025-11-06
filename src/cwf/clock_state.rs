@@ -3,13 +3,14 @@ use crate::cwf::clock::Clock;
 use crate::cwf::time_sync::{TimeSync, TimeSyncEvent};
 use crate::cwf::{BlinkState, ClockTime, ONE_MINUTE, ONE_SECOND};
 use defmt::info;
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{Either, select};
 use embassy_time::Duration;
 
 #[derive(Debug, defmt::Format, Clone, Copy, Default)]
 pub enum ClockState {
     #[default]
     HoursMinutes,
+    Connecting,
     MinutesSeconds,
     EditUtcOffset,
     ConfirmClear(ConfirmClearChoice),
@@ -42,6 +43,7 @@ impl ClockState {
     ) -> Self {
         match self {
             Self::HoursMinutes => self.execute_hours_minutes(clock, button, time_sync).await,
+            Self::Connecting => self.execute_connecting(clock, time_sync).await,
             Self::MinutesSeconds => self.execute_minutes_seconds(clock, button, time_sync).await,
             Self::EditUtcOffset => self.execute_edit_utc_offset(clock, button).await,
             Self::ConfirmClear(selection) => {
@@ -56,6 +58,7 @@ impl ClockState {
     pub(crate) fn render(self, clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         match self {
             Self::HoursMinutes => Self::render_hours_minutes(clock_time),
+            Self::Connecting => Self::render_connecting(),
             Self::MinutesSeconds => Self::render_minutes_seconds(clock_time),
             Self::EditUtcOffset => Self::render_edit_utc_offset(clock_time),
             Self::ConfirmClear(selection) => Self::render_confirm_clear(selection),
@@ -63,6 +66,14 @@ impl ClockState {
             Self::ClearingDone => Self::render_clearing_done(),
             Self::AccessPointSetup => Self::render_access_point_setup(),
         }
+    }
+
+    async fn execute_connecting(self, clock: &Clock<'_>, time_sync: &TimeSync) -> Self {
+        clock.set_state(self).await;
+        let event = time_sync.wait().await;
+        let success = matches!(event, TimeSyncEvent::Success { .. });
+        Self::handle_time_sync_event(clock, event).await;
+        if success { Self::HoursMinutes } else { self }
     }
 
     async fn execute_hours_minutes(
@@ -168,6 +179,14 @@ impl ClockState {
                 ones_digit(minutes),
             ],
             sleep_duration,
+        )
+    }
+
+    fn render_connecting() -> (BlinkState, [char; 4], Duration) {
+        (
+            BlinkState::BlinkingAndOn,
+            ['C', 'O', 'n', 'n'],
+            Duration::from_millis(400),
         )
     }
 

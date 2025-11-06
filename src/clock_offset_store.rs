@@ -2,8 +2,8 @@
 #![cfg(feature = "wifi")]
 
 use crc32fast::Hasher;
-use embassy_rp::flash::{Blocking, Flash, ERASE_SIZE};
 use embassy_rp::flash::Instance;
+use embassy_rp::flash::{Blocking, ERASE_SIZE, Flash};
 
 use crate::credential_store::INTERNAL_FLASH_SIZE;
 use crate::{Error, Result};
@@ -86,9 +86,7 @@ pub fn clear<'d, T: Instance>(
         .map_err(Error::Flash)
 }
 
-fn storage_offset<'d, T: Instance>(
-    flash: &Flash<'d, T, Blocking, INTERNAL_FLASH_SIZE>,
-) -> u32 {
+fn storage_offset<'d, T: Instance>(flash: &Flash<'d, T, Blocking, INTERNAL_FLASH_SIZE>) -> u32 {
     let capacity = flash.capacity() as u32;
     capacity - (STORAGE_SIZE as u32 * 2)
 }

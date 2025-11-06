@@ -43,11 +43,8 @@ pub struct WifiCredentialSubmission {
 // ============================================================================
 
 /// Channel for sending credentials from HTTP server to application
-static CREDENTIAL_CHANNEL: Channel<
-    CriticalSectionRawMutex,
-    WifiCredentialSubmission,
-    1,
-> = Channel::new();
+static CREDENTIAL_CHANNEL: Channel<CriticalSectionRawMutex, WifiCredentialSubmission, 1> =
+    Channel::new();
 
 // ============================================================================
 // Public API

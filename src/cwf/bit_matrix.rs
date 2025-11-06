@@ -1,8 +1,8 @@
-use crate::cwf::blinker::Text;
-use crate::error::Error::BitsToIndexesFull;
-use crate::cwf::shared_constants::{BitsToIndexes, CELL_COUNT, CELL_COUNT_U8};
-use crate::cwf::Leds;
 use crate::Result;
+use crate::cwf::Leds;
+use crate::cwf::blinker::Text;
+use crate::cwf::shared_constants::{BitsToIndexes, CELL_COUNT, CELL_COUNT_U8};
+use crate::error::Error::BitsToIndexesFull;
 use core::{array, num::NonZeroU8, ops::BitOrAssign, slice};
 
 #[derive(defmt::Format, Debug, Clone)]
