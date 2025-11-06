@@ -44,64 +44,39 @@ pub async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("Starting Wi-Fi 4-digit clock");
 
-    let peripherals = embassy_rp::init(Default::default());
-
-    let embassy_rp::Peripherals {
-        PIN_0,
-        PIN_1,
-        PIN_2,
-        PIN_3,
-        PIN_4,
-        PIN_5,
-        PIN_6,
-        PIN_7,
-        PIN_8,
-        PIN_9,
-        PIN_10,
-        PIN_11,
-        PIN_12,
-        PIN_13,
-        PIN_23,
-        PIN_24,
-        PIN_25,
-        PIN_29,
-        PIO0,
-        DMA_CH0,
-        FLASH,
-        ..
-    } = peripherals;
+    let mut p = embassy_rp::init(Default::default());
 
     let flash = FLASH_STORAGE.init(Flash::<_, Blocking, INTERNAL_FLASH_SIZE>::new_blocking(
-        FLASH,
+        p.FLASH,
     ));
     let stored_credentials = credential_store::load(&mut *flash)?;
     let stored_offset = load_timezone_offset(&mut *flash)?.unwrap_or(0);
     set_initial_utc_offset_minutes(stored_offset);
 
-    let mut led = gpio::Output::new(PIN_0, Level::Low);
+    let mut led = gpio::Output::new(p.PIN_0, Level::Low);
     led.set_low();
 
     let cells = OutputArray::new([
-        gpio::Output::new(PIN_1, Level::High),
-        gpio::Output::new(PIN_2, Level::High),
-        gpio::Output::new(PIN_3, Level::High),
-        gpio::Output::new(PIN_4, Level::High),
+        gpio::Output::new(p.PIN_1, Level::High),
+        gpio::Output::new(p.PIN_2, Level::High),
+        gpio::Output::new(p.PIN_3, Level::High),
+        gpio::Output::new(p.PIN_4, Level::High),
     ]);
 
     let segments = OutputArray::new([
-        gpio::Output::new(PIN_5, Level::Low),
-        gpio::Output::new(PIN_6, Level::Low),
-        gpio::Output::new(PIN_7, Level::Low),
-        gpio::Output::new(PIN_8, Level::Low),
-        gpio::Output::new(PIN_9, Level::Low),
-        gpio::Output::new(PIN_10, Level::Low),
-        gpio::Output::new(PIN_11, Level::Low),
-        gpio::Output::new(PIN_12, Level::Low),
+        gpio::Output::new(p.PIN_5, Level::Low),
+        gpio::Output::new(p.PIN_6, Level::Low),
+        gpio::Output::new(p.PIN_7, Level::Low),
+        gpio::Output::new(p.PIN_8, Level::Low),
+        gpio::Output::new(p.PIN_9, Level::Low),
+        gpio::Output::new(p.PIN_10, Level::Low),
+        gpio::Output::new(p.PIN_11, Level::Low),
+        gpio::Output::new(p.PIN_12, Level::Low),
     ]);
 
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     let mut clock = Clock::new(cells, segments, &CLOCK_NOTIFIER, spawner)?;
-    let mut button = Button::new(gpio::Input::new(PIN_13, gpio::Pull::Down));
+    let mut button = Button::new(gpio::Input::new(p.PIN_13, gpio::Pull::Down));
 
     let wifi_mode = if let Some(credentials) = stored_credentials {
         info!(
@@ -117,12 +92,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
     let time_sync = TimeSync::new(
         &TIME_SYNC_NOTIFIER,
-        PIN_23,
-        PIN_25,
-        PIO0,
-        PIN_24,
-        PIN_29,
-        DMA_CH0,
+        p.PIN_23,
+        p.PIN_25,
+        p.PIO0,
+        p.PIN_24,
+        p.PIN_29,
+        p.DMA_CH0,
         wifi_mode.clone(),
         spawner,
     );
@@ -137,7 +112,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         let dns_token = unwrap!(dns_server_task(stack, ap_ip));
         spawner.spawn(dns_token);
 
-        info!("Captive portal running - connect to PicoClockConfig and browse to http://192.168.4.1");
+        info!(
+            "Captive portal running - connect to PicoClockConfig and browse to http://192.168.4.1"
+        );
         let submission = collect_wifi_credentials(stack, spawner).await?;
         info!(
             "Credentials received for SSID: {} (offset {} minutes)",
