@@ -1,4 +1,8 @@
 //! TimeSync virtual device - manages NTP synchronization
+//!
+//! Supports WiFi in both AP and Client modes:
+//! - In AP mode: Waits for client connection
+//! - In Client mode: Starts NTP sync immediately
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
@@ -15,7 +19,7 @@ use static_cell::StaticCell;
 
 use crate::Result;
 use crate::unix_seconds::UnixSeconds;
-use crate::wifi::{Wifi, WifiNotifier};
+use crate::wifi::{Wifi, WifiEvent, WifiMode, WifiNotifier};
 
 // ============================================================================
 // Types
@@ -60,6 +64,9 @@ impl TimeSync {
     }
 
     /// Create a new TimeSync device (creates WiFi internally) and spawn its task
+    /// 
+    /// # Arguments
+    /// * `mode` - WiFi mode (AccessPoint or Client)
     pub fn new(
         resources: &'static TimeSyncNotifier,
         pin_23: Peri<'static, PIN_23>,
@@ -68,6 +75,7 @@ impl TimeSync {
         pin_24: Peri<'static, PIN_24>,
         pin_29: Peri<'static, PIN_29>,
         dma_ch0: Peri<'static, DMA_CH0>,
+        mode: WifiMode,
         spawner: Spawner,
     ) -> &'static Self {
         // Create WiFi device
@@ -79,6 +87,7 @@ impl TimeSync {
             pin_24,
             pin_29,
             dma_ch0,
+            mode,
             spawner,
         );
 
@@ -90,6 +99,11 @@ impl TimeSync {
             events: &resources.events,
             wifi,
         })
+    }
+    
+    /// Get reference to WiFi device (useful for AP mode configuration)
+    pub fn wifi(&self) -> &'static Wifi {
+        self.wifi
     }
 
     /// Wait for and return the next TimeSync event
@@ -114,6 +128,23 @@ async fn inner_time_sync_device_loop(
 
     // Wait for WiFi to be ready and get the stack
     let stack = wifi.stack().await;
+    
+    // Check what kind of WiFi event we got
+    let wifi_event = wifi.wait().await;
+    match wifi_event {
+        WifiEvent::ApReady => {
+            info!("TimeSync: WiFi in AP mode - waiting for client connection");
+            info!("TimeSync: NTP sync will not start until switched to client mode");
+            // In AP mode, we don't sync time - just wait indefinitely
+            loop {
+                Timer::after_secs(3600).await;
+            }
+        }
+        WifiEvent::ClientReady => {
+            info!("TimeSync: WiFi in client mode - starting NTP sync");
+        }
+    }
+    
     info!("TimeSync received network stack");
 
     info!("TimeSync device started");

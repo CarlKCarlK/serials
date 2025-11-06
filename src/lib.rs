@@ -18,7 +18,12 @@ pub mod time_sync;
 pub mod unix_seconds;
 #[cfg(feature = "wifi")]
 pub mod wifi;
-
+#[cfg(feature = "wifi")]
+pub mod wifi_config;
+#[cfg(feature = "wifi")]
+mod dhcp_server;
+#[cfg(feature = "wifi")]
+mod dns_server;
 // Re-export commonly used items
 pub use button::{Button, PressDuration, BUTTON_DEBOUNCE_DELAY, LONG_PRESS_DURATION};
 pub use char_lcd::{CharLcd, CharLcdMessage, CharLcdNotifier};
@@ -36,7 +41,11 @@ pub use smart_leds::colors;
 pub use time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 pub use unix_seconds::UnixSeconds;
 #[cfg(feature = "wifi")]
-pub use wifi::{Wifi, WifiEvent, WifiNotifier};
+pub use wifi::{Wifi, WifiEvent, WifiMode, WifiNotifier};
+#[cfg(feature = "wifi")]
+pub use wifi_config::{collect_wifi_credentials, http_config_server_task, WifiCredentials};
+#[cfg(feature = "wifi")]
+pub use dns_server::dns_server_task;
 
 // Re-export macros (they're already at crate root due to #[macro_export])
 // define_led_strips is available as lib::define_led_strips!
