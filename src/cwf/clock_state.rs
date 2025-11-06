@@ -62,7 +62,7 @@ impl ClockState {
     pub(crate) fn render(self, clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         match self {
             Self::HoursMinutes => Self::render_hours_minutes(clock_time),
-            Self::Connecting => Self::render_connecting(),
+            Self::Connecting => Self::render_connecting(clock_time),
             Self::MinutesSeconds => Self::render_minutes_seconds(clock_time),
             Self::EditUtcOffset { .. } => Self::render_edit_utc_offset(clock_time),
             Self::ConfirmClear(selection) => Self::render_confirm_clear(selection),
@@ -198,12 +198,36 @@ impl ClockState {
         )
     }
 
-    fn render_connecting() -> (BlinkState, [char; 4], Duration) {
-        (
-            BlinkState::BlinkingAndOn,
-            ['C', 'O', 'n', 'n'],
-            Duration::from_millis(400),
-        )
+    fn render_connecting(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
+        const FRAME_DURATION: Duration = Duration::from_millis(120);
+        const TOP: char = '\'';
+        const TOP_RIGHT: char = '"';
+        const RIGHT: char = '>';
+        const BOTTOM_RIGHT: char = ')';
+        const BOTTOM: char = '_';
+        const BOTTOM_LEFT: char = '*';
+        const LEFT: char = '<';
+        const TOP_LEFT: char = '(';
+        const FRAMES: [[char; 4]; 8] = [
+            [TOP, TOP, TOP, TOP],
+            [TOP, TOP, TOP, TOP_RIGHT],
+            [' ', ' ', ' ', RIGHT],
+            [' ', ' ', ' ', BOTTOM_RIGHT],
+            [BOTTOM, BOTTOM, BOTTOM, BOTTOM],
+            [BOTTOM_LEFT, BOTTOM, BOTTOM, BOTTOM],
+            [LEFT, ' ', ' ', ' '],
+            [TOP_LEFT, TOP, TOP, TOP],
+        ];
+
+        let frame_duration_ticks = FRAME_DURATION.as_ticks();
+        let frame_index = if frame_duration_ticks == 0 {
+            0
+        } else {
+            let now_ticks = clock_time.now().as_ticks();
+            ((now_ticks / frame_duration_ticks) % FRAMES.len() as u64) as usize
+        };
+
+        (BlinkState::Solid, FRAMES[frame_index], FRAME_DURATION)
     }
 
     fn render_minutes_seconds(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
@@ -268,7 +292,7 @@ impl ClockState {
     fn render_access_point_setup() -> (BlinkState, [char; 4], Duration) {
         (
             BlinkState::BlinkingAndOn,
-            ['S', 'E', 'T', 'U'],
+            ['C', 'O', 'n', 'n'],
             Duration::from_millis(500),
         )
     }
