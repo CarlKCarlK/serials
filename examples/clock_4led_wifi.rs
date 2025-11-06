@@ -137,7 +137,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         let dns_token = unwrap!(dns_server_task(stack, ap_ip));
         spawner.spawn(dns_token);
 
-        info!("Captive portal running - connect to PicoConfig and browse to http://192.168.4.1");
+        info!("Captive portal running - connect to PicoClockConfig and browse to http://192.168.4.1");
         let submission = collect_wifi_credentials(stack, spawner).await?;
         info!(
             "Credentials received for SSID: {} (offset {} minutes)",

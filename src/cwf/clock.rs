@@ -1,3 +1,4 @@
+#[cfg(feature = "display-trace")]
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
 use embassy_futures::select::{Either, select};
@@ -114,6 +115,7 @@ async fn device_loop(clock_notifier: &'static ClockOuterNotifier, blinker: Blink
         let (blink_mode, text, sleep_duration) = clock_state.render(&clock_time);
         blinker.write_text(blink_mode, text);
 
+        #[cfg(feature = "display-trace")]
         info!("Sleep for {:?}", sleep_duration);
         if let Either::First(notification) =
             select(clock_notifier.receive(), Timer::after(sleep_duration)).await

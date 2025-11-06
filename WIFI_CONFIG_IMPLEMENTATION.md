@@ -6,7 +6,7 @@ This document summarizes the changes made to implement WiFi Access Point (AP) mo
 
 The project now supports a two-stage WiFi connection workflow:
 
-1. **AP Mode**: Device starts as an access point named "PicoConfig" at IP 192.168.4.1
+1. **AP Mode**: Device starts as an access point named "PicoClockConfig" at IP 192.168.4.1
 2. **Configuration**: User connects and enters WiFi credentials via web interface
 3. **Credential Collection**: Application receives credentials via async channel
 4. **Client Mode**: Device connects to the configured network (requires restart for now)
@@ -56,7 +56,7 @@ The project now supports a two-stage WiFi connection workflow:
 - Added `switch_to_client_mode()` stub (not yet implemented)
 
 **AP Mode Configuration**:
-- SSID: "PicoConfig"
+- SSID: "PicoClockConfig"
 - Password: "" (open network)
 - IP: 192.168.4.1
 - Subnet: 192.168.4.0/24
@@ -91,7 +91,7 @@ The project now supports a two-stage WiFi connection workflow:
 
 **Current Behavior**:
 1. Starts in AP mode
-2. Displays instructions to connect to "PicoConfig"
+2. Displays instructions to connect to "PicoClockConfig"
 3. Collects credentials via web form
 4. Logs instructions to set environment variables and restart
 5. Continues in AP mode (restart needed to apply credentials)
@@ -161,8 +161,8 @@ let time_sync = TimeSync::new(
 
 ### Test AP Mode
 1. Build and flash: `cargo run --example log_time --features wifi`
-2. Device starts AP "PicoConfig"
-3. Connect phone/computer to "PicoConfig"
+2. Device starts AP "PicoClockConfig"
+3. Connect phone/computer to "PicoClockConfig"
 4. Navigate to `http://192.168.4.1`
 5. Enter SSID and password
 6. Submit form

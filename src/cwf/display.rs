@@ -5,6 +5,7 @@ use crate::cwf::Leds;
 use crate::cwf::bit_matrix::BitMatrix;
 use crate::cwf::output_array::OutputArray;
 use crate::cwf::shared_constants::{BitsToIndexes, CELL_COUNT, MULTIPLEX_SLEEP, SEGMENT_COUNT};
+#[cfg(feature = "display-trace")]
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
 use embassy_futures::select::{Either, select};
@@ -41,6 +42,7 @@ impl Display<'_> {
     }
 
     pub fn write_text(&self, text: crate::cwf::blinker::Text) {
+        #[cfg(feature = "display-trace")]
         info!("write_chars: {:?}", text);
         self.0.signal(BitMatrix::from_text(&text));
     }
@@ -66,8 +68,10 @@ async fn inner_device_loop(
     let mut bit_matrix = BitMatrix::default();
     let mut bits_to_indexes = BitsToIndexes::default();
     'outer: loop {
+        #[cfg(feature = "display-trace")]
         info!("bit_matrix: {:?}", bit_matrix);
         bit_matrix.bits_to_indexes(&mut bits_to_indexes)?;
+        #[cfg(feature = "display-trace")]
         info!("# of unique cell bit_matrix: {:?}", bits_to_indexes.len());
 
         match bits_to_indexes.iter().next() {

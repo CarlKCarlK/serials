@@ -3,6 +3,7 @@ use crate::cwf::blink_state::BlinkState;
 use crate::cwf::display::{Display, DisplayNotifier};
 use crate::cwf::output_array::OutputArray;
 use crate::cwf::shared_constants::{CELL_COUNT, SEGMENT_COUNT};
+#[cfg(feature = "display-trace")]
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
@@ -36,6 +37,7 @@ impl Blinker<'_> {
     }
 
     pub fn write_text(&self, blink_state: BlinkState, text: Text) {
+        #[cfg(feature = "display-trace")]
         info!("blink_state: {:?}, text: {:?}", blink_state, text);
         self.0.signal((blink_state, text));
     }

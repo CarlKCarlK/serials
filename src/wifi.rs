@@ -291,7 +291,7 @@ async fn wifi_device_loop_ap(
         .await;
 
     // Start AP mode
-    const AP_SSID: &str = "PicoConfig";
+    const AP_SSID: &str = "PicoClockConfig";
     const AP_PASSWORD: &str = ""; // Open network
 
     info!("Starting AP mode: {}", AP_SSID);

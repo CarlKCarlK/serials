@@ -13,7 +13,7 @@ use embassy_time::{Duration, Instant};
 
 const DHCP_SERVER_PORT: u16 = 67;
 const DHCP_MAGIC_COOKIE: [u8; 4] = [99, 130, 83, 99];
-const DHCP_LEASE_SECONDS: u32 = 4 * 60 * 60; // 4-hour leases
+const DHCP_LEASE_SECONDS: u32 = 30; // Short lease keeps captive portal clients refreshing quickly
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, defmt::Format)]
 enum DhcpMessageType {

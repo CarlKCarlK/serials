@@ -19,6 +19,7 @@ wifi = [
     "dep:cyw43-firmware",
     "dep:embassy-net",
 ]
+ display-trace = []
 
 [dependencies]
 defmt = "0.3.10"
