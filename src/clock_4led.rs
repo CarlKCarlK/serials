@@ -49,6 +49,7 @@ pub enum ClockState {
 }
 
 impl ClockState {
+    #[cfg(feature = "wifi")]
     /// Run the clock in the current state and return the next state.
     pub async fn execute(
         self,
@@ -63,6 +64,7 @@ impl ClockState {
         }
     }
 
+    #[cfg(feature = "wifi")]
     async fn execute_hours_minutes(
         self,
         clock: &Clock4Led<'_>,
@@ -82,6 +84,7 @@ impl ClockState {
         }
     }
 
+    #[cfg(feature = "wifi")]
     async fn execute_minutes_seconds(
         self,
         clock: &Clock4Led<'_>,
@@ -101,6 +104,7 @@ impl ClockState {
         }
     }
 
+    #[cfg(feature = "wifi")]
     async fn execute_edit_utc_offset(
         self,
         clock: &Clock4Led<'_>,
@@ -117,6 +121,7 @@ impl ClockState {
         }
     }
 
+    #[cfg(feature = "wifi")]
     async fn handle_time_sync_event(clock: &Clock4Led<'_>, event: crate::TimeSyncEvent) {
         use defmt::info;
 

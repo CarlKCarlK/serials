@@ -1,10 +1,9 @@
-//! A 4-digit 7-segment WiFi clock with button control
+//! A 4-digit 7-segment clock with button control.
 //!
-//! This example demonstrates a clock that:
-//! - Displays time on a 4-digit 7-segment LED display
-//! - Syncs time via WiFi using NTP
-//! - Allows toggling between HH:MM and MM:SS modes with a short button press
-//! - Allows adjusting UTC offset with a long button press (enters edit mode)
+//! This variant intentionally omits Wi-Fi and time synchronisation so it can be
+//! used when the firmware is built without the `wifi` Cargo feature. The clock
+//! starts at `12:00`, advances locally, and a short button press toggles the
+//! display between `HH:MM` and `MM:SS`.
 
 #![no_std]
 #![no_main]
@@ -17,7 +16,7 @@ use embassy_executor::Spawner;
 use embassy_rp::gpio::{self, Level};
 use lib::{
     Button, Clock4Led, Clock4LedNotifier, Clock4LedState, Led4Seg, Led4SegNotifier, OutputArray,
-    Result, TimeSync, TimeSyncNotifier,
+    PressDuration, Result,
 };
 use panic_probe as _;
 
@@ -32,7 +31,7 @@ pub async fn main(spawner: Spawner) -> ! {
 }
 
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
-    info!("Starting 4-Digit LED WiFi Clock");
+    info!("Starting 4-digit LED clock (no Wi-Fi)");
 
     // Initialize RP2040 peripherals
     let p = embassy_rp::init(Default::default());
@@ -68,31 +67,29 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static CLOCK_NOTIFIER: Clock4LedNotifier = Clock4Led::notifier();
     let clock = Clock4Led::new(led_display_static, &CLOCK_NOTIFIER, spawner)?;
 
-    // Create TimeSync virtual device (creates WiFi internally)
-    static TIME_SYNC: TimeSyncNotifier = TimeSync::notifier();
-    let time_sync = TimeSync::new(
-        &TIME_SYNC, p.PIN_23,  // WiFi power enable
-        p.PIN_25,  // WiFi SPI chip select
-        p.PIO0,    // WiFi PIO block for SPI
-        p.PIN_24,  // WiFi SPI MOSI
-        p.PIN_29,  // WiFi SPI CLK
-        p.DMA_CH0, // WiFi DMA channel for SPI
-        spawner,
-    );
-
     // Create Button
     let mut button = Button::new(gpio::Input::new(p.PIN_13, gpio::Pull::Down));
 
     info!("Clock and button created");
 
-    // Run the state machine
+    // Track the current display mode and toggle it on short presses.
     let mut state = Clock4LedState::default();
+    clock.set_state(state).await;
+
     loop {
-        info!("State: {:?}", state);
-        let new_state = state.execute(&clock, &mut button, time_sync).await;
-        if new_state != state {
-            clock.set_state(new_state).await;
+        match button.press_duration().await {
+            PressDuration::Short => {
+                state = match state {
+                    Clock4LedState::HoursMinutes => Clock4LedState::MinutesSeconds,
+                    _ => Clock4LedState::HoursMinutes,
+                };
+                info!("Switching display mode: {:?}", state);
+                clock.set_state(state).await;
+            }
+            PressDuration::Long => {
+                // Ignore long presses for this minimal example.
+                info!("Long press ignored");
+            }
         }
-        state = new_state;
     }
 }
