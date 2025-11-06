@@ -6,6 +6,7 @@ mod button;
 mod char_lcd;
 pub mod clock;
 pub mod clock_4led;
+pub mod cwf;
 #[cfg(feature = "wifi")]
 pub mod credential_store;
 #[cfg(feature = "wifi")]
