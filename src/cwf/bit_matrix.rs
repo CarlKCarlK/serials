@@ -1,7 +1,7 @@
 use crate::cwf::blinker::Text;
 use crate::error::Error::BitsToIndexesFull;
 use crate::cwf::shared_constants::{BitsToIndexes, CELL_COUNT, CELL_COUNT_U8};
-use crate::cwf::leds::Leds;
+use crate::cwf::Leds;
 use crate::Result;
 use core::{array, num::NonZeroU8, ops::BitOrAssign, slice};
 
