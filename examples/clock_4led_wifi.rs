@@ -165,6 +165,16 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         info!("State: {:?}", state);
         state = state.execute(&mut clock, &mut button, time_sync).await;
 
+        if matches!(wifi_mode, WifiMode::ClientConfigured(_))
+            && matches!(state, ClockState::AccessPointSetup)
+        {
+            info!("Connection timeout reached; clearing stored credentials and rebooting");
+            credential_store::clear(&mut *flash)?;
+            Timer::after_millis(500).await;
+            info!("Resetting after automatic credential clear");
+            SCB::sys_reset();
+        }
+
         if let ClockState::ConfirmedClear = state {
             info!("Confirmed clear; erasing stored credentials and timezone offset");
             credential_store::clear(&mut *flash)?;

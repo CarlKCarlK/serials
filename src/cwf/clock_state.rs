@@ -4,7 +4,7 @@ use crate::cwf::time_sync::{TimeSync, TimeSyncEvent};
 use crate::cwf::{BlinkState, ClockTime, ONE_MINUTE, ONE_SECOND};
 use defmt::info;
 use embassy_futures::select::{Either, select};
-use embassy_time::Duration;
+use embassy_time::{Duration, Instant};
 
 #[derive(Debug, defmt::Format, Clone, Copy, Default)]
 pub enum ClockState {
@@ -55,7 +55,7 @@ impl ClockState {
             }
             Self::ConfirmedClear => self.execute_confirmed_clear(clock).await,
             Self::ClearingDone => self.execute_clearing_done(clock).await,
-            Self::AccessPointSetup => self.execute_access_point_setup(clock).await,
+            Self::AccessPointSetup => self.execute_access_point_setup(clock, time_sync).await,
         }
     }
 
@@ -74,10 +74,35 @@ impl ClockState {
 
     async fn execute_connecting(self, clock: &Clock<'_>, time_sync: &TimeSync) -> Self {
         clock.set_state(self).await;
-        let event = time_sync.wait().await;
-        let success = matches!(event, TimeSyncEvent::Success { .. });
-        Self::handle_time_sync_event(clock, event).await;
-        if success { Self::HoursMinutes } else { self }
+        let deadline_ticks = Instant::now()
+            .as_ticks()
+            .saturating_add(ONE_MINUTE.as_ticks());
+
+        loop {
+            let now_ticks = Instant::now().as_ticks();
+            if now_ticks >= deadline_ticks {
+                return Self::AccessPointSetup;
+            }
+
+            let remaining_ticks = deadline_ticks - now_ticks;
+            if remaining_ticks == 0 {
+                return Self::AccessPointSetup;
+            }
+
+            let timeout = Duration::from_ticks(remaining_ticks);
+            match embassy_time::with_timeout(timeout, time_sync.wait()).await {
+                Ok(event) => match event {
+                    success @ TimeSyncEvent::Success { .. } => {
+                        Self::handle_time_sync_event(clock, success).await;
+                        return Self::HoursMinutes;
+                    }
+                    failure @ TimeSyncEvent::Failed(_) => {
+                        Self::handle_time_sync_event(clock, failure).await;
+                    }
+                },
+                Err(_) => return Self::AccessPointSetup,
+            }
+        }
     }
 
     async fn execute_hours_minutes(
@@ -164,9 +189,19 @@ impl ClockState {
         self
     }
 
-    async fn execute_access_point_setup(self, clock: &Clock<'_>) -> Self {
+    async fn execute_access_point_setup(self, clock: &Clock<'_>, time_sync: &TimeSync) -> Self {
         clock.set_state(self).await;
-        Self::HoursMinutes
+        loop {
+            match time_sync.wait().await {
+                success @ TimeSyncEvent::Success { .. } => {
+                    Self::handle_time_sync_event(clock, success).await;
+                    return Self::HoursMinutes;
+                }
+                failure @ TimeSyncEvent::Failed(_) => {
+                    Self::handle_time_sync_event(clock, failure).await;
+                }
+            }
+        }
     }
 
     async fn handle_time_sync_event(clock: &Clock<'_>, event: TimeSyncEvent) {
