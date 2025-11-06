@@ -12,7 +12,9 @@ pub enum ClockState {
     HoursMinutes,
     Connecting,
     MinutesSeconds,
-    EditUtcOffset,
+    EditUtcOffset {
+        modified: bool,
+    },
     ConfirmClear(ConfirmClearChoice),
     ConfirmedClear,
     ClearingDone,
@@ -45,7 +47,9 @@ impl ClockState {
             Self::HoursMinutes => self.execute_hours_minutes(clock, button, time_sync).await,
             Self::Connecting => self.execute_connecting(clock, time_sync).await,
             Self::MinutesSeconds => self.execute_minutes_seconds(clock, button, time_sync).await,
-            Self::EditUtcOffset => self.execute_edit_utc_offset(clock, button).await,
+            Self::EditUtcOffset { modified } => {
+                self.execute_edit_utc_offset(clock, button, modified).await
+            }
             Self::ConfirmClear(selection) => {
                 self.execute_confirm_clear(clock, button, selection).await
             }
@@ -60,7 +64,7 @@ impl ClockState {
             Self::HoursMinutes => Self::render_hours_minutes(clock_time),
             Self::Connecting => Self::render_connecting(),
             Self::MinutesSeconds => Self::render_minutes_seconds(clock_time),
-            Self::EditUtcOffset => Self::render_edit_utc_offset(clock_time),
+            Self::EditUtcOffset { .. } => Self::render_edit_utc_offset(clock_time),
             Self::ConfirmClear(selection) => Self::render_confirm_clear(selection),
             Self::ConfirmedClear => Self::render_confirmed_clear(),
             Self::ClearingDone => Self::render_clearing_done(),
@@ -85,7 +89,7 @@ impl ClockState {
         clock.set_state(self).await;
         match select(button.press_duration(), time_sync.wait()).await {
             Either::First(PressDuration::Short) => Self::MinutesSeconds,
-            Either::First(PressDuration::Long) => Self::EditUtcOffset,
+            Either::First(PressDuration::Long) => Self::EditUtcOffset { modified: false },
             Either::Second(event) => {
                 Self::handle_time_sync_event(clock, event).await;
                 self
@@ -102,7 +106,7 @@ impl ClockState {
         clock.set_state(self).await;
         match select(button.press_duration(), time_sync.wait()).await {
             Either::First(PressDuration::Short) => Self::HoursMinutes,
-            Either::First(PressDuration::Long) => Self::EditUtcOffset,
+            Either::First(PressDuration::Long) => Self::EditUtcOffset { modified: false },
             Either::Second(event) => {
                 Self::handle_time_sync_event(clock, event).await;
                 self
@@ -110,15 +114,27 @@ impl ClockState {
         }
     }
 
-    async fn execute_edit_utc_offset(self, clock: &Clock<'_>, button: &mut Button<'_>) -> Self {
+    async fn execute_edit_utc_offset(
+        self,
+        clock: &Clock<'_>,
+        button: &mut Button<'_>,
+        modified: bool,
+    ) -> Self {
         clock.set_state(self).await;
         match button.press_duration().await {
             PressDuration::Short => {
                 clock.adjust_utc_offset_hours(1).await;
-                clock.set_state(self).await;
-                self
+                let next_state = Self::EditUtcOffset { modified: true };
+                clock.set_state(next_state).await;
+                next_state
             }
-            PressDuration::Long => Self::ConfirmClear(ConfirmClearChoice::Keep),
+            PressDuration::Long => {
+                if modified {
+                    Self::HoursMinutes
+                } else {
+                    Self::ConfirmClear(ConfirmClearChoice::Keep)
+                }
+            }
         }
     }
 
