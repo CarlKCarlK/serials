@@ -76,6 +76,16 @@ pub fn save<'d, T: Instance>(
     Ok(())
 }
 
+/// Remove the persisted timezone offset from flash.
+pub fn clear<'d, T: Instance>(
+    flash: &mut Flash<'d, T, Blocking, INTERNAL_FLASH_SIZE>,
+) -> Result<()> {
+    let offset = storage_offset(flash);
+    flash
+        .blocking_erase(offset, offset + STORAGE_SIZE as u32)
+        .map_err(Error::Flash)
+}
+
 fn storage_offset<'d, T: Instance>(
     flash: &Flash<'d, T, Blocking, INTERNAL_FLASH_SIZE>,
 ) -> u32 {

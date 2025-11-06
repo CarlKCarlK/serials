@@ -56,6 +56,18 @@ impl Clock<'_> {
             .send(ClockNotice::AdjustUtcOffsetHours(hours))
             .await;
     }
+
+    /// Display the completion message for flash-clearing workflows.
+    pub async fn show_clearing_done(&self) {
+        self.0.send(ClockNotice::SetState(ClockState::ClearingDone)).await;
+    }
+
+    /// Display the access point setup prompt while waiting for credentials.
+    pub async fn show_access_point_setup(&self) {
+        self.0
+            .send(ClockNotice::SetState(ClockState::AccessPointSetup))
+            .await;
+    }
 }
 
 pub enum ClockNotice {

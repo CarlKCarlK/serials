@@ -25,8 +25,8 @@ use lib::cwf::{
     current_utc_offset_minutes, set_initial_utc_offset_minutes,
 };
 use lib::{
-    Button, Result, WifiMode, collect_wifi_credentials, credential_store, dns_server_task,
-    load_timezone_offset, save_timezone_offset,
+    Button, Result, WifiMode, clear_timezone_offset, collect_wifi_credentials, credential_store,
+    dns_server_task, load_timezone_offset, save_timezone_offset,
 };
 use panic_probe as _;
 use static_cell::StaticCell;
@@ -123,6 +123,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     );
 
     if matches!(wifi_mode, WifiMode::AccessPoint) {
+        clock.show_access_point_setup().await;
         info!("Starting AP mode for credential capture");
         let stack = time_sync.wifi().stack().await;
         info!("Network stack ready in AP mode");
@@ -154,6 +155,17 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     loop {
         info!("State: {:?}", state);
         state = state.execute(&mut clock, &mut button, time_sync).await;
+
+        if let ClockState::ConfirmedClear = state {
+            info!("Confirmed clear; erasing stored credentials and timezone offset");
+            credential_store::clear(&mut *flash)?;
+            clear_timezone_offset(&mut *flash)?;
+            set_initial_utc_offset_minutes(0);
+            clock.show_clearing_done().await;
+            Timer::after_millis(750).await;
+            info!("Resetting after flash clear");
+            SCB::sys_reset();
+        }
 
         let current_offset = current_utc_offset_minutes();
         if current_offset != persisted_offset {

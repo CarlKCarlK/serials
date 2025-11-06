@@ -40,7 +40,11 @@ pub use dns_server::dns_server_task;
 pub use error::{Error, Result};
 pub use ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
 #[cfg(feature = "wifi")]
-pub use clock_offset_store::{load as load_timezone_offset, save as save_timezone_offset};
+pub use clock_offset_store::{
+    clear as clear_timezone_offset,
+    load as load_timezone_offset,
+    save as save_timezone_offset,
+};
 pub use led_4seg::{BlinkState, Led4Seg, Led4SegNotifier, OutputArray, Text as Led4SegText};
 pub use led_24x4::Led24x4;
 pub use led_strip::{LedStrip, LedStripNotifier, PioBus, Rgb};
