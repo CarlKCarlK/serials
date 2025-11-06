@@ -15,7 +15,7 @@ pub use blink_state::BlinkState;
 pub use blinker::{Blinker, BlinkerNotifier};
 pub use clock::{Clock, ClockNotifier, ClockOuterNotifier};
 pub use clock_state::ClockState;
-pub use clock_time::ClockTime;
+pub use clock_time::{ClockTime, current_utc_offset_minutes, set_initial_utc_offset_minutes};
 pub use hardware::Hardware;
 pub use leds::Leds;
 pub use output_array::OutputArray;

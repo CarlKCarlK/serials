@@ -32,7 +32,7 @@ use embassy_time::Timer;
 use lib::credential_store::INTERNAL_FLASH_SIZE;
 use lib::{
     Clock, ClockNotifier, Result, TimeSync, TimeSyncEvent, TimeSyncNotifier, WifiMode,
-    collect_wifi_credentials, credential_store, dns_server_task,
+    collect_wifi_credentials, credential_store, dns_server_task, save_timezone_offset,
 };
 use panic_probe as _;
 use static_cell::StaticCell;
@@ -118,16 +118,21 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         info!("");
 
         // Collect credentials from user via web interface
-        let credentials = collect_wifi_credentials(stack, spawner).await?;
+        let submission = collect_wifi_credentials(stack, spawner).await?;
 
         info!("==========================================================");
         info!("CREDENTIALS RECEIVED!");
         info!("==========================================================");
-        info!("SSID: {}", credentials.ssid);
+        info!("SSID: {}", submission.credentials.ssid);
         info!("Password: [hidden]");
+        info!(
+            "Timezone offset (minutes): {}",
+            submission.timezone_offset_minutes
+        );
         info!("");
         info!("Persisting credentials to flash storage...");
-        credential_store::save(&mut *flash, &credentials)?;
+        credential_store::save(&mut *flash, &submission.credentials)?;
+        save_timezone_offset(&mut *flash, submission.timezone_offset_minutes)?;
         info!("Device will reboot and connect using the stored credentials.");
         info!("==========================================================");
 

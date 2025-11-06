@@ -31,12 +31,23 @@ pub struct WifiCredentials {
     pub password: heapless::String<64>,
 }
 
+/// Combined WiFi credentials and timezone selection provided by the user.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WifiCredentialSubmission {
+    pub credentials: WifiCredentials,
+    pub timezone_offset_minutes: i32,
+}
+
 // ============================================================================
 // Credential Channel
 // ============================================================================
 
 /// Channel for sending credentials from HTTP server to application
-static CREDENTIAL_CHANNEL: Channel<CriticalSectionRawMutex, WifiCredentials, 1> = Channel::new();
+static CREDENTIAL_CHANNEL: Channel<
+    CriticalSectionRawMutex,
+    WifiCredentialSubmission,
+    1,
+> = Channel::new();
 
 // ============================================================================
 // Public API
@@ -52,7 +63,7 @@ static CREDENTIAL_CHANNEL: Channel<CriticalSectionRawMutex, WifiCredentials, 1> 
 pub async fn collect_wifi_credentials(
     stack: &'static Stack<'static>,
     spawner: embassy_executor::Spawner,
-) -> Result<WifiCredentials> {
+) -> Result<WifiCredentialSubmission> {
     info!("Starting credential collection...");
 
     // Spawn the HTTP server task
@@ -62,10 +73,10 @@ pub async fn collect_wifi_credentials(
 
     // Wait for credentials to be submitted
     info!("Waiting for user to submit credentials via web interface...");
-    let credentials = CREDENTIAL_CHANNEL.receive().await;
+    let submission = CREDENTIAL_CHANNEL.receive().await;
 
     info!("Credentials received!");
-    Ok(credentials)
+    Ok(submission)
 }
 
 // ============================================================================
@@ -127,13 +138,17 @@ pub async fn http_config_server_task(stack: &'static Stack<'static>) -> ! {
             generate_config_page()
         } else if method == "POST" {
             // Process the form submission
-            if let Some(credentials) = parse_credentials_from_post(request_text) {
+            if let Some(submission) = parse_credentials_from_post(request_text) {
                 info!("Received WiFi credentials:");
-                info!("  SSID: {}", credentials.ssid);
+                info!("  SSID: {}", submission.credentials.ssid);
                 info!("  Password: [hidden]");
+                info!(
+                    "  Timezone offset: {} minutes",
+                    submission.timezone_offset_minutes
+                );
 
                 // Send credentials through channel
-                CREDENTIAL_CHANNEL.send(credentials).await;
+                CREDENTIAL_CHANNEL.send(submission).await;
 
                 generate_success_page()
             } else {
@@ -155,7 +170,7 @@ pub async fn http_config_server_task(stack: &'static Stack<'static>) -> ! {
 }
 
 /// Parse WiFi credentials from POST request body
-fn parse_credentials_from_post(request: &str) -> Option<WifiCredentials> {
+fn parse_credentials_from_post(request: &str) -> Option<WifiCredentialSubmission> {
     // Find the body (after \r\n\r\n)
     let body_start = request.find("\r\n\r\n")? + 4;
     let body = &request[body_start..];
@@ -165,6 +180,7 @@ fn parse_credentials_from_post(request: &str) -> Option<WifiCredentials> {
     // Parse form data: ssid=XXX&password=YYY
     let mut ssid = heapless::String::<32>::new();
     let mut password = heapless::String::<64>::new();
+    let mut offset_minutes: Option<i32> = None;
 
     for param in body.split('&') {
         if let Some((key, value)) = param.split_once('=') {
@@ -176,13 +192,20 @@ fn parse_credentials_from_post(request: &str) -> Option<WifiCredentials> {
                 "password" => {
                     let _ = password.push_str(&decoded_value);
                 }
+                "offset" => {
+                    offset_minutes = decoded_value.parse::<i32>().ok();
+                }
                 _ => {}
             }
         }
     }
 
     if !ssid.is_empty() {
-        Some(WifiCredentials { ssid, password })
+        let timezone_offset_minutes = offset_minutes.unwrap_or(0);
+        Some(WifiCredentialSubmission {
+            credentials: WifiCredentials { ssid, password },
+            timezone_offset_minutes,
+        })
     } else {
         None
     }
@@ -252,6 +275,50 @@ fn generate_config_page() -> &'static str {
              <label for=\"password\">Password:</label>\
              <input type=\"password\" id=\"password\" name=\"password\" required>\
              <label class=\"toggle\"><input type=\"checkbox\" onclick=\"togglePasswordVisibility()\">Show password</label>\
+             <label for=\"offset\">Timezone Offset (UTC):</label>\
+             <select id=\"offset\" name=\"offset\">\
+                 <option value=\"-720\">UTC-12:00</option>\
+                 <option value=\"-660\">UTC-11:00</option>\
+                 <option value=\"-600\">UTC-10:00</option>\
+                 <option value=\"-570\">UTC-09:30</option>\
+                 <option value=\"-540\">UTC-09:00</option>\
+                 <option value=\"-480\">UTC-08:00</option>\
+                 <option value=\"-420\">UTC-07:00</option>\
+                 <option value=\"-360\">UTC-06:00</option>\
+                 <option value=\"-300\">UTC-05:00</option>\
+                 <option value=\"-240\">UTC-04:00</option>\
+                 <option value=\"-210\">UTC-03:30</option>\
+                 <option value=\"-180\">UTC-03:00</option>\
+                 <option value=\"-150\">UTC-02:30</option>\
+                 <option value=\"-120\">UTC-02:00</option>\
+                 <option value=\"-60\">UTC-01:00</option>\
+                 <option value=\"0\" selected>UTC±00:00</option>\
+                 <option value=\"60\">UTC+01:00</option>\
+                 <option value=\"120\">UTC+02:00</option>\
+                 <option value=\"180\">UTC+03:00</option>\
+                 <option value=\"210\">UTC+03:30</option>\
+                 <option value=\"240\">UTC+04:00</option>\
+                 <option value=\"270\">UTC+04:30</option>\
+                 <option value=\"300\">UTC+05:00</option>\
+                 <option value=\"330\">UTC+05:30</option>\
+                 <option value=\"345\">UTC+05:45</option>\
+                 <option value=\"360\">UTC+06:00</option>\
+                 <option value=\"390\">UTC+06:30</option>\
+                 <option value=\"420\">UTC+07:00</option>\
+                 <option value=\"480\">UTC+08:00</option>\
+                 <option value=\"525\">UTC+08:45</option>\
+                 <option value=\"540\">UTC+09:00</option>\
+                 <option value=\"570\">UTC+09:30</option>\
+                 <option value=\"600\">UTC+10:00</option>\
+                 <option value=\"630\">UTC+10:30</option>\
+                 <option value=\"660\">UTC+11:00</option>\
+                 <option value=\"690\">UTC+11:30</option>\
+                 <option value=\"720\">UTC+12:00</option>\
+                 <option value=\"765\">UTC+12:45</option>\
+                 <option value=\"780\">UTC+13:00</option>\
+                 <option value=\"825\">UTC+13:45</option>\
+                 <option value=\"840\">UTC+14:00</option>\
+             </select>\
              <button type=\"submit\">Connect</button>\
          </form>\
      </body>\

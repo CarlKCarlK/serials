@@ -1,10 +1,14 @@
 use core::ops::AddAssign;
+use core::sync::atomic::{AtomicI32, Ordering};
 
 use defmt::info;
 use embassy_time::{Duration, Instant};
 
 use crate::cwf::shared_constants::TICKS_IN_ONE_DAY;
 use crate::unix_seconds::UnixSeconds;
+
+static INITIAL_UTC_OFFSET_MINUTES: AtomicI32 = AtomicI32::new(0);
+static CURRENT_UTC_OFFSET_MINUTES: AtomicI32 = AtomicI32::new(0);
 
 pub struct ClockTime {
     offset: Duration,
@@ -14,14 +18,23 @@ pub struct ClockTime {
 impl Default for ClockTime {
     fn default() -> Self {
         info!("Now: {:?}", Instant::now());
-        let utc_offset_minutes = option_env!("UTC_OFFSET_MINUTES")
-            .and_then(|val| val.parse::<i32>().ok())
-            .unwrap_or(0);
+        let utc_offset_minutes = INITIAL_UTC_OFFSET_MINUTES.load(Ordering::Relaxed);
+        CURRENT_UTC_OFFSET_MINUTES.store(utc_offset_minutes, Ordering::Relaxed);
         Self {
             offset: Duration::from_millis(12 * 3600 * 1000),
             utc_offset_minutes,
         }
     }
+}
+
+#[must_use]
+pub fn current_utc_offset_minutes() -> i32 {
+    CURRENT_UTC_OFFSET_MINUTES.load(Ordering::Relaxed)
+}
+
+pub fn set_initial_utc_offset_minutes(minutes: i32) {
+    INITIAL_UTC_OFFSET_MINUTES.store(minutes, Ordering::Relaxed);
+    CURRENT_UTC_OFFSET_MINUTES.store(minutes, Ordering::Relaxed);
 }
 
 impl ClockTime {
@@ -126,6 +139,7 @@ impl ClockTime {
         }
 
         self.utc_offset_minutes = wrapped * 60;
+        CURRENT_UTC_OFFSET_MINUTES.store(self.utc_offset_minutes, Ordering::Relaxed);
         info!(
             "Adjusted UTC offset from {} to {} hours (delta: {} hours)",
             current_offset_hours, wrapped, delta_hours

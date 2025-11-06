@@ -20,9 +20,13 @@ use embassy_rp::flash::{Blocking, Flash};
 use embassy_rp::gpio::{self, Level};
 use embassy_time::Timer;
 use lib::credential_store::INTERNAL_FLASH_SIZE;
-use lib::cwf::{Clock, ClockNotifier, ClockState, OutputArray, TimeSync, TimeSyncNotifier};
+use lib::cwf::{
+    Clock, ClockNotifier, ClockState, OutputArray, TimeSync, TimeSyncNotifier,
+    current_utc_offset_minutes, set_initial_utc_offset_minutes,
+};
 use lib::{
     Button, Result, WifiMode, collect_wifi_credentials, credential_store, dns_server_task,
+    load_timezone_offset, save_timezone_offset,
 };
 use panic_probe as _;
 use static_cell::StaticCell;
@@ -69,6 +73,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     let flash = FLASH_STORAGE.init(Flash::<_, Blocking, INTERNAL_FLASH_SIZE>::new_blocking(FLASH));
     let stored_credentials = credential_store::load(&mut *flash)?;
+    let stored_offset = load_timezone_offset(&mut *flash)?.unwrap_or(0);
+    set_initial_utc_offset_minutes(stored_offset);
 
     let mut led = gpio::Output::new(PIN_0, Level::Low);
     led.set_low();
@@ -126,10 +132,16 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         spawner.spawn(dns_token);
 
         info!("Captive portal running - connect to PicoConfig and browse to http://192.168.4.1");
-        let credentials = collect_wifi_credentials(stack, spawner).await?;
-        info!("Credentials received for SSID: {}", credentials.ssid);
+        let submission = collect_wifi_credentials(stack, spawner).await?;
+        info!(
+            "Credentials received for SSID: {} (offset {} minutes)",
+            submission.credentials.ssid,
+            submission.timezone_offset_minutes
+        );
 
-        credential_store::save(&mut *flash, &credentials)?;
+        credential_store::save(&mut *flash, &submission.credentials)?;
+        save_timezone_offset(&mut *flash, submission.timezone_offset_minutes)?;
+        set_initial_utc_offset_minutes(submission.timezone_offset_minutes);
         info!("Credentials saved; rebooting to apply client mode");
         Timer::after_millis(750).await;
         SCB::sys_reset();
@@ -137,9 +149,16 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     info!("Wi-Fi ready; awaiting time synchronisation events");
 
+    let mut persisted_offset = stored_offset;
     let mut state = ClockState::default();
     loop {
         info!("State: {:?}", state);
         state = state.execute(&mut clock, &mut button, time_sync).await;
+
+        let current_offset = current_utc_offset_minutes();
+        if current_offset != persisted_offset {
+            save_timezone_offset(&mut *flash, current_offset)?;
+            persisted_offset = current_offset;
+        }
     }
 }
