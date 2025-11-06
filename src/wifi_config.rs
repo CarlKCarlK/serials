@@ -231,9 +231,17 @@ fn generate_config_page() -> &'static str {
              h1 { color: #333; }\
              form { margin-top: 20px; }\
              input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }\
+             label { display: block; margin-top: 10px; }\
+             .toggle { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: #444; }\
              button { width: 100%; padding: 12px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }\
              button:hover { background-color: #45a049; }\
          </style>\
+         <script>\
+             function togglePasswordVisibility() {\
+                 var input = document.getElementById('password');\
+                 input.type = input.type === 'password' ? 'text' : 'password';\
+             }\
+         </script>\
      </head>\
      <body>\
          <h1>WiFi Configuration</h1>\
@@ -243,6 +251,7 @@ fn generate_config_page() -> &'static str {
              <input type=\"text\" id=\"ssid\" name=\"ssid\" required>\
              <label for=\"password\">Password:</label>\
              <input type=\"password\" id=\"password\" name=\"password\" required>\
+             <label class=\"toggle\"><input type=\"checkbox\" onclick=\"togglePasswordVisibility()\">Show password</label>\
              <button type=\"submit\">Connect</button>\
          </form>\
      </body>\
