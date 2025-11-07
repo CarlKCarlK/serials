@@ -3,6 +3,7 @@
 #![no_main]
 
 mod bit_matrix;
+mod blink_state;
 mod button;
 mod char_lcd;
 pub mod clock;
@@ -31,6 +32,7 @@ pub mod wifi;
 pub mod wifi_config;
 // Re-export commonly used items
 pub use bit_matrix::BitMatrix;
+pub use blink_state::BlinkState;
 pub use button::{BUTTON_DEBOUNCE_DELAY, Button, LONG_PRESS_DURATION, PressDuration};
 pub use char_lcd::{CharLcd, CharLcdMessage, CharLcdNotifier};
 pub use clock::{Clock, ClockCommand, ClockEvent, ClockNotifier, ClockState};
@@ -45,7 +47,7 @@ pub use clock_offset_store::{
 pub use dns_server::dns_server_task;
 pub use error::{Error, Result};
 pub use ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
-pub use led_4seg::{BlinkState, Led4Seg, Led4SegNotifier, OutputArray, Text as Led4SegText};
+pub use led_4seg::{Led4Seg, Led4SegNotifier, OutputArray, Text as Led4SegText};
 pub use led_24x4::Led24x4;
 pub use led_strip::{LedStrip, LedStripNotifier, PioBus, Rgb};
 pub use rfid::{Rfid, RfidEvent, RfidNotifier};

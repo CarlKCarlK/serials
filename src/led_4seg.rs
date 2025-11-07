@@ -13,6 +13,7 @@ use embassy_time::{Duration, Timer};
 use heapless::{LinearMap, Vec};
 
 use crate::BitMatrix;
+use crate::BlinkState;
 use crate::Result;
 use crate::error::Error::IndexOutOfBounds;
 
@@ -278,18 +279,6 @@ impl OutputArray<'_, { u8::BITS as usize }> {
             bits >>= 1;
         }
     }
-}
-
-// ============================================================================
-// BlinkState - Controls blinking behavior
-// ============================================================================
-
-#[derive(Debug, Clone, Copy, defmt::Format, Default)]
-pub enum BlinkState {
-    #[default]
-    Solid,
-    BlinkingAndOn,
-    BlinkingButOff,
 }
 
 // ============================================================================

@@ -1,9 +1,4 @@
-use embassy_futures::select::{Either, select};
-use embassy_time::Timer;
-
-use crate::cwf::blinker::{BlinkerOuterNotifier, Text};
-use crate::cwf::display::Display;
-use crate::cwf::shared_constants::{BLINK_OFF_DELAY, BLINK_ON_DELAY, CELL_COUNT};
+//! BlinkState - Controls blinking behavior for LED displays
 
 #[derive(Debug, Clone, Copy, defmt::Format, Default)]
 pub enum BlinkState {
@@ -13,7 +8,16 @@ pub enum BlinkState {
     BlinkingButOff,
 }
 
-impl BlinkState {
+mod cwf_impl {
+    use super::BlinkState;
+    use embassy_futures::select::{Either, select};
+    use embassy_time::Timer;
+    use crate::cwf::blinker::{BlinkerOuterNotifier, Text};
+    use crate::cwf::display::Display;
+    use crate::cwf::shared_constants::{BLINK_OFF_DELAY, BLINK_ON_DELAY, CELL_COUNT};
+
+    impl BlinkState {
+
     #[inline]
     pub async fn execute(
         self,
@@ -70,4 +74,6 @@ impl BlinkState {
             (Self::BlinkingAndOn, text)
         }
     }
+    }
 }
+

@@ -10,8 +10,9 @@ use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Instant, Timer};
 
+use crate::BlinkState;
 use crate::UnixSeconds;
-use crate::led_4seg::{BlinkState, Led4Seg, Text};
+use crate::led_4seg::{Led4Seg, Text};
 
 // ============================================================================
 // Constants
