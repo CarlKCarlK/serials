@@ -1,9 +1,12 @@
+//! BitMatrix - Represents LED display state for 4-digit 7-segment displays
+
+use core::num::NonZeroU8;
+use core::ops::{BitOrAssign, Index, IndexMut};
+use heapless::Vec;
+
+use crate::led_4seg::{BitsToIndexes, Leds, Text, CELL_COUNT, CELL_COUNT_U8};
 use crate::Result;
-use crate::cwf::Leds;
-use crate::cwf::blinker::Text;
-use crate::cwf::shared_constants::{BitsToIndexes, CELL_COUNT, CELL_COUNT_U8};
-use crate::error::Error::BitsToIndexesFull;
-use core::{array, num::NonZeroU8, ops::BitOrAssign, slice};
+use crate::error::Error;
 
 #[derive(defmt::Format, Debug, Clone)]
 pub struct BitMatrix([u8; CELL_COUNT]);
@@ -26,7 +29,7 @@ impl BitMatrix {
     }
 
     pub fn from_text(text: &Text) -> Self {
-        let bytes = text.map(|ch| Leds::ASCII_TABLE.get(ch as usize).copied().unwrap_or(0));
+        let bytes = text.map(|char| Leds::ASCII_TABLE.get(char as usize).copied().unwrap_or(0));
         Self::new(bytes)
     }
 
@@ -57,12 +60,12 @@ impl BitMatrix {
         for (&bits, index) in self.iter().zip(0..CELL_COUNT_U8) {
             if let Some(nonzero_bits) = NonZeroU8::new(bits) {
                 if let Some(vec) = bits_to_index.get_mut(&nonzero_bits) {
-                    vec.push(index).map_err(|_| BitsToIndexesFull)?;
+                    vec.push(index).map_err(|_| Error::BitsToIndexesFull)?;
                 } else {
-                    let vec = heapless::Vec::from_slice(&[index]).map_err(|_| BitsToIndexesFull)?;
+                    let vec = Vec::from_slice(&[index]).map_err(|_| Error::BitsToIndexesFull)?;
                     bits_to_index
                         .insert(nonzero_bits, vec)
-                        .map_err(|_| BitsToIndexesFull)?;
+                        .map_err(|_| Error::BitsToIndexesFull)?;
                 }
             }
         }
@@ -82,9 +85,25 @@ impl BitOrAssign<u8> for BitMatrix {
     }
 }
 
+impl Index<u8> for BitMatrix {
+    type Output = u8;
+
+    #[expect(clippy::indexing_slicing, reason = "Caller's responsibility")]
+    fn index(&self, index: u8) -> &Self::Output {
+        &self.0[index as usize]
+    }
+}
+
+impl IndexMut<u8> for BitMatrix {
+    #[expect(clippy::indexing_slicing, reason = "Caller's responsibility")]
+    fn index_mut(&mut self, index: u8) -> &mut Self::Output {
+        &mut self.0[index as usize]
+    }
+}
+
 impl IntoIterator for BitMatrix {
     type Item = u8;
-    type IntoIter = array::IntoIter<u8, CELL_COUNT>;
+    type IntoIter = core::array::IntoIter<u8, CELL_COUNT>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -93,7 +112,7 @@ impl IntoIterator for BitMatrix {
 
 impl<'a> IntoIterator for &'a BitMatrix {
     type Item = &'a u8;
-    type IntoIter = slice::Iter<'a, u8>;
+    type IntoIter = core::slice::Iter<'a, u8>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
@@ -102,25 +121,9 @@ impl<'a> IntoIterator for &'a BitMatrix {
 
 impl<'a> IntoIterator for &'a mut BitMatrix {
     type Item = &'a mut u8;
-    type IntoIter = slice::IterMut<'a, u8>;
+    type IntoIter = core::slice::IterMut<'a, u8>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter_mut()
-    }
-}
-
-impl core::ops::Index<u8> for BitMatrix {
-    type Output = u8;
-
-    #[expect(clippy::indexing_slicing, reason = "Caller ensures bounds")]
-    fn index(&self, index: u8) -> &Self::Output {
-        &self.0[index as usize]
-    }
-}
-
-impl core::ops::IndexMut<u8> for BitMatrix {
-    #[expect(clippy::indexing_slicing, reason = "Caller ensures bounds")]
-    fn index_mut(&mut self, index: u8) -> &mut Self::Output {
-        &mut self.0[index as usize]
     }
 }

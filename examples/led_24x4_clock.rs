@@ -5,7 +5,7 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use lib::{Led24x4, define_led_strip};
+use lib::{Led24x4, define_led_strips};
 use panic_probe as _;
 use smart_leds::RGB8;
 

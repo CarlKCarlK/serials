@@ -1,4 +1,3 @@
-pub mod bit_matrix;
 pub mod blink_state;
 pub mod blinker;
 pub mod clock;

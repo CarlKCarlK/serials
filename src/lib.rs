@@ -2,6 +2,7 @@
 #![no_std]
 #![no_main]
 
+mod bit_matrix;
 mod button;
 mod char_lcd;
 pub mod clock;
@@ -29,6 +30,7 @@ pub mod wifi;
 #[cfg(feature = "wifi")]
 pub mod wifi_config;
 // Re-export commonly used items
+pub use bit_matrix::BitMatrix;
 pub use button::{BUTTON_DEBOUNCE_DELAY, Button, LONG_PRESS_DURATION, PressDuration};
 pub use char_lcd::{CharLcd, CharLcdMessage, CharLcdNotifier};
 pub use clock::{Clock, ClockCommand, ClockEvent, ClockNotifier, ClockState};

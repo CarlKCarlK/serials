@@ -15,7 +15,7 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
-use heapless::{String, index_map::FnvIndexMap};
+use heapless::{String, FnvIndexMap};
 use lib::{
     CharLcd, CharLcdNotifier, Clock, ClockEvent, ClockNotifier, ClockState, IrNec, IrNecEvent,
     IrNecNotifier, Led24x4, Result, Rfid, RfidEvent, RfidNotifier, Rgb, TimeSync, TimeSyncEvent,
@@ -111,6 +111,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         p.PIN_24, // WiFi MOSI
         p.PIN_29, // WiFi CLK
         p.DMA_CH0,
+        None, // No WiFi credentials - use AP mode
         spawner,
     );
 
