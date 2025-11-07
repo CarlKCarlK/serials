@@ -20,6 +20,7 @@ use static_cell::StaticCell;
 use crate::Result;
 use crate::unix_seconds::UnixSeconds;
 use crate::wifi::{Wifi, WifiEvent, WifiMode, WifiNotifier};
+use crate::wifi_config::WifiCredentials;
 
 // ============================================================================
 // Types
@@ -66,7 +67,7 @@ impl TimeSync {
     /// Create a new TimeSync device (creates WiFi internally) and spawn its task
     ///
     /// # Arguments
-    /// * `mode` - WiFi mode (AccessPoint or Client)
+    /// * `credentials` - WiFi credentials for client mode, or None for AP mode
     pub fn new(
         resources: &'static TimeSyncNotifier,
         pin_23: Peri<'static, PIN_23>,
@@ -75,9 +76,14 @@ impl TimeSync {
         pin_24: Peri<'static, PIN_24>,
         pin_29: Peri<'static, PIN_29>,
         dma_ch0: Peri<'static, DMA_CH0>,
-        mode: WifiMode,
+        credentials: Option<WifiCredentials>,
         spawner: Spawner,
     ) -> &'static Self {
+        let mode = match credentials {
+            Some(creds) => WifiMode::ClientConfigured(creds),
+            None => WifiMode::AccessPoint,
+        };
+        
         // Create WiFi device
         let wifi = Wifi::new(
             &resources.wifi,

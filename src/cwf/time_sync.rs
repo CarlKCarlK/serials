@@ -24,7 +24,7 @@ mod stub {
         time_sync_cell: StaticCell<TimeSync>,
     }
 
-    /// Minimal time synchronisation stub that never produces events.
+    /// Minimal time synchronization stub that never produces events.
     pub struct TimeSync;
 
     impl TimeSync {

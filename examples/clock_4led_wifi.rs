@@ -25,8 +25,8 @@ use lib::cwf::{
     current_utc_offset_minutes, set_initial_utc_offset_minutes,
 };
 use lib::{
-    Button, Result, WifiMode, clear_timezone_offset, collect_wifi_credentials, credential_store,
-    dns_server_task, load_timezone_offset, save_timezone_offset,
+    Button, Result, WifiCredentials, clear_timezone_offset, collect_wifi_credentials,
+    credential_store, dns_server_task, load_timezone_offset, save_timezone_offset,
 };
 use panic_probe as _;
 use static_cell::StaticCell;
@@ -76,47 +76,75 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let mut clock = Clock::new(cells, segments, &CLOCK_NOTIFIER, spawner)?;
     let mut button = Button::new(gpio::Input::new(p.PIN_13, gpio::Pull::Down));
 
-    // Determine initial WiFi mode based on stored credentials
-    let stored_credentials = credential_store::load(&mut *flash)?;
-    let wifi_mode = if let Some(credentials) = stored_credentials {
-        info!("Stored Wi-Fi credentials found for SSID: {}", credentials.ssid);
-        WifiMode::ClientConfigured(credentials)
-    } else {
-        info!("No stored Wi-Fi credentials - starting configuration access point");
-        WifiMode::AccessPoint
-    };
+    // Determine initial boot phase by executing start logic
+    let mut wifi_setup_state = WifiSetupState::execute_start(flash).await?;
 
-    // Initialize time sync
+    // Initialize time sync with WiFi credentials from initial state
+    // NOTE: In the future, a typestate pattern could enforce at compile-time that
+    // execute_start never returns Running, eliminating the runtime check.
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
     let time_sync = TimeSync::new(
         &TIME_SYNC_NOTIFIER,
-        p.PIN_23,
-        p.PIN_25,
-        p.PIO0,
-        p.PIN_24,
-        p.PIN_29,
-        p.DMA_CH0,
-        wifi_mode,
+        p.PIN_23,   // WiFi chip data out
+        p.PIN_25,   // WiFi chip data in
+        p.PIO0,     // PIO for WiFi chip communication
+        p.PIN_24,   // WiFi chip clock
+        p.PIN_29,   // WiFi chip select
+        p.DMA_CH0,  // DMA channel for WiFi
+        wifi_setup_state.credentials_if_any(),
         spawner,
     );
 
     // State machine loop
-    let mut state = WifiSetupState::Start;
     loop {
-        state = state.execute(flash, &mut clock, &mut button, &time_sync, spawner).await?;
+        wifi_setup_state = wifi_setup_state.execute(flash, &mut clock, &mut button, &time_sync, spawner).await?;
     }
 }
 
 
-#[derive(Debug, defmt::Format, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum WifiSetupState {
-    Start,
-    AccessPoint,
-    TryConnect,
-    ReadyToWork,
+    CaptivePortal,
+    AttemptConnection(WifiCredentials),
+    Running,
 }
 
 impl WifiSetupState {
+    /// Execute start-up logic to determine initial boot phase
+    async fn execute_start(
+        flash: &mut Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
+    ) -> Result<Self> {
+        info!("Loading credentials from flash");
+        let stored_credentials = credential_store::load(flash)?;
+        let stored_offset = load_timezone_offset(flash)?.unwrap_or(0);
+        set_initial_utc_offset_minutes(stored_offset);
+
+        Ok(if let Some(credentials) = stored_credentials {
+            info!("Stored credentials found - will attempt connection");
+            Self::AttemptConnection(credentials)
+        } else {
+            info!("No stored credentials - starting captive portal");
+            Self::CaptivePortal
+        })
+    }
+
+    /// Extract WiFi credentials from boot phase
+    /// 
+    /// Returns None for AccessPoint mode, Some(credentials) for client mode.
+    /// Panics if called on Running state (should never happen from execute_start,
+    /// but a typestate pattern could enforce this at compile-time in the future).
+    fn credentials_if_any(&self) -> Option<WifiCredentials> {
+        match self {
+            Self::CaptivePortal => None,
+            Self::AttemptConnection(credentials) => Some(credentials.clone()),
+            Self::Running => {
+                // This should never happen if execute_start is implemented correctly.
+                // A typestate pattern could prevent this at compile-time.
+                panic!("Invalid state: execute_start should never return Running")
+            }
+        }
+    }
+
     async fn execute(
         self,
         flash: &mut Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
@@ -126,35 +154,19 @@ impl WifiSetupState {
         spawner: Spawner,
     ) -> Result<Self> {
         match self {
-            Self::Start => Self::execute_start(flash).await,
-            Self::AccessPoint => Self::execute_access_point(flash, clock, time_sync, spawner).await,
-            Self::TryConnect => Self::execute_try_connect(clock, button, time_sync, flash).await,
-            Self::ReadyToWork => Self::execute_ready_to_work(clock, button, time_sync, flash).await,
+            Self::CaptivePortal => Self::execute_captive_portal(flash, clock, time_sync, spawner).await,
+            Self::AttemptConnection(_credentials) => Self::execute_attempt_connection(clock, button, time_sync, flash).await,
+            Self::Running => Self::execute_running(clock, button, time_sync, flash).await,
         }
     }
 
-    async fn execute_start(
-        flash: &mut Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
-    ) -> Result<Self> {
-        info!("State: Start - loading credentials");
-        let stored_credentials = credential_store::load(flash)?;
-        let stored_offset = load_timezone_offset(flash)?.unwrap_or(0);
-        set_initial_utc_offset_minutes(stored_offset);
-
-        Ok(if stored_credentials.is_some() {
-            Self::TryConnect
-        } else {
-            Self::AccessPoint
-        })
-    }
-
-    async fn execute_access_point(
+    async fn execute_captive_portal(
         flash: &mut Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
         clock: &mut Clock<'_>,
         time_sync: &TimeSync,
         spawner: Spawner,
     ) -> Result<Self> {
-        info!("State: AccessPoint - starting captive portal");
+        info!("WifiSetupState: CaptivePortal - starting captive portal");
         clock.show_access_point_setup().await;
         
         let stack = time_sync.wifi().stack().await;
@@ -180,13 +192,13 @@ impl WifiSetupState {
         SCB::sys_reset();
     }
 
-    async fn execute_try_connect(
+    async fn execute_attempt_connection(
         clock: &mut Clock<'_>,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
         flash: &mut Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
     ) -> Result<Self> {
-        info!("State: TryConnect - attempting to connect and sync time");
+        info!("WifiSetupState: AttemptConnection - attempting to connect and sync time");
         let mut clock_state = ClockState::Connecting;
 
         // Keep trying to connect, checking for timeout
@@ -203,19 +215,19 @@ impl WifiSetupState {
             
             // If we successfully synced time, move to ready state
             if matches!(clock_state, ClockState::HoursMinutes) {
-                info!("Time synced - moving to ReadyToWork state");
-                return Ok(Self::ReadyToWork);
+                info!("Time synced - moving to Running state");
+                return Ok(Self::Running);
             }
         }
     }
 
-    async fn execute_ready_to_work(
+    async fn execute_running(
         clock: &mut Clock<'_>,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
         flash: &mut Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
     ) -> Result<Self> {
-        info!("State: ReadyToWork - running clock");
+        info!("WifiSetupState: Running - clock operational");
         let mut clock_state = ClockState::HoursMinutes;
         let mut persisted_offset = current_utc_offset_minutes();
 
