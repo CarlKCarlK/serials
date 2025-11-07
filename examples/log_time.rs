@@ -2,7 +2,7 @@
 //!
 //! This example demonstrates a complete WiFi configuration workflow:
 //! 1. Starts in AP mode for WiFi credential collection
-//! 2. User connects to "PicoClockConfig" AP and enters their WiFi credentials via web interface
+//! 2. User connects to "PicoClock" AP and enters their WiFi credentials via web interface
 //! 3. Switches to client mode and connects to the configured network
 //! 4. Syncs time with NTP server and logs time events
 //!
@@ -109,7 +109,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         info!("DNS server started - captive portal detection enabled");
 
         info!("Collecting WiFi credentials from web interface...");
-        info!("Connect to WiFi 'PicoClockConfig' and open browser to http://192.168.4.1");
+        info!("Connect to WiFi 'PicoClock' and open browser to http://192.168.4.1");
         info!("(Android/iOS should show 'Sign in to network' notification)");
         info!("");
         info!("==========================================================");

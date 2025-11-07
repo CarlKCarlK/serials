@@ -169,6 +169,8 @@ impl WifiSetupState {
         info!("WifiSetupState: CaptivePortal - starting captive portal");
         clock.show_access_point_setup().await;
         
+        // Wait for AP to be fully initialized before getting stack
+        time_sync.wifi().wait().await;
         let stack = time_sync.wifi().stack().await;
         info!("Network stack ready in AP mode");
 
@@ -176,7 +178,7 @@ impl WifiSetupState {
         let dns_token = unwrap!(dns_server_task(stack, ap_ip));
         spawner.spawn(dns_token);
 
-        info!("Captive portal running - connect to PicoClockConfig and browse to http://192.168.4.1");
+        info!("Captive portal running - connect to PicoClock and browse to http://192.168.4.1");
         let submission = collect_wifi_credentials(stack, spawner).await?;
         info!(
             "Credentials received for SSID: {} (offset {} minutes)",
