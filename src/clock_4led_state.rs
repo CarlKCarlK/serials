@@ -1,5 +1,5 @@
 use crate::button::{Button, PressDuration};
-use crate::cwf::clock::Clock;
+use crate::clock_4led::Clock4Led as Clock;
 use crate::cwf::time_sync::{TimeSync, TimeSyncEvent};
 use crate::cwf::{BlinkState, ClockTime, ONE_MINUTE, ONE_SECOND};
 use defmt::info;
@@ -7,7 +7,7 @@ use embassy_futures::select::{Either, select};
 use embassy_time::{Duration, Instant};
 
 #[derive(Debug, defmt::Format, Clone, Copy, Default)]
-pub enum ClockState {
+pub enum Clock4LedState {
     #[default]
     HoursMinutes,
     Connecting,
@@ -36,8 +36,8 @@ impl ConfirmClearChoice {
     }
 }
 
-impl ClockState {
-    pub async fn execute(
+impl Clock4LedState {
+    pub(crate) async fn execute(
         self,
         clock: &mut Clock<'_>,
         button: &mut Button<'_>,

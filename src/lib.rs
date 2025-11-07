@@ -8,6 +8,7 @@ mod button;
 mod char_lcd;
 pub mod clock;
 pub mod clock_4led;
+mod clock_4led_state;
 pub mod clock_offset_store;
 #[cfg(feature = "wifi")]
 pub mod credential_store;
@@ -36,9 +37,8 @@ pub use blink_state::BlinkState;
 pub use button::{BUTTON_DEBOUNCE_DELAY, Button, LONG_PRESS_DURATION, PressDuration};
 pub use char_lcd::{CharLcd, CharLcdMessage, CharLcdNotifier};
 pub use clock::{Clock, ClockCommand, ClockEvent, ClockNotifier, ClockState};
-pub use clock_4led::{
-    Clock4Led, Clock4LedNotifier, ClockCommand as Clock4LedCommand, ClockState as Clock4LedState,
-};
+pub use clock_4led::{Clock4Led, Clock4LedCommand, Clock4LedNotifier, Clock4LedOuterNotifier};
+pub use clock_4led_state::Clock4LedState;
 #[cfg(feature = "wifi")]
 pub use clock_offset_store::{
     clear as clear_timezone_offset, load as load_timezone_offset, save as save_timezone_offset,
