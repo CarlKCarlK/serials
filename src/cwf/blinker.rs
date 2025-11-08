@@ -1,7 +1,7 @@
 use crate::Result;
 use crate::BlinkState;
 use crate::cwf::display::{Display, DisplayNotifier};
-use crate::cwf::output_array::OutputArray;
+use crate::OutputArray;
 use crate::cwf::shared_constants::{CELL_COUNT, SEGMENT_COUNT};
 #[cfg(feature = "display-trace")]
 use defmt::info;

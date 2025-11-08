@@ -3,7 +3,7 @@ use core::convert::Infallible;
 use crate::BitMatrix;
 use crate::Result;
 use crate::cwf::Leds;
-use crate::cwf::output_array::OutputArray;
+use crate::OutputArray;
 use crate::cwf::shared_constants::{BitsToIndexes, CELL_COUNT, MULTIPLEX_SLEEP, SEGMENT_COUNT};
 #[cfg(feature = "display-trace")]
 use defmt::info;

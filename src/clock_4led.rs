@@ -10,7 +10,7 @@ use embassy_time::{Duration, Timer};
 use crate::cwf::blinker::{Blinker, BlinkerNotifier};
 use crate::Clock4LedState;
 use crate::cwf::clock_time::ClockTime;
-use crate::cwf::output_array::OutputArray;
+use crate::OutputArray;
 use crate::cwf::shared_constants::{CELL_COUNT, ONE_MINUTE, SEGMENT_COUNT};
 
 /// A struct representing a 4-digit LED clock.

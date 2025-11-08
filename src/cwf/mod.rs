@@ -2,7 +2,6 @@ pub mod blinker;
 pub mod clock_time;
 pub mod display;
 pub mod hardware;
-pub mod output_array;
 pub mod shared_constants;
 pub mod time_sync;
 
@@ -16,6 +15,6 @@ pub use blinker::{Blinker, BlinkerNotifier};
 pub use crate::Clock4LedState;
 pub use clock_time::{ClockTime, current_utc_offset_minutes, set_initial_utc_offset_minutes};
 pub use hardware::Hardware;
-pub use output_array::OutputArray;
+pub use crate::OutputArray;
 pub use shared_constants::*;
 pub use time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};

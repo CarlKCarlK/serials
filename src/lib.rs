@@ -5,6 +5,7 @@
 mod bit_matrix;
 mod blink_state;
 mod button;
+mod output_array;
 mod char_lcd;
 pub mod clock;
 pub mod clock_4led;
@@ -47,8 +48,9 @@ pub use clock_offset_store::{
 pub use dns_server::dns_server_task;
 pub use error::{Error, Result};
 pub use ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
-pub use led_4seg::{Led4Seg, Led4SegNotifier, OutputArray, Text as Led4SegText};
+pub use led_4seg::{Led4Seg, Led4SegNotifier, Text as Led4SegText};
 pub use led_24x4::Led24x4;
+pub use output_array::OutputArray;
 pub use led_strip::{LedStrip, LedStripNotifier, PioBus, Rgb};
 pub use rfid::{Rfid, RfidEvent, RfidNotifier};
 pub use servo::Servo;
