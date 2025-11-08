@@ -2,16 +2,15 @@
 #![no_std]
 #![no_main]
 
-mod bit_matrix;
-mod blink_state;
+mod bit_matrix_4led;
 mod button;
 mod output_array;
 mod char_lcd;
 pub mod clock;
 pub mod clock_4led;
-mod clock_4led_blinker;
+mod blinker_4led;
 mod constants;
-mod clock_4led_display;
+mod display_4led;
 mod clock_4led_state;
 pub mod clock_4led_time;
 pub mod clock_offset_store;
@@ -35,8 +34,8 @@ pub mod wifi;
 #[cfg(feature = "wifi")]
 pub mod wifi_config;
 // Re-export commonly used items
-pub use bit_matrix::BitMatrix;
-pub use blink_state::BlinkState;
+pub use bit_matrix_4led::BitMatrix4Led;
+pub use blinker_4led::BlinkState4Led;
 pub use button::{BUTTON_DEBOUNCE_DELAY, Button, LONG_PRESS_DURATION, PressDuration};
 pub use char_lcd::{CharLcd, CharLcdMessage, CharLcdNotifier};
 pub use clock::{Clock, ClockCommand, ClockEvent, ClockNotifier, ClockState};

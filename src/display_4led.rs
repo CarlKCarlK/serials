@@ -1,6 +1,6 @@
 use core::convert::Infallible;
 
-use crate::BitMatrix;
+use crate::BitMatrix4Led;
 use crate::Result;
 use crate::led_4seg::Leds;
 use crate::OutputArray;
@@ -13,9 +13,9 @@ use embassy_rp::gpio::Level;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
 
-pub struct Display<'a>(&'a DisplayNotifier);
+use crate::blinker_4led::Text4Led;
 
-pub type DisplayNotifier = Signal<CriticalSectionRawMutex, BitMatrix>;
+pub type Display4LedNotifier = Signal<CriticalSectionRawMutex, BitMatrix4Led>;
 
 pub const LED_DECIMAL: u8 = 0b_1000_0000;
 
@@ -23,9 +23,11 @@ pub const LED_DIGITS: [u8; 10] = Leds::DIGITS;
 
 pub const LED_ASCII_TABLE: [u8; 128] = Leds::ASCII_TABLE;
 
-impl Display<'_> {
+pub struct Display4Led<'a>(&'a Display4LedNotifier);
+
+impl Display4Led<'_> {
     #[must_use]
-    pub const fn notifier() -> DisplayNotifier {
+    pub const fn notifier() -> Display4LedNotifier {
         Signal::new()
     }
 
@@ -33,7 +35,7 @@ impl Display<'_> {
     pub fn new(
         cell_pins: OutputArray<'static, CELL_COUNT_4LED>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT_4LED>,
-        notifier: &'static DisplayNotifier,
+        notifier: &'static Display4LedNotifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
         let token = device_loop(cell_pins, segment_pins, notifier)?;
@@ -41,10 +43,10 @@ impl Display<'_> {
         Ok(Self(notifier))
     }
 
-    pub fn write_text(&self, text: crate::clock_4led_blinker::Text) {
+    pub fn write_text(&self, text: crate::blinker_4led::Text4Led) {
         #[cfg(feature = "display-trace")]
         info!("write_chars: {:?}", text);
-        self.0.signal(BitMatrix::from_text(&text));
+        self.0.signal(BitMatrix4Led::from_text(&text));
     }
 }
 
@@ -52,7 +54,7 @@ impl Display<'_> {
 async fn device_loop(
     cell_pins: OutputArray<'static, CELL_COUNT_4LED>,
     segment_pins: OutputArray<'static, SEGMENT_COUNT_4LED>,
-    notifier: &'static DisplayNotifier,
+    notifier: &'static Display4LedNotifier,
 ) -> ! {
     let err = inner_device_loop(cell_pins, segment_pins, notifier)
         .await
@@ -63,9 +65,9 @@ async fn device_loop(
 async fn inner_device_loop(
     mut cell_pins: OutputArray<'static, CELL_COUNT_4LED>,
     mut segment_pins: OutputArray<'static, SEGMENT_COUNT_4LED>,
-    notifier: &'static DisplayNotifier,
+    notifier: &'static Display4LedNotifier,
 ) -> Result<Infallible> {
-    let mut bit_matrix = BitMatrix::default();
+    let mut bit_matrix = BitMatrix4Led::default();
     let mut bits_to_indexes = BitsToIndexes4Led::default();
     'outer: loop {
         #[cfg(feature = "display-trace")]

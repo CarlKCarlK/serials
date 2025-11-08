@@ -9,9 +9,9 @@ use crate::Result;
 use crate::error::Error;
 
 #[derive(defmt::Format, Debug, Clone)]
-pub struct BitMatrix([u8; CELL_COUNT]);
+pub struct BitMatrix4Led([u8; CELL_COUNT]);
 
-impl BitMatrix {
+impl BitMatrix4Led {
     pub const fn new(bits: [u8; CELL_COUNT]) -> Self {
         Self(bits)
     }
@@ -73,35 +73,35 @@ impl BitMatrix {
     }
 }
 
-impl Default for BitMatrix {
+impl Default for BitMatrix4Led {
     fn default() -> Self {
         Self([0; CELL_COUNT])
     }
 }
 
-impl BitOrAssign<u8> for BitMatrix {
+impl BitOrAssign<u8> for BitMatrix4Led {
     fn bitor_assign(&mut self, rhs: u8) {
         self.iter_mut().for_each(|bits| *bits |= rhs);
     }
 }
 
-impl Index<u8> for BitMatrix {
+impl Index<usize> for BitMatrix4Led {
     type Output = u8;
 
     #[expect(clippy::indexing_slicing, reason = "Caller's responsibility")]
-    fn index(&self, index: u8) -> &Self::Output {
-        &self.0[index as usize]
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
     }
 }
 
-impl IndexMut<u8> for BitMatrix {
+impl IndexMut<usize> for BitMatrix4Led {
     #[expect(clippy::indexing_slicing, reason = "Caller's responsibility")]
-    fn index_mut(&mut self, index: u8) -> &mut Self::Output {
-        &mut self.0[index as usize]
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
     }
 }
 
-impl IntoIterator for BitMatrix {
+impl IntoIterator for BitMatrix4Led {
     type Item = u8;
     type IntoIter = core::array::IntoIter<u8, CELL_COUNT>;
 
@@ -110,7 +110,7 @@ impl IntoIterator for BitMatrix {
     }
 }
 
-impl<'a> IntoIterator for &'a BitMatrix {
+impl<'a> IntoIterator for &'a BitMatrix4Led {
     type Item = &'a u8;
     type IntoIter = core::slice::Iter<'a, u8>;
 
@@ -119,7 +119,7 @@ impl<'a> IntoIterator for &'a BitMatrix {
     }
 }
 
-impl<'a> IntoIterator for &'a mut BitMatrix {
+impl<'a> IntoIterator for &'a mut BitMatrix4Led {
     type Item = &'a mut u8;
     type IntoIter = core::slice::IterMut<'a, u8>;
 
