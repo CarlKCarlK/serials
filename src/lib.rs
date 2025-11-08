@@ -12,7 +12,6 @@ pub mod clock_4led;
 mod clock_4led_blinker;
 mod clock_4led_constants;
 mod clock_4led_display;
-mod clock_4led_hardware;
 mod clock_4led_state;
 pub mod clock_4led_time;
 pub mod clock_offset_store;
