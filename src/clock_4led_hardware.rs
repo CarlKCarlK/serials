@@ -4,7 +4,7 @@ use embassy_rp::{
 };
 
 use crate::OutputArray;
-use crate::cwf::shared_constants::{CELL_COUNT, SEGMENT_COUNT};
+use crate::clock_4led_constants::{CELL_COUNT, SEGMENT_COUNT};
 
 /// Represents the hardware components of the 4-digit clock.
 pub struct Hardware {

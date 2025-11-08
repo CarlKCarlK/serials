@@ -7,7 +7,7 @@ use core::num::NonZeroU8;
 use defmt::{info, unwrap};
 use embassy_executor::{SpawnError, Spawner};
 use embassy_futures::select::{Either, select};
-use embassy_rp::gpio::{self, Level};
+use embassy_rp::gpio::Level;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Timer};
 use heapless::{LinearMap, Vec};

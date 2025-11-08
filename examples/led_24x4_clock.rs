@@ -11,7 +11,7 @@ use smart_leds::RGB8;
 
 // 4x12 panel (48 pixels) using PIO1, SM0, DMA_CH1, GPIO16
 // Max current 50 mA
-define_led_strip! {
+define_led_strips! {
     led_strip2 as LedStrip2 {
         task: led_strip_2_driver,
         pio: PIO1,

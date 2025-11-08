@@ -5,7 +5,7 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
-use lib::{Result, Rgb, define_led_strips};
+use lib::{Result, Rgb, colors, define_led_strips};
 use panic_probe as _;
 
 define_led_strips! {
@@ -54,7 +54,7 @@ async fn main(spawner: Spawner) -> ! {
 }
 
 async fn update_rainbow(strip: &mut led_strip0::Strip, base: u8) -> Result<()> {
-    let mut pixels = [BLACK; led_strip0::LEN];
+    let mut pixels = [colors::BLACK; led_strip0::LEN];
     for idx in 0..led_strip0::LEN {
         let offset = base.wrapping_add((idx as u8).wrapping_mul(16));
         pixels[idx] = wheel(offset);

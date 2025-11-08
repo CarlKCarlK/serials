@@ -9,11 +9,15 @@ mod output_array;
 mod char_lcd;
 pub mod clock;
 pub mod clock_4led;
+mod clock_4led_blinker;
+mod clock_4led_constants;
+mod clock_4led_display;
+mod clock_4led_hardware;
 mod clock_4led_state;
+pub mod clock_4led_time;
 pub mod clock_offset_store;
 #[cfg(feature = "wifi")]
 pub mod credential_store;
-pub mod cwf;
 #[cfg(feature = "wifi")]
 mod dhcp_server;
 #[cfg(feature = "wifi")]
@@ -25,7 +29,6 @@ pub mod led_4seg;
 pub mod led_strip;
 mod rfid;
 pub mod servo;
-#[cfg(feature = "wifi")]
 pub mod time_sync;
 pub mod unix_seconds;
 #[cfg(feature = "wifi")]
@@ -55,7 +58,6 @@ pub use led_strip::{LedStrip, LedStripNotifier, PioBus, Rgb};
 pub use rfid::{Rfid, RfidEvent, RfidNotifier};
 pub use servo::Servo;
 pub use smart_leds::colors;
-#[cfg(feature = "wifi")]
 pub use time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 pub use unix_seconds::UnixSeconds;
 #[cfg(feature = "wifi")]

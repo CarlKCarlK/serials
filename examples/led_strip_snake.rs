@@ -12,7 +12,7 @@ use smart_leds::RGB8;
 // WS2812B 4x12 LED matrix (48 pixels)
 // Uses PIO1, State Machine 0, DMA_CH1, GPIO16 (pin 21)
 // Max 500mA current budget (safe for USB 2.0)
-define_led_strip! {
+define_led_strips! {
     led_strip2 as LedStrip2 {
         task: led_strip_2_driver,
         pio: PIO1,

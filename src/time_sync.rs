@@ -6,21 +6,23 @@
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
-use core::convert::Infallible;
-use defmt::*;
-use embassy_executor::Spawner;
-use embassy_net::{Stack, dns, udp};
-use embassy_rp::Peri;
-use embassy_rp::peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0};
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::signal::Signal;
-use embassy_time::{Duration, Timer};
-use static_cell::StaticCell;
+#[cfg(feature = "wifi")]
+mod wifi_impl {
+    use core::convert::Infallible;
+    use defmt::*;
+    use embassy_executor::Spawner;
+    use embassy_net::{Stack, dns, udp};
+    use embassy_rp::Peri;
+    use embassy_rp::peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0};
+    use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+    use embassy_sync::signal::Signal;
+    use embassy_time::{Duration, Timer};
+    use static_cell::StaticCell;
 
-use crate::Result;
-use crate::unix_seconds::UnixSeconds;
-use crate::wifi::{Wifi, WifiEvent, WifiMode, WifiNotifier};
-use crate::wifi_config::WifiCredentials;
+    use crate::Result;
+    use crate::unix_seconds::UnixSeconds;
+    use crate::wifi::{Wifi, WifiEvent, WifiMode, WifiNotifier};
+    use crate::wifi_config::WifiCredentials;
 
 // ============================================================================
 // Types
@@ -305,3 +307,63 @@ async fn fetch_ntp_time(stack: &Stack<'static>) -> Result<UnixSeconds, &'static 
     info!("NTP time: {} (unix timestamp)", unix_time.as_i64());
     Ok(unix_time)
 }
+
+} // end wifi_impl module
+
+// Export wifi_impl types when wifi feature is enabled
+#[cfg(feature = "wifi")]
+pub use wifi_impl::{TimeSync, TimeSyncEvent, TimeSyncEvents, TimeSyncNotifier};
+
+// ============================================================================
+// No-WiFi Stub Implementation
+// ============================================================================
+
+#[cfg(not(feature = "wifi"))]
+mod stub {
+    use core::future::pending;
+    use embassy_executor::Spawner;
+    use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+    use embassy_sync::signal::Signal;
+    use static_cell::StaticCell;
+    use crate::unix_seconds::UnixSeconds;
+
+    /// Events produced by the time synchronisation task.
+    #[derive(Clone)]
+    pub enum TimeSyncEvent {
+        Success { unix_seconds: UnixSeconds },
+        Failed(&'static str),
+    }
+
+    pub type TimeSyncEvents = Signal<CriticalSectionRawMutex, TimeSyncEvent>;
+
+    /// Notifier used to construct a [`TimeSync`] instance.
+    pub struct TimeSyncNotifier {
+        time_sync_cell: StaticCell<TimeSync>,
+    }
+
+    /// Minimal time synchronization stub that never produces events.
+    pub struct TimeSync;
+
+    impl TimeSync {
+        /// Create time sync resources.
+        #[must_use]
+        pub const fn notifier() -> TimeSyncNotifier {
+            TimeSyncNotifier {
+                time_sync_cell: StaticCell::new(),
+            }
+        }
+
+        /// Construct the stub device.
+        pub fn new(resources: &'static TimeSyncNotifier, _spawner: Spawner) -> &'static Self {
+            resources.time_sync_cell.init(Self {})
+        }
+
+        /// Wait for the next time sync event. This stub never resolves, effectively disabling sync.
+        pub async fn wait(&self) -> TimeSyncEvent {
+            pending().await
+        }
+    }
+}
+
+#[cfg(not(feature = "wifi"))]
+pub use stub::{TimeSync, TimeSyncEvent, TimeSyncEvents, TimeSyncNotifier};

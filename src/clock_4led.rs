@@ -7,11 +7,11 @@ use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Timer};
 
-use crate::cwf::blinker::{Blinker, BlinkerNotifier};
+use crate::clock_4led_blinker::{Blinker, BlinkerNotifier};
 use crate::Clock4LedState;
-use crate::cwf::clock_time::ClockTime;
+use crate::clock_4led_time::ClockTime;
 use crate::OutputArray;
-use crate::cwf::shared_constants::{CELL_COUNT, ONE_MINUTE, SEGMENT_COUNT};
+use crate::clock_4led_constants::{CELL_COUNT, ONE_MINUTE, SEGMENT_COUNT};
 
 /// A struct representing a 4-digit LED clock.
 pub struct Clock4Led<'a>(&'a Clock4LedOuterNotifier);
@@ -44,17 +44,20 @@ impl Clock4Led<'_> {
         (Channel::new(), Blinker::notifier())
     }
 
-    pub(crate) async fn set_state(&self, clock_state: Clock4LedState) {
+    /// Set the clock state directly.
+    pub async fn set_state(&self, clock_state: Clock4LedState) {
         self.0.send(Clock4LedCommand::SetState(clock_state)).await;
     }
 
-    pub(crate) async fn set_time_from_unix(&self, unix_seconds: crate::unix_seconds::UnixSeconds) {
+    /// Set the time from Unix seconds.
+    pub async fn set_time_from_unix(&self, unix_seconds: crate::unix_seconds::UnixSeconds) {
         self.0
             .send(Clock4LedCommand::SetTimeFromUnix(unix_seconds))
             .await;
     }
 
-    pub(crate) async fn adjust_utc_offset_hours(&self, hours: i32) {
+    /// Adjust the UTC offset by the given number of hours.
+    pub async fn adjust_utc_offset_hours(&self, hours: i32) {
         self.0.send(Clock4LedCommand::AdjustUtcOffsetHours(hours)).await;
     }
 

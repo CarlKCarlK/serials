@@ -2,9 +2,9 @@ use core::convert::Infallible;
 
 use crate::BitMatrix;
 use crate::Result;
-use crate::cwf::Leds;
+use crate::led_4seg::Leds;
 use crate::OutputArray;
-use crate::cwf::shared_constants::{BitsToIndexes, CELL_COUNT, MULTIPLEX_SLEEP, SEGMENT_COUNT};
+use crate::clock_4led_constants::{BitsToIndexes, CELL_COUNT, MULTIPLEX_SLEEP, SEGMENT_COUNT};
 #[cfg(feature = "display-trace")]
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
@@ -41,7 +41,7 @@ impl Display<'_> {
         Ok(Self(notifier))
     }
 
-    pub fn write_text(&self, text: crate::cwf::blinker::Text) {
+    pub fn write_text(&self, text: crate::clock_4led_blinker::Text) {
         #[cfg(feature = "display-trace")]
         info!("write_chars: {:?}", text);
         self.0.signal(BitMatrix::from_text(&text));

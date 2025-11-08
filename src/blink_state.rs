@@ -12,9 +12,9 @@ mod cwf_impl {
     use super::BlinkState;
     use embassy_futures::select::{Either, select};
     use embassy_time::Timer;
-    use crate::cwf::blinker::{BlinkerOuterNotifier, Text};
-    use crate::cwf::display::Display;
-    use crate::cwf::shared_constants::{BLINK_OFF_DELAY, BLINK_ON_DELAY, CELL_COUNT};
+    use crate::clock_4led_blinker::{BlinkerOuterNotifier, Text};
+    use crate::clock_4led_display::Display;
+    use crate::clock_4led_constants::{BLINK_OFF_DELAY, BLINK_ON_DELAY, CELL_COUNT};
 
     impl BlinkState {
 

@@ -1,7 +1,9 @@
 use crate::button::{Button, PressDuration};
 use crate::clock_4led::Clock4Led as Clock;
-use crate::cwf::time_sync::{TimeSync, TimeSyncEvent};
-use crate::cwf::{BlinkState, ClockTime, ONE_MINUTE, ONE_SECOND};
+use crate::{TimeSync, TimeSyncEvent};
+use crate::BlinkState;
+use crate::clock_4led_time::ClockTime;
+use crate::clock_4led_constants::{ONE_MINUTE, ONE_SECOND};
 use defmt::info;
 use embassy_futures::select::{Either, select};
 use embassy_time::{Duration, Instant};
@@ -37,7 +39,8 @@ impl ConfirmClearChoice {
 }
 
 impl Clock4LedState {
-    pub(crate) async fn execute(
+    /// Execute the state machine for this clock state.
+    pub async fn execute(
         self,
         clock: &mut Clock<'_>,
         button: &mut Button<'_>,
@@ -59,7 +62,8 @@ impl Clock4LedState {
         }
     }
 
-    pub(crate) fn render(self, clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
+    /// Render the current clock state to display output.
+    pub fn render(self, clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         match self {
             Self::HoursMinutes => Self::render_hours_minutes(clock_time),
             Self::Connecting => Self::render_connecting(clock_time),

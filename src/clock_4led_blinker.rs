@@ -1,8 +1,8 @@
 use crate::Result;
 use crate::BlinkState;
-use crate::cwf::display::{Display, DisplayNotifier};
+use crate::clock_4led_display::{Display, DisplayNotifier};
 use crate::OutputArray;
-use crate::cwf::shared_constants::{CELL_COUNT, SEGMENT_COUNT};
+use crate::clock_4led_constants::{CELL_COUNT, SEGMENT_COUNT};
 #[cfg(feature = "display-trace")]
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
