@@ -10,7 +10,7 @@ mod char_lcd;
 pub mod clock;
 pub mod clock_4led;
 mod clock_4led_blinker;
-mod clock_4led_constants;
+mod constants;
 mod clock_4led_display;
 mod clock_4led_state;
 pub mod clock_4led_time;

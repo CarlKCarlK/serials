@@ -2,7 +2,7 @@ use crate::Result;
 use crate::BlinkState;
 use crate::clock_4led_display::{Display, DisplayNotifier};
 use crate::OutputArray;
-use crate::clock_4led_constants::{CELL_COUNT, SEGMENT_COUNT};
+use crate::constants::{CELL_COUNT_4LED, SEGMENT_COUNT_4LED};
 #[cfg(feature = "display-trace")]
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
@@ -14,13 +14,13 @@ pub type BlinkerNotifier = (BlinkerOuterNotifier, DisplayNotifier);
 
 pub type BlinkerOuterNotifier = Signal<CriticalSectionRawMutex, (BlinkState, Text)>;
 
-pub type Text = [char; CELL_COUNT];
+pub type Text = [char; CELL_COUNT_4LED];
 
 impl Blinker<'_> {
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
-        cell_pins: OutputArray<'static, CELL_COUNT>,
-        segment_pins: OutputArray<'static, SEGMENT_COUNT>,
+        cell_pins: OutputArray<'static, CELL_COUNT_4LED>,
+        segment_pins: OutputArray<'static, SEGMENT_COUNT_4LED>,
         notifier: &'static BlinkerNotifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
@@ -49,7 +49,7 @@ async fn device_loop(
     display: Display<'static>,
 ) -> ! {
     let mut blink_state = BlinkState::default();
-    let mut text = [' '; CELL_COUNT];
+    let mut text = [' '; CELL_COUNT_4LED];
     #[expect(clippy::shadow_unrelated, reason = "False positive; not shadowing")]
     loop {
         (blink_state, text) = blink_state.execute(outer_notifier, &display, text).await;

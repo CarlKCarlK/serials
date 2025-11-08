@@ -3,7 +3,7 @@ use crate::clock_4led::Clock4Led as Clock;
 use crate::{TimeSync, TimeSyncEvent};
 use crate::BlinkState;
 use crate::clock_4led_time::ClockTime;
-use crate::clock_4led_constants::{ONE_MINUTE, ONE_SECOND};
+use crate::constants::{ONE_MINUTE, ONE_SECOND};
 use defmt::info;
 use embassy_futures::select::{Either, select};
 use embassy_time::{Duration, Instant};

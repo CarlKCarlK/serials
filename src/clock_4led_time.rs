@@ -4,7 +4,7 @@ use core::sync::atomic::{AtomicI32, Ordering};
 use defmt::info;
 use embassy_time::{Duration, Instant};
 
-use crate::clock_4led_constants::TICKS_IN_ONE_DAY;
+use crate::constants::TICKS_IN_ONE_DAY;
 use crate::unix_seconds::UnixSeconds;
 
 static INITIAL_UTC_OFFSET_MINUTES: AtomicI32 = AtomicI32::new(0);

@@ -4,7 +4,7 @@ use crate::BitMatrix;
 use crate::Result;
 use crate::led_4seg::Leds;
 use crate::OutputArray;
-use crate::clock_4led_constants::{BitsToIndexes, CELL_COUNT, MULTIPLEX_SLEEP, SEGMENT_COUNT};
+use crate::constants::{BitsToIndexes4Led, CELL_COUNT_4LED, MULTIPLEX_SLEEP_4LED, SEGMENT_COUNT_4LED};
 #[cfg(feature = "display-trace")]
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
@@ -31,8 +31,8 @@ impl Display<'_> {
 
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
-        cell_pins: OutputArray<'static, CELL_COUNT>,
-        segment_pins: OutputArray<'static, SEGMENT_COUNT>,
+        cell_pins: OutputArray<'static, CELL_COUNT_4LED>,
+        segment_pins: OutputArray<'static, SEGMENT_COUNT_4LED>,
         notifier: &'static DisplayNotifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
@@ -50,8 +50,8 @@ impl Display<'_> {
 
 #[embassy_executor::task]
 async fn device_loop(
-    cell_pins: OutputArray<'static, CELL_COUNT>,
-    segment_pins: OutputArray<'static, SEGMENT_COUNT>,
+    cell_pins: OutputArray<'static, CELL_COUNT_4LED>,
+    segment_pins: OutputArray<'static, SEGMENT_COUNT_4LED>,
     notifier: &'static DisplayNotifier,
 ) -> ! {
     let err = inner_device_loop(cell_pins, segment_pins, notifier)
@@ -61,12 +61,12 @@ async fn device_loop(
 }
 
 async fn inner_device_loop(
-    mut cell_pins: OutputArray<'static, CELL_COUNT>,
-    mut segment_pins: OutputArray<'static, SEGMENT_COUNT>,
+    mut cell_pins: OutputArray<'static, CELL_COUNT_4LED>,
+    mut segment_pins: OutputArray<'static, SEGMENT_COUNT_4LED>,
     notifier: &'static DisplayNotifier,
 ) -> Result<Infallible> {
     let mut bit_matrix = BitMatrix::default();
-    let mut bits_to_indexes = BitsToIndexes::default();
+    let mut bits_to_indexes = BitsToIndexes4Led::default();
     'outer: loop {
         #[cfg(feature = "display-trace")]
         info!("bit_matrix: {:?}", bit_matrix);
@@ -87,7 +87,7 @@ async fn inner_device_loop(
                     segment_pins.set_from_nonzero_bits(*bits);
                     cell_pins.set_levels_at_indexes(indexes, Level::Low)?;
                     let timeout_or_signal =
-                        select(Timer::after(MULTIPLEX_SLEEP), notifier.wait()).await;
+                        select(Timer::after(MULTIPLEX_SLEEP_4LED), notifier.wait()).await;
                     cell_pins.set_levels_at_indexes(indexes, Level::High)?;
                     if let Either::Second(notification) = timeout_or_signal {
                         bit_matrix = notification;

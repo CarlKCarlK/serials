@@ -14,7 +14,7 @@ mod cwf_impl {
     use embassy_time::Timer;
     use crate::clock_4led_blinker::{BlinkerOuterNotifier, Text};
     use crate::clock_4led_display::Display;
-    use crate::clock_4led_constants::{BLINK_OFF_DELAY, BLINK_ON_DELAY, CELL_COUNT};
+    use crate::constants::{BLINK_OFF_DELAY_4LED, BLINK_ON_DELAY_4LED, CELL_COUNT_4LED};
 
     impl BlinkState {
 
@@ -52,7 +52,7 @@ mod cwf_impl {
     ) -> (Self, Text) {
         display.write_text(text);
         if let Either::First((new_state, new_text)) =
-            select(outer_notifier.wait(), Timer::after(BLINK_ON_DELAY)).await
+            select(outer_notifier.wait(), Timer::after(BLINK_ON_DELAY_4LED)).await
         {
             (new_state, new_text)
         } else {
@@ -65,9 +65,9 @@ mod cwf_impl {
         display: &Display<'_>,
         text: Text,
     ) -> (Self, Text) {
-        display.write_text([' '; CELL_COUNT]);
+        display.write_text([' '; CELL_COUNT_4LED]);
         if let Either::First((new_state, new_text)) =
-            select(outer_notifier.wait(), Timer::after(BLINK_OFF_DELAY)).await
+            select(outer_notifier.wait(), Timer::after(BLINK_OFF_DELAY_4LED)).await
         {
             (new_state, new_text)
         } else {
