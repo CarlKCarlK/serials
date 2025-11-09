@@ -1,4 +1,4 @@
-//! Persistent storage for WiFi credentials in internal flash.
+//! Storage for WiFi credentials in flash memory.
 #![cfg(feature = "wifi")]
 
 use crc32fast::Hasher;

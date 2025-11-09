@@ -15,6 +15,7 @@ use embassy_time::Timer;
 
 use crate::blinker_4led::Text4Led;
 
+/// Notifier type for the `Display4Led` device abstraction.
 pub type Display4LedNotifier = Signal<CriticalSectionRawMutex, BitMatrix4Led>;
 
 pub const LED_DECIMAL: u8 = 0b_1000_0000;
@@ -23,6 +24,7 @@ pub const LED_DIGITS: [u8; 10] = Leds::DIGITS;
 
 pub const LED_ASCII_TABLE: [u8; 128] = Leds::ASCII_TABLE;
 
+/// A device abstraction for a 4-digit 7-segment LED display.
 pub struct Display4Led<'a>(&'a Display4LedNotifier);
 
 impl Display4Led<'_> {

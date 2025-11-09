@@ -1,4 +1,4 @@
-//! Unix timestamp type for time-related devices
+//! Unix timestamp representation and conversion utilities.
 
 use defmt::Format;
 use time::{OffsetDateTime, UtcOffset};

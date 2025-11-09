@@ -15,7 +15,7 @@ use esp_hal_mfrc522::drivers::SpiDriver;
 
 use crate::{Error, Result};
 
-/// Events from the RFID reader
+/// Events received from the RFID reader.
 #[derive(Debug, Clone, Copy)]
 pub enum RfidEvent {
     /// A card was detected
@@ -29,10 +29,10 @@ pub type Mfrc522Device = MFRC522<
     >,
 >;
 
-/// Notifier type for RFID reader events (uses Channel to ensure all cards are processed)
+/// Notifier type for the `Rfid` device abstraction.
 pub type RfidNotifier = EmbassyChannel<CriticalSectionRawMutex, RfidEvent, 4>;
 
-/// RFID reader device abstraction
+/// A device abstraction for an RFID reader using the MFRC522 chip.
 pub struct Rfid<'a> {
     notifier: &'a RfidNotifier,
 }

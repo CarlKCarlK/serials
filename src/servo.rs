@@ -1,7 +1,4 @@
-//! Hardware-PWM SG90/FS90R servo driver for RP2040 (Pico / Pico W) using Embassy.
-//! - 50 Hz frame (20 ms)
-//! - Clock-independent: computes divider from clk_sys so 1 tick ≈ 1 µs
-//! - Updates duty WITHOUT reconfiguring the slice
+//! Servo motor device abstraction using hardware PWM.
 
 use defmt::info;
 use embassy_rp::clocks::clk_sys_freq;
@@ -24,7 +21,7 @@ pub const SERVO_PERIOD_US: u16 = 20_000; // 20 ms
 /// let mut servo_b = servo_b!(p.PWM_SLICE0, p.PIN_1, 500, 2500);
 /// ```
 
-/// Create a servo on PWM channel A.
+/// A device abstraction that creates a servo on PWM channel A.
 #[macro_export]
 macro_rules! servo_a {
     ($slice:expr, $pin:expr, $min_us:expr, $max_us:expr) => {
@@ -37,7 +34,7 @@ macro_rules! servo_a {
     };
 }
 
-/// Create a servo on PWM channel B.
+/// A device abstraction that creates a servo on PWM channel B.
 #[macro_export]
 macro_rules! servo_b {
     ($slice:expr, $pin:expr, $min_us:expr, $max_us:expr) => {
@@ -50,6 +47,7 @@ macro_rules! servo_b {
     };
 }
 
+/// A device abstraction for SG90/FS90R servo motors using hardware PWM.
 pub struct Servo<'d> {
     pwm: Pwm<'d>,
     cfg: Config, // Store config to avoid recreating default (which resets divider)

@@ -3,6 +3,7 @@ use crate::error::Error::IndexOutOfBounds;
 use core::num::NonZeroU8;
 use embassy_rp::gpio::{self, Level};
 
+/// Array of GPIO output pins with utility methods for batch operations.
 pub struct OutputArray<'a, const N: usize>([gpio::Output<'a>; N]);
 
 impl<'a, const N: usize> OutputArray<'a, N> {

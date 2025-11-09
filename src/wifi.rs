@@ -1,8 +1,4 @@
-//! WiFi virtual device - manages WiFi connection and network stack
-//!
-//! Supports two modes:
-//! 1. AP Mode: Start as access point for configuration
-//! 2. Client Mode: Connect to existing WiFi network
+//! WiFi device abstraction supporting both access point and client modes.
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 #![allow(
@@ -33,7 +29,7 @@ use crate::wifi_config::WifiCredentials;
 // Types
 // ============================================================================
 
-/// Events emitted by the Wi-Fi device
+/// Events emitted by the WiFi device.
 pub enum WifiEvent {
     /// Network stack is initialized in AP mode, ready for configuration
     ApReady,
@@ -41,7 +37,7 @@ pub enum WifiEvent {
     ClientReady,
 }
 
-/// WiFi operating mode
+/// WiFi operating mode.
 #[derive(Clone, PartialEq, Eq)]
 pub enum WifiMode {
     /// Start in AP mode for configuration (no credentials needed)
@@ -99,16 +95,17 @@ impl StackStorage {
 // WiFi Virtual Device
 // ============================================================================
 
+/// Signal type for WiFi events.
 pub type WifiEvents = Signal<CriticalSectionRawMutex, WifiEvent>;
 
-/// Resources needed by the WiFi device (single static)
+/// Resources needed by the WiFi device.
 pub struct WifiNotifier {
     events: WifiEvents,
     stack: StackStorage,
     wifi_cell: StaticCell<Wifi>,
 }
 
-/// WiFi virtual device - manages WiFi connection and emits network events
+/// A device abstraction that manages WiFi connectivity and network stack in both AP and client modes.
 pub struct Wifi {
     events: &'static WifiEvents,
     stack: &'static StackStorage,

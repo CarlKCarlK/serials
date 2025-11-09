@@ -1,7 +1,4 @@
-//! LED 4-segment 7-segment display virtual device
-//!
-//! This module provides a virtual device abstraction for a 4-digit, 7-segment LED display
-//! with support for blinking, multiplexing, and text rendering.
+//! 4-digit 7-segment LED display device abstraction.
 
 use core::num::NonZeroU8;
 use defmt::{info, unwrap};
@@ -37,10 +34,10 @@ pub const BLINK_OFF_DELAY: Duration = Duration::from_millis(50);
 /// Delay for the "on" state during blinking.
 pub const BLINK_ON_DELAY: Duration = Duration::from_millis(150);
 
-/// Type alias for text to display (4 characters).
+/// Type alias for 4-character text displayed on the LED.
 pub type Text = [char; CELL_COUNT];
 
-/// A map from patterns to the indexes of the cells that contain that pattern.
+/// Map from segment bit patterns to digit indexes that share that pattern.
 pub type BitsToIndexes = LinearMap<NonZeroU8, Vec<u8, CELL_COUNT>, CELL_COUNT>;
 
 // ============================================================================
@@ -230,10 +227,10 @@ impl Leds {
 // Led4Seg Virtual Device
 // ============================================================================
 
-/// A 4-digit, 7-segment LED display with blinking support.
+/// A device abstraction for a 4-digit, 7-segment LED display.
 pub struct Led4Seg<'a>(&'a Led4SegNotifier);
 
-/// Notifier for sending messages to the Led4Seg device.
+/// Notifier type for the `Led4Seg` device abstraction.
 pub type Led4SegNotifier = Signal<CriticalSectionRawMutex, (BlinkState4Led, Text)>;
 
 impl Led4Seg<'_> {

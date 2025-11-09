@@ -11,7 +11,7 @@ use heapless::String;
 
 use crate::{Error, Result};
 
-// LCD message types - now all messages include a minimum display duration
+/// Messages sent to the character LCD device.
 #[derive(Clone, Debug)]
 pub enum CharLcdMessage {
     /// Display a message for the specified duration (0 = until next message)
@@ -21,9 +21,10 @@ pub enum CharLcdMessage {
     },
 }
 
+/// Notifier type for the `CharLcd` device abstraction.
 pub type CharLcdNotifier = Channel<CriticalSectionRawMutex, CharLcdMessage, 8>;
 
-/// Character LCD with async message-based interface
+/// A device abstraction for a character LCD (16x2).
 pub struct CharLcd {
     notifier: &'static CharLcdNotifier,
 }

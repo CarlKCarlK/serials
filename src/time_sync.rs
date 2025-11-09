@@ -1,8 +1,4 @@
-//! TimeSync virtual device - manages NTP synchronization
-//!
-//! Supports WiFi in both AP and Client modes:
-//! - In AP mode: Waits for client connection
-//! - In Client mode: Starts NTP sync immediately
+//! Time synchronization device abstraction using NTP over WiFi.
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
@@ -28,6 +24,7 @@ mod wifi_impl {
 // Types
 // ============================================================================
 
+/// Events emitted by the time synchronization device.
 #[derive(Clone)]
 pub enum TimeSyncEvent {
     Success { unix_seconds: UnixSeconds },
@@ -35,9 +32,10 @@ pub enum TimeSyncEvent {
     Failed(&'static str),
 }
 
+/// Signal type for time synchronization events.
 pub type TimeSyncEvents = Signal<CriticalSectionRawMutex, TimeSyncEvent>;
 
-/// Resources needed by TimeSync device (includes WiFi resources)
+/// Resources needed by the `TimeSync` device.
 pub struct TimeSyncNotifier {
     events: TimeSyncEvents,
     wifi: WifiNotifier,
@@ -48,7 +46,7 @@ pub struct TimeSyncNotifier {
 // TimeSync Virtual Device
 // ============================================================================
 
-/// TimeSync virtual device - manages time synchronization
+/// A device abstraction that manages NTP-based time synchronization over WiFi.
 pub struct TimeSync {
     events: &'static TimeSyncEvents,
     #[allow(dead_code, reason = "Keeps WiFi alive")]

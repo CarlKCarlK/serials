@@ -1,6 +1,4 @@
-//! Virtual 4-character 3x4-font display built on top of `led_strip`.
-//!
-//! The display maps four characters (3×4 pixels each) onto a 12×4 LED strip (row-major).
+//! 4-character LED matrix display (12x4 pixels) device abstraction.
 
 use crate::{Result, led_strip::LedStrip};
 use smart_leds::RGB8;
@@ -33,6 +31,7 @@ const FONT: [[u8; 4]; 10] = [
 pub const COLS: usize = 12;
 pub const ROWS: usize = 4;
 
+/// A device abstraction for a 4-character LED matrix display (12x4 pixels) built on LED strips.
 pub struct Led24x4 {
     strip: LedStrip<{ COLS * ROWS }>,
 }

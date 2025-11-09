@@ -1,4 +1,4 @@
-//! Virtual LED strip driver for WS2812-style chains (PIO-based).
+//! WS2812-style LED strip device abstraction.
 
 use core::cell::RefCell;
 use embassy_rp::pio::{Common, Instance};
@@ -83,7 +83,7 @@ impl<const N: usize> LedStripNotifier<N> {
     }
 }
 
-/// Handle used to control a LED strip.
+/// A device abstraction for WS2812-style LED strips with configurable length.
 pub struct LedStripN<const N: usize> {
     commands: &'static LedStripCommands<N>,
 }
@@ -156,6 +156,27 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
 // Macro: define_led_strips - Creates interrupts, PIO bus, and LED strips
 // ============================================================================
 
+/// Creates PIO-based LED strip configurations with automatic brightness limiting.
+///
+/// This macro generates all the necessary code to create multiple WS2812-style LED strips
+/// using a single PIO peripheral. It handles interrupt bindings, PIO bus sharing, and
+/// per-strip brightness limiting based on current budget.
+///
+/// # Example
+/// ```ignore
+/// define_led_strips! {
+///     pio: PIO0,
+///     strips: [
+///         strip_main {
+///             sm: 0,
+///             dma: DMA_CH0,
+///             pin: PIN_16,
+///             len: 60,
+///             max_current_ma: 1000
+///         }
+///     ]
+/// }
+/// ```
 #[macro_export]
 macro_rules! define_led_strips {
     (

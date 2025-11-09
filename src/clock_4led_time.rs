@@ -1,3 +1,5 @@
+//! Time tracking and formatting for 4-digit LED clocks.
+
 use core::ops::AddAssign;
 use core::sync::atomic::{AtomicI32, Ordering};
 

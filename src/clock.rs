@@ -1,4 +1,4 @@
-//! Clock virtual device - manages time keeping and emits time tick events
+//! Clock device abstraction that manages timekeeping and emits tick events.
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
@@ -21,19 +21,27 @@ use crate::{Error, Result};
 // Types
 // ============================================================================
 
+/// State of clock synchronization.
 #[derive(Clone, Copy)]
 pub enum ClockState {
+    /// Clock time has not been set from external source.
     NotSet,
+    /// Clock time has been synchronized with external time source.
     Synced,
 }
 
+/// Event emitted by the clock device on each tick.
 #[derive(Clone, Copy)]
 pub struct ClockEvent {
+    /// Current date and time.
     pub datetime: OffsetDateTime,
+    /// Synchronization state of the clock.
     pub state: ClockState,
 }
 
+/// Commands sent to the clock device.
 pub enum ClockCommand {
+    /// Set the current time from Unix timestamp.
     SetTime { unix_seconds: UnixSeconds },
 }
 
@@ -41,7 +49,9 @@ pub enum ClockCommand {
 // Clock Virtual Device
 // ============================================================================
 
+/// Channel type for clock commands.
 pub type ClockCommands = Channel<CriticalSectionRawMutex, ClockCommand, 4>;
+/// Signal type for clock events.
 pub type ClockEvents = Signal<CriticalSectionRawMutex, ClockEvent>;
 
 /// Resources needed by Clock device
@@ -50,7 +60,7 @@ pub struct ClockNotifier {
     events: ClockEvents,
 }
 
-/// Clock virtual device - manages time keeping and emits time tick events
+/// A device abstraction that manages time keeping and emits time tick events.
 pub struct Clock {
     commands: &'static ClockCommands,
     events: &'static ClockEvents,

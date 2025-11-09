@@ -7,15 +7,19 @@ use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 
+/// A device abstraction for a 4-digit 7-segment LED display that supports blinking.
 pub struct Blinker4Led<'a>(&'a Blinker4LedOuterNotifier);
 
+/// Notifier type for the `Blinker4Led` device abstraction.
 pub type Blinker4LedNotifier = (Blinker4LedOuterNotifier, Display4LedNotifier);
 
+/// Signal type for sending blink state and text to the `Blinker4Led` device.
 pub type Blinker4LedOuterNotifier = Signal<CriticalSectionRawMutex, (BlinkState4Led, Text4Led)>;
 
+/// Type alias for 4-character text displayed on a 4-digit LED.
 pub type Text4Led = [char; CELL_COUNT_4LED];
 
-/// Blinking behavior for 4LED displays
+/// Blinking behavior for 4-digit LED displays.
 #[derive(Debug, Clone, Copy, defmt::Format, Default)]
 pub enum BlinkState4Led {
     #[default]

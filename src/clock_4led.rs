@@ -1,4 +1,4 @@
-//! Clock4Led - 4-digit LED clock with state machine and button controls
+//! 4-digit LED clock device abstraction.
 
 #[cfg(feature = "display-trace")]
 use defmt::info;
@@ -13,13 +13,11 @@ use crate::clock_4led_time::ClockTime;
 use crate::OutputArray;
 use crate::constants::{CELL_COUNT_4LED, ONE_MINUTE, SEGMENT_COUNT_4LED};
 
-/// A struct representing a 4-digit LED clock.
+/// A device abstraction for a 4-digit LED clock.
 pub struct Clock4Led<'a>(&'a Clock4LedOuterNotifier);
-/// Type alias for notifier that sends messages to the `Clock4Led` and the `Blinker` it controls.
+/// Notifier type for the `Clock4Led` device abstraction.
 pub type Clock4LedNotifier = (Clock4LedOuterNotifier, Blinker4LedNotifier);
-/// A type alias for the outer notifier that sends messages to the `Clock4Led`.
-///
-/// The usize parameter is the maximum number of messages that can be stored in the channel without blocking.
+/// Channel type for sending commands to the `Clock4Led` device.
 pub type Clock4LedOuterNotifier = Channel<CriticalSectionRawMutex, Clock4LedCommand, 4>;
 
 impl Clock4Led<'_> {
@@ -76,6 +74,7 @@ impl Clock4Led<'_> {
     }
 }
 
+/// Commands sent to the 4-digit LED clock device.
 pub enum Clock4LedCommand {
     SetState(Clock4LedState),
     SetTimeFromUnix(crate::unix_seconds::UnixSeconds),

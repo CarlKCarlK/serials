@@ -8,6 +8,7 @@ use defmt::info;
 use embassy_futures::select::{Either, select};
 use embassy_time::{Duration, Instant};
 
+/// Display states for the 4-digit LED clock.
 #[derive(Debug, defmt::Format, Clone, Copy, Default)]
 pub enum Clock4LedState {
     #[default]
@@ -23,6 +24,7 @@ pub enum Clock4LedState {
     AccessPointSetup,
 }
 
+/// User's choice when confirming whether to clear stored credentials.
 #[derive(Debug, defmt::Format, Clone, Copy, Eq, PartialEq)]
 pub enum ConfirmClearChoice {
     Keep,

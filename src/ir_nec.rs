@@ -11,14 +11,17 @@ use crate::{Error, Result};
 
 // ===== Public API ===========================================================
 
+/// Events received from the infrared receiver.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum IrNecEvent {
     Press { addr: u8, cmd: u8 },
     // Repeat { addr: u8, cmd: u8 },
 }
 
+/// Notifier type for the `IrNec` device abstraction.
 pub type IrNecNotifier = EmbassyChannel<CriticalSectionRawMutex, IrNecEvent, 8>;
 
+/// A device abstraction for an infrared receiver using the NEC protocol.
 pub struct IrNec<'a> {
     notifier: &'a IrNecNotifier,
 }

@@ -1,4 +1,4 @@
-//! Persistent storage for timezone offsets in internal flash.
+//! Storage for timezone offset in flash memory.
 #![cfg(feature = "wifi")]
 
 use crc32fast::Hasher;

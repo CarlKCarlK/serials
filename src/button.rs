@@ -19,7 +19,7 @@ pub const LONG_PRESS_DURATION: Duration = Duration::from_millis(500);
 // PressDuration - Button press type
 // ============================================================================
 
-/// Represents the duration of a button press.
+/// Duration of a button press (short or long).
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, defmt::Format)]
 pub enum PressDuration {
     Short,
@@ -30,7 +30,7 @@ pub enum PressDuration {
 // Button Virtual Device
 // ============================================================================
 
-/// A button abstraction backed by an Embassy input pin.
+/// A device abstraction for a button with debouncing and press duration detection.
 pub struct Button<'a>(Input<'a>);
 
 impl<'a> Button<'a> {

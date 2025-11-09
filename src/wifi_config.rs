@@ -1,14 +1,4 @@
-//! WiFi Configuration Module - Handles AP mode setup and credential collection
-//!
-//! This module provides functionality to:
-//! 1. Start WiFi in AP (Access Point) mode with DHCP server
-//! 2. Serve HTTP configuration page for WiFi credentials
-//! 3. Accept SSID and password from user via web form
-//!
-//! The AP runs at 192.168.4.1 with DHCP serving addresses 192.168.4.2-254
-//!
-//! TODO: List local WiFi networks for user selection
-//! TODO: Save credentials between reboots (but not forever)
+//! WiFi credential collection via captive portal web interface.
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
@@ -24,14 +14,16 @@ use crate::Result;
 // Types
 // ============================================================================
 
-/// WiFi credentials collected from user
+/// WiFi network credentials (SSID and password).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WifiCredentials {
+    /// Network SSID (up to 32 characters).
     pub ssid: heapless::String<32>,
+    /// Network password (up to 64 characters).
     pub password: heapless::String<64>,
 }
 
-/// Combined WiFi credentials and timezone selection provided by the user.
+/// WiFi credentials combined with timezone offset.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WifiCredentialSubmission {
     pub credentials: WifiCredentials,

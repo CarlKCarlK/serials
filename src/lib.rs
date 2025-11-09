@@ -35,7 +35,7 @@ pub mod wifi;
 pub mod wifi_config;
 // Re-export commonly used items
 pub use bit_matrix_4led::BitMatrix4Led;
-pub use blinker_4led::BlinkState4Led;
+pub use blinker_4led::{Blinker4Led, Blinker4LedNotifier, BlinkState4Led, Text4Led};
 pub use button::{BUTTON_DEBOUNCE_DELAY, Button, LONG_PRESS_DURATION, PressDuration};
 pub use char_lcd::{CharLcd, CharLcdMessage, CharLcdNotifier};
 pub use clock::{Clock, ClockCommand, ClockEvent, ClockNotifier, ClockState};
@@ -45,6 +45,7 @@ pub use clock_4led_state::Clock4LedState;
 pub use clock_offset_store::{
     clear as clear_timezone_offset, load as load_timezone_offset, save as save_timezone_offset,
 };
+pub use display_4led::{Display4Led, Display4LedNotifier};
 #[cfg(feature = "wifi")]
 pub use dns_server::dns_server_task;
 pub use error::{Error, Result};
@@ -55,6 +56,7 @@ pub use output_array::OutputArray;
 pub use led_strip::{LedStrip, LedStripNotifier, PioBus, Rgb};
 pub use rfid::{Rfid, RfidEvent, RfidNotifier};
 pub use servo::Servo;
+/// Predefined RGB color constants (RED, GREEN, BLUE, etc.).
 pub use smart_leds::colors;
 pub use time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 pub use unix_seconds::UnixSeconds;

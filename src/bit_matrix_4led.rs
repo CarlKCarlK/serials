@@ -8,6 +8,7 @@ use crate::led_4seg::{BitsToIndexes, Leds, Text, CELL_COUNT, CELL_COUNT_U8};
 use crate::Result;
 use crate::error::Error;
 
+/// A device abstraction for representing LED segment states in a 4-digit 7-segment display.
 #[derive(defmt::Format, Debug, Clone)]
 pub struct BitMatrix4Led([u8; CELL_COUNT]);
 
