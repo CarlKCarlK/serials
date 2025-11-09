@@ -17,6 +17,7 @@
 //! - List local WiFi networks for user selection
 //! - Save credentials between reboots (but not forever)
 
+#![cfg(feature = "wifi")]
 #![no_std]
 #![no_main]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
@@ -27,12 +28,14 @@ use defmt::{info, unwrap};
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
+use embassy_net::Ipv4Address;
 use embassy_rp::flash::{Blocking, Flash};
 use embassy_time::Timer;
 use lib::credential_store::INTERNAL_FLASH_SIZE;
 use lib::{
-    Clock, ClockNotifier, Result, TimeSync, TimeSyncEvent, TimeSyncNotifier, WifiMode,
-    collect_wifi_credentials, credential_store, dns_server_task, save_timezone_offset,
+    Clock, ClockNotifier, Result, TimeSync, TimeSyncEvent, TimeSyncNotifier,
+    collect_wifi_credentials, credential_store, dns_server_task,
+    load_timezone_offset, save_timezone_offset,
 };
 use panic_probe as _;
 use static_cell::StaticCell;
@@ -62,48 +65,40 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         p.FLASH,
     ));
     let stored_credentials = credential_store::load(&mut *flash)?;
+    let _stored_offset = load_timezone_offset(&mut *flash)?.unwrap_or(0);
 
     // Create Clock device (starts ticking immediately)
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
 
-    // Determine WiFi mode based on persisted credentials
-    let wifi_mode = if let Some(credentials) = stored_credentials {
-        info!(
-            "Stored WiFi credentials found for SSID: {}",
-            credentials.ssid
-        );
-        WifiMode::ClientConfigured(credentials)
-    } else {
-        info!("No stored WiFi credentials - starting configuration access point");
-        WifiMode::AccessPoint
-    };
-
-    // Create TimeSync virtual device (creates WiFi internally)
+    // Create TimeSync virtual device with credentials if available
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
     let time_sync = TimeSync::new(
         &TIME_SYNC_NOTIFIER,
-        p.PIN_23,  // WiFi power enable
-        p.PIN_25,  // WiFi SPI chip select
-        p.PIO0,    // WiFi PIO block for SPI
-        p.PIN_24,  // WiFi SPI MOSI
-        p.PIN_29,  // WiFi SPI CLK
-        p.DMA_CH0, // WiFi DMA channel for SPI
-        wifi_mode.clone(),
+        p.PIN_23,   // WiFi chip data out
+        p.PIN_25,   // WiFi chip data in
+        p.PIO0,     // PIO for WiFi chip communication
+        p.PIN_24,   // WiFi chip clock
+        p.PIN_29,   // WiFi chip select
+        p.DMA_CH0,  // DMA channel for WiFi
+        stored_credentials.clone(),
         spawner,
     );
 
-    if matches!(wifi_mode, WifiMode::AccessPoint) {
+    // Determine if we need to run captive portal or connect directly
+    if stored_credentials.is_none() {
+        info!("No stored WiFi credentials - starting configuration access point");
         info!("Starting WiFi in AP mode for configuration...");
         info!("WiFi AP mode - starting HTTP configuration server...");
 
         // Wait for WiFi stack to be ready
+        time_sync.wifi().wait().await;
         let stack = time_sync.wifi().stack().await;
         info!("Network stack available for AP mode");
 
         // Spawn DNS server for captive portal detection
         // This makes Android/iOS show "Sign in to network" notification
-        let ap_ip = embassy_net::Ipv4Address::new(192, 168, 4, 1);
+        let ap_ip = Ipv4Address::new(192, 168, 4, 1);
         let dns_token = unwrap!(dns_server_task(stack, ap_ip));
         spawner.spawn(dns_token);
         info!("DNS server started - captive portal detection enabled");
@@ -139,6 +134,10 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         Timer::after_millis(750).await;
         SCB::sys_reset();
     } else {
+        info!(
+            "Stored WiFi credentials found for SSID: {}",
+            stored_credentials.as_ref().unwrap().ssid
+        );
         info!("Using stored WiFi credentials - starting client mode directly");
     }
 
