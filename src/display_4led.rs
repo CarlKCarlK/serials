@@ -1,6 +1,6 @@
 use core::convert::Infallible;
 
-use crate::BitMatrix4Led;
+use crate::bit_matrix_4led::BitMatrix4Led;
 use crate::Result;
 use crate::led_4seg::Leds;
 use crate::OutputArray;

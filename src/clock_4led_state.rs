@@ -1,6 +1,6 @@
 use crate::button::{Button, PressDuration};
 use crate::clock_4led::Clock4Led as Clock;
-use crate::{TimeSync, TimeSyncEvent};
+use crate::time_sync::{TimeSync, TimeSyncEvent};
 use crate::blinker_4led::BlinkState4Led;
 use crate::clock_4led_time::ClockTime;
 use crate::constants::{ONE_MINUTE, ONE_SECOND};

@@ -16,11 +16,17 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
 use heapless::{String, FnvIndexMap};
-use lib::{
-    CharLcd, CharLcdNotifier, Clock, ClockEvent, ClockNotifier, ClockState, IrNec, IrNecEvent,
-    IrNecNotifier, Led24x4, Result, Rfid, RfidEvent, RfidNotifier, Rgb, TimeSync, TimeSyncEvent,
-    TimeSyncNotifier, colors, define_led_strips, servo_a,
-};
+use lib::Result;
+use lib::char_lcd::{CharLcd, CharLcdNotifier};
+use lib::clock::{Clock, ClockEvent, ClockNotifier, ClockState};
+use lib::ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
+use lib::led_24x4::Led24x4;
+use lib::rfid::{Rfid, RfidEvent, RfidNotifier};
+use lib::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
+use lib::led_strip::Rgb;
+use lib::colors;
+use lib::define_led_strips;
+use lib::servo_a;
 use panic_probe as _;
 
 use colors::{BLACK, BLUE, GREEN, RED, YELLOW};

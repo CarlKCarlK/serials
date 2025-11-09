@@ -1,4 +1,4 @@
-//! WS2812-style LED strip device abstraction.
+//! A device abstraction for WS2812-style LED strips.
 
 use core::cell::RefCell;
 use embassy_rp::pio::{Common, Instance};

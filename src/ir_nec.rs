@@ -1,3 +1,4 @@
+//! A device abstraction for infrared receivers using the NEC protocol.
 // nec_ir.rs
 use defmt::info;
 use embassy_executor::Spawner;

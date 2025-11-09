@@ -1,4 +1,4 @@
-//! Time synchronization device abstraction using NTP over WiFi.
+//! A device abstraction for time synchronization using NTP over WiFi.
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 

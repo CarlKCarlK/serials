@@ -1,4 +1,4 @@
-//! 4-character LED matrix display (12x4 pixels) device abstraction.
+//! A device abstraction for 4-character LED matrix displays (12x4 pixels).
 
 use crate::{Result, led_strip::LedStrip};
 use smart_leds::RGB8;

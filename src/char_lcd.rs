@@ -1,4 +1,4 @@
-//! Character LCD driver with async message passing
+//! A device abstraction for character LCDs (16x2 displays).
 
 use embassy_executor::Spawner;
 use embassy_rp::Peri;

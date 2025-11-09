@@ -1,4 +1,4 @@
-//! 4-digit 7-segment LED display device abstraction.
+//! A device abstraction for 4-digit 7-segment LED displays.
 
 use core::num::NonZeroU8;
 use defmt::{info, unwrap};
@@ -9,8 +9,8 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal}
 use embassy_time::{Duration, Timer};
 use heapless::{LinearMap, Vec};
 
-use crate::BitMatrix4Led;
-use crate::BlinkState4Led;
+use crate::bit_matrix_4led::BitMatrix4Led;
+use crate::blinker_4led::BlinkState4Led;
 use crate::OutputArray;
 use crate::Result;
 

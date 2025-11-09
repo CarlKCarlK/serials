@@ -1,4 +1,4 @@
-//! Button virtual device - handles button press detection and debouncing
+//! A device abstraction for buttons with debouncing and press duration detection.
 
 use defmt::info;
 use embassy_futures::select::{Either, select};

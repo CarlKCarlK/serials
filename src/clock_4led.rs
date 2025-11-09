@@ -1,4 +1,4 @@
-//! 4-digit LED clock device abstraction.
+//! A device abstraction for 4-digit LED clocks.
 
 #[cfg(feature = "display-trace")]
 use defmt::info;
@@ -8,7 +8,7 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channe
 use embassy_time::{Duration, Timer};
 
 use crate::blinker_4led::{Blinker4Led, Blinker4LedNotifier};
-use crate::Clock4LedState;
+use crate::clock_4led_state::Clock4LedState;
 use crate::clock_4led_time::ClockTime;
 use crate::OutputArray;
 use crate::constants::{CELL_COUNT_4LED, ONE_MINUTE, SEGMENT_COUNT_4LED};

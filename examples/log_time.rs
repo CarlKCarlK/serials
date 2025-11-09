@@ -32,11 +32,13 @@ use embassy_net::Ipv4Address;
 use embassy_rp::flash::{Blocking, Flash};
 use embassy_time::Timer;
 use lib::credential_store::INTERNAL_FLASH_SIZE;
-use lib::{
-    Clock, ClockNotifier, Result, TimeSync, TimeSyncEvent, TimeSyncNotifier,
-    collect_wifi_credentials, credential_store, dns_server_task,
-    load_timezone_offset, save_timezone_offset,
-};
+use lib::Result;
+use lib::clock::{Clock, ClockNotifier};
+use lib::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
+use lib::wifi_config::collect_wifi_credentials;
+use lib::dns_server::dns_server_task;
+use lib::clock_offset_store::{load as load_timezone_offset, save as save_timezone_offset};
+use lib::credential_store;
 use panic_probe as _;
 use static_cell::StaticCell;
 

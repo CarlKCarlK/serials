@@ -1,3 +1,5 @@
+//! A device abstraction for RFID readers using the MFRC522 chip.
+
 use defmt::info;
 use embassy_executor::Spawner;
 use embassy_rp::Peri;

@@ -1,4 +1,4 @@
-//! Clock device abstraction that manages timekeeping and emits tick events.
+//! A device abstraction that manages timekeeping and emits tick events.
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 

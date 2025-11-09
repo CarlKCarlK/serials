@@ -10,10 +10,10 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use heapless::String;
-use lib::{
-    CharLcd, CharLcdNotifier, Clock, ClockNotifier, Result, TimeSync, TimeSyncEvent,
-    TimeSyncNotifier,
-};
+use lib::Result;
+use lib::char_lcd::{CharLcd, CharLcdNotifier};
+use lib::clock::{Clock, ClockNotifier};
+use lib::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 use panic_probe as _;
 
 // ============================================================================

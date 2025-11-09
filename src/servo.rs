@@ -1,4 +1,4 @@
-//! Servo motor device abstraction using hardware PWM.
+//! A device abstraction for servo motors using hardware PWM.
 
 use defmt::info;
 use embassy_rp::clocks::clk_sys_freq;
