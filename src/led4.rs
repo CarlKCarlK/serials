@@ -6,11 +6,9 @@
 //!
 //! See [`Led4`] for the main device abstraction and usage examples.
 
-use core::num::NonZeroU8;
 use embassy_executor::Spawner;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Duration;
-use heapless::{LinearMap, Vec};
 
 use crate::Result;
 use crate::led4_simple::{Led4Simple, Led4SimpleNotifier};
@@ -44,13 +42,6 @@ const BLINK_OFF_DELAY: Duration = Duration::from_millis(50);
 
 /// Delay for the "on" state during blinking.
 const BLINK_ON_DELAY: Duration = Duration::from_millis(150);
-
-/// Internal type for optimizing multiplexing by grouping digits with identical segment patterns.
-///
-/// Maps from segment bit patterns to the indexes of digits that share that pattern.
-/// This reduces the number of multiplex iterations needed when multiple digits
-/// display the same character.
-pub(crate) type BitsToIndexes = LinearMap<NonZeroU8, Vec<u8, CELL_COUNT>, CELL_COUNT>;
 
 // ============================================================================
 // BlinkState Enum

@@ -10,10 +10,13 @@ name = "serials"
 path = "src/lib.rs"
 
 [features]
-default = ["pico2"]
-pico1w = ["embassy-rp/rp2040"]
-pico2 = ["embassy-rp/rp235xb", "dep:rp235x-hal"]
+default = ["defmt"]
+defmt = []
+pico1 = ["dep:embassy-rp", "embassy-rp/rp2040"]
+pico2 = ["dep:embassy-rp", "embassy-rp/rp235xb", "dep:rp235x-hal"]
+qemu = []  # For testing without hardware dependencies
 wifi = [
+    # WiFi currently only works with pico1
     "dep:cyw43",
     "dep:cyw43-pio",
     "dep:cyw43-firmware",
@@ -38,7 +41,7 @@ embassy-rp = { git = "https://github.com/embassy-rs/embassy", branch = "main", d
     "defmt",
     "time-driver",
     "critical-section-impl",
-] }
+], optional = true }
 embassy-futures = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 embassy-time = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
     "defmt",

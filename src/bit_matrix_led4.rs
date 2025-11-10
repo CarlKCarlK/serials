@@ -2,11 +2,19 @@
 
 use core::num::NonZeroU8;
 use core::ops::{BitOrAssign, Index, IndexMut};
-use heapless::Vec;
+use heapless::{LinearMap, Vec};
 
-use crate::led4::{BitsToIndexes, CELL_COUNT, CELL_COUNT_U8};
-use crate::Result;
-use crate::error::Error;
+use crate::{Error, Result};
+
+/// Number of digits in the display.
+const CELL_COUNT: usize = 4;
+const CELL_COUNT_U8: u8 = CELL_COUNT as u8;
+
+/// Internal type for optimizing multiplexing by grouping digits with identical segment patterns.
+///
+/// Maps from segment bit patterns to the indexes of digits that share that pattern.
+#[doc(hidden)]
+pub type BitsToIndexes = LinearMap<NonZeroU8, Vec<u8, CELL_COUNT>, CELL_COUNT>;
 
 // ============================================================================
 // LED Constants
@@ -108,7 +116,8 @@ impl Leds {
 /// LED segment state for a 4-digit 7-segment display.
 ///
 /// Represents the raw bit patterns for LED segments.
-#[derive(defmt::Format, Debug, Clone)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BitMatrixLed4([u8; CELL_COUNT]);
 
 impl BitMatrixLed4 {
@@ -116,11 +125,11 @@ impl BitMatrixLed4 {
         Self(bits)
     }
 
-    pub(crate) const fn from_bits(bits: u8) -> Self {
+    pub fn from_bits(bits: u8) -> Self {
         Self([bits; CELL_COUNT])
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &u8> {
+    pub fn iter(&self) -> impl Iterator<Item = &u8> {
         self.0.iter()
     }
 
@@ -128,7 +137,7 @@ impl BitMatrixLed4 {
         self.0.iter_mut()
     }
 
-    pub(crate) fn from_text(text: &[char; 4]) -> Self {
+    pub fn from_text(text: &[char; 4]) -> Self {
         let bytes = text.map(|char| Leds::ASCII_TABLE.get(char as usize).copied().unwrap_or(0));
         Self::new(bytes)
     }
@@ -139,7 +148,7 @@ impl BitMatrixLed4 {
         reason = "Indexing and arithmetic are safe; modulo is required for digit extraction"
     )]
     /// Creates bit matrix from number. If overflow, lights decimal points.
-    pub(crate) fn from_number(mut number: u16, padding: u8) -> Self {
+    pub fn from_number(mut number: u16, padding: u8) -> Self {
         let mut bit_matrix = Self::from_bits(padding);
 
         for bits in bit_matrix.iter_mut().rev() {
@@ -157,7 +166,8 @@ impl BitMatrixLed4 {
     }
 
     /// Converts to optimized index mapping for multiplexing.
-    pub(crate) fn bits_to_indexes(&self, bits_to_index: &mut BitsToIndexes) -> Result<()> {
+    #[doc(hidden)]
+    pub fn bits_to_indexes(&self, bits_to_index: &mut BitsToIndexes) -> Result<()> {
         bits_to_index.clear();
         for (&bits, index) in self.iter().zip(0..CELL_COUNT_U8) {
             if let Some(nonzero_bits) = NonZeroU8::new(bits) {

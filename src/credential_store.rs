@@ -10,9 +10,9 @@ use crate::{Error, Result};
 
 #[cfg(feature = "pico2")]
 pub const INTERNAL_FLASH_SIZE: usize = 2 * 1024 * 1024;
-#[cfg(all(not(feature = "pico2"), feature = "pico1w"))]
+#[cfg(all(not(feature = "pico2"), feature = "pico1"))]
 pub const INTERNAL_FLASH_SIZE: usize = 2 * 1024 * 1024;
-#[cfg(all(not(feature = "pico2"), not(feature = "pico1w")))]
+#[cfg(all(not(feature = "pico2"), not(feature = "pico1")))]
 pub const INTERNAL_FLASH_SIZE: usize = 2 * 1024 * 1024;
 
 const STORAGE_SIZE: usize = ERASE_SIZE;
