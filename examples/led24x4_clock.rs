@@ -5,7 +5,7 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use serials::led_24x4::Led24x4;
+use serials::led24x4::Led24x4;
 use serials::led_strip::define_led_strips;
 use panic_probe as _;
 use smart_leds::RGB8;
@@ -13,31 +13,34 @@ use smart_leds::RGB8;
 // 4x12 panel (48 pixels) using PIO1, SM0, DMA_CH1, GPIO16
 // Max current 50 mA
 define_led_strips! {
-    led_strip2 as LedStrip2 {
-        task: led_strip_2_driver,
-        pio: PIO1,
-        irq: PIO1_IRQ_0,
-        irq_name: LedStrip2Irqs,
-        sm: { field: sm0, index: 0 },
-        dma: DMA_CH1,
-        pin: PIN_16,
-        len: 48,
-        max_current_ma: 100
-    }
+    pio: PIO1,
+    strips: [
+        led_strip2 {
+            sm: 0,
+            dma: DMA_CH1,
+            pin: PIN_16,
+            len: 48,
+            max_current_ma: 100
+        }
+    ]
 }
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
     let peripherals = embassy_rp::init(Default::default());
 
-    static LED_STRIP_NOTIFIER: LedStrip2::Notifier = LedStrip2::notifier();
+    // Initialize PIO1 bus
+    let (pio_bus, sm0, _sm1, _sm2, _sm3) = pio1_split(peripherals.PIO1);
 
-    let led_strip = LedStrip2::new(
+    static LED_STRIP_NOTIFIER: led_strip2::Notifier = led_strip2::notifier();
+
+    let led_strip = led_strip2::new(
         spawner,
         &LED_STRIP_NOTIFIER,
-        peripherals.PIO1,
-        peripherals.DMA_CH1,
-        peripherals.PIN_16,
+        pio_bus,
+        sm0,
+        peripherals.DMA_CH1.into(),
+        peripherals.PIN_16.into(),
     )
     .expect("Failed to start LED strip");
 

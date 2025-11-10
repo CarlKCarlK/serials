@@ -10,88 +10,88 @@ use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Timer};
 
-use crate::blinker_4led::{Blinker4Led, Blinker4LedNotifier};
-use self::state::Clock4LedState;
+use crate::blinker_led4::{BlinkerLed4, BlinkerLed4Notifier};
+use self::state::ClockLed4State;
 use self::time::ClockTime;
-use crate::led_4seg::OutputArray;
-use crate::constants::{CELL_COUNT_4LED, ONE_MINUTE, SEGMENT_COUNT_4LED};
+use crate::led4::OutputArray;
+use crate::constants::{CELL_COUNT_LED4, ONE_MINUTE, SEGMENT_COUNT_LED4};
 
 /// A device abstraction for a 4-digit LED clock.
-pub struct Clock4Led<'a>(&'a Clock4LedOuterNotifier);
-/// Notifier type for the `Clock4Led` device abstraction.
-pub type Clock4LedNotifier = (Clock4LedOuterNotifier, Blinker4LedNotifier);
-/// Channel type for sending commands to the `Clock4Led` device.
-pub type Clock4LedOuterNotifier = Channel<CriticalSectionRawMutex, Clock4LedCommand, 4>;
+pub struct ClockLed4<'a>(&'a ClockLed4OuterNotifier);
+/// Notifier type for the `ClockLed4` device abstraction.
+pub type ClockLed4Notifier = (ClockLed4OuterNotifier, BlinkerLed4Notifier);
+/// Channel type for sending commands to the `ClockLed4` device.
+pub type ClockLed4OuterNotifier = Channel<CriticalSectionRawMutex, ClockLed4Command, 4>;
 
-impl Clock4Led<'_> {
-    /// Create a new `Clock4Led` instance, which entails starting an Embassy task.
+impl ClockLed4<'_> {
+    /// Create a new `ClockLed4` instance, which entails starting an Embassy task.
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
-        cell_pins: OutputArray<'static, CELL_COUNT_4LED>,
-        segment_pins: OutputArray<'static, SEGMENT_COUNT_4LED>,
-        notifier: &'static Clock4LedNotifier,
+        cell_pins: OutputArray<'static, CELL_COUNT_LED4>,
+        segment_pins: OutputArray<'static, SEGMENT_COUNT_LED4>,
+        notifier: &'static ClockLed4Notifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
         let (outer_notifier, blinker_notifier) = notifier;
-        let blinkable_display = Blinker4Led::new(cell_pins, segment_pins, blinker_notifier, spawner)?;
-        let token = clock_4led_device_loop(outer_notifier, blinkable_display)?;
+        let blinkable_display = BlinkerLed4::new(cell_pins, segment_pins, blinker_notifier, spawner)?;
+        let token = clock_led4_device_loop(outer_notifier, blinkable_display)?;
         spawner.spawn(token);
         Ok(Self(outer_notifier))
     }
 
-    /// Creates a new `Clock4LedNotifier` instance.
+    /// Creates a new `ClockLed4Notifier` instance.
     #[must_use]
-    pub const fn notifier() -> Clock4LedNotifier {
-        (Channel::new(), Blinker4Led::notifier())
+    pub const fn notifier() -> ClockLed4Notifier {
+        (Channel::new(), BlinkerLed4::notifier())
     }
 
     /// Set the clock state directly.
-    pub async fn set_state(&self, clock_state: Clock4LedState) {
-        self.0.send(Clock4LedCommand::SetState(clock_state)).await;
+    pub async fn set_state(&self, clock_state: ClockLed4State) {
+        self.0.send(ClockLed4Command::SetState(clock_state)).await;
     }
 
     /// Set the time from Unix seconds.
     pub async fn set_time_from_unix(&self, unix_seconds: crate::unix_seconds::UnixSeconds) {
         self.0
-            .send(Clock4LedCommand::SetTimeFromUnix(unix_seconds))
+            .send(ClockLed4Command::SetTimeFromUnix(unix_seconds))
             .await;
     }
 
     /// Adjust the UTC offset by the given number of hours.
     pub async fn adjust_utc_offset_hours(&self, hours: i32) {
-        self.0.send(Clock4LedCommand::AdjustUtcOffsetHours(hours)).await;
+        self.0.send(ClockLed4Command::AdjustUtcOffsetHours(hours)).await;
     }
 
     /// Display the completion message for flash-clearing workflows.
     pub async fn show_clearing_done(&self) {
         self.0
-            .send(Clock4LedCommand::SetState(Clock4LedState::ClearingDone))
+            .send(ClockLed4Command::SetState(ClockLed4State::ClearingDone))
             .await;
     }
 
     /// Display the access point setup prompt while waiting for credentials.
     pub async fn show_access_point_setup(&self) {
         self.0
-            .send(Clock4LedCommand::SetState(Clock4LedState::AccessPointSetup))
+            .send(ClockLed4Command::SetState(ClockLed4State::AccessPointSetup))
             .await;
     }
 }
 
 /// Commands sent to the 4-digit LED clock device.
-pub enum Clock4LedCommand {
-    SetState(Clock4LedState),
+pub enum ClockLed4Command {
+    SetState(ClockLed4State),
     SetTimeFromUnix(crate::unix_seconds::UnixSeconds),
     AdjustClockTime(Duration),
     ResetSeconds,
     AdjustUtcOffsetHours(i32),
 }
 
-impl Clock4LedCommand {
+impl ClockLed4Command {
     #[expect(
         clippy::arithmetic_side_effects,
         reason = "The += operator wraps to always produce a result less than one day."
     )]
-    pub(crate) fn apply(self, clock_time: &mut ClockTime, clock_state: &mut Clock4LedState) {
+    pub(crate) fn apply(self, clock_time: &mut ClockTime, clock_state: &mut ClockLed4State) {
         match self {
             Self::SetTimeFromUnix(unix_seconds) => {
                 clock_time.set_from_unix(unix_seconds);
@@ -114,9 +114,9 @@ impl Clock4LedCommand {
 }
 
 #[embassy_executor::task]
-async fn clock_4led_device_loop(clock_notifier: &'static Clock4LedOuterNotifier, blinker: Blinker4Led<'static>) -> ! {
+async fn clock_led4_device_loop(clock_notifier: &'static ClockLed4OuterNotifier, blinker: BlinkerLed4<'static>) -> ! {
     let mut clock_time = ClockTime::default();
-    let mut clock_state = Clock4LedState::default();
+    let mut clock_state = ClockLed4State::default();
 
     loop {
         let (blink_mode, text, sleep_duration) = clock_state.render(&clock_time);

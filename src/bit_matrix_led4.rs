@@ -4,15 +4,15 @@ use core::num::NonZeroU8;
 use core::ops::{BitOrAssign, Index, IndexMut};
 use heapless::Vec;
 
-use crate::led_4seg::{BitsToIndexes, Leds, Text, CELL_COUNT, CELL_COUNT_U8};
+use crate::led4::{BitsToIndexes, Leds, Text, CELL_COUNT, CELL_COUNT_U8};
 use crate::Result;
 use crate::error::Error;
 
 /// A device abstraction for representing LED segment states in a 4-digit 7-segment display.
 #[derive(defmt::Format, Debug, Clone)]
-pub struct BitMatrix4Led([u8; CELL_COUNT]);
+pub struct BitMatrixLed4([u8; CELL_COUNT]);
 
-impl BitMatrix4Led {
+impl BitMatrixLed4 {
     pub const fn new(bits: [u8; CELL_COUNT]) -> Self {
         Self(bits)
     }
@@ -74,19 +74,19 @@ impl BitMatrix4Led {
     }
 }
 
-impl Default for BitMatrix4Led {
+impl Default for BitMatrixLed4 {
     fn default() -> Self {
         Self([0; CELL_COUNT])
     }
 }
 
-impl BitOrAssign<u8> for BitMatrix4Led {
+impl BitOrAssign<u8> for BitMatrixLed4 {
     fn bitor_assign(&mut self, rhs: u8) {
         self.iter_mut().for_each(|bits| *bits |= rhs);
     }
 }
 
-impl Index<usize> for BitMatrix4Led {
+impl Index<usize> for BitMatrixLed4 {
     type Output = u8;
 
     #[expect(clippy::indexing_slicing, reason = "Caller's responsibility")]
@@ -95,14 +95,14 @@ impl Index<usize> for BitMatrix4Led {
     }
 }
 
-impl IndexMut<usize> for BitMatrix4Led {
+impl IndexMut<usize> for BitMatrixLed4 {
     #[expect(clippy::indexing_slicing, reason = "Caller's responsibility")]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.0[index]
     }
 }
 
-impl IntoIterator for BitMatrix4Led {
+impl IntoIterator for BitMatrixLed4 {
     type Item = u8;
     type IntoIter = core::array::IntoIter<u8, CELL_COUNT>;
 
@@ -111,7 +111,7 @@ impl IntoIterator for BitMatrix4Led {
     }
 }
 
-impl<'a> IntoIterator for &'a BitMatrix4Led {
+impl<'a> IntoIterator for &'a BitMatrixLed4 {
     type Item = &'a u8;
     type IntoIter = core::slice::Iter<'a, u8>;
 
@@ -120,7 +120,7 @@ impl<'a> IntoIterator for &'a BitMatrix4Led {
     }
 }
 
-impl<'a> IntoIterator for &'a mut BitMatrix4Led {
+impl<'a> IntoIterator for &'a mut BitMatrixLed4 {
     type Item = &'a mut u8;
     type IntoIter = core::slice::IterMut<'a, u8>;
 

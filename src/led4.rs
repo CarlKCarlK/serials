@@ -12,8 +12,8 @@ use heapless::{LinearMap, Vec};
 mod output_array;
 pub use output_array::OutputArray;
 
-use crate::bit_matrix_4led::BitMatrix4Led;
-use crate::blinker_4led::BlinkState4Led;
+use crate::bit_matrix_led4::BitMatrixLed4;
+use crate::blinker_led4::BlinkStateLed4;
 use crate::Result;
 
 // ============================================================================
@@ -226,23 +226,23 @@ impl Leds {
 }
 
 // ============================================================================
-// Led4Seg Virtual Device
+// Led4 Virtual Device
 // ============================================================================
 
 /// A device abstraction for a 4-digit, 7-segment LED display.
-pub struct Led4Seg<'a>(&'a Led4SegNotifier);
+pub struct Led4<'a>(&'a Led4Notifier);
 
-/// Notifier type for the `Led4Seg` device abstraction.
-pub type Led4SegNotifier = Signal<CriticalSectionRawMutex, (BlinkState4Led, Text)>;
+/// Notifier type for the `Led4` device abstraction.
+pub type Led4Notifier = Signal<CriticalSectionRawMutex, (BlinkStateLed4, Text)>;
 
-impl Led4Seg<'_> {
-    /// Creates a new `Led4SegNotifier`.
+impl Led4<'_> {
+    /// Creates a new `Led4Notifier`.
     #[must_use]
-    pub const fn notifier() -> Led4SegNotifier {
+    pub const fn notifier() -> Led4Notifier {
         Signal::new()
     }
 
-    /// Creates a new `Led4Seg` device.
+    /// Creates a new `Led4` device.
     ///
     /// # Arguments
     ///
@@ -258,26 +258,26 @@ impl Led4Seg<'_> {
     pub fn new(
         cell_pins: OutputArray<'static, CELL_COUNT>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-        notifier: &'static Led4SegNotifier,
+        notifier: &'static Led4Notifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
-        let token = unwrap!(led_4seg_device_loop(cell_pins, segment_pins, notifier));
+        let token = unwrap!(led4_device_loop(cell_pins, segment_pins, notifier));
         spawner.spawn(token);
         Ok(Self(notifier))
     }
 
     /// Writes text to the display with optional blinking.
-    pub fn write_text(&self, blink_state: BlinkState4Led, text: Text) {
-        info!("Led4Seg: blink_state={:?}, text={:?}", blink_state, text);
+    pub fn write_text(&self, blink_state: BlinkStateLed4, text: Text) {
+        info!("Led4: blink_state={:?}, text={:?}", blink_state, text);
         self.0.signal((blink_state, text));
     }
 }
 
 #[embassy_executor::task]
-async fn led_4seg_device_loop(
+async fn led4_device_loop(
     mut cell_pins: OutputArray<'static, CELL_COUNT>,
     mut segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-    notifier: &'static Led4SegNotifier,
+    notifier: &'static Led4Notifier,
 ) -> ! {
     // Wait for first command before starting
     let (mut blink_state, mut text) = notifier.wait().await;
@@ -286,8 +286,8 @@ async fn led_4seg_device_loop(
     loop {
         // Handle blink state transitions
         let bit_matrix = match blink_state {
-            BlinkState4Led::Solid => {
-                let bit_matrix = BitMatrix4Led::from_text(&text);
+            BlinkStateLed4::Solid => {
+                let bit_matrix = BitMatrixLed4::from_text(&text);
                 display_until_notification(
                     &mut cell_pins,
                     &mut segment_pins,
@@ -299,8 +299,8 @@ async fn led_4seg_device_loop(
                 (blink_state, text) = notifier.wait().await;
                 continue;
             }
-            BlinkState4Led::BlinkingAndOn => BitMatrix4Led::from_text(&text),
-            BlinkState4Led::BlinkingButOff => BitMatrix4Led::default(), // All blank
+            BlinkStateLed4::BlinkingAndOn => BitMatrixLed4::from_text(&text),
+            BlinkStateLed4::BlinkingButOff => BitMatrixLed4::default(), // All blank
         };
 
         // Handle blinking with timeout
@@ -310,7 +310,7 @@ async fn led_4seg_device_loop(
             &bit_matrix,
             &mut bits_to_indexes,
             notifier,
-            if matches!(blink_state, BlinkState4Led::BlinkingAndOn) {
+            if matches!(blink_state, BlinkStateLed4::BlinkingAndOn) {
                 BLINK_ON_DELAY
             } else {
                 BLINK_OFF_DELAY
@@ -321,9 +321,9 @@ async fn led_4seg_device_loop(
             (blink_state, text) = new_state;
         } else {
             blink_state = match blink_state {
-                BlinkState4Led::BlinkingAndOn => BlinkState4Led::BlinkingButOff,
-                BlinkState4Led::BlinkingButOff => BlinkState4Led::BlinkingAndOn,
-                BlinkState4Led::Solid => BlinkState4Led::Solid, // unreachable
+                BlinkStateLed4::BlinkingAndOn => BlinkStateLed4::BlinkingButOff,
+                BlinkStateLed4::BlinkingButOff => BlinkStateLed4::BlinkingAndOn,
+                BlinkStateLed4::Solid => BlinkStateLed4::Solid, // unreachable
             };
         }
     }
@@ -333,22 +333,22 @@ async fn led_4seg_device_loop(
 async fn display_until_notification(
     cell_pins: &mut OutputArray<'static, CELL_COUNT>,
     segment_pins: &mut OutputArray<'static, SEGMENT_COUNT>,
-    bit_matrix: &BitMatrix4Led,
+    bit_matrix: &BitMatrixLed4,
     bits_to_indexes: &mut BitsToIndexes,
-    notifier: &'static Led4SegNotifier,
+    notifier: &'static Led4Notifier,
 ) {
     let _ = bit_matrix.bits_to_indexes(bits_to_indexes);
 
     match bits_to_indexes.iter().next() {
         None => {
             // Display is empty, just wait
-            let _: (BlinkState4Led, Text) = notifier.wait().await;
+            let _: (BlinkStateLed4, Text) = notifier.wait().await;
         }
         Some((&bits, indexes)) if bits_to_indexes.len() == 1 => {
             // Only one pattern, no multiplexing needed
             segment_pins.set_from_nonzero_bits(bits);
             let _ = cell_pins.set_levels_at_indexes(indexes, Level::Low);
-            let _: (BlinkState4Led, Text) = notifier.wait().await;
+            let _: (BlinkStateLed4, Text) = notifier.wait().await;
             let _ = cell_pins.set_levels_at_indexes(indexes, Level::High);
         }
         _ => {
@@ -374,11 +374,11 @@ async fn display_until_notification(
 async fn display_with_timeout(
     cell_pins: &mut OutputArray<'static, CELL_COUNT>,
     segment_pins: &mut OutputArray<'static, SEGMENT_COUNT>,
-    bit_matrix: &BitMatrix4Led,
+    bit_matrix: &BitMatrixLed4,
     bits_to_indexes: &mut BitsToIndexes,
-    notifier: &'static Led4SegNotifier,
+    notifier: &'static Led4Notifier,
     timeout: Duration,
-) -> Option<(BlinkState4Led, Text)> {
+) -> Option<(BlinkStateLed4, Text)> {
     let _ = bit_matrix.bits_to_indexes(bits_to_indexes);
 
     match bits_to_indexes.iter().next() {

@@ -20,7 +20,7 @@ use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdNotifier};
 use serials::clock::{Clock, ClockEvent, ClockNotifier, ClockState};
 use serials::ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
-use serials::led_24x4::Led24x4;
+use serials::led24x4::Led24x4;
 use serials::rfid::{Rfid, RfidEvent, RfidNotifier};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 use serials::led_strip::Rgb;
@@ -92,8 +92,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         p.DMA_CH4.into(),
         p.PIN_14.into(),
     )?;
-    let mut led_24x4 = Led24x4::new(led_strip1_device);
-    led_24x4
+    let mut Led24x4 = Led24x4::new(led_strip1_device);
+    Led24x4
         .display(['0', '0', '0', '0'], [RED, GREEN, BLUE, YELLOW])
         .await?;
 
@@ -109,6 +109,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
 
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
+    #[cfg(feature = "wifi")]
     let time_sync = TimeSync::new(
         &TIME_SYNC_NOTIFIER,
         p.PIN_23, // WiFi power enable
@@ -120,6 +121,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         None, // No WiFi credentials - use AP mode
         spawner,
     );
+    #[cfg(not(feature = "wifi"))]
+    let time_sync = TimeSync::new(&TIME_SYNC_NOTIFIER, spawner);
 
     static IR_NEC_NOTIFIER: IrNecNotifier = IrNec::notifier();
     let ir = IrNec::new(
@@ -264,7 +267,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                         char::from_digit((ss / 10) as u32, 10).unwrap(),
                         char::from_digit((ss % 10) as u32, 10).unwrap(),
                     ];
-                    led_24x4
+                    Led24x4
                         .display(
                             chars,
                             [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],

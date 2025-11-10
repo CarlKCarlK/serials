@@ -160,8 +160,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                     dt.minute(),
                     dt.second(),
                     match time_info.state {
-                        lib::ClockState::NotSet => "NOT SET",
-                        lib::ClockState::Synced => "SYNCED",
+                        serials::clock::ClockState::NotSet => "NOT SET",
+                        serials::clock::ClockState::Synced => "SYNCED",
                     }
                 );
             }

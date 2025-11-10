@@ -1,9 +1,9 @@
 //! State machine for 4-digit LED clock display modes and transitions.
 
 use crate::button::{Button, PressDuration};
-use crate::clock_4led::Clock4Led as Clock;
+use crate::clock_led4::ClockLed4 as Clock;
 use crate::time_sync::{TimeSync, TimeSyncEvent};
-use crate::blinker_4led::BlinkState4Led;
+use crate::blinker_led4::BlinkStateLed4;
 use super::time::ClockTime;
 use crate::constants::{ONE_MINUTE, ONE_SECOND};
 use defmt::info;
@@ -12,7 +12,7 @@ use embassy_time::{Duration, Instant};
 
 /// Display states for the 4-digit LED clock.
 #[derive(Debug, defmt::Format, Clone, Copy, Default)]
-pub enum Clock4LedState {
+pub enum ClockLed4State {
     #[default]
     HoursMinutes,
     Connecting,
@@ -42,7 +42,7 @@ impl ConfirmClearChoice {
     }
 }
 
-impl Clock4LedState {
+impl ClockLed4State {
     /// Execute the state machine for this clock state.
     pub async fn execute(
         self,
@@ -67,7 +67,7 @@ impl Clock4LedState {
     }
 
     /// Render the current clock state to display output.
-    pub fn render(self, clock_time: &ClockTime) -> (BlinkState4Led, [char; 4], Duration) {
+    pub fn render(self, clock_time: &ClockTime) -> (BlinkStateLed4, [char; 4], Duration) {
         match self {
             Self::HoursMinutes => Self::render_hours_minutes(clock_time),
             Self::Connecting => Self::render_connecting(clock_time),
@@ -227,10 +227,10 @@ impl Clock4LedState {
         }
     }
 
-    fn render_hours_minutes(clock_time: &ClockTime) -> (BlinkState4Led, [char; 4], Duration) {
+    fn render_hours_minutes(clock_time: &ClockTime) -> (BlinkStateLed4, [char; 4], Duration) {
         let (hours, minutes, _, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_MINUTE);
         (
-            BlinkState4Led::Solid,
+            BlinkStateLed4::Solid,
             [
                 tens_hours(hours),
                 ones_digit(hours),
@@ -241,7 +241,7 @@ impl Clock4LedState {
         )
     }
 
-    fn render_connecting(clock_time: &ClockTime) -> (BlinkState4Led, [char; 4], Duration) {
+    fn render_connecting(clock_time: &ClockTime) -> (BlinkStateLed4, [char; 4], Duration) {
         const FRAME_DURATION: Duration = Duration::from_millis(120);
         const TOP: char = '\'';
         const TOP_RIGHT: char = '"';
@@ -270,13 +270,13 @@ impl Clock4LedState {
             ((now_ticks / frame_duration_ticks) % FRAMES.len() as u64) as usize
         };
 
-        (BlinkState4Led::Solid, FRAMES[frame_index], FRAME_DURATION)
+        (BlinkStateLed4::Solid, FRAMES[frame_index], FRAME_DURATION)
     }
 
-    fn render_minutes_seconds(clock_time: &ClockTime) -> (BlinkState4Led, [char; 4], Duration) {
+    fn render_minutes_seconds(clock_time: &ClockTime) -> (BlinkStateLed4, [char; 4], Duration) {
         let (_, minutes, seconds, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_SECOND);
         (
-            BlinkState4Led::Solid,
+            BlinkStateLed4::Solid,
             [
                 tens_digit(minutes),
                 ones_digit(minutes),
@@ -287,10 +287,10 @@ impl Clock4LedState {
         )
     }
 
-    fn render_edit_utc_offset(clock_time: &ClockTime) -> (BlinkState4Led, [char; 4], Duration) {
+    fn render_edit_utc_offset(clock_time: &ClockTime) -> (BlinkStateLed4, [char; 4], Duration) {
         let (hours, minutes, _, _) = clock_time.h_m_s_sleep_duration(ONE_MINUTE);
         (
-            BlinkState4Led::BlinkingAndOn,
+            BlinkStateLed4::BlinkingAndOn,
             [
                 tens_hours(hours),
                 ones_digit(hours),
@@ -301,40 +301,40 @@ impl Clock4LedState {
         )
     }
 
-    fn render_confirm_clear(selection: ConfirmClearChoice) -> (BlinkState4Led, [char; 4], Duration) {
+    fn render_confirm_clear(selection: ConfirmClearChoice) -> (BlinkStateLed4, [char; 4], Duration) {
         match selection {
             ConfirmClearChoice::Keep => (
-                BlinkState4Led::Solid,
+                BlinkStateLed4::Solid,
                 ['-', '-', '-', '-'],
                 Duration::from_millis(400),
             ),
             ConfirmClearChoice::Clear => (
-                BlinkState4Led::BlinkingAndOn,
+                BlinkStateLed4::BlinkingAndOn,
                 ['C', 'L', 'r', ' '],
                 Duration::from_millis(400),
             ),
         }
     }
 
-    fn render_confirmed_clear() -> (BlinkState4Led, [char; 4], Duration) {
+    fn render_confirmed_clear() -> (BlinkStateLed4, [char; 4], Duration) {
         (
-            BlinkState4Led::BlinkingAndOn,
+            BlinkStateLed4::BlinkingAndOn,
             ['C', 'L', 'r', ' '],
             Duration::from_millis(400),
         )
     }
 
-    fn render_clearing_done() -> (BlinkState4Led, [char; 4], Duration) {
+    fn render_clearing_done() -> (BlinkStateLed4, [char; 4], Duration) {
         (
-            BlinkState4Led::Solid,
+            BlinkStateLed4::Solid,
             ['D', 'O', 'N', 'E'],
             Duration::from_millis(600),
         )
     }
 
-    fn render_access_point_setup() -> (BlinkState4Led, [char; 4], Duration) {
+    fn render_access_point_setup() -> (BlinkStateLed4, [char; 4], Duration) {
         (
-            BlinkState4Led::BlinkingAndOn,
+            BlinkStateLed4::BlinkingAndOn,
             ['C', 'O', 'n', 'n'],
             Duration::from_millis(500),
         )
