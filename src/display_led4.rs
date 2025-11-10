@@ -2,9 +2,8 @@ use core::convert::Infallible;
 
 use crate::bit_matrix_led4::BitMatrixLed4;
 use crate::Result;
-use crate::led4::Leds;
 use crate::led4::OutputArray;
-use crate::constants::{BitsToIndexesLed4, CELL_COUNT_LED4, MULTIPLEX_SLEEP_LED4, SEGMENT_COUNT_LED4};
+use crate::led4::{BitsToIndexes, CELL_COUNT, MULTIPLEX_SLEEP, SEGMENT_COUNT};
 #[cfg(feature = "display-trace")]
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
@@ -13,16 +12,8 @@ use embassy_rp::gpio::Level;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
 
-use crate::blinker_led4::TextLed4;
-
 /// Notifier type for the `DisplayLed4` device abstraction.
 pub type DisplayLed4Notifier = Signal<CriticalSectionRawMutex, BitMatrixLed4>;
-
-pub const LED_DECIMAL: u8 = 0b_1000_0000;
-
-pub const LED_DIGITS: [u8; 10] = Leds::DIGITS;
-
-pub const LED_ASCII_TABLE: [u8; 128] = Leds::ASCII_TABLE;
 
 /// A device abstraction for a 4-digit 7-segment LED display.
 pub struct DisplayLed4<'a>(&'a DisplayLed4Notifier);
@@ -35,8 +26,8 @@ impl DisplayLed4<'_> {
 
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
-        cell_pins: OutputArray<'static, CELL_COUNT_LED4>,
-        segment_pins: OutputArray<'static, SEGMENT_COUNT_LED4>,
+        cell_pins: OutputArray<'static, CELL_COUNT>,
+        segment_pins: OutputArray<'static, SEGMENT_COUNT>,
         notifier: &'static DisplayLed4Notifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
@@ -54,8 +45,8 @@ impl DisplayLed4<'_> {
 
 #[embassy_executor::task]
 async fn device_loop(
-    cell_pins: OutputArray<'static, CELL_COUNT_LED4>,
-    segment_pins: OutputArray<'static, SEGMENT_COUNT_LED4>,
+    cell_pins: OutputArray<'static, CELL_COUNT>,
+    segment_pins: OutputArray<'static, SEGMENT_COUNT>,
     notifier: &'static DisplayLed4Notifier,
 ) -> ! {
     let err = inner_device_loop(cell_pins, segment_pins, notifier)
@@ -65,12 +56,12 @@ async fn device_loop(
 }
 
 async fn inner_device_loop(
-    mut cell_pins: OutputArray<'static, CELL_COUNT_LED4>,
-    mut segment_pins: OutputArray<'static, SEGMENT_COUNT_LED4>,
+    mut cell_pins: OutputArray<'static, CELL_COUNT>,
+    mut segment_pins: OutputArray<'static, SEGMENT_COUNT>,
     notifier: &'static DisplayLed4Notifier,
 ) -> Result<Infallible> {
     let mut bit_matrix = BitMatrixLed4::default();
-    let mut bits_to_indexes = BitsToIndexesLed4::default();
+    let mut bits_to_indexes = BitsToIndexes::default();
     'outer: loop {
         #[cfg(feature = "display-trace")]
         info!("bit_matrix: {:?}", bit_matrix);
@@ -91,7 +82,7 @@ async fn inner_device_loop(
                     segment_pins.set_from_nonzero_bits(*bits);
                     cell_pins.set_levels_at_indexes(indexes, Level::Low)?;
                     let timeout_or_signal =
-                        select(Timer::after(MULTIPLEX_SLEEP_LED4), notifier.wait()).await;
+                        select(Timer::after(MULTIPLEX_SLEEP), notifier.wait()).await;
                     cell_pins.set_levels_at_indexes(indexes, Level::High)?;
                     if let Either::Second(notification) = timeout_or_signal {
                         bit_matrix = notification;

@@ -14,7 +14,8 @@ use crate::blinker_led4::{BlinkerLed4, BlinkerLed4Notifier};
 use self::state::ClockLed4State;
 use self::time::ClockTime;
 use crate::led4::OutputArray;
-use crate::constants::{CELL_COUNT_LED4, ONE_MINUTE, SEGMENT_COUNT_LED4};
+use crate::led4::{CELL_COUNT, SEGMENT_COUNT};
+use crate::clock_led4::time::ONE_MINUTE;
 
 /// A device abstraction for a 4-digit LED clock.
 pub struct ClockLed4<'a>(&'a ClockLed4OuterNotifier);
@@ -27,8 +28,8 @@ impl ClockLed4<'_> {
     /// Create a new `ClockLed4` instance, which entails starting an Embassy task.
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
-        cell_pins: OutputArray<'static, CELL_COUNT_LED4>,
-        segment_pins: OutputArray<'static, SEGMENT_COUNT_LED4>,
+        cell_pins: OutputArray<'static, CELL_COUNT>,
+        segment_pins: OutputArray<'static, SEGMENT_COUNT>,
         notifier: &'static ClockLed4Notifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {

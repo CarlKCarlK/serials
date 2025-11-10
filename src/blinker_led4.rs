@@ -1,7 +1,7 @@
 use crate::Result;
 use crate::display_led4::{DisplayLed4, DisplayLed4Notifier};
 use crate::led4::OutputArray;
-use crate::constants::{CELL_COUNT_LED4, SEGMENT_COUNT_LED4};
+use crate::led4::{CELL_COUNT, SEGMENT_COUNT};
 #[cfg(feature = "display-trace")]
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
@@ -17,7 +17,7 @@ pub type BlinkerLed4Notifier = (BlinkerLed4OuterNotifier, DisplayLed4Notifier);
 pub type BlinkerLed4OuterNotifier = Signal<CriticalSectionRawMutex, (BlinkStateLed4, TextLed4)>;
 
 /// Type alias for 4-character text displayed on a 4-digit LED.
-pub type TextLed4 = [char; CELL_COUNT_LED4];
+pub type TextLed4 = [char; CELL_COUNT];
 
 /// Blinking behavior for 4-digit LED displays.
 #[derive(Debug, Clone, Copy, defmt::Format, Default)]
@@ -31,8 +31,8 @@ pub enum BlinkStateLed4 {
 impl BlinkerLed4<'_> {
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
-        cell_pins: OutputArray<'static, CELL_COUNT_LED4>,
-        segment_pins: OutputArray<'static, SEGMENT_COUNT_LED4>,
+        cell_pins: OutputArray<'static, CELL_COUNT>,
+        segment_pins: OutputArray<'static, SEGMENT_COUNT>,
         notifier: &'static BlinkerLed4Notifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
@@ -61,7 +61,7 @@ async fn device_loop(
     display: DisplayLed4<'static>,
 ) -> ! {
     let mut blink_state = BlinkStateLed4::default();
-    let mut text = [' '; CELL_COUNT_LED4];
+    let mut text = [' '; CELL_COUNT];
     #[expect(clippy::shadow_unrelated, reason = "False positive; not shadowing")]
     loop {
         (blink_state, text) = blink_state.execute(outer_notifier, &display, text).await;
@@ -77,7 +77,7 @@ impl BlinkStateLed4 {
     ) -> (Self, TextLed4) {
         use embassy_futures::select::{Either, select};
         use embassy_time::Timer;
-        use crate::constants::{BLINK_OFF_DELAY_LED4, BLINK_ON_DELAY_LED4};
+        use crate::led4::{BLINK_OFF_DELAY, BLINK_ON_DELAY};
 
         match self {
             Self::Solid => {
@@ -87,7 +87,7 @@ impl BlinkStateLed4 {
             Self::BlinkingAndOn => {
                 display.write_text(text);
                 if let Either::First((new_state, new_text)) =
-                    select(outer_notifier.wait(), Timer::after(BLINK_ON_DELAY_LED4)).await
+                    select(outer_notifier.wait(), Timer::after(BLINK_ON_DELAY)).await
                 {
                     (new_state, new_text)
                 } else {
@@ -95,9 +95,9 @@ impl BlinkStateLed4 {
                 }
             }
             Self::BlinkingButOff => {
-                display.write_text([' '; CELL_COUNT_LED4]);
+                display.write_text([' '; CELL_COUNT]);
                 if let Either::First((new_state, new_text)) =
-                    select(outer_notifier.wait(), Timer::after(BLINK_OFF_DELAY_LED4)).await
+                    select(outer_notifier.wait(), Timer::after(BLINK_OFF_DELAY)).await
                 {
                     (new_state, new_text)
                 } else {

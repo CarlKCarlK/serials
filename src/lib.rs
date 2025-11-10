@@ -8,7 +8,6 @@ pub mod char_lcd;
 pub mod clock;
 pub mod clock_led4;
 mod blinker_led4;
-mod constants;
 mod display_led4;
 pub mod clock_offset_store;
 #[cfg(feature = "wifi")]

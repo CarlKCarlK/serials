@@ -6,8 +6,27 @@ use core::sync::atomic::{AtomicI32, Ordering};
 use defmt::info;
 use embassy_time::{Duration, Instant};
 
-use crate::constants::TICKS_IN_ONE_DAY;
 use crate::unix_seconds::UnixSeconds;
+
+// ============================================================================
+// Time Constants
+// ============================================================================
+
+/// Duration representing one second.
+pub const ONE_SECOND: Duration = Duration::from_secs(1);
+
+/// Duration representing one minute (60 seconds).
+pub const ONE_MINUTE: Duration = Duration::from_secs(60);
+
+/// Duration representing one day (24 hours).
+pub const ONE_DAY: Duration = Duration::from_secs(60 * 60 * 24);
+
+/// Duration representing the number of ticks in one day.
+pub const TICKS_IN_ONE_DAY: u64 = ONE_DAY.as_ticks();
+
+// ============================================================================
+// ClockTime Implementation
+// ============================================================================
 
 static INITIAL_UTC_OFFSET_MINUTES: AtomicI32 = AtomicI32::new(0);
 static CURRENT_UTC_OFFSET_MINUTES: AtomicI32 = AtomicI32::new(0);

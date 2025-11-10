@@ -5,7 +5,7 @@ use crate::clock_led4::ClockLed4 as Clock;
 use crate::time_sync::{TimeSync, TimeSyncEvent};
 use crate::blinker_led4::BlinkStateLed4;
 use super::time::ClockTime;
-use crate::constants::{ONE_MINUTE, ONE_SECOND};
+use super::time::{ONE_MINUTE, ONE_SECOND};
 use defmt::info;
 use embassy_futures::select::{Either, select};
 use embassy_time::{Duration, Instant};
