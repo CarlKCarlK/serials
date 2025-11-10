@@ -27,6 +27,7 @@ led24x4_2 = "run --example led24x4 --release --target thumbv8m.main-none-eabihf 
 led24x4_clock_2 = "run --example led24x4_clock --release --target thumbv8m.main-none-eabihf --features pico2"
 led_strip_snake_2 = "run --example led_strip_snake --release --target thumbv8m.main-none-eabihf --features pico2"
 blinky_2 = "run --example blinky --release --target thumbv8m.main-none-eabihf --features pico2"
+servos_2 = "run --example servos --release --target thumbv8m.main-none-eabihf --features pico2"
 log_time_2w = "run --example log_time --release --target thumbv8m.main-none-eabihf --features pico2,wifi"
 wifi_web_2w = "run --example wifi_web --release --target thumbv8m.main-none-eabihf --features pico2,wifi"
 
@@ -41,6 +42,7 @@ led24x4 = "run --example led24x4 --release --features pico2"
 led24x4_clock = "run --example led24x4_clock --release --features pico2"
 led_strip_snake = "run --example led_strip_snake --release --features pico2"
 blinky = "run --example blinky --release --features pico2"
+servos = "run --example servos --release --features pico2"
 
 # Documentation alias
 docdoc = "doc --no-deps --features pico2,wifi --open"

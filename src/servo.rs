@@ -1,28 +1,28 @@
-//! A device abstraction for servo motors using hardware PWM.
+//! A device abstraction for SG90 servo motors.
+//!
+//! This module provides a simple interface for controlling hobby positional servo motors
+//! like the SG90.
+//!
+//! See [`Servo`] for usage examples.
 
 use defmt::info;
 use embassy_rp::clocks::clk_sys_freq;
 use embassy_rp::pwm::{Config, Pwm};
 
-pub const SERVO_PERIOD_US: u16 = 20_000; // 20 ms
+const SERVO_PERIOD_US: u16 = 20_000; // 20 ms
 
-/// Convenience macros to create a servo in one line.
+/// Create a servo on channel A.
 ///
-/// The macro expands to call `Pwm::new_output_a()` (or `_b()`) internally,
-/// so you don't need to create the PWM manually. The type checker will verify
-/// that the slice and pin are compatible with the chosen channel (A or B).
+/// See [`Servo`] for more details about slices and channels.
 ///
 /// # Examples
-/// ```ignore
-/// // Channel A servo on GPIO0 (PWM slice 0)
-/// let mut servo_a = servo_a!(p.PWM_SLICE0, p.PIN_0, 500, 2500);
-///
-/// // Channel B servo on GPIO1 (PWM slice 0)
-/// let mut servo_b = servo_b!(p.PWM_SLICE0, p.PIN_1, 500, 2500);
 /// ```
-
-/// A device abstraction that creates a servo on PWM channel A.
-#[doc(hidden)]
+/// # use serials::servo_a;
+/// # embassy_rp::pac::Peripherals::take();
+/// # let p = unsafe { embassy_rp::Peripherals::steal() };
+/// let mut servo = servo_a!(p.PWM_SLICE0, p.PIN_0, 500, 2500);
+/// servo.set_degrees(90);
+/// ```
 #[macro_export]
 macro_rules! servo_a {
     ($slice:expr, $pin:expr, $min_us:expr, $max_us:expr) => {
@@ -35,8 +35,18 @@ macro_rules! servo_a {
     };
 }
 
-/// A device abstraction that creates a servo on PWM channel B.
-#[doc(hidden)]
+/// Create a servo on channel B.
+///
+/// See [`Servo`] for more details about slices and channels.
+///
+/// # Examples
+/// ```
+/// # use serials::servo_b;
+/// # embassy_rp::pac::Peripherals::take();
+/// # let p = unsafe { embassy_rp::Peripherals::steal() };
+/// let mut servo = servo_b!(p.PWM_SLICE0, p.PIN_1, 500, 2500);
+/// servo.set_degrees(90);
+/// ```
 #[macro_export]
 macro_rules! servo_b {
     ($slice:expr, $pin:expr, $min_us:expr, $max_us:expr) => {
@@ -49,7 +59,25 @@ macro_rules! servo_b {
     };
 }
 
-/// A device abstraction for SG90/FS90R servo motors using hardware PWM.
+/// A device abstraction for SG90 servo motors.
+///
+/// The RP2040/RP2350 has multiple PWM slices (e.g., `PWM_SLICE0`, `PWM_SLICE1`), and each
+/// slice has two channels: A and B. This allows you to control two servos from the same slice
+/// using [`servo_a!`] and [`servo_b!`].
+///
+/// # Examples
+/// ```
+/// # use serials::servo_a;
+/// # embassy_rp::pac::Peripherals::take();
+/// # let p = unsafe { embassy_rp::Peripherals::steal() };
+/// // Create a servo on GPIO 0 with pulse range 500-2500 microseconds
+/// // (500µs = 0°, 2500µs = 180° for typical SG90)
+/// // Use servo_a! for one servo and servo_b! for a second servo on the same slice
+/// let mut servo = servo_a!(p.PWM_SLICE0, p.PIN_0, 500, 2500);
+///
+/// servo.set_degrees(45);  // Move to 45 degrees
+/// servo.center();          // Move to center position
+/// ```
 pub struct Servo<'d> {
     pwm: Pwm<'d>,
     cfg: Config, // Store config to avoid recreating default (which resets divider)
@@ -60,15 +88,30 @@ pub struct Servo<'d> {
 }
 
 /// Which PWM channel the servo is on.
+///
+/// See [`Servo`] for usage examples.
 #[derive(Debug, Clone, Copy)]
 pub enum ServoChannel {
+    /// PWM channel A. See [`Servo`] for usage.
     A,
+    /// PWM channel B. See [`Servo`] for usage.
     B,
 }
 
 impl<'d> Servo<'d> {
-    /// Create on a PWM output channel, accepting pre-configured Pwm.
-    /// e.g.: Servo::new(Pwm::new_output_a(p.PWM_SLICE0, p.PIN_0, Config::default()), ServoChannel::A, 500, 2500)
+    /// Create a servo on a PWM output channel.
+    ///
+    /// Consider using the [`servo_a!`] or [`servo_b!`] macros instead for simpler usage.
+    ///
+    /// # Examples
+    /// ```
+    /// # use embassy_rp::pwm::{Config, Pwm};
+    /// # use serials::servo::{Servo, ServoChannel};
+    /// # embassy_rp::pac::Peripherals::take();
+    /// # let p = unsafe { embassy_rp::Peripherals::steal() };
+    /// let pwm = Pwm::new_output_a(p.PWM_SLICE0, p.PIN_0, Config::default());
+    /// let mut servo = Servo::new(pwm, ServoChannel::A, 500, 2500);
+    /// ```
     pub fn new(pwm: Pwm<'d>, channel: ServoChannel, min_us: u16, max_us: u16) -> Self {
         Self::init(pwm, channel, min_us, max_us)
     }
@@ -134,6 +177,7 @@ impl<'d> Servo<'d> {
 
     /// Set raw pulse width in microseconds (clamped to frame).
     /// NOTE: only update the *compare* register; do not reconfigure the slice.
+    #[doc(hidden)]
     pub fn set_pulse_us(&mut self, mut us: u16) {
         if us > self.top {
             us = self.top;
@@ -148,13 +192,18 @@ impl<'d> Servo<'d> {
         self.pwm.set_config(&self.cfg);
     }
 
-    /// Stop the slice (most servos relax).
+    /// Stop sending control signals to the servo.
+    ///
+    /// This allows the servo to relax and move freely, reducing power consumption
+    /// and mechanical stress.
     pub fn disable(&mut self) {
         self.cfg.enable = false;
         self.pwm.set_config(&self.cfg);
     }
 
-    /// Resume output (keeps last duty). Call `center()` if you prefer.
+    /// Resume sending control signals to the servo.
+    ///
+    /// The servo will move back to its last commanded position.
     pub fn enable(&mut self) {
         self.cfg.enable = true;
         self.pwm.set_config(&self.cfg);
