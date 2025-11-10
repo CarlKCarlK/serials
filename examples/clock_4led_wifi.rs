@@ -21,17 +21,17 @@ use embassy_rp::gpio::{self, Level};
 use embassy_time::Timer;
 use serials::credential_store::INTERNAL_FLASH_SIZE;
 use serials::Result;
-use serials::led4::OutputArray;
+use serials::led_4seg::OutputArray;
 use serials::button::Button;
-use serials::clock_led4::{ClockLed4 as Clock, ClockLed4Notifier as ClockNotifier};
-use serials::clock_led4::state::ClockLed4State;
+use serials::clock_4led::{Clock4Led as Clock, Clock4LedNotifier as ClockNotifier};
+use serials::clock_4led::state::Clock4LedState;
 use serials::time_sync::{TimeSync, TimeSyncNotifier};
 use serials::wifi_config::{WifiCredentials, collect_wifi_credentials};
 use serials::dns_server::dns_server_task;
 use serials::clock_offset_store::{clear as clear_timezone_offset, load as load_timezone_offset, save as save_timezone_offset};
 use serials::credential_store;
-// Import clock_led4_time functions
-use serials::clock_led4::time::{current_utc_offset_minutes, set_initial_utc_offset_minutes};
+// Import clock_4led_time functions
+use serials::clock_4led::time::{current_utc_offset_minutes, set_initial_utc_offset_minutes};
 use panic_probe as _;
 use static_cell::StaticCell;
 
@@ -76,7 +76,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     ]);
 
     // Initialize clock and button
-    static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
+    static CLOCK_NOTIFIER: ClockNotifier = Clock::new_notifier();
     let mut clock = Clock::new(cells, segments, &CLOCK_NOTIFIER, spawner)?;
     let mut button = Button::new(p.PIN_13);
 
@@ -205,14 +205,14 @@ impl WifiSetupState {
         flash: &mut Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
     ) -> Result<Self> {
         info!("WifiSetupState: AttemptConnection - attempting to connect and sync time");
-        let mut clock_state = ClockLed4State::Connecting;
+        let mut clock_state = Clock4LedState::Connecting;
 
         // Keep trying to connect, checking for timeout
         loop {
             clock_state = clock_state.execute(clock, button, time_sync).await;
             
             // If we timeout, clear credentials and go back to AP mode
-            if matches!(clock_state, ClockLed4State::AccessPointSetup) {
+            if matches!(clock_state, Clock4LedState::AccessPointSetup) {
                 info!("Connection timeout - clearing credentials and switching to AccessPoint");
                 credential_store::clear(flash)?;
                 Timer::after_millis(500).await;
@@ -220,7 +220,7 @@ impl WifiSetupState {
             }
             
             // If we successfully synced time, move to ready state
-            if matches!(clock_state, ClockLed4State::HoursMinutes) {
+            if matches!(clock_state, Clock4LedState::HoursMinutes) {
                 info!("Time synced - moving to Running state");
                 return Ok(Self::Running);
             }
@@ -234,14 +234,14 @@ impl WifiSetupState {
         flash: &mut Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
     ) -> Result<Self> {
         info!("WifiSetupState: Running - clock operational");
-        let mut clock_state = ClockLed4State::HoursMinutes;
+        let mut clock_state = Clock4LedState::HoursMinutes;
         let mut persisted_offset = current_utc_offset_minutes();
 
         loop {
             clock_state = clock_state.execute(clock, button, time_sync).await;
 
             // Handle user confirming credential clear
-            if let ClockLed4State::ConfirmedClear = clock_state {
+            if let Clock4LedState::ConfirmedClear = clock_state {
                 info!("Confirmed clear - erasing credentials and rebooting to Start");
                 credential_store::clear(flash)?;
                 clear_timezone_offset(flash)?;

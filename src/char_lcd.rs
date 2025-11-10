@@ -1,4 +1,4 @@
-//! A device abstraction for character LCDs (16x2 displays).
+//! A device abstraction for HD44780-compatible character LCDs (e.g., 16x2, 20x2, 20x4).
 
 use embassy_executor::Spawner;
 use embassy_rp::Peri;
@@ -16,7 +16,7 @@ use crate::{Error, Result};
 pub enum CharLcdMessage {
     /// Display a message for the specified duration (0 = until next message)
     Display {
-        text: String<64>, // 64 chars is plenty for a 16x2 LCD
+        text: String<64>, // 64 chars supports up to 20x4 displays (80 chars)
         duration_ms: u32,
     },
 }
@@ -24,7 +24,7 @@ pub enum CharLcdMessage {
 /// Notifier type for the `CharLcd` device abstraction.
 pub type CharLcdNotifier = Channel<CriticalSectionRawMutex, CharLcdMessage, 8>;
 
-/// A device abstraction for a character LCD (16x2).
+/// A device abstraction for an HD44780-compatible character LCD.
 pub struct CharLcd {
     notifier: &'static CharLcdNotifier,
 }

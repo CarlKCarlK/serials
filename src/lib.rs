@@ -1,4 +1,4 @@
-//! Shared items for the clock project.
+//! Device abstractions for peripherals for Pico 1 and 2 (with and without WiFi).
 #![no_std]
 #![no_main]
 
