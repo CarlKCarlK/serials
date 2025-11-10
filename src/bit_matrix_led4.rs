@@ -1,4 +1,4 @@
-//! BitMatrix - Represents LED display state for 4-digit 7-segment displays
+//! Internal segment state representation for 4-digit 7-segment displays.
 
 use core::num::NonZeroU8;
 use core::ops::{BitOrAssign, Index, IndexMut};
@@ -105,28 +105,30 @@ impl Leds {
 // BitMatrixLed4
 // ============================================================================
 
-/// A device abstraction for representing LED segment states in a 4-digit 7-segment display.
+/// LED segment state for a 4-digit 7-segment display.
+///
+/// Represents the raw bit patterns for LED segments.
 #[derive(defmt::Format, Debug, Clone)]
 pub struct BitMatrixLed4([u8; CELL_COUNT]);
 
 impl BitMatrixLed4 {
-    pub const fn new(bits: [u8; CELL_COUNT]) -> Self {
+    pub(crate) const fn new(bits: [u8; CELL_COUNT]) -> Self {
         Self(bits)
     }
 
-    pub const fn from_bits(bits: u8) -> Self {
+    pub(crate) const fn from_bits(bits: u8) -> Self {
         Self([bits; CELL_COUNT])
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &u8> {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &u8> {
         self.0.iter()
     }
 
-    pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, u8> {
+    pub(crate) fn iter_mut(&mut self) -> core::slice::IterMut<'_, u8> {
         self.0.iter_mut()
     }
 
-    pub fn from_text(text: &[char; 4]) -> Self {
+    pub(crate) fn from_text(text: &[char; 4]) -> Self {
         let bytes = text.map(|char| Leds::ASCII_TABLE.get(char as usize).copied().unwrap_or(0));
         Self::new(bytes)
     }
@@ -136,7 +138,8 @@ impl BitMatrixLed4 {
         clippy::integer_division_remainder_used,
         reason = "Indexing and arithmetic are safe; modulo is required for digit extraction"
     )]
-    pub fn from_number(mut number: u16, padding: u8) -> Self {
+    /// Creates bit matrix from number. If overflow, lights decimal points.
+    pub(crate) fn from_number(mut number: u16, padding: u8) -> Self {
         let mut bit_matrix = Self::from_bits(padding);
 
         for bits in bit_matrix.iter_mut().rev() {
@@ -153,7 +156,8 @@ impl BitMatrixLed4 {
         bit_matrix
     }
 
-    pub fn bits_to_indexes(&self, bits_to_index: &mut BitsToIndexes) -> Result<()> {
+    /// Converts to optimized index mapping for multiplexing.
+    pub(crate) fn bits_to_indexes(&self, bits_to_index: &mut BitsToIndexes) -> Result<()> {
         bits_to_index.clear();
         for (&bits, index) in self.iter().zip(0..CELL_COUNT_U8) {
             if let Some(nonzero_bits) = NonZeroU8::new(bits) {

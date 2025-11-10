@@ -7,8 +7,6 @@ pub mod button;
 pub mod char_lcd;
 pub mod clock;
 pub mod clock_led4;
-mod blinker_led4;
-mod display_led4;
 pub mod clock_offset_store;
 #[cfg(feature = "wifi")]
 pub mod credential_store;
@@ -20,6 +18,7 @@ mod error;
 pub mod ir_nec;
 pub mod led24x4;
 pub mod led4;
+pub mod led4_simple;
 pub mod led_strip;
 pub mod rfid;
 pub mod servo;

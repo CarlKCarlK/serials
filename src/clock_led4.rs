@@ -5,12 +5,12 @@ pub mod time;
 
 #[cfg(feature = "display-trace")]
 use defmt::info;
-use embassy_executor::{SpawnError, Spawner};
+use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Timer};
 
-use crate::blinker_led4::{BlinkerLed4, BlinkerLed4Notifier};
+use crate::led4::{Led4, Led4Notifier};
 use self::state::ClockLed4State;
 use self::time::ClockTime;
 use crate::led4::OutputArray;
@@ -20,7 +20,7 @@ use crate::clock_led4::time::ONE_MINUTE;
 /// A device abstraction for a 4-digit LED clock.
 pub struct ClockLed4<'a>(&'a ClockLed4OuterNotifier);
 /// Notifier type for the `ClockLed4` device abstraction.
-pub type ClockLed4Notifier = (ClockLed4OuterNotifier, BlinkerLed4Notifier);
+pub type ClockLed4Notifier = (ClockLed4OuterNotifier, Led4Notifier);
 /// Channel type for sending commands to the `ClockLed4` device.
 pub type ClockLed4OuterNotifier = Channel<CriticalSectionRawMutex, ClockLed4Command, 4>;
 
@@ -32,9 +32,9 @@ impl ClockLed4<'_> {
         segment_pins: OutputArray<'static, SEGMENT_COUNT>,
         notifier: &'static ClockLed4Notifier,
         spawner: Spawner,
-    ) -> Result<Self, SpawnError> {
+    ) -> crate::Result<Self> {
         let (outer_notifier, blinker_notifier) = notifier;
-        let blinkable_display = BlinkerLed4::new(cell_pins, segment_pins, blinker_notifier, spawner)?;
+        let blinkable_display = Led4::new(cell_pins, segment_pins, blinker_notifier, spawner)?;
         let token = clock_led4_device_loop(outer_notifier, blinkable_display)?;
         spawner.spawn(token);
         Ok(Self(outer_notifier))
@@ -43,7 +43,7 @@ impl ClockLed4<'_> {
     /// Creates a new `ClockLed4Notifier` instance.
     #[must_use]
     pub const fn notifier() -> ClockLed4Notifier {
-        (Channel::new(), BlinkerLed4::notifier())
+        (Channel::new(), Led4::notifier())
     }
 
     /// Set the clock state directly.
@@ -115,7 +115,7 @@ impl ClockLed4Command {
 }
 
 #[embassy_executor::task]
-async fn clock_led4_device_loop(clock_notifier: &'static ClockLed4OuterNotifier, blinker: BlinkerLed4<'static>) -> ! {
+async fn clock_led4_device_loop(clock_notifier: &'static ClockLed4OuterNotifier, blinker: Led4<'static>) -> ! {
     let mut clock_time = ClockTime::default();
     let mut clock_state = ClockLed4State::default();
 

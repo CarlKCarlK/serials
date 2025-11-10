@@ -1,3 +1,7 @@
+//! A device abstraction for 4-digit 7-segment LEDs with multiplexing.
+//!
+//! See [`Led4Simple`] for usage.
+
 use core::convert::Infallible;
 
 use crate::bit_matrix_led4::BitMatrixLed4;
@@ -12,23 +16,77 @@ use embassy_rp::gpio::Level;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
 
-/// Notifier type for the `DisplayLed4` device abstraction.
-pub type DisplayLed4Notifier = Signal<CriticalSectionRawMutex, BitMatrixLed4>;
+/// Notifier for the [`Led4Simple`] device.
+pub type Led4SimpleNotifier = Signal<CriticalSectionRawMutex, BitMatrixLed4>;
 
-/// A device abstraction for a 4-digit 7-segment LED display.
-pub struct DisplayLed4<'a>(&'a DisplayLed4Notifier);
+/// A device abstraction for a non-blinking 4-digit 7-segment LED display.
+///
+/// Users should use this if they don't need blinking.
+/// For blinking support, use [`Led4`](crate::led4::Led4) instead.
+///
+/// # Example
+///
+/// ```no_run
+/// #![no_std]
+/// #![no_main]
+///
+/// use embassy_rp::gpio::{Level, Output};
+/// use serials::led4_simple::{Led4Simple, Led4SimpleNotifier};
+/// use serials::led4::OutputArray;
+/// # use embassy_executor::Spawner;
+/// # use core::panic::PanicInfo;
+/// # #[panic_handler]
+/// # fn panic(_: &PanicInfo) -> ! { loop {} }
+///
+/// async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<(), embassy_executor::SpawnError> {
+///     let cells = OutputArray::new([
+///         Output::new(p.PIN_1, Level::High),
+///         Output::new(p.PIN_2, Level::High),
+///         Output::new(p.PIN_3, Level::High),
+///         Output::new(p.PIN_4, Level::High),
+///     ]);
+///     let segments = OutputArray::new([
+///         Output::new(p.PIN_5, Level::Low),
+///         Output::new(p.PIN_6, Level::Low),
+///         Output::new(p.PIN_7, Level::Low),
+///         Output::new(p.PIN_8, Level::Low),
+///         Output::new(p.PIN_9, Level::Low),
+///         Output::new(p.PIN_10, Level::Low),
+///         Output::new(p.PIN_11, Level::Low),
+///         Output::new(p.PIN_12, Level::Low),
+///     ]);
+///     
+///     static NOTIFIER: Led4SimpleNotifier = Led4Simple::notifier();
+///     let display = Led4Simple::new(cells, segments, &NOTIFIER, spawner)?;
+///     
+///     // Display "1234"
+///     display.write_text(['1', '2', '3', '4']);
+///     
+///     // Display "rUSt"
+///     display.write_text(['r', 'U', 'S', 't']);
+///     
+///     Ok(())
+/// }
+/// ```
+pub struct Led4Simple<'a>(&'a Led4SimpleNotifier);
 
-impl DisplayLed4<'_> {
+impl Led4Simple<'_> {
+    /// Creates a notifier for the display.
     #[must_use]
-    pub const fn notifier() -> DisplayLed4Notifier {
+    pub const fn notifier() -> Led4SimpleNotifier {
         Signal::new()
     }
 
+    /// Creates the display device and spawns its background task.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the task cannot be spawned.
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
         cell_pins: OutputArray<'static, CELL_COUNT>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-        notifier: &'static DisplayLed4Notifier,
+        notifier: &'static Led4SimpleNotifier,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
         let token = device_loop(cell_pins, segment_pins, notifier)?;
@@ -36,7 +94,8 @@ impl DisplayLed4<'_> {
         Ok(Self(notifier))
     }
 
-    pub fn write_text(&self, text: crate::blinker_led4::TextLed4) {
+    /// Sends text to the display.
+    pub fn write_text(&self, text: [char; CELL_COUNT]) {
         #[cfg(feature = "display-trace")]
         info!("write_chars: {:?}", text);
         self.0.signal(BitMatrixLed4::from_text(&text));
@@ -47,7 +106,7 @@ impl DisplayLed4<'_> {
 async fn device_loop(
     cell_pins: OutputArray<'static, CELL_COUNT>,
     segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-    notifier: &'static DisplayLed4Notifier,
+    notifier: &'static Led4SimpleNotifier,
 ) -> ! {
     let err = inner_device_loop(cell_pins, segment_pins, notifier)
         .await
@@ -58,7 +117,7 @@ async fn device_loop(
 async fn inner_device_loop(
     mut cell_pins: OutputArray<'static, CELL_COUNT>,
     mut segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-    notifier: &'static DisplayLed4Notifier,
+    notifier: &'static Led4SimpleNotifier,
 ) -> Result<Infallible> {
     let mut bit_matrix = BitMatrixLed4::default();
     let mut bits_to_indexes = BitsToIndexes::default();

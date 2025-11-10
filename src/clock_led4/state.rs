@@ -3,7 +3,7 @@
 use crate::button::{Button, PressDuration};
 use crate::clock_led4::ClockLed4 as Clock;
 use crate::time_sync::{TimeSync, TimeSyncEvent};
-use crate::blinker_led4::BlinkState;
+use crate::led4::BlinkState;
 use super::time::ClockTime;
 use super::time::{ONE_MINUTE, ONE_SECOND};
 use defmt::info;

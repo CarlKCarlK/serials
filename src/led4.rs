@@ -1,4 +1,4 @@
-//! A device abstraction for 4-digit 7-segment LED displays.
+//! A device abstraction for writing text to a 4-digit 7-segment LED display.
 //!
 //! This module provides hardware abstractions for controlling common-cathode
 //! 4-digit 7-segment LED displays. Supports displaying text and numbers with
@@ -7,20 +7,23 @@
 //! See [`Led4`] for the main device abstraction and usage examples.
 
 use core::num::NonZeroU8;
-use defmt::{info, unwrap};
 use embassy_executor::Spawner;
-use embassy_futures::select::{Either, select};
-use embassy_rp::gpio::Level;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-use embassy_time::{Duration, Timer};
+use embassy_time::Duration;
 use heapless::{LinearMap, Vec};
+
+use crate::Result;
+use crate::led4_simple::{Led4Simple, Led4SimpleNotifier};
+
+#[cfg(feature = "display-trace")]
+use defmt::info;
+
+// ============================================================================
+// OutputArray Submodule
+// ============================================================================
 
 mod output_array;
 pub use output_array::OutputArray;
-
-use crate::bit_matrix_led4::BitMatrixLed4;
-pub use crate::blinker_led4::BlinkState;
-use crate::Result;
 
 // ============================================================================
 // Constants
@@ -50,14 +53,26 @@ const BLINK_ON_DELAY: Duration = Duration::from_millis(150);
 pub(crate) type BitsToIndexes = LinearMap<NonZeroU8, Vec<u8, CELL_COUNT>, CELL_COUNT>;
 
 // ============================================================================
-// Led4 Virtual Device
+// BlinkState Enum
 // ============================================================================
+
+/// Blinking behavior for 4-digit LED displays.
+///
+/// Used with [`Led4::write_text()`] to control whether the display blinks.
+/// See the [`Led4`] documentation for usage examples.
+#[derive(Debug, Clone, Copy, defmt::Format, Default)]
+pub enum BlinkState {
+    #[default]
+    Solid,
+    BlinkingAndOn,
+    BlinkingButOff,
+}
 
 // ============================================================================
 // Led4 Virtual Device
 // ============================================================================
 
-/// A device abstraction for a 4-digit, 7-segment LED display.
+/// A device abstraction for a 4-digit, 7-segment LED display with blinking support.
 ///
 /// # Hardware Requirements
 ///
@@ -112,25 +127,16 @@ pub(crate) type BitsToIndexes = LinearMap<NonZeroU8, Vec<u8, CELL_COUNT>, CELL_C
 ///     Ok(())
 /// }
 /// ```
-pub struct Led4<'a>(&'a Led4Notifier);
+pub struct Led4<'a>(&'a Led4OuterNotifier);
 
-/// Notifier for sending display updates to the [`Led4`] background task.
-///
-/// See the [`Led4`] example for usage.
-pub type Led4Notifier = Signal<CriticalSectionRawMutex, (BlinkState, [char; 4])>;
+/// Notifier for the [`Led4`] device.
+pub type Led4Notifier = (Led4OuterNotifier, Led4SimpleNotifier);
+
+/// Signal for sending blink state and text to the [`Led4`] device.
+pub(crate) type Led4OuterNotifier = Signal<CriticalSectionRawMutex, (BlinkState, [char; CELL_COUNT])>;
 
 impl Led4<'_> {
-    /// Creates a notifier for the display.
-    ///
-    /// See the [`Led4`] example for usage.
-    #[must_use]
-    pub const fn notifier() -> Led4Notifier {
-        Signal::new()
-    }
-
     /// Creates the display device and spawns its background task.
-    ///
-    /// See the [`Led4`] example for usage.
     ///
     /// # Errors
     ///
@@ -142,176 +148,73 @@ impl Led4<'_> {
         notifier: &'static Led4Notifier,
         spawner: Spawner,
     ) -> Result<Self> {
-        let token = unwrap!(led4_device_loop(cell_pins, segment_pins, notifier));
+        let (outer_notifier, display_notifier) = notifier;
+        let display = Led4Simple::new(cell_pins, segment_pins, display_notifier, spawner)?;
+        let token = device_loop(outer_notifier, display)?;
         spawner.spawn(token);
-        Ok(Self(notifier))
+        Ok(Self(outer_notifier))
+    }
+
+    /// Creates a notifier for the display.
+    #[must_use]
+    pub const fn notifier() -> Led4Notifier {
+        (Signal::new(), Led4Simple::notifier())
     }
 
     /// Sends text to the display with optional blinking.
-    ///
-    /// See the [`Led4`] example for usage.
-    pub fn write_text(&self, blink_state: BlinkState, text: [char; 4]) {
-        info!("Led4: blink_state={:?}, text={:?}", blink_state, text);
+    pub fn write_text(&self, blink_state: BlinkState, text: [char; CELL_COUNT]) {
+        #[cfg(feature = "display-trace")]
+        info!("blink_state: {:?}, text: {:?}", blink_state, text);
         self.0.signal((blink_state, text));
     }
 }
 
 #[embassy_executor::task]
-async fn led4_device_loop(
-    mut cell_pins: OutputArray<'static, CELL_COUNT>,
-    mut segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-    notifier: &'static Led4Notifier,
+async fn device_loop(
+    outer_notifier: &'static Led4OuterNotifier,
+    display: Led4Simple<'static>,
 ) -> ! {
-    // Wait for first command before starting
-    let (mut blink_state, mut text) = notifier.wait().await;
-    let mut bits_to_indexes = BitsToIndexes::default();
-
+    let mut blink_state = BlinkState::default();
+    let mut text = [' '; CELL_COUNT];
+    #[expect(clippy::shadow_unrelated, reason = "False positive; not shadowing")]
     loop {
-        // Handle blink state transitions
-        let bit_matrix = match blink_state {
-            BlinkState::Solid => {
-                let bit_matrix = BitMatrixLed4::from_text(&text);
-                display_until_notification(
-                    &mut cell_pins,
-                    &mut segment_pins,
-                    &bit_matrix,
-                    &mut bits_to_indexes,
-                    notifier,
-                )
-                .await;
-                (blink_state, text) = notifier.wait().await;
-                continue;
-            }
-            BlinkState::BlinkingAndOn => BitMatrixLed4::from_text(&text),
-            BlinkState::BlinkingButOff => BitMatrixLed4::default(), // All blank
-        };
-
-        // Handle blinking with timeout
-        if let Some(new_state) = display_with_timeout(
-            &mut cell_pins,
-            &mut segment_pins,
-            &bit_matrix,
-            &mut bits_to_indexes,
-            notifier,
-            if matches!(blink_state, BlinkState::BlinkingAndOn) {
-                BLINK_ON_DELAY
-            } else {
-                BLINK_OFF_DELAY
-            },
-        )
-        .await
-        {
-            (blink_state, text) = new_state;
-        } else {
-            blink_state = match blink_state {
-                BlinkState::BlinkingAndOn => BlinkState::BlinkingButOff,
-                BlinkState::BlinkingButOff => BlinkState::BlinkingAndOn,
-                BlinkState::Solid => BlinkState::Solid, // unreachable
-            };
-        }
+        (blink_state, text) = blink_state.execute(outer_notifier, &display, text).await;
     }
 }
 
-/// Display the bit matrix until a notification is received.
-async fn display_until_notification(
-    cell_pins: &mut OutputArray<'static, CELL_COUNT>,
-    segment_pins: &mut OutputArray<'static, SEGMENT_COUNT>,
-    bit_matrix: &BitMatrixLed4,
-    bits_to_indexes: &mut BitsToIndexes,
-    notifier: &'static Led4Notifier,
-) {
-    let _ = bit_matrix.bits_to_indexes(bits_to_indexes);
+impl BlinkState {
+    pub async fn execute(
+        self,
+        outer_notifier: &'static Led4OuterNotifier,
+        display: &Led4Simple<'_>,
+        text: [char; CELL_COUNT],
+    ) -> (Self, [char; CELL_COUNT]) {
+        use embassy_futures::select::{Either, select};
+        use embassy_time::Timer;
 
-    match bits_to_indexes.iter().next() {
-        None => {
-            // Display is empty, just wait
-            let _: (BlinkState, [char; 4]) = notifier.wait().await;
-        }
-        Some((&bits, indexes)) if bits_to_indexes.len() == 1 => {
-            // Only one pattern, no multiplexing needed
-            segment_pins.set_from_nonzero_bits(bits);
-            let _ = cell_pins.set_levels_at_indexes(indexes, Level::Low);
-            let _: (BlinkState, [char; 4]) = notifier.wait().await;
-            let _ = cell_pins.set_levels_at_indexes(indexes, Level::High);
-        }
-        _ => {
-            // Multiple patterns, multiplex
-            'multiplex: loop {
-                for (bits, indexes) in bits_to_indexes.iter() {
-                    segment_pins.set_from_nonzero_bits(*bits);
-                    let _ = cell_pins.set_levels_at_indexes(indexes, Level::Low);
-                    if let Either::First(_) =
-                        select(notifier.wait(), Timer::after(MULTIPLEX_SLEEP)).await
-                    {
-                        let _ = cell_pins.set_levels_at_indexes(indexes, Level::High);
-                        break 'multiplex;
-                    }
-                    let _ = cell_pins.set_levels_at_indexes(indexes, Level::High);
+        match self {
+            Self::Solid => {
+                display.write_text(text);
+                outer_notifier.wait().await
+            }
+            Self::BlinkingAndOn => {
+                display.write_text(text);
+                if let Either::First((new_state, new_text)) =
+                    select(outer_notifier.wait(), Timer::after(BLINK_ON_DELAY)).await
+                {
+                    (new_state, new_text)
+                } else {
+                    (Self::BlinkingButOff, text)
                 }
             }
-        }
-    }
-}
-
-/// Display the bit matrix with a timeout, returning Some if interrupted.
-async fn display_with_timeout(
-    cell_pins: &mut OutputArray<'static, CELL_COUNT>,
-    segment_pins: &mut OutputArray<'static, SEGMENT_COUNT>,
-    bit_matrix: &BitMatrixLed4,
-    bits_to_indexes: &mut BitsToIndexes,
-    notifier: &'static Led4Notifier,
-    timeout: Duration,
-) -> Option<(BlinkState, [char; 4])> {
-    let _ = bit_matrix.bits_to_indexes(bits_to_indexes);
-
-    match bits_to_indexes.iter().next() {
-        None => {
-            // Display is empty, just wait for timeout
-            if let Either::First(new_state) = select(notifier.wait(), Timer::after(timeout)).await {
-                Some(new_state)
-            } else {
-                None
-            }
-        }
-        Some((&bits, indexes)) if bits_to_indexes.len() == 1 => {
-            // Only one pattern
-            segment_pins.set_from_nonzero_bits(bits);
-            let _ = cell_pins.set_levels_at_indexes(indexes, Level::Low);
-            let result = if let Either::First(new_state) =
-                select(notifier.wait(), Timer::after(timeout)).await
-            {
-                Some(new_state)
-            } else {
-                None
-            };
-            let _ = cell_pins.set_levels_at_indexes(indexes, Level::High);
-            result
-        }
-        _ => {
-            // Multiple patterns, multiplex with timeout
-            let start = embassy_time::Instant::now();
-
-            loop {
-                for (bits, indexes) in bits_to_indexes.iter() {
-                    segment_pins.set_from_nonzero_bits(*bits);
-                    let _ = cell_pins.set_levels_at_indexes(indexes, Level::Low);
-
-                    // Check if timeout expired
-                    if embassy_time::Instant::now().duration_since(start) >= timeout {
-                        let _ = cell_pins.set_levels_at_indexes(indexes, Level::High);
-                        return None;
-                    }
-
-                    match select(notifier.wait(), Timer::after(MULTIPLEX_SLEEP)).await {
-                        Either::First(new_state) => {
-                            let _ = cell_pins.set_levels_at_indexes(indexes, Level::High);
-                            return Some(new_state);
-                        }
-                        Either::Second(()) => {
-                            let _ = cell_pins.set_levels_at_indexes(indexes, Level::High);
-                            // Continue multiplexing
-                        }
-                    }
+            Self::BlinkingButOff => {
+                display.write_text([' '; CELL_COUNT]);
+                if let Either::First((new_state, new_text)) =
+                    select(outer_notifier.wait(), Timer::after(BLINK_OFF_DELAY)).await
+                {
+                    (new_state, new_text)
+                } else {
+                    (Self::BlinkingAndOn, text)
                 }
             }
         }
