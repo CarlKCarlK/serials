@@ -34,6 +34,8 @@ pub mod led_strip;
 pub mod rfid;
 #[cfg(any(feature = "pico1", feature = "pico2"))]
 pub mod servo;
+#[cfg(any(feature = "pico1", feature = "pico2"))]
+pub mod servo_pair;
 pub mod time_sync;
 mod unix_seconds;
 #[cfg(feature = "wifi")]
