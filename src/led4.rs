@@ -1,8 +1,14 @@
 //! A device abstraction for 4-digit 7-segment LED displays.
+//!
+//! This module provides hardware abstractions for controlling common-cathode
+//! 4-digit 7-segment LED displays. Supports displaying text and numbers with
+//! optional blinking.
+//!
+//! See [`Led4`] for the main device abstraction and usage examples.
 
 use core::num::NonZeroU8;
 use defmt::{info, unwrap};
-use embassy_executor::{SpawnError, Spawner};
+use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_rp::gpio::Level;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
@@ -13,7 +19,7 @@ mod output_array;
 pub use output_array::OutputArray;
 
 use crate::bit_matrix_led4::BitMatrixLed4;
-use crate::blinker_led4::BlinkStateLed4;
+pub use crate::blinker_led4::BlinkState;
 use crate::Result;
 
 // ============================================================================
@@ -21,253 +27,130 @@ use crate::Result;
 // ============================================================================
 
 /// The number of cells (digits) in the display.
-pub const CELL_COUNT_U8: u8 = 4;
-pub const CELL_COUNT: usize = CELL_COUNT_U8 as usize;
+pub(crate) const CELL_COUNT_U8: u8 = 4;
+pub(crate) const CELL_COUNT: usize = CELL_COUNT_U8 as usize;
 
 /// The number of segments per digit in the display.
-pub const SEGMENT_COUNT: usize = 8;
+pub(crate) const SEGMENT_COUNT: usize = 8;
 
 /// Sleep duration between multiplexing updates.
-pub const MULTIPLEX_SLEEP: Duration = Duration::from_millis(3);
+pub(crate) const MULTIPLEX_SLEEP: Duration = Duration::from_millis(3);
 
 /// Delay for the "off" state during blinking.
-pub const BLINK_OFF_DELAY: Duration = Duration::from_millis(50);
+const BLINK_OFF_DELAY: Duration = Duration::from_millis(50);
 
 /// Delay for the "on" state during blinking.
-pub const BLINK_ON_DELAY: Duration = Duration::from_millis(150);
+const BLINK_ON_DELAY: Duration = Duration::from_millis(150);
 
-/// Type alias for 4-character text displayed on the LED.
-pub type Text = [char; CELL_COUNT];
-
-/// Map from segment bit patterns to digit indexes that share that pattern.
-pub type BitsToIndexes = LinearMap<NonZeroU8, Vec<u8, CELL_COUNT>, CELL_COUNT>;
+/// Internal type for optimizing multiplexing by grouping digits with identical segment patterns.
+///
+/// Maps from segment bit patterns to the indexes of digits that share that pattern.
+/// This reduces the number of multiplex iterations needed when multiple digits
+/// display the same character.
+pub(crate) type BitsToIndexes = LinearMap<NonZeroU8, Vec<u8, CELL_COUNT>, CELL_COUNT>;
 
 // ============================================================================
-// LED Constants
+// Led4 Virtual Device
 // ============================================================================
-
-/// Constants for 7-segment LED displays.
-pub struct Leds;
-
-impl Leds {
-    /// Segment A of the 7-segment display.
-    pub const SEG_A: u8 = 0b_0000_0001;
-    /// Segment B of the 7-segment display.
-    pub const SEG_B: u8 = 0b_0000_0010;
-    /// Segment C of the 7-segment display.
-    pub const SEG_C: u8 = 0b_0000_0100;
-    /// Segment D of the 7-segment display.
-    pub const SEG_D: u8 = 0b_0000_1000;
-    /// Segment E of the 7-segment display.
-    pub const SEG_E: u8 = 0b_0001_0000;
-    /// Segment F of the 7-segment display.
-    pub const SEG_F: u8 = 0b_0010_0000;
-    /// Segment G of the 7-segment display.
-    pub const SEG_G: u8 = 0b_0100_0000;
-    /// Decimal point of the 7-segment display.
-    pub const DECIMAL: u8 = 0b_1000_0000;
-
-    /// Array representing the segments for digits 0-9 on a 7-segment display.
-    pub const DIGITS: [u8; 10] = [
-        0b_0011_1111, // Digit 0
-        0b_0000_0110, // Digit 1
-        0b_0101_1011, // Digit 2
-        0b_0100_1111, // Digit 3
-        0b_0110_0110, // Digit 4
-        0b_0110_1101, // Digit 5
-        0b_0111_1101, // Digit 6
-        0b_0000_0111, // Digit 7
-        0b_0111_1111, // Digit 8
-        0b_0110_1111, // Digit 9
-    ];
-
-    /// Representation of a blank space on a 7-segment display.
-    pub const SPACE: u8 = 0b_0000_0000;
-
-    /// ASCII table mapping characters to their 7-segment display representations.
-    pub const ASCII_TABLE: [u8; 128] = [
-        // Control characters (0-31) + space (32)
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        0b_0000_0000,
-        // Symbols (33-47)
-        0b_1000_0110,              // !
-        Self::SEG_A | Self::SEG_B, // "
-        0b_0000_0000,              // #
-        0b_0000_0000,              // $
-        0b_0000_0000,              // %
-        0b_0000_0000,              // &
-        Self::SEG_A,               // '
-        Self::SEG_A | Self::SEG_F, // (
-        Self::SEG_C | Self::SEG_D, // )
-        Self::SEG_D | Self::SEG_E, // *
-        0b_0000_0000,              // +
-        0b_0000_0000,              // ,
-        0b_0100_0000,              // -
-        0b_1000_0000,              // .
-        0b_0000_0000,              // /
-        // Numbers (48-57)
-        0b_0011_1111, // 0
-        0b_0000_0110, // 1
-        0b_0101_1011, // 2
-        0b_0100_1111, // 3
-        0b_0110_0110, // 4
-        0b_0110_1101, // 5
-        0b_0111_1101, // 6
-        0b_0000_0111, // 7
-        0b_0111_1111, // 8
-        0b_0110_1111, // 9
-        // Symbols (58-64)
-        0b_0000_0000,              // :
-        0b_0000_0000,              // ;
-        Self::SEG_E | Self::SEG_F, // <
-        0b_0000_0000,              // =
-        Self::SEG_B | Self::SEG_C, // >
-        0b_0000_0000,              // ?
-        0b_0000_0000,              // @
-        // Uppercase letters (65-90)
-        0b_0111_0111, // A
-        0b_0111_1100, // B
-        0b_0011_1001, // C
-        0b_0101_1110, // D
-        0b_0111_1001, // E
-        0b_0111_0001, // F
-        0b_0011_1101, // G
-        0b_0111_0110, // H
-        0b_0000_0110, // I
-        0b_0001_1110, // J
-        0b_0111_0110, // K
-        0b_0011_1000, // L
-        0b_0001_0101, // M
-        0b_0101_0100, // N
-        0b_0011_1111, // O
-        0b_0111_0011, // P
-        0b_0110_0111, // Q
-        0b_0101_0000, // R
-        0b_0110_1101, // S
-        0b_0111_1000, // T
-        0b_0011_1110, // U
-        0b_0010_1010, // V
-        0b_0001_1101, // W
-        0b_0111_0110, // X
-        0b_0110_1110, // Y
-        0b_0101_1011, // Z
-        // Symbols (91-96)
-        0b_0011_1001, // [
-        0b_0000_0000, // \
-        0b_0000_1111, // ]
-        0b_0000_0000, // ^
-        0b_0000_1000, // _
-        0b_0000_0000, // `
-        // Lowercase letters (97-122)
-        0b_0111_0111, // a
-        0b_0111_1100, // b
-        0b_0011_1001, // c
-        0b_0101_1110, // d
-        0b_0111_1001, // e
-        0b_0111_0001, // f
-        0b_0011_1101, // g
-        0b_0111_0100, // h
-        0b_0000_0110, // i
-        0b_0001_1110, // j
-        0b_0111_0110, // k
-        0b_0011_1000, // l
-        0b_0001_0101, // m
-        0b_0101_0100, // n
-        0b_0011_1111, // o
-        0b_0111_0011, // p
-        0b_0110_0111, // q
-        0b_0101_0000, // r
-        0b_0110_1101, // s
-        0b_0111_1000, // t
-        0b_0011_1110, // u
-        0b_0010_1010, // v
-        0b_0001_1101, // w
-        0b_0111_0110, // x
-        0b_0110_1110, // y
-        0b_0101_1011, // z
-        // Symbols (123-127)
-        0b_0011_1001, // {
-        0b_0000_0110, // |
-        0b_0000_1111, // }
-        0b_0100_0000, // ~
-        0b_0000_0000, // delete
-    ];
-}
 
 // ============================================================================
 // Led4 Virtual Device
 // ============================================================================
 
 /// A device abstraction for a 4-digit, 7-segment LED display.
+///
+/// # Hardware Requirements
+///
+/// This abstraction is designed for common-cathode 7-segment displays where:
+/// - Cell pins control which digit is active (LOW = on, HIGH = off)
+/// - Segment pins control which segments light up (HIGH = on, LOW = off)
+///
+/// # Example
+///
+/// ```no_run
+/// #![no_std]
+/// #![no_main]
+///
+/// use embassy_rp::gpio::{Level, Output};
+/// use serials::{Error, led4::{BlinkState, Led4, Led4Notifier, OutputArray}};
+/// # use embassy_executor::Spawner;
+/// # use core::panic::PanicInfo;
+/// # #[panic_handler]
+/// # fn panic(_: &PanicInfo) -> ! { loop {} }
+///
+/// async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<(), Error> {
+///     // Set up cell pins (control which digit is active)
+///     let cells = OutputArray::new([
+///         Output::new(p.PIN_1, Level::High),
+///         Output::new(p.PIN_2, Level::High),
+///         Output::new(p.PIN_3, Level::High),
+///         Output::new(p.PIN_4, Level::High),
+///     ]);
+///
+///     // Set up segment pins (control which segments light up)
+///     let segments = OutputArray::new([
+///         Output::new(p.PIN_5, Level::Low),  // Segment A
+///         Output::new(p.PIN_6, Level::Low),  // Segment B
+///         Output::new(p.PIN_7, Level::Low),  // Segment C
+///         Output::new(p.PIN_8, Level::Low),  // Segment D
+///         Output::new(p.PIN_9, Level::Low),  // Segment E
+///         Output::new(p.PIN_10, Level::Low), // Segment F
+///         Output::new(p.PIN_11, Level::Low), // Segment G
+///         Output::new(p.PIN_12, Level::Low), // Decimal point
+///     ]);
+///
+///     // Create the display
+///     static NOTIFIER: Led4Notifier = Led4::notifier();
+///     let display = Led4::new(cells, segments, &NOTIFIER, spawner)?;
+///
+///     // Display "1234" (solid)
+///     display.write_text(BlinkState::Solid, ['1', '2', '3', '4']);
+///     
+///     // Display "rUSt" blinking
+///     display.write_text(BlinkState::BlinkingAndOn, ['r', 'U', 'S', 't']);
+///     
+///     Ok(())
+/// }
+/// ```
 pub struct Led4<'a>(&'a Led4Notifier);
 
-/// Notifier type for the `Led4` device abstraction.
-pub type Led4Notifier = Signal<CriticalSectionRawMutex, (BlinkStateLed4, Text)>;
+/// Notifier for sending display updates to the [`Led4`] background task.
+///
+/// See the [`Led4`] example for usage.
+pub type Led4Notifier = Signal<CriticalSectionRawMutex, (BlinkState, [char; 4])>;
 
 impl Led4<'_> {
-    /// Creates a new `Led4Notifier`.
+    /// Creates a notifier for the display.
+    ///
+    /// See the [`Led4`] example for usage.
     #[must_use]
     pub const fn notifier() -> Led4Notifier {
         Signal::new()
     }
 
-    /// Creates a new `Led4` device.
+    /// Creates the display device and spawns its background task.
     ///
-    /// # Arguments
-    ///
-    /// * `cell_pins` - The pins that control the cells (digits) of the display.
-    /// * `segment_pins` - The pins that control the segments of the display.
-    /// * `notifier` - The static notifier that sends messages to the device.
-    /// * `spawner` - The Embassy task spawner.
+    /// See the [`Led4`] example for usage.
     ///
     /// # Errors
     ///
-    /// Returns a `SpawnError` if the task cannot be spawned.
+    /// Returns an error if the task cannot be spawned.
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
         cell_pins: OutputArray<'static, CELL_COUNT>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT>,
         notifier: &'static Led4Notifier,
         spawner: Spawner,
-    ) -> Result<Self, SpawnError> {
+    ) -> Result<Self> {
         let token = unwrap!(led4_device_loop(cell_pins, segment_pins, notifier));
         spawner.spawn(token);
         Ok(Self(notifier))
     }
 
-    /// Writes text to the display with optional blinking.
-    pub fn write_text(&self, blink_state: BlinkStateLed4, text: Text) {
+    /// Sends text to the display with optional blinking.
+    ///
+    /// See the [`Led4`] example for usage.
+    pub fn write_text(&self, blink_state: BlinkState, text: [char; 4]) {
         info!("Led4: blink_state={:?}, text={:?}", blink_state, text);
         self.0.signal((blink_state, text));
     }
@@ -286,7 +169,7 @@ async fn led4_device_loop(
     loop {
         // Handle blink state transitions
         let bit_matrix = match blink_state {
-            BlinkStateLed4::Solid => {
+            BlinkState::Solid => {
                 let bit_matrix = BitMatrixLed4::from_text(&text);
                 display_until_notification(
                     &mut cell_pins,
@@ -299,8 +182,8 @@ async fn led4_device_loop(
                 (blink_state, text) = notifier.wait().await;
                 continue;
             }
-            BlinkStateLed4::BlinkingAndOn => BitMatrixLed4::from_text(&text),
-            BlinkStateLed4::BlinkingButOff => BitMatrixLed4::default(), // All blank
+            BlinkState::BlinkingAndOn => BitMatrixLed4::from_text(&text),
+            BlinkState::BlinkingButOff => BitMatrixLed4::default(), // All blank
         };
 
         // Handle blinking with timeout
@@ -310,7 +193,7 @@ async fn led4_device_loop(
             &bit_matrix,
             &mut bits_to_indexes,
             notifier,
-            if matches!(blink_state, BlinkStateLed4::BlinkingAndOn) {
+            if matches!(blink_state, BlinkState::BlinkingAndOn) {
                 BLINK_ON_DELAY
             } else {
                 BLINK_OFF_DELAY
@@ -321,9 +204,9 @@ async fn led4_device_loop(
             (blink_state, text) = new_state;
         } else {
             blink_state = match blink_state {
-                BlinkStateLed4::BlinkingAndOn => BlinkStateLed4::BlinkingButOff,
-                BlinkStateLed4::BlinkingButOff => BlinkStateLed4::BlinkingAndOn,
-                BlinkStateLed4::Solid => BlinkStateLed4::Solid, // unreachable
+                BlinkState::BlinkingAndOn => BlinkState::BlinkingButOff,
+                BlinkState::BlinkingButOff => BlinkState::BlinkingAndOn,
+                BlinkState::Solid => BlinkState::Solid, // unreachable
             };
         }
     }
@@ -342,13 +225,13 @@ async fn display_until_notification(
     match bits_to_indexes.iter().next() {
         None => {
             // Display is empty, just wait
-            let _: (BlinkStateLed4, Text) = notifier.wait().await;
+            let _: (BlinkState, [char; 4]) = notifier.wait().await;
         }
         Some((&bits, indexes)) if bits_to_indexes.len() == 1 => {
             // Only one pattern, no multiplexing needed
             segment_pins.set_from_nonzero_bits(bits);
             let _ = cell_pins.set_levels_at_indexes(indexes, Level::Low);
-            let _: (BlinkStateLed4, Text) = notifier.wait().await;
+            let _: (BlinkState, [char; 4]) = notifier.wait().await;
             let _ = cell_pins.set_levels_at_indexes(indexes, Level::High);
         }
         _ => {
@@ -378,7 +261,7 @@ async fn display_with_timeout(
     bits_to_indexes: &mut BitsToIndexes,
     notifier: &'static Led4Notifier,
     timeout: Duration,
-) -> Option<(BlinkStateLed4, Text)> {
+) -> Option<(BlinkState, [char; 4])> {
     let _ = bit_matrix.bits_to_indexes(bits_to_indexes);
 
     match bits_to_indexes.iter().next() {
