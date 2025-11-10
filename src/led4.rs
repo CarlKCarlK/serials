@@ -1,4 +1,4 @@
-//! A device abstraction for writing text to a 4-digit 7-segment LED display.
+//! A device abstraction for a 4-digit, 7-segment LED display with blinking support.
 //!
 //! This module provides hardware abstractions for controlling common-cathode
 //! 4-digit 7-segment LED displays. Supports displaying text and numbers with

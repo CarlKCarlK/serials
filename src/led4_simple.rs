@@ -1,4 +1,4 @@
-//! A device abstraction for 4-digit 7-segment LEDs with multiplexing.
+//! A device abstraction for a non-blinking 4-digit 7-segment LED display.
 //!
 //! See [`Led4Simple`] for usage.
 
