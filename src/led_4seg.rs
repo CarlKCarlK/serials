@@ -9,9 +9,11 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal}
 use embassy_time::{Duration, Timer};
 use heapless::{LinearMap, Vec};
 
+mod output_array;
+pub use output_array::OutputArray;
+
 use crate::bit_matrix_4led::BitMatrix4Led;
 use crate::blinker_4led::BlinkState4Led;
-use crate::OutputArray;
 use crate::Result;
 
 // ============================================================================

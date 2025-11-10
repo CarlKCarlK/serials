@@ -22,6 +22,7 @@ pub const SERVO_PERIOD_US: u16 = 20_000; // 20 ms
 /// ```
 
 /// A device abstraction that creates a servo on PWM channel A.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! servo_a {
     ($slice:expr, $pin:expr, $min_us:expr, $max_us:expr) => {
@@ -35,6 +36,7 @@ macro_rules! servo_a {
 }
 
 /// A device abstraction that creates a servo on PWM channel B.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! servo_b {
     ($slice:expr, $pin:expr, $min_us:expr, $max_us:expr) => {
@@ -158,3 +160,5 @@ impl<'d> Servo<'d> {
         self.pwm.set_config(&self.cfg);
     }
 }
+
+pub use crate::{servo_a, servo_b};

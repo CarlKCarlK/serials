@@ -19,20 +19,19 @@ use embassy_net::Ipv4Address;
 use embassy_rp::flash::{Blocking, Flash};
 use embassy_rp::gpio::{self, Level};
 use embassy_time::Timer;
-use lib::credential_store::INTERNAL_FLASH_SIZE;
-use lib::{
-    OutputArray, Result,
-};
-use lib::button::Button;
-use lib::clock_4led::{Clock4Led as Clock, Clock4LedNotifier as ClockNotifier};
-use lib::clock_4led_state::Clock4LedState;
-use lib::time_sync::{TimeSync, TimeSyncNotifier};
-use lib::wifi_config::{WifiCredentials, collect_wifi_credentials};
-use lib::dns_server::dns_server_task;
-use lib::clock_offset_store::{clear as clear_timezone_offset, load as load_timezone_offset, save as save_timezone_offset};
-use lib::credential_store;
+use serials::credential_store::INTERNAL_FLASH_SIZE;
+use serials::Result;
+use serials::led_4seg::OutputArray;
+use serials::button::Button;
+use serials::clock_4led::{Clock4Led as Clock, Clock4LedNotifier as ClockNotifier};
+use serials::clock_4led::state::Clock4LedState;
+use serials::time_sync::{TimeSync, TimeSyncNotifier};
+use serials::wifi_config::{WifiCredentials, collect_wifi_credentials};
+use serials::dns_server::dns_server_task;
+use serials::clock_offset_store::{clear as clear_timezone_offset, load as load_timezone_offset, save as save_timezone_offset};
+use serials::credential_store;
 // Import clock_4led_time functions
-use lib::clock_4led_time::{current_utc_offset_minutes, set_initial_utc_offset_minutes};
+use serials::clock_4led::time::{current_utc_offset_minutes, set_initial_utc_offset_minutes};
 use panic_probe as _;
 use static_cell::StaticCell;
 

@@ -1,5 +1,8 @@
 //! A device abstraction for 4-digit LED clocks.
 
+pub mod state;
+pub mod time;
+
 #[cfg(feature = "display-trace")]
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
@@ -8,9 +11,9 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channe
 use embassy_time::{Duration, Timer};
 
 use crate::blinker_4led::{Blinker4Led, Blinker4LedNotifier};
-use crate::clock_4led_state::Clock4LedState;
-use crate::clock_4led_time::ClockTime;
-use crate::OutputArray;
+use self::state::Clock4LedState;
+use self::time::ClockTime;
+use crate::led_4seg::OutputArray;
 use crate::constants::{CELL_COUNT_4LED, ONE_MINUTE, SEGMENT_COUNT_4LED};
 
 /// A device abstraction for a 4-digit LED clock.

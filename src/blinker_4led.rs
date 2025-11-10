@@ -1,6 +1,6 @@
 use crate::Result;
 use crate::display_4led::{Display4Led, Display4LedNotifier};
-use crate::OutputArray;
+use crate::led_4seg::OutputArray;
 use crate::constants::{CELL_COUNT_4LED, SEGMENT_COUNT_4LED};
 #[cfg(feature = "display-trace")]
 use defmt::info;

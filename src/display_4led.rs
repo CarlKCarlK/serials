@@ -3,7 +3,7 @@ use core::convert::Infallible;
 use crate::bit_matrix_4led::BitMatrix4Led;
 use crate::Result;
 use crate::led_4seg::Leds;
-use crate::OutputArray;
+use crate::led_4seg::OutputArray;
 use crate::constants::{BitsToIndexes4Led, CELL_COUNT_4LED, MULTIPLEX_SLEEP_4LED, SEGMENT_COUNT_4LED};
 #[cfg(feature = "display-trace")]
 use defmt::info;

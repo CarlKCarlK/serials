@@ -6,7 +6,7 @@ version = "0.0.1"
 
 # Pure library crate - all applications are in examples/
 [lib]
-name = "lib"
+name = "serials"
 path = "src/lib.rs"
 
 [features]

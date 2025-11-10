@@ -177,6 +177,7 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
 ///     ]
 /// }
 /// ```
+#[doc(hidden)]
 #[macro_export]
 macro_rules! define_led_strips {
     (
@@ -290,3 +291,8 @@ macro_rules! define_led_strips {
         )+
     };
 }
+
+pub use crate::define_led_strips;
+
+/// Predefined RGB color constants (RED, GREEN, BLUE, etc.).
+pub use smart_leds::colors;
