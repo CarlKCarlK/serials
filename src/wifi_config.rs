@@ -15,7 +15,7 @@ use crate::Result;
 // ============================================================================
 
 /// WiFi network credentials (SSID and password).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct WifiCredentials {
     /// Network SSID (up to 32 characters).
     pub ssid: heapless::String<32>,
@@ -76,15 +76,23 @@ pub async fn collect_wifi_credentials(
 ///
 /// Serves a simple configuration page and accepts WiFi credentials via POST
 #[embassy_executor::task]
+#[allow(unsafe_code)] // Required for static mut buffers to avoid stack overflow
 pub async fn http_config_server_task(stack: &'static Stack<'static>) -> ! {
     info!("HTTP config server starting on port 80");
 
-    let mut rx_buffer = [0u8; 2048];
-    let mut tx_buffer = [0u8; 4096];
-    let mut request = [0u8; 1024];
+    // Use static buffers to avoid stack overflow (7KB would be too much for stack)
+    static mut RX_BUFFER: [u8; 2048] = [0u8; 2048];
+    static mut TX_BUFFER: [u8; 4096] = [0u8; 4096];
+    static mut REQUEST_BUFFER: [u8; 1024] = [0u8; 1024];
+
+    // Safety: This is safe because this task is spawned only once and these
+    // static muts are only accessed from this single task, never concurrently.
+    let rx_buffer = unsafe { &mut *core::ptr::addr_of_mut!(RX_BUFFER) };
+    let tx_buffer = unsafe { &mut *core::ptr::addr_of_mut!(TX_BUFFER) };
+    let request = unsafe { &mut *core::ptr::addr_of_mut!(REQUEST_BUFFER) };
 
     loop {
-        let mut socket = TcpSocket::new(*stack, &mut rx_buffer, &mut tx_buffer);
+        let mut socket = TcpSocket::new(*stack, rx_buffer, tx_buffer);
         socket.set_timeout(Some(Duration::from_secs(30)));
 
         info!("Waiting for HTTP connection...");
@@ -96,7 +104,7 @@ pub async fn http_config_server_task(stack: &'static Stack<'static>) -> ! {
 
         info!("Client connected: {:?}", socket.remote_endpoint());
 
-        let request_len = match socket.read(&mut request).await {
+        let request_len = match socket.read(request).await {
             Ok(0) => {
                 info!("Client closed without sending data");
                 let _ = socket.flush().await;

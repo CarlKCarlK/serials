@@ -31,7 +31,7 @@ use embassy_futures::select::{Either, select};
 use embassy_net::Ipv4Address;
 use embassy_rp::flash::{Blocking, Flash};
 use embassy_time::Timer;
-use serials::credential_store::INTERNAL_FLASH_SIZE;
+use serials::flash_block::INTERNAL_FLASH_SIZE;
 use serials::Result;
 use serials::clock::{Clock, ClockNotifier};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
@@ -66,8 +66,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let flash = FLASH_STORAGE.init(Flash::<_, Blocking, INTERNAL_FLASH_SIZE>::new_blocking(
         p.FLASH,
     ));
-    let stored_credentials = credential_store::load(&mut *flash)?;
-    let _stored_offset = load_timezone_offset(&mut *flash)?.unwrap_or(0);
+    let stored_credentials = credential_store::load(&mut *flash, 0)?;
+    let _stored_offset = load_timezone_offset(&mut *flash, 1)?.unwrap_or(0);
 
     // Create Clock device (starts ticking immediately)
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
@@ -128,8 +128,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         );
         info!("");
         info!("Persisting credentials to flash storage...");
-        credential_store::save(&mut *flash, &submission.credentials)?;
-        save_timezone_offset(&mut *flash, submission.timezone_offset_minutes)?;
+        credential_store::save(&mut *flash, &submission.credentials, 0)?;
+        save_timezone_offset(&mut *flash, submission.timezone_offset_minutes, 1)?;
         info!("Device will reboot and connect using the stored credentials.");
         info!("==========================================================");
 

@@ -19,7 +19,7 @@ use embassy_net::Ipv4Address;
 use embassy_rp::flash::{Blocking, Flash};
 use embassy_rp::gpio::{self, Level};
 use embassy_time::Timer;
-use serials::credential_store::INTERNAL_FLASH_SIZE;
+use serials::flash_block::INTERNAL_FLASH_SIZE;
 use serials::Result;
 use serials::led4::OutputArray;
 use serials::button::Button;
@@ -119,8 +119,8 @@ impl WifiSetupState {
         flash: &mut Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
     ) -> Result<Self> {
         info!("Loading credentials from flash");
-        let stored_credentials = credential_store::load(flash)?;
-        let stored_offset = load_timezone_offset(flash)?.unwrap_or(0);
+        let stored_credentials = credential_store::load(flash, 0)?;
+        let stored_offset = load_timezone_offset(flash, 1)?.unwrap_or(0);
         set_initial_utc_offset_minutes(stored_offset);
 
         Ok(if let Some(credentials) = stored_credentials {
@@ -189,8 +189,8 @@ impl WifiSetupState {
             submission.credentials.ssid, submission.timezone_offset_minutes
         );
 
-        credential_store::save(flash, &submission.credentials)?;
-        save_timezone_offset(flash, submission.timezone_offset_minutes)?;
+        credential_store::save(flash, &submission.credentials, 0)?;
+        save_timezone_offset(flash, submission.timezone_offset_minutes, 1)?;
         set_initial_utc_offset_minutes(submission.timezone_offset_minutes);
         
         info!("Credentials saved; rebooting to Start state");
@@ -214,7 +214,7 @@ impl WifiSetupState {
             // If we timeout, clear credentials and go back to AP mode
             if matches!(clock_state, ClockLed4State::AccessPointSetup) {
                 info!("Connection timeout - clearing credentials and switching to AccessPoint");
-                credential_store::clear(flash)?;
+                credential_store::clear(flash, 0)?;
                 Timer::after_millis(500).await;
                 SCB::sys_reset();
             }
@@ -243,8 +243,8 @@ impl WifiSetupState {
             // Handle user confirming credential clear
             if let ClockLed4State::ConfirmedClear = clock_state {
                 info!("Confirmed clear - erasing credentials and rebooting to Start");
-                credential_store::clear(flash)?;
-                clear_timezone_offset(flash)?;
+                credential_store::clear(flash, 0)?;
+                clear_timezone_offset(flash, 1)?;
                 set_initial_utc_offset_minutes(0);
                 clock.show_clearing_done().await;
                 Timer::after_millis(750).await;
@@ -254,7 +254,7 @@ impl WifiSetupState {
             // Persist timezone offset changes
             let current_offset = current_utc_offset_minutes();
             if current_offset != persisted_offset {
-                save_timezone_offset(flash, current_offset)?;
+                save_timezone_offset(flash, current_offset, 1)?;
                 persisted_offset = current_offset;
             }
         }

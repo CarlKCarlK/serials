@@ -1,98 +1,121 @@
 //! Storage for timezone offset in flash memory.
+//!
+//! This module provides functions to save, load, and clear timezone offset values
+//! in the Raspberry Pi Pico's internal flash memory. The offset is stored using the
+//! [`crate::flash_block`] module with type-safe postcard serialization.
+//!
+//! You can choose any block ID for storage - just ensure it doesn't conflict with
+//! other data you're storing in flash.
+//!
+//! # Examples
+//!
+//! ## Saving and loading timezone offset
+//!
+//! ```no_run
+//! use embassy_rp::flash::{Blocking, Flash};
+//! use serials::flash_block::INTERNAL_FLASH_SIZE;
+//! use serials::clock_offset_store;
+//!
+//! # async fn example() -> serials::Result<()> {
+//! let p = embassy_rp::init(Default::default());
+//! let mut flash = Flash::<_, Blocking, INTERNAL_FLASH_SIZE>::new_blocking(p.FLASH);
+//!
+//! // Save timezone offset (e.g., UTC-5 = -300 minutes) to block_id = 1
+//! clock_offset_store::save(&mut flash, -300, 1)?
+//!
+//! // Load timezone offset from block_id = 1
+//! if let Some(offset) = clock_offset_store::load(&mut flash, 1)? {
+//!     defmt::info!("Timezone offset: {} minutes", offset);
+//! }
+//! # Ok(())
+//! # }
+//! ```
 #![cfg(feature = "wifi")]
 
-use crc32fast::Hasher;
-use embassy_rp::flash::Instance;
-use embassy_rp::flash::{Blocking, ERASE_SIZE, Flash};
+use embassy_rp::flash::{Blocking, Flash};
 
-use crate::credential_store::INTERNAL_FLASH_SIZE;
-use crate::{Error, Result};
+use crate::flash_block::{FlashBlock, INTERNAL_FLASH_SIZE};
+use crate::Result;
 
+/// Minimum timezone offset in minutes (UTC-12).
 pub const MIN_OFFSET_MINUTES: i32 = -12 * 60;
+
+/// Maximum timezone offset in minutes (UTC+14).
 pub const MAX_OFFSET_MINUTES: i32 = 14 * 60;
 
-const STORAGE_SIZE: usize = ERASE_SIZE;
-const MAGIC: u32 = 0x545A_4F46; // 'TZOF'
-const VERSION: u16 = 1;
-const VERSION_OFFSET: usize = 4;
-const RESERVED_OFFSET: usize = 6;
-const OFFSET_OFFSET: usize = 8;
-const CRC_OFFSET: usize = 12;
+/// Newtype wrapper for timezone offset in minutes.
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+struct TimezoneOffset(i32);
 
 /// Load the persisted timezone offset in minutes.
-pub fn load<'d, T: Instance>(
-    flash: &mut Flash<'d, T, Blocking, INTERNAL_FLASH_SIZE>,
+///
+/// Returns `Ok(Some(offset))` if a valid offset is found, `Ok(None)` if no offset
+/// is stored, or `Err` if the stored data is corrupted.
+///
+/// # Arguments
+///
+/// * `flash` - Flash peripheral
+/// * `block_id` - Block ID where the timezone offset is stored (e.g., 1)
+///
+/// See the [module-level documentation](crate::clock_offset_store) for usage examples.
+pub fn load(
+    flash: &mut Flash<'_, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
+    block_id: u32,
 ) -> Result<Option<i32>> {
-    let offset = storage_offset(flash);
-    let mut buffer = [0u8; STORAGE_SIZE];
-    flash
-        .blocking_read(offset, &mut buffer)
-        .map_err(Error::Flash)?;
-
-    if u32::from_le_bytes(buffer[..VERSION_OFFSET].try_into().unwrap()) != MAGIC {
-        return Ok(None);
-    }
-
-    let version = u16::from_le_bytes(buffer[VERSION_OFFSET..RESERVED_OFFSET].try_into().unwrap());
-    if version != VERSION {
-        return Ok(None);
-    }
-
-    let crc_stored = u32::from_le_bytes(buffer[CRC_OFFSET..CRC_OFFSET + 4].try_into().unwrap());
-    let crc = compute_crc(&buffer[VERSION_OFFSET..CRC_OFFSET]);
-    if crc != crc_stored {
-        return Err(Error::CredentialStorageCorrupted);
-    }
-
-    let offset_minutes = i32::from_le_bytes(buffer[OFFSET_OFFSET..CRC_OFFSET].try_into().unwrap());
-    Ok(Some(offset_minutes))
+    let mut block: FlashBlock<embassy_rp::peripherals::FLASH, TimezoneOffset> = FlashBlock::new(block_id);
+    Ok(block.load(flash)?.map(|tz: TimezoneOffset| tz.0))
 }
 
 /// Persist the timezone offset (in minutes) to flash.
-pub fn save<'d, T: Instance>(
-    flash: &mut Flash<'d, T, Blocking, INTERNAL_FLASH_SIZE>,
+///
+/// The offset must be within the range [`MIN_OFFSET_MINUTES`] to [`MAX_OFFSET_MINUTES`].
+///
+/// # Arguments
+///
+/// * `flash` - Flash peripheral
+/// * `offset_minutes` - Timezone offset in minutes (e.g., UTC-5 = -300)
+/// * `block_id` - Block ID where the timezone offset should be stored (e.g., 1)
+///
+/// # Errors
+///
+/// Returns `Err(Error::FormatError)` if the offset is out of range.
+/// Returns `Err(Error::Flash)` if flash operations fail.
+///
+/// See the [module-level documentation](crate::clock_offset_store) for usage examples.
+pub fn save(
+    flash: &mut Flash<'_, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
     offset_minutes: i32,
+    block_id: u32,
 ) -> Result<()> {
+    use crate::Error;
+
     if offset_minutes < MIN_OFFSET_MINUTES || offset_minutes > MAX_OFFSET_MINUTES {
         return Err(Error::FormatError);
     }
 
-    let offset = storage_offset(flash);
-    let mut buffer = [0xFFu8; STORAGE_SIZE];
-    buffer[..VERSION_OFFSET].copy_from_slice(&MAGIC.to_le_bytes());
-    buffer[VERSION_OFFSET..RESERVED_OFFSET].copy_from_slice(&VERSION.to_le_bytes());
-    buffer[RESERVED_OFFSET..OFFSET_OFFSET].fill(0);
-    buffer[OFFSET_OFFSET..CRC_OFFSET].copy_from_slice(&offset_minutes.to_le_bytes());
-
-    let crc = compute_crc(&buffer[VERSION_OFFSET..CRC_OFFSET]);
-    buffer[CRC_OFFSET..CRC_OFFSET + 4].copy_from_slice(&crc.to_le_bytes());
-
-    flash
-        .blocking_erase(offset, offset + STORAGE_SIZE as u32)
-        .map_err(Error::Flash)?;
-    flash
-        .blocking_write(offset, &buffer)
-        .map_err(Error::Flash)?;
-    Ok(())
+    let mut block: FlashBlock<embassy_rp::peripherals::FLASH, TimezoneOffset> = FlashBlock::new(block_id);
+    block.save(flash, &TimezoneOffset(offset_minutes))
 }
 
 /// Remove the persisted timezone offset from flash.
-pub fn clear<'d, T: Instance>(
-    flash: &mut Flash<'d, T, Blocking, INTERNAL_FLASH_SIZE>,
+///
+/// Erases the flash sector containing the offset. After calling this function,
+/// [`load`] will return `Ok(None)`.
+///
+/// # Arguments
+///
+/// * `flash` - Flash peripheral
+/// * `block_id` - Block ID where the timezone offset is stored (must match the block used in save/load)
+///
+/// # Errors
+///
+/// Returns `Err(Error::Flash)` if the erase operation fails.
+///
+/// See the [module-level documentation](crate::clock_offset_store) for usage examples.
+pub fn clear(
+    flash: &mut Flash<'_, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
+    block_id: u32,
 ) -> Result<()> {
-    let offset = storage_offset(flash);
-    flash
-        .blocking_erase(offset, offset + STORAGE_SIZE as u32)
-        .map_err(Error::Flash)
-}
-
-fn storage_offset<'d, T: Instance>(flash: &Flash<'d, T, Blocking, INTERNAL_FLASH_SIZE>) -> u32 {
-    let capacity = flash.capacity() as u32;
-    capacity - (STORAGE_SIZE as u32 * 2)
-}
-
-fn compute_crc(data: &[u8]) -> u32 {
-    let mut hasher = Hasher::new();
-    hasher.update(data);
-    hasher.finalize()
+    let mut block: FlashBlock<embassy_rp::peripherals::FLASH, TimezoneOffset> = FlashBlock::new(block_id);
+    block.clear(flash)
 }
