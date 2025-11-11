@@ -37,9 +37,8 @@ pub type IrNotifier = EmbassyChannel<CriticalSectionRawMutex, IrEvent, 8>;
 /// # use embassy_executor::Spawner;
 /// # use serials::ir::{Ir, IrEvent};
 /// # async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
-/// static NOTIFIER: serials::ir::IrNotifier = Ir::notifier();
-///
-/// let ir = Ir::new(p.PIN_15, &NOTIFIER, spawner)?;
+/// static IR_NOTIFIER: serials::ir::IrNotifier = Ir::notifier();
+/// let ir = Ir::new(p.PIN_15, &IR_NOTIFIER, spawner)?;
 ///
 /// loop {
 ///     let event = ir.wait().await;

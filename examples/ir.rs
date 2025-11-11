@@ -13,11 +13,8 @@ async fn main(spawner: Spawner) -> ! {
 
     info!("IR NEC decoder example starting...");
 
-    // Create the notifier channel
-    static NOTIFIER: IrNotifier = Ir::notifier();
-
-    // Initialize the IR receiver on GP15 (uses Pull::Up for typical IR modules)
-    let ir = Ir::new(p.PIN_15, &NOTIFIER, spawner)
+    static IR_NOTIFIER: IrNotifier = Ir::notifier();
+    let ir = Ir::new(p.PIN_15, &IR_NOTIFIER, spawner)
         .unwrap_or_else(|e| panic!("Failed to initialize IR receiver: {:?}", e));
 
     info!("IR receiver initialized on GP15");

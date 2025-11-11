@@ -10,28 +10,47 @@ use heapless::LinearMap;
 use crate::ir::{Ir, IrEvent, IrNotifier};
 use crate::Result;
 
+/// Notifier channel for IR mapping events.
+/// 
+/// See [`IrMapping`] for usage examples.
+pub struct IrMappingNotifier(IrNotifier);
+
+impl IrMappingNotifier {
+    /// Create a new mapping notifier.
+    #[must_use]
+    pub(crate) const fn new() -> Self {
+        Self(Ir::notifier())
+    }
+
+    /// Get a reference to the inner notifier.
+    #[must_use]
+    pub(crate) const fn inner(&self) -> &IrNotifier {
+        &self.0
+    }
+}
+
 /// A generic device abstraction that maps IR remote button presses to user-defined button types.
 ///
 /// # Examples
 /// ```no_run
 /// # use embassy_executor::Spawner;
-/// # use serials::ir_mapping::IrMapping;
-/// # #[derive(Debug, Clone, Copy, PartialEq)]
-/// # enum MyButton { Power, Play, Stop }
+/// # use serials::ir_mapping::{IrMapping, IrMappingNotifier};
+/// #
+/// #[derive(Debug, Clone, Copy)]
+/// enum RemoteButton { Power, Play, Stop }
 /// # async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
-/// static NOTIFIER: serials::ir::IrNotifier = IrMapping::<MyButton, 3>::notifier();
-///
 /// let button_map = [
-///     (0x0000, 0x45, MyButton::Power),
-///     (0x0000, 0x0C, MyButton::Play),
-///     (0x0000, 0x08, MyButton::Stop),
+///     (0x0000, 0x45, RemoteButton::Power),
+///     (0x0000, 0x0C, RemoteButton::Play),
+///     (0x0000, 0x08, RemoteButton::Stop),
 /// ];
 ///
-/// let remote = IrMapping::new(p.PIN_15, &button_map, &NOTIFIER, spawner)?;
+/// static IR_MAPPING_NOTIFIER: IrMappingNotifier = IrMapping::<RemoteButton, 3>::notifier();
+/// let ir_mapping = IrMapping::new(p.PIN_15, &button_map, &IR_MAPPING_NOTIFIER, spawner)?;
 ///
 /// loop {
-///     let button = remote.wait().await;
-///     info!("Button pressed: {:?}", button);
+///     let button = ir_mapping.wait().await;
+///     // Use button...
 /// }
 /// # }
 /// ```
@@ -48,8 +67,8 @@ where
     ///
     /// See [`IrMapping`] for usage examples.
     #[must_use]
-    pub const fn notifier() -> IrNotifier {
-        Ir::notifier()
+    pub const fn notifier() -> IrMappingNotifier {
+        IrMappingNotifier::new()
     }
 
     /// Create a new IR remote button mapper.
@@ -67,10 +86,10 @@ where
     pub fn new<P: Pin>(
         pin: Peri<'static, P>,
         button_map: &[(u16, u8, B)],
-        notifier: &'static IrNotifier,
+        notifier: &'static IrMappingNotifier,
         spawner: Spawner,
     ) -> Result<Self> {
-        let ir = Ir::new(pin, notifier, spawner)?;
+        let ir = Ir::new(pin, notifier.inner(), spawner)?;
         
         // Convert the flat array to a LinearMap
         let mut map = LinearMap::new();

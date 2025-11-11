@@ -216,7 +216,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                 Either::Second(ir_nec_event) => {
                     // IR button pressed - check if it's 0-9 for servo control, otherwise reset map
                     let IrEvent::Press { addr, cmd } = ir_nec_event;
-                    info!("IR Press: Addr=0x{:02X} Cmd=0x{:02X}", addr, cmd);
+                    info!("IR Press: Addr=0x{:04X} Cmd=0x{:02X}", addr, cmd);
 
                     // Map button codes to digits 0-9
                     let button_digit = match cmd {

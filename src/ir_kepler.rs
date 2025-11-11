@@ -6,59 +6,40 @@ use embassy_executor::Spawner;
 use embassy_rp::Peri;
 use embassy_rp::gpio::Pin;
 
-use crate::ir::IrNotifier;
-use crate::ir_mapping::IrMapping;
+use crate::ir_mapping::{IrMapping, IrMappingNotifier};
 use crate::Result;
 
 /// Button types for the SunFounder Kepler Kit remote control.
 #[derive(defmt::Format, Clone, Copy, PartialEq, Eq)]
 pub enum KeplerButton {
-    /// Power button (top left)
     Power,
-    /// Mode button (top center)
     Mode,
-    /// Mute button (top right)
     Mute,
-    /// Play/Pause button (row 2, left)
     PlayPause,
-    /// Previous track button (row 2, center)
     Prev,
-    /// Next track button (row 2, right)
     Next,
-    /// Equalizer button (row 3, left)
     Eq,
-    /// Minus/Volume down button (row 3, center)
     Minus,
-    /// Plus/Volume up button (row 3, right)
     Plus,
-    /// Number 0 (row 4, left)
-    Num0,
-    /// Repeat button (row 4, center)
+    Num(u8),
     Repeat,
-    /// U/SD button (row 4, right)
     USd,
-    /// Number 1 (row 5, left)
-    Num1,
-    /// Number 2 (row 5, center)
-    Num2,
-    /// Number 3 (row 5, right)
-    Num3,
-    /// Number 4 (row 6, left)
-    Num4,
-    /// Number 5 (row 6, center)
-    Num5,
-    /// Number 6 (row 6, right)
-    Num6,
-    /// Number 7 (row 7, left)
-    Num7,
-    /// Number 8 (row 7, center)
-    Num8,
-    /// Number 9 (row 7, right)
-    Num9,
 }
 
+/// Notifier type for Kepler IR remote events.
+/// 
+/// This is a type alias to [`IrMappingNotifier`] for convenience.
+/// 
+/// See [`IrKepler`] for usage examples.
+pub type IrKeplerNotifier = IrMappingNotifier;
+
+/// Type alias for the Kepler button mapping.
+/// 
+/// See [`IrKepler`] for usage examples.
+type IrKeplerMapping<'a> = IrMapping<'a, KeplerButton, 21>;
+
 /// Button mapping for the SunFounder Kepler Kit remote (ordered to match physical layout).
-pub const KEPLER_MAPPING: [(u16, u8, KeplerButton); 21] = [
+const KEPLER_MAPPING: [(u16, u8, KeplerButton); 21] = [
     // Row 1: Power, Mode, Mute
     (0x0000, 0x45, KeplerButton::Power),
     (0x0000, 0x46, KeplerButton::Mode),
@@ -72,21 +53,21 @@ pub const KEPLER_MAPPING: [(u16, u8, KeplerButton); 21] = [
     (0x0000, 0x15, KeplerButton::Minus),
     (0x0000, 0x09, KeplerButton::Plus),
     // Row 4: 0, Repeat, U/SD
-    (0x0000, 0x16, KeplerButton::Num0),
+    (0x0000, 0x16, KeplerButton::Num(0)),
     (0x0000, 0x19, KeplerButton::Repeat),
     (0x0000, 0x0D, KeplerButton::USd),
     // Row 5: 1, 2, 3
-    (0x0000, 0x0C, KeplerButton::Num1),
-    (0x0000, 0x18, KeplerButton::Num2),
-    (0x0000, 0x5E, KeplerButton::Num3),
+    (0x0000, 0x0C, KeplerButton::Num(1)),
+    (0x0000, 0x18, KeplerButton::Num(2)),
+    (0x0000, 0x5E, KeplerButton::Num(3)),
     // Row 6: 4, 5, 6
-    (0x0000, 0x08, KeplerButton::Num4),
-    (0x0000, 0x1C, KeplerButton::Num5),
-    (0x0000, 0x5A, KeplerButton::Num6),
+    (0x0000, 0x08, KeplerButton::Num(4)),
+    (0x0000, 0x1C, KeplerButton::Num(5)),
+    (0x0000, 0x5A, KeplerButton::Num(6)),
     // Row 7: 7, 8, 9
-    (0x0000, 0x42, KeplerButton::Num7),
-    (0x0000, 0x52, KeplerButton::Num8),
-    (0x0000, 0x4A, KeplerButton::Num9),
+    (0x0000, 0x42, KeplerButton::Num(7)),
+    (0x0000, 0x52, KeplerButton::Num(8)),
+    (0x0000, 0x4A, KeplerButton::Num(9)),
 ];
 
 /// Device abstraction for the SunFounder Kepler Kit IR remote.
@@ -96,20 +77,19 @@ pub const KEPLER_MAPPING: [(u16, u8, KeplerButton); 21] = [
 /// # Examples
 /// ```no_run
 /// # use embassy_executor::Spawner;
-/// # use serials::ir_kepler::IrKepler;
+/// # use serials::ir_kepler::{IrKepler, IrKeplerNotifier};
 /// # async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
-/// static NOTIFIER: serials::ir::IrNotifier = IrKepler::notifier();
-///
-/// let remote = IrKepler::new(p.PIN_15, &NOTIFIER, spawner)?;
+/// static IR_KEPLER_NOTIFIER: IrKeplerNotifier = IrKepler::notifier();
+/// let ir_kepler = IrKepler::new(p.PIN_15, &IR_KEPLER_NOTIFIER, spawner)?;
 ///
 /// loop {
-///     let button = remote.wait().await;
+///     let button = ir_kepler.wait().await;
 ///     info!("Button: {:?}", button);
 /// }
 /// # }
 /// ```
 pub struct IrKepler<'a> {
-    mapping: IrMapping<'a, KeplerButton, 21>,
+    mapping: IrKeplerMapping<'a>,
 }
 
 impl<'a> IrKepler<'a> {
@@ -117,8 +97,8 @@ impl<'a> IrKepler<'a> {
     ///
     /// See [`IrKepler`] for usage examples.
     #[must_use]
-    pub const fn notifier() -> IrNotifier {
-        IrMapping::<KeplerButton, 21>::notifier()
+    pub const fn notifier() -> IrKeplerNotifier {
+        IrKeplerMapping::notifier()
     }
 
     /// Create a new Kepler remote handler.
@@ -134,7 +114,7 @@ impl<'a> IrKepler<'a> {
     /// Returns an error if the background task cannot be spawned.
     pub fn new<P: Pin>(
         pin: Peri<'static, P>,
-        notifier: &'static IrNotifier,
+        notifier: &'static IrKeplerNotifier,
         spawner: Spawner,
     ) -> Result<Self> {
         let mapping = IrMapping::new(pin, &KEPLER_MAPPING, notifier, spawner)?;
