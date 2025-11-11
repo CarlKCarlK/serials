@@ -10,7 +10,7 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
-use serials::servo_even;
+use serials::servo::servo_even;
 
 #[embassy_executor::main]
 pub async fn main(_spawner: Spawner) -> ! {

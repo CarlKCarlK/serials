@@ -3,13 +3,9 @@
 //! This module provides a simple interface for controlling hobby positional servo motors
 //! like the SG90.
 //!
-//! Use the [`crate::servo_even!`] or [`crate::servo_odd!`] macros for even or odd GPIO pins respectively.
+//! Use the [`servo_even!`] or [`servo_odd!`] macros for even or odd GPIO pins respectively.
 //!
 //! See [`Servo`] for usage examples.
-
-// Re-export macros so they appear in this module's documentation
-#[doc(inline)]
-pub use crate::{servo_even, servo_odd};
 
 use defmt::info;
 use embassy_rp::clocks::clk_sys_freq;
@@ -20,6 +16,7 @@ const SERVO_PERIOD_US: u16 = 20_000; // 20 ms
 /// Create a servo on an even-numbered GPIO pin (0, 2, 4, 6...).
 ///
 /// See [`Servo`] for details and examples.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! servo_even {
     ($pin:expr, $slice:expr, $min_us:expr, $max_us:expr) => {
@@ -31,10 +28,13 @@ macro_rules! servo_even {
         )
     };
 }
+#[doc(inline)]
+pub use servo_even;
 
 /// Create a servo on an odd-numbered GPIO pin (1, 3, 5, 7...).
 ///
 /// See [`Servo`] for details and examples.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! servo_odd {
     ($pin:expr, $slice:expr, $min_us:expr, $max_us:expr) => {
@@ -46,12 +46,14 @@ macro_rules! servo_odd {
         )
     };
 }
+#[doc(inline)]
+pub use servo_odd;
 
 /// A device abstraction for SG90 servo motors.
 ///
 /// # Examples
 /// ```no_run
-/// # use serials::servo_odd;
+/// # use serials::servo::servo_odd;
 /// # let p = embassy_rp::init(Default::default());
 /// // Create a servo on GPIO 15 with pulse range 500-2500 microseconds
 /// // (500µs = 0°, 2500µs = 180° for typical SG90)
@@ -84,7 +86,7 @@ pub enum ServoChannel {
 impl<'d> Servo<'d> {
     /// Create a servo on a PWM output channel.
     ///
-    /// Consider using the [`crate::servo_even!`] or [`crate::servo_odd!`] macros instead for simpler usage.
+    /// Consider using the [`servo_even!`] or [`servo_odd!`] macros instead for simpler usage.
     ///
     /// # Examples
     /// ```
