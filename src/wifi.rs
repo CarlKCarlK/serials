@@ -1,4 +1,108 @@
 //! WiFi device abstraction supporting both access point and client modes.
+//!
+//! This module provides a high-level interface for managing WiFi connectivity on the
+//! Raspberry Pi Pico W. It supports two main operating modes:
+//!
+//! - **Access Point (AP) mode**: Creates a WiFi hotspot for device configuration
+//! - **Client mode**: Connects to an existing WiFi network
+//!
+//! # Examples
+//!
+//! ## Client mode with compile-time credentials
+//!
+//! ```no_run
+//! use serials::wifi::{Wifi, WifiMode};
+//!
+//! # async fn example(spawner: embassy_executor::Spawner) {
+//! let p = embassy_rp::init(Default::default());
+//!
+//! // Create WiFi resources
+//! static WIFI_NOTIFIER: serials::wifi::WifiNotifier = Wifi::notifier();
+//!
+//! // Initialize WiFi in client mode (requires WIFI_SSID and WIFI_PASS env vars)
+//! let wifi = Wifi::new(
+//!     &WIFI_NOTIFIER,
+//!     p.PIN_23,   // WiFi chip data out
+//!     p.PIN_25,   // WiFi chip data in
+//!     p.PIO0,     // PIO for WiFi communication
+//!     p.PIN_24,   // WiFi chip clock
+//!     p.PIN_29,   // WiFi chip select
+//!     p.DMA_CH0,  // DMA channel
+//!     WifiMode::ClientStatic,
+//!     spawner,
+//! );
+//!
+//! // Wait for connection and DHCP
+//! let event = wifi.wait().await;
+//! if matches!(event, serials::wifi::WifiEvent::ClientReady) {
+//!     // Get network stack for TCP/UDP operations
+//!     let stack = wifi.stack().await;
+//!     // ... use stack for networking ...
+//! }
+//! # }
+//! ```
+//!
+//! ## Access Point mode for configuration
+//!
+//! ```no_run
+//! use serials::wifi::{Wifi, WifiMode};
+//!
+//! # async fn example(spawner: embassy_executor::Spawner) {
+//! let p = embassy_rp::init(Default::default());
+//!
+//! static WIFI_NOTIFIER: serials::wifi::WifiNotifier = Wifi::notifier();
+//!
+//! // Start in AP mode for user configuration
+//! let wifi = Wifi::new(
+//!     &WIFI_NOTIFIER,
+//!     p.PIN_23,
+//!     p.PIN_25,
+//!     p.PIO0,
+//!     p.PIN_24,
+//!     p.PIN_29,
+//!     p.DMA_CH0,
+//!     WifiMode::AccessPoint,
+//!     spawner,
+//! );
+//!
+//! // Wait for AP to be ready
+//! wifi.wait().await;
+//!
+//! // Get network stack for serving configuration interface
+//! let stack = wifi.stack().await;
+//! // ... serve web interface on 192.168.4.1 ...
+//! # }
+//! ```
+//!
+//! ## Client mode with runtime credentials
+//!
+//! ```no_run
+//! use serials::wifi::{Wifi, WifiMode};
+//! use serials::wifi_config::WifiCredentials;
+//!
+//! # async fn example(spawner: embassy_executor::Spawner, credentials: WifiCredentials) {
+//! let p = embassy_rp::init(Default::default());
+//!
+//! static WIFI_NOTIFIER: serials::wifi::WifiNotifier = Wifi::notifier();
+//!
+//! // Connect using credentials obtained at runtime (e.g., from flash storage)
+//! let wifi = Wifi::new(
+//!     &WIFI_NOTIFIER,
+//!     p.PIN_23,
+//!     p.PIN_25,
+//!     p.PIO0,
+//!     p.PIN_24,
+//!     p.PIN_29,
+//!     p.DMA_CH0,
+//!     WifiMode::ClientConfigured(credentials),
+//!     spawner,
+//! );
+//!
+//! wifi.wait().await;
+//! let stack = wifi.stack().await;
+//! // ... use stack ...
+//! # }
+//! ```
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 #![allow(
@@ -106,13 +210,19 @@ pub struct WifiNotifier {
 }
 
 /// A device abstraction that manages WiFi connectivity and network stack in both AP and client modes.
+///
+/// See the [module-level documentation](crate::wifi) for usage examples.
 pub struct Wifi {
     events: &'static WifiEvents,
     stack: &'static StackStorage,
 }
 
 impl Wifi {
-    /// Create WiFi resources (notifier + storage)
+    /// Create WiFi resources (notifier + storage).
+    ///
+    /// This must be called once to create a static `WifiNotifier` that will be passed to [`Wifi::new`].
+    ///
+    /// See the [module-level documentation](crate::wifi) for usage examples.
     #[must_use]
     pub const fn notifier() -> WifiNotifier {
         WifiNotifier {
@@ -122,21 +232,47 @@ impl Wifi {
         }
     }
 
-    /// Wait for the network stack to be ready and return a reference to it
+    /// Wait for the network stack to be ready and return a reference to it.
+    ///
+    /// This provides access to the Embassy network stack for TCP/UDP operations.
+    /// The stack will be configured differently depending on the WiFi mode:
+    /// - In AP mode: static IP 192.168.4.1
+    /// - In client mode: DHCP-assigned IP
+    ///
+    /// See the [module-level documentation](crate::wifi) for usage examples.
     pub async fn stack(&self) -> &'static Stack<'static> {
         self.stack.get().await
     }
 
-    /// Wait for and return the next WiFi event
+    /// Wait for and return the next WiFi event.
+    ///
+    /// This will block until the next [`WifiEvent`] occurs, such as:
+    /// - [`WifiEvent::ApReady`] when access point mode is initialized
+    /// - [`WifiEvent::ClientReady`] when connected to WiFi and DHCP is configured
+    ///
+    /// See the [module-level documentation](crate::wifi) for usage examples.
     pub async fn wait(&self) -> WifiEvent {
         self.events.wait().await
     }
 
-    /// Create a new Wifi device and spawn its task
-    /// Returns a static reference to the Wifi handle
+    /// Create a new WiFi device and spawn its background task.
+    ///
+    /// This initializes the WiFi hardware and spawns tasks to manage the WiFi connection
+    /// and network stack. Returns a static reference to the WiFi handle.
     ///
     /// # Arguments
-    /// * `mode` - WiFi mode (AccessPoint or Client)
+    ///
+    /// * `resources` - Static WiFi resources created with [`Wifi::notifier`]
+    /// * `pin_23` - WiFi chip power pin (GPIO 23)
+    /// * `pin_25` - WiFi chip chip select pin (GPIO 25)
+    /// * `pio0` - PIO peripheral for WiFi communication
+    /// * `pin_24` - WiFi chip clock pin (GPIO 24)
+    /// * `pin_29` - WiFi chip data pin (GPIO 29)
+    /// * `dma_ch0` - DMA channel for WiFi SPI communication
+    /// * `mode` - WiFi operating mode (see [`WifiMode`])
+    /// * `spawner` - Embassy task spawner
+    ///
+    /// See the [module-level documentation](crate::wifi) for usage examples.
     pub fn new(
         resources: &'static WifiNotifier,
         pin_23: Peri<'static, PIN_23>,
