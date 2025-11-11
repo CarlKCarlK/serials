@@ -3,7 +3,13 @@
 //! This module provides a simple interface for controlling hobby positional servo motors
 //! like the SG90.
 //!
+//! Use the [`crate::servo_even!`] or [`crate::servo_odd!`] macros for even or odd GPIO pins respectively.
+//!
 //! See [`Servo`] for usage examples.
+
+// Re-export macros so they appear in this module's documentation
+#[doc(inline)]
+pub use crate::{servo_even, servo_odd};
 
 use defmt::info;
 use embassy_rp::clocks::clk_sys_freq;
@@ -11,21 +17,12 @@ use embassy_rp::pwm::{Config, Pwm};
 
 const SERVO_PERIOD_US: u16 = 20_000; // 20 ms
 
-/// Create a servo on channel A.
+/// Create a servo on an even-numbered GPIO pin (0, 2, 4, 6...).
 ///
-/// See [`Servo`] for more details about slices and channels.
-///
-/// # Examples
-/// ```
-/// # use serials::servo_a;
-/// # embassy_rp::pac::Peripherals::take();
-/// # let p = unsafe { embassy_rp::Peripherals::steal() };
-/// let mut servo = servo_a!(p.PWM_SLICE0, p.PIN_0, 500, 2500);
-/// servo.set_degrees(90);
-/// ```
+/// See [`Servo`] for details and examples.
 #[macro_export]
-macro_rules! servo_a {
-    ($slice:expr, $pin:expr, $min_us:expr, $max_us:expr) => {
+macro_rules! servo_even {
+    ($pin:expr, $slice:expr, $min_us:expr, $max_us:expr) => {
         $crate::servo::Servo::new(
             embassy_rp::pwm::Pwm::new_output_a($slice, $pin, embassy_rp::pwm::Config::default()),
             $crate::servo::ServoChannel::A,
@@ -35,21 +32,12 @@ macro_rules! servo_a {
     };
 }
 
-/// Create a servo on channel B.
+/// Create a servo on an odd-numbered GPIO pin (1, 3, 5, 7...).
 ///
-/// See [`Servo`] for more details about slices and channels.
-///
-/// # Examples
-/// ```
-/// # use serials::servo_b;
-/// # embassy_rp::pac::Peripherals::take();
-/// # let p = unsafe { embassy_rp::Peripherals::steal() };
-/// let mut servo = servo_b!(p.PWM_SLICE0, p.PIN_1, 500, 2500);
-/// servo.set_degrees(90);
-/// ```
+/// See [`Servo`] for details and examples.
 #[macro_export]
-macro_rules! servo_b {
-    ($slice:expr, $pin:expr, $min_us:expr, $max_us:expr) => {
+macro_rules! servo_odd {
+    ($pin:expr, $slice:expr, $min_us:expr, $max_us:expr) => {
         $crate::servo::Servo::new(
             embassy_rp::pwm::Pwm::new_output_b($slice, $pin, embassy_rp::pwm::Config::default()),
             $crate::servo::ServoChannel::B,
@@ -61,19 +49,14 @@ macro_rules! servo_b {
 
 /// A device abstraction for SG90 servo motors.
 ///
-/// The RP2040/RP2350 has multiple PWM slices (e.g., `PWM_SLICE0`, `PWM_SLICE1`), and each
-/// slice has two channels: A and B. This allows you to control two servos from the same slice
-/// using [`servo_a!`] and [`servo_b!`].
-///
 /// # Examples
-/// ```
-/// # use serials::servo_a;
-/// # embassy_rp::pac::Peripherals::take();
-/// # let p = unsafe { embassy_rp::Peripherals::steal() };
-/// // Create a servo on GPIO 0 with pulse range 500-2500 microseconds
+/// ```no_run
+/// # use serials::servo_odd;
+/// # let p = embassy_rp::init(Default::default());
+/// // Create a servo on GPIO 15 with pulse range 500-2500 microseconds
 /// // (500µs = 0°, 2500µs = 180° for typical SG90)
-/// // Use servo_a! for one servo and servo_b! for a second servo on the same slice
-/// let mut servo = servo_a!(p.PWM_SLICE0, p.PIN_0, 500, 2500);
+/// // GPIO 15 is odd. Calculate slice: (15 / 2) % 8 = 7 % 8 = 7 → PWM_SLICE7
+/// let mut servo = servo_odd!(p.PIN_15, p.PWM_SLICE7, 500, 2500);
 ///
 /// servo.set_degrees(45);  // Move to 45 degrees
 /// servo.center();          // Move to center position
@@ -101,7 +84,7 @@ pub enum ServoChannel {
 impl<'d> Servo<'d> {
     /// Create a servo on a PWM output channel.
     ///
-    /// Consider using the [`servo_a!`] or [`servo_b!`] macros instead for simpler usage.
+    /// Consider using the [`crate::servo_even!`] or [`crate::servo_odd!`] macros instead for simpler usage.
     ///
     /// # Examples
     /// ```
@@ -109,8 +92,9 @@ impl<'d> Servo<'d> {
     /// # use serials::servo::{Servo, ServoChannel};
     /// # embassy_rp::pac::Peripherals::take();
     /// # let p = unsafe { embassy_rp::Peripherals::steal() };
-    /// let pwm = Pwm::new_output_a(p.PWM_SLICE0, p.PIN_0, Config::default());
-    /// let mut servo = Servo::new(pwm, ServoChannel::A, 500, 2500);
+    /// // GPIO 15 is odd, uses channel B. Calculate slice: (15 / 2) % 8 = 7
+    /// let pwm = Pwm::new_output_b(p.PWM_SLICE7, p.PIN_15, Config::default());
+    /// let mut servo = Servo::new(pwm, ServoChannel::B, 500, 2500);
     /// ```
     pub fn new(pwm: Pwm<'d>, channel: ServoChannel, min_us: u16, max_us: u16) -> Self {
         Self::init(pwm, channel, min_us, max_us)
@@ -210,4 +194,4 @@ impl<'d> Servo<'d> {
     }
 }
 
-pub use crate::{servo_a, servo_b};
+pub use crate::servo;
