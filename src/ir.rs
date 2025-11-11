@@ -1,4 +1,6 @@
 //! A device abstraction for infrared receivers using the NEC protocol.
+//!
+//! See [`Ir`] for usage examples.
 // nec_ir.rs
 use defmt::info;
 use embassy_executor::Spawner;
@@ -13,48 +15,86 @@ use crate::{Error, Result};
 // ===== Public API ===========================================================
 
 /// Events received from the infrared receiver.
+///
+/// See [`Ir`] for usage examples.
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum IrNecEvent {
-    Press { addr: u8, cmd: u8 },
-    // Repeat { addr: u8, cmd: u8 },
+pub enum IrEvent {
+    /// Button press with 16-bit address and 8-bit command.
+    /// Supports both standard NEC (8-bit address) and extended NEC (16-bit address).
+    Press { addr: u16, cmd: u8 },
+    // Repeat { addr: u16, cmd: u8 },
 }
 
-/// Notifier type for the `IrNec` device abstraction.
-pub type IrNecNotifier = EmbassyChannel<CriticalSectionRawMutex, IrNecEvent, 8>;
+/// Notifier type for the `Ir` device abstraction.
+///
+/// See [`Ir`] for usage examples.
+pub type IrNotifier = EmbassyChannel<CriticalSectionRawMutex, IrEvent, 8>;
 
 /// A device abstraction for an infrared receiver using the NEC protocol.
-pub struct IrNec<'a> {
-    notifier: &'a IrNecNotifier,
+///
+/// # Examples
+/// ```no_run
+/// # use embassy_executor::Spawner;
+/// # use serials::ir::{Ir, IrEvent};
+/// # async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
+/// static NOTIFIER: serials::ir::IrNotifier = Ir::notifier();
+///
+/// let ir = Ir::new(p.PIN_15, &NOTIFIER, spawner)?;
+///
+/// loop {
+///     let event = ir.wait().await;
+///     match event {
+///         IrEvent::Press { addr, cmd } => {
+///             info!("IR: addr=0x{:04X}, cmd=0x{:02X}", addr, cmd);
+///         }
+///     }
+/// }
+/// # }
+/// ```
+pub struct Ir<'a> {
+    notifier: &'a IrNotifier,
 }
 
-impl IrNec<'_> {
+impl Ir<'_> {
+    /// Create a new notifier channel for IR events.
+    ///
+    /// See [`Ir`] for usage examples.
     #[must_use]
-    pub const fn notifier() -> IrNecNotifier {
+    pub const fn notifier() -> IrNotifier {
         EmbassyChannel::new()
     }
 
+    /// Create a new IR receiver on the specified pin.
+    ///
+    /// See [`Ir`] for usage examples.
+    ///
+    /// # Errors
+    /// Returns an error if the background task cannot be spawned.
     pub fn new<P: Pin>(
         pin: Peri<'static, P>,
-        pull: Pull,
-        notifier: &'static IrNecNotifier,
+        notifier: &'static IrNotifier,
         spawner: Spawner,
     ) -> Result<Self> {
         // Type erase to Peri<'static, AnyPin> (keep the Peri wrapper!)
         let any: Peri<'static, AnyPin> = pin.into();
-        let token = nec_ir_task(Input::new(any, pull), notifier).map_err(Error::TaskSpawn)?;
+        // Use Pull::Up for typical IR receivers (they idle HIGH with active-low modules)
+        let token = nec_ir_task(Input::new(any, Pull::Up), notifier).map_err(Error::TaskSpawn)?;
         spawner.spawn(token);
         Ok(Self { notifier })
     }
 
-    pub async fn wait(&self) -> IrNecEvent {
+    /// Wait for the next IR event.
+    ///
+    /// See [`Ir`] for usage examples.
+    pub async fn wait(&self) -> IrEvent {
         self.notifier.receive().await
     }
 }
 
 #[embassy_executor::task]
-async fn nec_ir_task(mut pin: Input<'static>, notifier: &'static IrNecNotifier) -> ! {
+async fn nec_ir_task(mut pin: Input<'static>, notifier: &'static IrNotifier) -> ! {
     let mut decoder_state: DecoderState = DecoderState::Idle;
-    let mut last_code: Option<(u8, u8)> = None;
+    let mut last_code: Option<(u16, u8)> = None;
     let mut level_low: bool = pin.is_low(); // Initialize from pin state
     let mut last_edge: Instant = Instant::now();
 
@@ -106,7 +146,7 @@ enum DecoderState {
     LdrHigh,
     BitLow { n: u8, v: u32 },
     BitHigh { n: u8, v: u32 },
-    StopBit { addr: u8, cmd: u8 }, // Waiting for final stop bit after 32 bits
+    StopBit { addr: u16, cmd: u8 }, // Waiting for final stop bit after 32 bits
     RepeatTail,
 }
 
@@ -129,12 +169,25 @@ fn inr(x: u32, r: (u32, u32)) -> bool {
     x >= r.0 && x <= r.1
 }
 #[inline]
-fn nec_ok(f: u32) -> Option<(u8, u8)> {
-    let a = (f & 0xFF) as u8;
-    let an = ((f >> 8) & 0xFF) as u8;
-    let c = ((f >> 16) & 0xFF) as u8;
-    let cn = ((f >> 24) & 0xFF) as u8;
-    ((a ^ an) == 0xFF && (c ^ cn) == 0xFF).then_some((a, c))
+fn nec_ok(f: u32) -> Option<(u16, u8)> {
+    let b0 = (f & 0xFF) as u8;
+    let b1 = ((f >> 8) & 0xFF) as u8;
+    let b2 = ((f >> 16) & 0xFF) as u8;
+    let b3 = ((f >> 24) & 0xFF) as u8;
+    
+    // Validate command with its inverse (required in both variants)
+    if (b2 ^ b3) != 0xFF {
+        return None;
+    }
+    
+    // Standard NEC: second byte is inverse of the first (8-bit address)
+    if (b0 ^ b1) == 0xFF {
+        return Some((b0 as u16, b2));
+    }
+    
+    // Extended NEC: two address bytes (16-bit address)
+    let addr16 = ((b1 as u16) << 8) | (b0 as u16);
+    Some((addr16, b2))
 }
 
 // µs windows - RELAXED TOLERANCES for better reliability
@@ -152,8 +205,8 @@ fn feed(
     mut decoder_state: DecoderState,
     level_low: bool,
     dt: u32,
-    mut last_code: Option<(u8, u8)>,
-) -> (DecoderState, Option<IrNecEvent>, Option<(u8, u8)>) {
+    mut last_code: Option<(u16, u8)>,
+) -> (DecoderState, Option<IrEvent>, Option<(u16, u8)>) {
     if dt < GLITCH {
         return (decoder_state, None, last_code);
     }
@@ -240,7 +293,7 @@ fn feed(
                 // Stop bit validated - emit the event
                 return (
                     decoder_state,
-                    Some(IrNecEvent::Press { addr, cmd }),
+                    Some(IrEvent::Press { addr, cmd }),
                     last_code,
                 );
             } else {

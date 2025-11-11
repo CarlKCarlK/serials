@@ -4,8 +4,7 @@
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_rp::gpio::Pull;
-use serials::ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
+use serials::ir::{Ir, IrEvent, IrNotifier};
 use panic_probe as _;
 
 #[embassy_executor::main]
@@ -15,20 +14,20 @@ async fn main(spawner: Spawner) -> ! {
     info!("IR NEC decoder example starting...");
 
     // Create the notifier channel
-    static NOTIFIER: IrNecNotifier = IrNec::notifier();
+    static NOTIFIER: IrNotifier = Ir::notifier();
 
-    // Initialize the IR receiver on GP28 with pull-up (active-low IR modules idle HIGH)
-    let ir = IrNec::new(p.PIN_28, Pull::Up, &NOTIFIER, spawner)
-        .expect("Failed to initialize IR receiver");
+    // Initialize the IR receiver on GP15 (uses Pull::Up for typical IR modules)
+    let ir = Ir::new(p.PIN_15, &NOTIFIER, spawner)
+        .unwrap_or_else(|e| panic!("Failed to initialize IR receiver: {:?}", e));
 
-    info!("IR receiver initialized on GP28");
+    info!("IR receiver initialized on GP15");
 
     // Main loop: process IR events
     loop {
         let event = ir.wait().await;
         match event {
-            IrNecEvent::Press { addr, cmd } => {
-                info!("IR Button Press - addr=0x{:02X} cmd=0x{:02X}", addr, cmd);
+            IrEvent::Press { addr, cmd } => {
+                info!("IR Button Press - addr=0x{:04X} cmd=0x{:02X}", addr, cmd);
             }
         }
     }

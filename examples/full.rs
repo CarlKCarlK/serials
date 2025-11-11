@@ -19,7 +19,7 @@ use heapless::{String, FnvIndexMap};
 use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdNotifier};
 use serials::clock::{Clock, ClockEvent, ClockNotifier, ClockState};
-use serials::ir_nec::{IrNec, IrNecEvent, IrNecNotifier};
+use serials::ir::{Ir, IrEvent, IrNotifier};
 use serials::led24x4::Led24x4;
 use serials::rfid::{Rfid, RfidEvent, RfidNotifier};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
@@ -124,10 +124,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     #[cfg(not(feature = "wifi"))]
     let time_sync = TimeSync::new(&TIME_SYNC_NOTIFIER, spawner);
 
-    static IR_NEC_NOTIFIER: IrNecNotifier = IrNec::notifier();
-    let ir = IrNec::new(
+    static IR_NEC_NOTIFIER: IrNotifier = Ir::notifier();
+    let ir = Ir::new(
         p.PIN_28,
-        Pull::Up, // most 38 kHz IR modules idle HIGH
         &IR_NEC_NOTIFIER,
         spawner,
     )?;
@@ -216,7 +215,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                 }
                 Either::Second(ir_nec_event) => {
                     // IR button pressed - check if it's 0-9 for servo control, otherwise reset map
-                    let IrNecEvent::Press { addr, cmd } = ir_nec_event;
+                    let IrEvent::Press { addr, cmd } = ir_nec_event;
                     info!("IR Press: Addr=0x{:02X} Cmd=0x{:02X}", addr, cmd);
 
                     // Map button codes to digits 0-9
