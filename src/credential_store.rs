@@ -1,4 +1,88 @@
-//! Storage for WiFi credentials in flash memory.
+//! Persistent storage for WiFi credentials in flash memory.
+//!
+//! This module provides functions to save, load, and clear WiFi credentials in the
+//! Raspberry Pi Pico's internal flash memory. Credentials are stored in the last
+//! flash sector with CRC32 validation to detect corruption.
+//!
+//! The storage format includes:
+//! - Magic number for validation
+//! - Version number for future compatibility
+//! - CRC32 checksum
+//! - SSID (up to 32 bytes)
+//! - Password (up to 64 bytes)
+//!
+//! # Examples
+//!
+//! ## Saving and loading credentials
+//!
+//! ```no_run
+//! use embassy_rp::flash::{Blocking, Flash};
+//! use serials::credential_store::{self, INTERNAL_FLASH_SIZE};
+//! use serials::wifi_config::WifiCredentials;
+//!
+//! # async fn example() -> serials::Result<()> {
+//! let p = embassy_rp::init(Default::default());
+//! let mut flash = Flash::<_, Blocking, INTERNAL_FLASH_SIZE>::new_blocking(p.FLASH);
+//!
+//! // Create credentials
+//! let mut ssid = heapless::String::<32>::new();
+//! let mut password = heapless::String::<64>::new();
+//! ssid.push_str("MyNetwork").unwrap();
+//! password.push_str("MyPassword123").unwrap();
+//! let credentials = WifiCredentials { ssid, password };
+//!
+//! // Save to flash
+//! credential_store::save(&mut flash, &credentials)?;
+//!
+//! // Load from flash
+//! if let Some(loaded) = credential_store::load(&mut flash)? {
+//!     // Use loaded credentials
+//!     assert_eq!(loaded.ssid, "MyNetwork");
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Checking for stored credentials at boot
+//!
+//! ```no_run
+//! use embassy_rp::flash::{Blocking, Flash};
+//! use serials::credential_store::{self, INTERNAL_FLASH_SIZE};
+//! use defmt::info;
+//!
+//! # async fn example() -> serials::Result<()> {
+//! let p = embassy_rp::init(Default::default());
+//! let mut flash = Flash::<_, Blocking, INTERNAL_FLASH_SIZE>::new_blocking(p.FLASH);
+//!
+//! match credential_store::load(&mut flash)? {
+//!     Some(credentials) => {
+//!         // Credentials found - connect to WiFi
+//!         info!("Found credentials for SSID: {}", credentials.ssid);
+//!     }
+//!     None => {
+//!         // No credentials - start in AP mode for configuration
+//!         info!("No credentials found - starting AP mode");
+//!     }
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Clearing credentials
+//!
+//! ```no_run
+//! use embassy_rp::flash::{Blocking, Flash};
+//! use serials::credential_store::{self, INTERNAL_FLASH_SIZE};
+//!
+//! # async fn example() -> serials::Result<()> {
+//! let p = embassy_rp::init(Default::default());
+//! let mut flash = Flash::<_, Blocking, INTERNAL_FLASH_SIZE>::new_blocking(p.FLASH);
+//!
+//! // Clear stored credentials (e.g., for factory reset)
+//! credential_store::clear(&mut flash)?;
+//! # Ok(())
+//! # }
+//! ```
 #![cfg(feature = "wifi")]
 
 use crc32fast::Hasher;
@@ -8,10 +92,15 @@ use embassy_rp::flash::{Blocking, ERASE_SIZE, Flash};
 use crate::wifi_config::WifiCredentials;
 use crate::{Error, Result};
 
+/// Internal flash size for Raspberry Pi Pico 2 (4 MB).
 #[cfg(feature = "pico2")]
-pub const INTERNAL_FLASH_SIZE: usize = 2 * 1024 * 1024;
+pub const INTERNAL_FLASH_SIZE: usize = 4 * 1024 * 1024;
+
+/// Internal flash size for Raspberry Pi Pico 1 W (2 MB).
 #[cfg(all(not(feature = "pico2"), feature = "pico1"))]
 pub const INTERNAL_FLASH_SIZE: usize = 2 * 1024 * 1024;
+
+/// Internal flash size fallback (2 MB).
 #[cfg(all(not(feature = "pico2"), not(feature = "pico1")))]
 pub const INTERNAL_FLASH_SIZE: usize = 2 * 1024 * 1024;
 
@@ -29,6 +118,17 @@ const PASSWORD_CAPACITY: usize = 64;
 const DATA_END: usize = PASSWORD_OFFSET + PASSWORD_CAPACITY;
 
 /// Load WiFi credentials from reserved flash storage.
+///
+/// Returns `Ok(Some(credentials))` if valid credentials are found, `Ok(None)` if no
+/// credentials are stored, or `Err` if the stored data is corrupted.
+///
+/// The function validates:
+/// - Magic number to confirm credential presence
+/// - Version number for compatibility
+/// - CRC32 checksum to detect corruption
+/// - UTF-8 encoding of SSID and password
+///
+/// See the [module-level documentation](crate::credential_store) for usage examples.
 pub fn load<'d, T: Instance>(
     flash: &mut Flash<'d, T, Blocking, INTERNAL_FLASH_SIZE>,
 ) -> Result<Option<WifiCredentials>> {
@@ -81,6 +181,24 @@ pub fn load<'d, T: Instance>(
 }
 
 /// Persist WiFi credentials into reserved flash storage.
+///
+/// Saves the credentials to the last sector of flash memory with CRC32 validation.
+/// This operation erases the sector before writing, so it's relatively slow.
+///
+/// # Arguments
+///
+/// * `flash` - Mutable reference to the flash peripheral
+/// * `credentials` - WiFi credentials to store
+///
+/// # Errors
+///
+/// Returns `Err(Error::FormatError)` if:
+/// - SSID is empty or longer than 32 bytes
+/// - Password is longer than 64 bytes
+///
+/// Returns `Err(Error::Flash)` if flash operations fail.
+///
+/// See the [module-level documentation](crate::credential_store) for usage examples.
 pub fn save<'d, T: Instance>(
     flash: &mut Flash<'d, T, Blocking, INTERNAL_FLASH_SIZE>,
     credentials: &WifiCredentials,
@@ -117,7 +235,21 @@ pub fn save<'d, T: Instance>(
     Ok(())
 }
 
-/// Remove stored WiFi credentials.
+/// Remove stored WiFi credentials from flash.
+///
+/// Erases the flash sector containing credentials. After calling this function,
+/// [`load`] will return `Ok(None)`.
+///
+/// This is useful for:
+/// - Factory reset functionality
+/// - Clearing invalid credentials after connection failures
+/// - User-initiated credential removal
+///
+/// # Errors
+///
+/// Returns `Err(Error::Flash)` if the erase operation fails.
+///
+/// See the [module-level documentation](crate::credential_store) for usage examples.
 pub fn clear<'d, T: Instance>(
     flash: &mut Flash<'d, T, Blocking, INTERNAL_FLASH_SIZE>,
 ) -> Result<()> {
