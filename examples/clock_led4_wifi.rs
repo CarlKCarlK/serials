@@ -16,10 +16,8 @@ use defmt::{info, unwrap};
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_net::Ipv4Address;
-use embassy_rp::flash::{Blocking, Flash};
 use embassy_rp::gpio::{self, Level};
 use embassy_time::Timer;
-use serials::flash_block::INTERNAL_FLASH_SIZE;
 use serials::Result;
 use serials::led4::OutputArray;
 use serials::button::Button;
@@ -28,16 +26,10 @@ use serials::clock_led4::state::ClockLed4State;
 use serials::time_sync::{TimeSync, TimeSyncNotifier};
 use serials::wifi_config::{WifiCredentials, collect_wifi_credentials};
 use serials::dns_server::dns_server_task;
-use serials::clock_offset_store::{clear as clear_timezone_offset, load as load_timezone_offset, save as save_timezone_offset};
-use serials::credential_store;
+use serials::flash::{Flash, FlashNotifier};
 // Import clock_led4_time functions
 use serials::clock_led4::time::{current_utc_offset_minutes, set_initial_utc_offset_minutes};
 use panic_probe as _;
-use static_cell::StaticCell;
-
-static FLASH_STORAGE: StaticCell<
-    Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
-> = StaticCell::new();
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -48,9 +40,10 @@ pub async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("Starting Wi-Fi 4-digit clock");
     let p = embassy_rp::init(Default::default());
-    let flash = FLASH_STORAGE.init(Flash::<_, Blocking, INTERNAL_FLASH_SIZE>::new_blocking(
-        p.FLASH,
-    ));
+    
+    // Initialize flash storage
+    static FLASH_NOTIFIER: FlashNotifier = Flash::notifier();
+    let mut flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
 
     // Initialize LED (unused but kept for compatibility)
     let mut led = gpio::Output::new(p.PIN_0, Level::Low);
@@ -116,11 +109,11 @@ enum WifiSetupState {
 impl WifiSetupState {
     /// Execute start-up logic to determine initial boot phase
     async fn execute_start(
-        flash: &mut Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
+        flash: &mut Flash,
     ) -> Result<Self> {
         info!("Loading credentials from flash");
-        let stored_credentials = credential_store::load(flash, 0)?;
-        let stored_offset = load_timezone_offset(flash, 1)?.unwrap_or(0);
+        let stored_credentials: Option<WifiCredentials> = flash.load(0)?;
+        let stored_offset: i32 = flash.load::<i32>(1)?.unwrap_or(0);
         set_initial_utc_offset_minutes(stored_offset);
 
         Ok(if let Some(credentials) = stored_credentials {
@@ -151,7 +144,7 @@ impl WifiSetupState {
 
     async fn execute(
         self,
-        flash: &mut Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
+        flash: &mut Flash,
         clock: &mut Clock<'_>,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
@@ -165,7 +158,7 @@ impl WifiSetupState {
     }
 
     async fn execute_captive_portal(
-        flash: &mut Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
+        flash: &mut Flash,
         clock: &mut Clock<'_>,
         time_sync: &TimeSync,
         spawner: Spawner,
@@ -189,8 +182,8 @@ impl WifiSetupState {
             submission.credentials.ssid, submission.timezone_offset_minutes
         );
 
-        credential_store::save(flash, &submission.credentials, 0)?;
-        save_timezone_offset(flash, submission.timezone_offset_minutes, 1)?;
+        flash.save(0, &submission.credentials)?;
+        flash.save(1, &submission.timezone_offset_minutes)?;
         set_initial_utc_offset_minutes(submission.timezone_offset_minutes);
         
         info!("Credentials saved; rebooting to Start state");
@@ -202,7 +195,7 @@ impl WifiSetupState {
         clock: &mut Clock<'_>,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        flash: &mut Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
+        flash: &mut Flash,
     ) -> Result<Self> {
         info!("WifiSetupState: AttemptConnection - attempting to connect and sync time");
         let mut clock_state = ClockLed4State::Connecting;
@@ -214,7 +207,7 @@ impl WifiSetupState {
             // If we timeout, clear credentials and go back to AP mode
             if matches!(clock_state, ClockLed4State::AccessPointSetup) {
                 info!("Connection timeout - clearing credentials and switching to AccessPoint");
-                credential_store::clear(flash, 0)?;
+                flash.clear(0)?;
                 Timer::after_millis(500).await;
                 SCB::sys_reset();
             }
@@ -231,7 +224,7 @@ impl WifiSetupState {
         clock: &mut Clock<'_>,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        flash: &mut Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
+        flash: &mut Flash,
     ) -> Result<Self> {
         info!("WifiSetupState: Running - clock operational");
         let mut clock_state = ClockLed4State::HoursMinutes;
@@ -243,8 +236,8 @@ impl WifiSetupState {
             // Handle user confirming credential clear
             if let ClockLed4State::ConfirmedClear = clock_state {
                 info!("Confirmed clear - erasing credentials and rebooting to Start");
-                credential_store::clear(flash, 0)?;
-                clear_timezone_offset(flash, 1)?;
+                flash.clear(0)?;
+                flash.clear(1)?;
                 set_initial_utc_offset_minutes(0);
                 clock.show_clearing_done().await;
                 Timer::after_millis(750).await;
@@ -254,7 +247,7 @@ impl WifiSetupState {
             // Persist timezone offset changes
             let current_offset = current_utc_offset_minutes();
             if current_offset != persisted_offset {
-                save_timezone_offset(flash, current_offset, 1)?;
+                flash.save(1, &current_offset)?;
                 persisted_offset = current_offset;
             }
         }

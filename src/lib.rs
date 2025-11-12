@@ -11,10 +11,6 @@ pub mod char_lcd;
 pub mod clock;
 #[cfg(any(feature = "pico1", feature = "pico2"))]
 pub mod clock_led4;
-#[cfg(any(feature = "pico1", feature = "pico2"))]
-pub mod clock_offset_store;
-#[cfg(feature = "wifi")]
-pub mod credential_store;
 #[cfg(feature = "wifi")]
 pub mod dhcp_server;
 #[cfg(feature = "wifi")]

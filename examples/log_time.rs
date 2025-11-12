@@ -29,26 +29,18 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_net::Ipv4Address;
-use embassy_rp::flash::{Blocking, Flash};
 use embassy_time::Timer;
-use serials::flash_block::INTERNAL_FLASH_SIZE;
 use serials::Result;
 use serials::clock::{Clock, ClockNotifier};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
-use serials::wifi_config::collect_wifi_credentials;
+use serials::wifi_config::{collect_wifi_credentials, WifiCredentials};
 use serials::dns_server::dns_server_task;
-use serials::clock_offset_store::{load as load_timezone_offset, save as save_timezone_offset};
-use serials::credential_store;
+use serials::flash::{Flash, FlashNotifier};
 use panic_probe as _;
-use static_cell::StaticCell;
 
 // ============================================================================
 // Main
 // ============================================================================
-
-static FLASH_STORAGE: StaticCell<
-    Flash<'static, embassy_rp::peripherals::FLASH, Blocking, INTERNAL_FLASH_SIZE>,
-> = StaticCell::new();
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -62,12 +54,11 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     // Initialize RP2040 peripherals
     let p = embassy_rp::init(Default::default());
 
-    // Prepare flash storage for WiFi credentials
-    let flash = FLASH_STORAGE.init(Flash::<_, Blocking, INTERNAL_FLASH_SIZE>::new_blocking(
-        p.FLASH,
-    ));
-    let stored_credentials = credential_store::load(&mut *flash, 0)?;
-    let _stored_offset = load_timezone_offset(&mut *flash, 1)?.unwrap_or(0);
+    // Initialize flash storage for WiFi credentials and timezone offset
+    static FLASH_NOTIFIER: FlashNotifier = Flash::notifier();
+    let mut flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
+    
+    let stored_credentials: Option<WifiCredentials> = flash.load(0)?;
 
     // Create Clock device (starts ticking immediately)
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
@@ -128,8 +119,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         );
         info!("");
         info!("Persisting credentials to flash storage...");
-        credential_store::save(&mut *flash, &submission.credentials, 0)?;
-        save_timezone_offset(&mut *flash, submission.timezone_offset_minutes, 1)?;
+        flash.save(0, &submission.credentials)?;
+        flash.save(1, &submission.timezone_offset_minutes)?;
         info!("Device will reboot and connect using the stored credentials.");
         info!("==========================================================");
 
