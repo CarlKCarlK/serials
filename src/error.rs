@@ -55,6 +55,12 @@ impl From<Infallible> for Error {
     }
 }
 
+impl From<()> for Error {
+    fn from(_: ()) -> Self {
+        Self::FormatError
+    }
+}
+
 #[cfg(any(feature = "pico1", feature = "pico2"))]
 impl From<embassy_executor::SpawnError> for Error {
     fn from(err: embassy_executor::SpawnError) -> Self {

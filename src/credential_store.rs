@@ -2,7 +2,7 @@
 //!
 //! This module provides functions to save, load, and clear WiFi credentials in the
 //! Raspberry Pi Pico's internal flash memory. Credentials are stored using the
-//! [`crate::flash_block`] module with type-safe postcard serialization.
+//! [`crate::flash`] module with type-safe postcard serialization.
 //!
 //! You can choose any block ID for storage - just ensure it doesn't conflict with
 //! other data you're storing in flash.
@@ -13,7 +13,7 @@
 //!
 //! ```no_run
 //! use embassy_rp::flash::{Blocking, Flash};
-//! use serials::flash_block::INTERNAL_FLASH_SIZE;
+//! use serials::flash::INTERNAL_FLASH_SIZE;
 //! use serials::wifi_config::WifiCredentials;
 //! use serials::credential_store;
 //!
@@ -44,7 +44,7 @@
 //!
 //! ```no_run
 //! use embassy_rp::flash::{Blocking, Flash};
-//! use serials::flash_block::INTERNAL_FLASH_SIZE;
+//! use serials::flash::INTERNAL_FLASH_SIZE;
 //! use serials::credential_store;
 //! use defmt::info;
 //!
@@ -70,7 +70,7 @@
 //!
 //! ```no_run
 //! use embassy_rp::flash::{Blocking, Flash};
-//! use serials::flash_block::INTERNAL_FLASH_SIZE;
+//! use serials::flash::INTERNAL_FLASH_SIZE;
 //! use serials::credential_store;
 //!
 //! # async fn example() -> serials::Result<()> {
@@ -86,7 +86,7 @@
 
 use embassy_rp::flash::{Blocking, Flash};
 
-use crate::flash_block::{FlashBlock, INTERNAL_FLASH_SIZE};
+use crate::flash::{FlashBlock, INTERNAL_FLASH_SIZE};
 use crate::wifi_config::WifiCredentials;
 use crate::Result;
 

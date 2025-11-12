@@ -114,8 +114,11 @@ use core::marker::PhantomData;
 
 use crc32fast::Hasher;
 use defmt::{error, info};
-use embassy_rp::flash::{Blocking, Flash, Instance, ERASE_SIZE};
+use embassy_rp::flash::{Blocking, Flash as EmbassyFlash, Instance, ERASE_SIZE};
+use embassy_rp::peripherals::FLASH;
+use embassy_rp::Peri;
 use serde::{Deserialize, Serialize};
+use static_cell::StaticCell;
 
 use crate::{Error, Result};
 
@@ -136,9 +139,123 @@ const HEADER_SIZE: usize = 4 + 4 + 2; // Magic + TypeHash + PayloadLen
 const CRC_SIZE: usize = 4;
 const MAX_PAYLOAD_SIZE: usize = ERASE_SIZE - HEADER_SIZE - CRC_SIZE; // 3900 bytes
 
+/// Notifier type for the `Flash` device abstraction.
+pub struct FlashNotifier {
+    flash_cell: StaticCell<EmbassyFlash<'static, FLASH, Blocking, INTERNAL_FLASH_SIZE>>,
+}
+
+impl FlashNotifier {
+    /// Create flash resources.
+    #[must_use]
+    pub const fn notifier() -> Self {
+        Self {
+            flash_cell: StaticCell::new(),
+        }
+    }
+}
+
 /// A device abstraction for type-safe persistent storage in flash memory.
 ///
-/// See the [module-level documentation](crate::flash_block) for usage examples.
+/// See the [module-level documentation](crate::flash) for usage examples.
+pub struct Flash {
+    flash: &'static mut EmbassyFlash<'static, FLASH, Blocking, INTERNAL_FLASH_SIZE>,
+}
+
+impl Flash {
+    /// Create a new Flash device abstraction.
+    ///
+    /// This initializes the Flash peripheral and returns a device abstraction
+    /// that can be used to create FlashBlock instances.
+    ///
+    /// # Arguments
+    ///
+    /// * `notifier` - Static notifier created with `Flash::notifier()`
+    /// * `peripheral` - The FLASH peripheral from `embassy_rp::init()`
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use embassy_executor::Spawner;
+    /// # use serials::flash::Flash;
+    /// # async fn example(p: embassy_rp::Peripherals) {
+    /// static FLASH_NOTIFIER: serials::flash::FlashNotifier = Flash::notifier();
+    /// let flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
+    /// # }
+    /// ```
+    #[must_use]
+    pub const fn notifier() -> FlashNotifier {
+        FlashNotifier::notifier()
+    }
+
+    /// Create a new Flash device.
+    #[must_use]
+    pub fn new(notifier: &'static FlashNotifier, peripheral: Peri<'static, FLASH>) -> Self {
+        let flash = notifier.flash_cell.init(EmbassyFlash::new_blocking(peripheral));
+        Self { flash }
+    }
+
+    /// Save data to a flash block.
+    ///
+    /// # Arguments
+    ///
+    /// * `block_id` - Unique identifier for this block (0-based from end of flash)
+    /// * `value` - The data to save
+    ///
+    /// # Block Allocation
+    ///
+    /// - Block 0: Reserved for WiFi credentials
+    /// - Block 1: Reserved for timezone offset
+    /// - Block 2+: Available for user applications
+    ///
+    /// See the [module-level documentation](crate::flash) for usage examples.
+    pub fn save<T>(&mut self, block_id: u32, value: &T) -> Result<()>
+    where
+        T: Serialize + for<'de> Deserialize<'de>,
+    {
+        let mut block = FlashBlock::<FLASH, T>::new(block_id);
+        block.save(self.flash, value)
+    }
+
+    /// Load data from a flash block.
+    ///
+    /// Returns `Ok(Some(value))` if valid data of the correct type is found,
+    /// `Ok(None)` if no data is stored or type mismatch occurs, or `Err` if
+    /// the stored data is corrupted.
+    ///
+    /// Type safety: If the stored data was saved with a different type, the type
+    /// hash will mismatch and this returns `Ok(None)`.
+    ///
+    /// See the [module-level documentation](crate::flash) for usage examples.
+    pub fn load<T>(&mut self, block_id: u32) -> Result<Option<T>>
+    where
+        T: Serialize + for<'de> Deserialize<'de>,
+    {
+        let mut block = FlashBlock::<FLASH, T>::new(block_id);
+        block.load(self.flash)
+    }
+
+    /// Clear a flash block, erasing all stored data.
+    ///
+    /// See the [module-level documentation](crate::flash) for usage examples.
+    pub fn clear(&mut self, block_id: u32) -> Result<()> {
+        // We need to create a temporary FlashBlock just to calculate the offset.
+        // The type doesn't matter since we're only erasing, so we use ().
+        let mut block = FlashBlock::<FLASH, ()>::new(block_id);
+        block.clear(self.flash)
+    }
+
+    /// Get a mutable reference to the underlying Flash peripheral.
+    ///
+    /// This is used by FlashBlock instances to perform read/write/erase operations.
+    #[must_use]
+    pub fn peripheral(&mut self) -> &mut EmbassyFlash<'static, FLASH, Blocking, INTERNAL_FLASH_SIZE> {
+        self.flash
+    }
+}
+
+/// A device abstraction for type-safe persistent storage in flash memory.
+///
+/// See the [module-level documentation](crate::flash) for usage examples.
 pub struct FlashBlock<I: Instance + 'static, T, const N: usize = INTERNAL_FLASH_SIZE> {
     block_id: u32,
     _phantom: PhantomData<(fn() -> T, *const I)>,
@@ -160,7 +277,7 @@ where
     /// - Block 1: Reserved for timezone offset
     /// - Block 2+: Available for user applications
     ///
-    /// See the [module-level documentation](crate::flash_block) for usage examples.
+    /// See the [module-level documentation](crate::flash) for usage examples.
     #[must_use]
     pub fn new(
         block_id: u32,
@@ -180,8 +297,8 @@ where
     /// Type safety: If the stored data was saved with a different type, the type
     /// hash will mismatch and this returns `Ok(None)`.
     ///
-    /// See the [module-level documentation](crate::flash_block) for usage examples.
-    pub fn load(&mut self, flash: &mut Flash<'_, I, Blocking, N>) -> Result<Option<T>> {
+    /// See the [module-level documentation](crate::flash) for usage examples.
+    pub fn load(&mut self, flash: &mut EmbassyFlash<'_, I, Blocking, N>) -> Result<Option<T>> {
         let offset = self.block_offset(flash);
         let mut buffer = [0u8; ERASE_SIZE];
 
@@ -257,8 +374,8 @@ where
     /// Returns `Err(Error::FormatError)` if the serialized data exceeds 3900 bytes.
     /// Returns `Err(Error::Flash)` if flash operations fail.
     ///
-    /// See the [module-level documentation](crate::flash_block) for usage examples.
-    pub fn save(&mut self, flash: &mut Flash<'_, I, Blocking, N>, value: &T) -> Result<()> {
+    /// See the [module-level documentation](crate::flash) for usage examples.
+    pub fn save(&mut self, flash: &mut EmbassyFlash<'_, I, Blocking, N>, value: &T) -> Result<()> {
         // Serialize to temporary buffer
         let mut payload_buffer = [0u8; MAX_PAYLOAD_SIZE];
         let payload_len = postcard::to_slice(value, &mut payload_buffer)
@@ -308,8 +425,8 @@ where
     ///
     /// Erases the flash sector. After calling this, [`load`](Self::load) will return `Ok(None)`.
     ///
-    /// See the [module-level documentation](crate::flash_block) for usage examples.
-    pub fn clear(&mut self, flash: &mut Flash<'_, I, Blocking, N>) -> Result<()> {
+    /// See the [module-level documentation](crate::flash) for usage examples.
+    pub fn clear(&mut self, flash: &mut EmbassyFlash<'_, I, Blocking, N>) -> Result<()> {
         let offset = self.block_offset(flash);
         flash
             .blocking_erase(offset, offset + ERASE_SIZE as u32)
@@ -321,7 +438,7 @@ where
     /// Calculate the flash offset for this block.
     ///
     /// Blocks are allocated from the end of flash backwards.
-    fn block_offset(&self, flash: &Flash<'_, I, Blocking, N>) -> u32 {
+    fn block_offset(&self, flash: &EmbassyFlash<'_, I, Blocking, N>) -> u32 {
         let capacity = flash.capacity() as u32;
         capacity - (self.block_id + 1) * ERASE_SIZE as u32
     }

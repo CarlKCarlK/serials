@@ -2,7 +2,7 @@
 //!
 //! This module provides functions to save, load, and clear timezone offset values
 //! in the Raspberry Pi Pico's internal flash memory. The offset is stored using the
-//! [`crate::flash_block`] module with type-safe postcard serialization.
+//! [`crate::flash`] module with type-safe postcard serialization.
 //!
 //! You can choose any block ID for storage - just ensure it doesn't conflict with
 //! other data you're storing in flash.
@@ -13,7 +13,7 @@
 //!
 //! ```no_run
 //! use embassy_rp::flash::{Blocking, Flash};
-//! use serials::flash_block::INTERNAL_FLASH_SIZE;
+//! use serials::flash::INTERNAL_FLASH_SIZE;
 //! use serials::clock_offset_store;
 //!
 //! # async fn example() -> serials::Result<()> {
@@ -34,7 +34,7 @@
 
 use embassy_rp::flash::{Blocking, Flash};
 
-use crate::flash_block::{FlashBlock, INTERNAL_FLASH_SIZE};
+use crate::flash::{FlashBlock, INTERNAL_FLASH_SIZE};
 use crate::Result;
 
 /// Minimum timezone offset in minutes (UTC-12).

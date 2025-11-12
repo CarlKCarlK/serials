@@ -21,7 +21,7 @@ pub mod dhcp_server;
 pub mod dns_server;
 mod error;
 #[cfg(any(feature = "pico1", feature = "pico2"))]
-pub mod flash_block;
+pub mod flash;
 #[cfg(any(feature = "pico1", feature = "pico2"))]
 pub mod ir;
 #[cfg(any(feature = "pico1", feature = "pico2"))]
