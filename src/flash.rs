@@ -79,7 +79,7 @@
 
 use crc32fast::Hasher;
 use defmt::{error, info};
-use embassy_rp::flash::{Blocking, Flash as EmbassyFlash, Instance, ERASE_SIZE};
+use embassy_rp::flash::{Blocking, Flash as EmbassyFlash, ERASE_SIZE};
 use embassy_rp::peripherals::FLASH;
 use embassy_rp::Peri;
 use serde::{Deserialize, Serialize};
@@ -176,7 +176,7 @@ impl Flash {
         let payload_len = postcard::to_slice(value, &mut payload_buffer)
             .map_err(|_| {
                 error!(
-                    "FlashBlock: Serialization failed or data too large (max {} bytes)",
+                    "Flash: Serialization failed or data too large (max {} bytes)",
                     MAX_PAYLOAD_SIZE
                 );
                 Error::FormatError
@@ -210,7 +210,7 @@ impl Flash {
             .map_err(Error::Flash)?;
 
         info!(
-            "FlashBlock: Saved {} bytes to block {}",
+            "Flash: Saved {} bytes to block {}",
             payload_len, block_id
         );
         Ok(())
@@ -240,7 +240,7 @@ impl Flash {
         // Check magic number
         let magic = u32::from_le_bytes(buffer[0..4].try_into().unwrap());
         if magic != MAGIC {
-            info!("FlashBlock: No data at block {}", block_id);
+            info!("Flash: No data at block {}", block_id);
             return Ok(None);
         }
 
@@ -249,7 +249,7 @@ impl Flash {
         let expected_type_hash = compute_type_hash::<T>();
         if stored_type_hash != expected_type_hash {
             info!(
-                "FlashBlock: Type mismatch at block {} (expected hash {}, found {})",
+                "Flash: Type mismatch at block {} (expected hash {}, found {})",
                 block_id, expected_type_hash, stored_type_hash
             );
             return Ok(None);
@@ -259,10 +259,10 @@ impl Flash {
         let payload_len = u16::from_le_bytes(buffer[8..10].try_into().unwrap()) as usize;
         if payload_len > MAX_PAYLOAD_SIZE {
             error!(
-                "FlashBlock: Invalid payload length {} at block {}",
+                "Flash: Invalid payload length {} at block {}",
                 payload_len, block_id
             );
-            return Err(Error::CredentialStorageCorrupted);
+            return Err(Error::StorageCorrupted);
         }
 
         // Verify CRC
@@ -275,23 +275,23 @@ impl Flash {
         let computed_crc = compute_crc(&buffer[0..crc_offset]);
         if stored_crc != computed_crc {
             error!(
-                "FlashBlock: CRC mismatch at block {} (expected {}, found {})",
+                "Flash: CRC mismatch at block {} (expected {}, found {})",
                 block_id, computed_crc, stored_crc
             );
-            return Err(Error::CredentialStorageCorrupted);
+            return Err(Error::StorageCorrupted);
         }
 
         // Deserialize payload
         let payload = &buffer[HEADER_SIZE..HEADER_SIZE + payload_len];
         let value: T = postcard::from_bytes(payload).map_err(|_| {
             error!(
-                "FlashBlock: Deserialization failed at block {}",
+                "Flash: Deserialization failed at block {}",
                 block_id
             );
-            Error::CredentialStorageCorrupted
+            Error::StorageCorrupted
         })?;
 
-        info!("FlashBlock: Loaded data from block {}", block_id);
+        info!("Flash: Loaded data from block {}", block_id);
         Ok(Some(value))
     }
 
@@ -303,7 +303,7 @@ impl Flash {
         self.flash
             .blocking_erase(offset, offset + ERASE_SIZE as u32)
             .map_err(Error::Flash)?;
-        info!("FlashBlock: Cleared block {}", block_id);
+        info!("Flash: Cleared block {}", block_id);
         Ok(())
     }
 

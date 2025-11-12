@@ -2,19 +2,106 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "preLaunchTask": "${defaultBuildTask}",
             "type": "probe-rs-debug",
             "request": "launch",
-            "name": "probe_rs Executable Test",
+            "name": "Debug Pico 2 - blinky",
+            "preLaunchTask": "Build blinky (Pico 2)",
+            "chip": "RP235x",
+            "wireProtocol": "Swd",
+            "connectUnderReset": false,
+            "speed": 5000,
+            "runtimeExecutable": "probe-rs",
+            "runtimeArgs": [
+                "dap-server"
+            ],
             "flashingConfig": {
                 "flashingEnabled": true,
+                "haltAfterReset": false
             },
-            "chip": "RP2040",
             "coreConfigs": [
                 {
-                    "programBinary": "target/thumbv6m-none-eabi/debug/fib"
+                    "coreIndex": 0,
+                    "programBinary": "target/thumbv8m.main-none-eabihf/debug/examples/blinky",
+                    "rttEnabled": true,
+                    "rttChannelFormats": [
+                        {
+                            "channelNumber": 0,
+                            "dataFormat": "Defmt",
+                            "mode": "NoBlockSkip",
+                            "showTimestamps": true
+                        }
+                    ]
                 }
-            ]
+            ],
+            "consoleLogLevel": "Debug"
+        },
+        {
+            "type": "probe-rs-debug",
+            "request": "launch",
+            "name": "Debug Pico 2 - flash",
+            "preLaunchTask": "Build flash (Pico 2)",
+            "chip": "RP235x",
+            "wireProtocol": "Swd",
+            "connectUnderReset": false,
+            "speed": 5000,
+            "runtimeExecutable": "probe-rs",
+            "runtimeArgs": [
+                "dap-server"
+            ],
+            "flashingConfig": {
+                "flashingEnabled": true,
+                "haltAfterReset": false
+            },
+            "coreConfigs": [
+                {
+                    "coreIndex": 0,
+                    "programBinary": "target/thumbv8m.main-none-eabihf/debug/examples/flash",
+                    "rttEnabled": true,
+                    "rttChannelFormats": [
+                        {
+                            "channelNumber": 0,
+                            "dataFormat": "Defmt",
+                            "mode": "NoBlockSkip",
+                            "showTimestamps": true
+                        }
+                    ]
+                }
+            ],
+            "consoleLogLevel": "Debug"
+        },
+        {
+            "type": "probe-rs-debug",
+            "request": "launch",
+            "name": "Debug Pico 1 - flash",
+            "preLaunchTask": "Build flash (Pico 1)",
+            "chip": "RP2040",
+            "wireProtocol": "Swd",
+            "connectUnderReset": false,
+            "speed": 5000,
+            "runtimeExecutable": "probe-rs",
+            "runtimeArgs": [
+                "dap-server"
+            ],
+            "flashingConfig": {
+                "flashingEnabled": true,
+                "haltAfterReset": false
+            },
+            "coreConfigs": [
+                {
+                    "coreIndex": 0,
+                    "programBinary": "target/thumbv6m-none-eabi/debug/examples/flash",
+                    "rttEnabled": true,
+                    "rttChannelFormats": [
+                        {
+                            "channelNumber": 0,
+                            "dataFormat": "Defmt",
+                            "mode": "NoBlockSkip",
+                            "showTimestamps": true
+                        }
+                    ]
+                }
+            ],
+            "consoleLogLevel": "Debug"
         }
     ]
 }

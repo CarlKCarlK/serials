@@ -9,7 +9,7 @@
 #![no_main]
 
 use heapless::String;
-use defmt::{assert_eq, info};
+use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use panic_probe as _;
@@ -23,7 +23,7 @@ use serials::flash::{Flash, FlashNotifier};
 // ============================================================================
 
 /// A simple struct to demonstrate storing custom types in flash
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, defmt::Format)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct SensorConfig {
     name: String<32>,
     sample_rate_hz: u32,
@@ -59,9 +59,9 @@ async fn inner_main(_spawner: Spawner) -> Result<()> {
 
     info!("Part 2: Reading data from flash");
     let string: Option<String<64>> = flash.load(3)?;
-    assert_eq!(string.as_deref(), Some("Hello, Flash Storage!"));
+    assert!(string.as_deref() == Some("Hello, Flash Storage!"));
     let config: Option<SensorConfig> = flash.load(4)?;
-    assert_eq!(config, Some(SensorConfig {
+    assert!(config == Some(SensorConfig {
         name: String::<32>::try_from("Temperature")?,
         sample_rate_hz: 1000,
         enabled: true,
@@ -70,7 +70,7 @@ async fn inner_main(_spawner: Spawner) -> Result<()> {
     info!("Part 3: Reading a different type counts as empty");
     // Try to read block 3 (which contains a String) as a SensorConfig
     let wrong_type_result: Option<SensorConfig> = flash.load(3)?;
-    assert_eq!(wrong_type_result, None);
+    assert!(wrong_type_result.is_none());
 
     info!("Part 4: Clearing flash blocks");
     flash.clear(3)?;
@@ -78,9 +78,9 @@ async fn inner_main(_spawner: Spawner) -> Result<()> {
 
     info!("Part 5: Verifying cleared blocks");
     let string: Option<String<64>> = flash.load(3)?;
-    assert_eq!(string, None);
+    assert!(string.is_none());
     let config: Option<SensorConfig> = flash.load(4)?;
-    assert_eq!(config, None);
+    assert!(config.is_none());
 
     info!("Flash Storage Example Complete!");
     loop {

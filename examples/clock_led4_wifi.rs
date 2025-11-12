@@ -74,7 +74,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let mut button = Button::new(p.PIN_13);
 
     // Determine initial boot phase by executing start logic
-    let mut wifi_setup_state = WifiSetupState::execute_start(flash).await?;
+    let mut wifi_setup_state = WifiSetupState::execute_start(&mut flash).await?;
 
     // Initialize time sync with WiFi credentials from initial state
     // NOTE: In the future, a typestate pattern could enforce at compile-time that
@@ -94,7 +94,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     // State machine loop
     loop {
-        wifi_setup_state = wifi_setup_state.execute(flash, &mut clock, &mut button, &time_sync, spawner).await?;
+        wifi_setup_state = wifi_setup_state.execute(&mut flash, &mut clock, &mut button, &time_sync, spawner).await?;
     }
 }
 

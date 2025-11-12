@@ -4,6 +4,14 @@
 		{
 			"type": "cargo",
 			"command": "build",
+			"args": [
+				"--example",
+				"blinky",
+				"--target",
+				"thumbv8m.main-none-eabihf",
+				"--features",
+				"pico2"
+			],
 			"problemMatcher": [
 				"$rustc"
 			],
@@ -11,7 +19,41 @@
 				"kind": "build",
 				"isDefault": true
 			},
-			"label": "rust: cargo build"
+			"label": "Build blinky (Pico 2)"
+		},
+		{
+			"type": "cargo",
+			"command": "build",
+			"args": [
+				"--example",
+				"flash",
+				"--target",
+				"thumbv8m.main-none-eabihf",
+				"--features",
+				"pico2"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build",
+			"label": "Build flash (Pico 2)"
+		},
+		{
+			"type": "cargo",
+			"command": "build",
+			"args": [
+				"--example",
+				"flash",
+				"--target",
+				"thumbv6m-none-eabi",
+				"--features",
+				"pico1"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build",
+			"label": "Build flash (Pico 1)"
 		}
 	]
 }
