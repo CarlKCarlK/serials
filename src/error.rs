@@ -15,7 +15,6 @@ pub enum Error {
     // only recently moved from `std` (which is not available in bare-metal development) to `core`
     // (which is). Perhaps a future update of `embassy_executor::SpawnError` will implement
     // `core::error::Error` which will make this unnecessary.
-    #[cfg(any(feature = "pico1", feature = "pico2"))]
     #[display("{_0:?}")]
     TaskSpawn(#[error(not(source))] embassy_executor::SpawnError),
 
@@ -59,7 +58,6 @@ impl From<()> for Error {
     }
 }
 
-#[cfg(any(feature = "pico1", feature = "pico2"))]
 impl From<embassy_executor::SpawnError> for Error {
     fn from(err: embassy_executor::SpawnError) -> Self {
         Self::TaskSpawn(err)

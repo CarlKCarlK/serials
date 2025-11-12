@@ -4,7 +4,18 @@ use core::num::NonZeroU8;
 use core::ops::{BitOrAssign, Index, IndexMut};
 use heapless::{LinearMap, Vec};
 
+#[cfg(not(feature = "host"))]
 use crate::{Error, Result};
+
+// Define simple error types for host testing
+#[cfg(feature = "host")]
+#[derive(Debug)]
+pub enum Error {
+    BitsToIndexesFull,
+}
+
+#[cfg(feature = "host")]
+pub type Result<T> = core::result::Result<T, Error>;
 
 /// Number of digits in the display.
 const CELL_COUNT: usize = 4;
@@ -237,5 +248,92 @@ impl<'a> IntoIterator for &'a mut BitMatrixLed4 {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter_mut()
+    }
+}
+
+#[cfg(all(test, not(target_os = "none")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_bits() {
+        // Creates array with same bits in all positions
+        let matrix = BitMatrixLed4::from_bits(0b_0011_1111);
+        assert_eq!(matrix[0], 0b_0011_1111);
+        assert_eq!(matrix[1], 0b_0011_1111);
+        assert_eq!(matrix[2], 0b_0011_1111);
+        assert_eq!(matrix[3], 0b_0011_1111);
+    }
+
+    #[test]
+    fn test_from_number() {
+        // Converts number to digit segments (1234)
+        let matrix = BitMatrixLed4::from_number(1234, 0);
+        assert_eq!(matrix[0], 0b_0000_0110); // '1'
+        assert_eq!(matrix[1], 0b_0101_1011); // '2'
+        assert_eq!(matrix[2], 0b_0100_1111); // '3'
+        assert_eq!(matrix[3], 0b_0110_0110); // '4'
+    }
+
+    #[test]
+    fn test_from_number_overflow() {
+        // Number > 9999 should light all decimal points
+        let matrix = BitMatrixLed4::from_number(12345, 0);
+        for &bits in matrix.iter() {
+            assert_ne!(bits & 0b_1000_0000, 0, "Decimal point should be lit");
+        }
+    }
+
+    #[test]
+    fn test_from_text() {
+        // Converts characters to segments
+        let matrix = BitMatrixLed4::from_text(&['A', 'b', 'C', 'd']);
+        assert_eq!(matrix[0], 0b_0111_0111); // 'A'
+        assert_eq!(matrix[1], 0b_0111_1100); // 'b'
+        assert_eq!(matrix[2], 0b_0011_1001); // 'C'
+        assert_eq!(matrix[3], 0b_0101_1110); // 'd'
+    }
+
+    #[test]
+    fn test_bits_to_indexes() {
+        // Optimizes multiplexing by grouping identical patterns
+        // For "1221", digit '1' appears at positions 0 and 3, digit '2' at positions 1 and 2
+        let matrix = BitMatrixLed4::from_number(1221, 0);
+        let mut bits_to_index = BitsToIndexes::new();
+        
+        matrix.bits_to_indexes(&mut bits_to_index).expect("Should succeed");
+        
+        // Should have exactly 2 unique patterns
+        assert_eq!(bits_to_index.len(), 2, "Should have 2 unique digit patterns");
+        
+        // Check that the grouping is correct
+        let pattern_1 = NonZeroU8::new(0b_0000_0110).unwrap(); // '1'
+        let pattern_2 = NonZeroU8::new(0b_0101_1011).unwrap(); // '2'
+        
+        if let Some(indexes) = bits_to_index.get(&pattern_1) {
+            assert_eq!(indexes.len(), 2, "Pattern '1' should appear twice");
+            assert!(indexes.contains(&0), "Should include index 0");
+            assert!(indexes.contains(&3), "Should include index 3");
+        } else {
+            panic!("Pattern '1' not found");
+        }
+        
+        if let Some(indexes) = bits_to_index.get(&pattern_2) {
+            assert_eq!(indexes.len(), 2, "Pattern '2' should appear twice");
+            assert!(indexes.contains(&1), "Should include index 1");
+            assert!(indexes.contains(&2), "Should include index 2");
+        } else {
+            panic!("Pattern '2' not found");
+        }
+    }
+
+    #[test]
+    fn test_char_to_led_special_chars() {
+        // Test some special character mappings
+        let matrix = BitMatrixLed4::from_text(&[' ', '-', '_', '.']);
+        assert_eq!(matrix[0], 0b_0000_0000); // space
+        assert_eq!(matrix[1], 0b_0100_0000); // '-'
+        assert_eq!(matrix[2], 0b_0000_1000); // '_'
+        assert_eq!(matrix[3], 0b_1000_0000); // '.'
     }
 }

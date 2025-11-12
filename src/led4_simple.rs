@@ -28,18 +28,15 @@ pub type Led4SimpleNotifier = Signal<CriticalSectionRawMutex, BitMatrixLed4>;
 /// # Example
 ///
 /// ```no_run
-/// #![no_std]
-/// #![no_main]
-///
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
 /// use embassy_rp::gpio::{Level, Output};
 /// use serials::led4_simple::{Led4Simple, Led4SimpleNotifier};
 /// use serials::led4::OutputArray;
 /// # use embassy_executor::Spawner;
-/// # use core::panic::PanicInfo;
-/// # #[panic_handler]
-/// # fn panic(_: &PanicInfo) -> ! { loop {} }
 ///
-/// async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<(), embassy_executor::SpawnError> {
+/// # async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<(), embassy_executor::SpawnError> {
 ///     let cells = OutputArray::new([
 ///         Output::new(p.PIN_1, Level::High),
 ///         Output::new(p.PIN_2, Level::High),

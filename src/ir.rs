@@ -34,6 +34,10 @@ pub type IrNotifier = EmbassyChannel<CriticalSectionRawMutex, IrEvent, 8>;
 ///
 /// # Examples
 /// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// # use defmt::info;
 /// # use embassy_executor::Spawner;
 /// # use serials::ir::{Ir, IrEvent};
 /// # async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {

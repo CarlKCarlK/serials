@@ -16,7 +16,7 @@ pico1 = ["dep:embassy-rp", "embassy-rp/rp2040"]
 pico2 = ["dep:embassy-rp", "embassy-rp/rp235xb", "dep:rp235x-hal"]
 arm = ["dep:cortex-m", "dep:cortex-m-rt", "embassy-executor/arch-cortex-m", "dep:embassy-hal-internal", "embassy-hal-internal/cortex-m", "embassy-hal-internal/prio-bits-2", "critical-section/restore-state-u8"]
 riscv = ["dep:riscv", "dep:riscv-rt", "embassy-executor/arch-riscv32", "dep:embassy-hal-internal", "critical-section/restore-state-bool"]
-qemu = []  # For testing without hardware dependencies
+host = []  # For testing on host platform without hardware dependencies
 wifi = [
     # WiFi currently only works with pico1
     "dep:cyw43",

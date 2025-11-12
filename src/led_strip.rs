@@ -122,13 +122,14 @@ pub type LedStrip<const N: usize> = LedStripN<N>;
 
 /// Driver loop with brightness scaling.
 /// Scales all RGB values by `max_brightness / 255` before writing to LEDs.
-pub async fn led_strip_driver_loop<PIO, const SM: usize, const N: usize>(
-    mut driver: PioWs2812<'static, PIO, SM, N>,
+pub async fn led_strip_driver_loop<PIO, const SM: usize, const N: usize, ORDER>(
+    mut driver: PioWs2812<'static, PIO, SM, N, ORDER>,
     commands: &'static LedStripCommands<N>,
     max_brightness: u8,
 ) -> !
 where
     PIO: Instance,
+    ORDER: embassy_rp::pio_programs::ws2812::RgbColorOrder,
 {
     loop {
         let mut frame = commands.receive().await;
@@ -258,13 +259,15 @@ macro_rules! define_led_strips {
                             ::embassy_rp::pio_programs::ws2812::PioWs2812::<
                                 ::embassy_rp::peripherals::$pio,
                                 $sm_index,
-                                LEN
+                                LEN,
+                                _
                             >::new(common, sm, dma, pin, program)
                         });
                         $crate::led_strip::led_strip_driver_loop::<
                             ::embassy_rp::peripherals::$pio,
                             $sm_index,
-                            LEN
+                            LEN,
+                            _
                         >(driver, commands, MAX_BRIGHTNESS).await
                     }
                 }

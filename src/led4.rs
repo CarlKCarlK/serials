@@ -74,15 +74,12 @@ pub enum BlinkState {
 /// # Example
 ///
 /// ```no_run
-/// #![no_std]
-/// #![no_main]
-///
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
 /// use embassy_rp::gpio::{Level, Output};
 /// use serials::{Error, led4::{BlinkState, Led4, Led4Notifier, OutputArray}};
 /// # use embassy_executor::Spawner;
-/// # use core::panic::PanicInfo;
-/// # #[panic_handler]
-/// # fn panic(_: &PanicInfo) -> ! { loop {} }
 ///
 /// async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<(), Error> {
 ///     // Set up cell pins (control which digit is active)

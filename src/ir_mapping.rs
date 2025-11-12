@@ -33,6 +33,10 @@ impl IrMappingNotifier {
 ///
 /// # Examples
 /// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// # use core::prelude::rust_2024::derive;
 /// # use embassy_executor::Spawner;
 /// # use serials::ir_mapping::{IrMapping, IrMappingNotifier};
 /// #
@@ -46,7 +50,7 @@ impl IrMappingNotifier {
 /// ];
 ///
 /// static IR_MAPPING_NOTIFIER: IrMappingNotifier = IrMapping::<RemoteButton, 3>::notifier();
-/// let ir_mapping = IrMapping::new(p.PIN_15, &button_map, &IR_MAPPING_NOTIFIER, spawner)?;
+/// let ir_mapping: IrMapping<RemoteButton, 3> = IrMapping::new(p.PIN_15, &button_map, &IR_MAPPING_NOTIFIER, spawner)?;
 ///
 /// loop {
 ///     let button = ir_mapping.wait().await;

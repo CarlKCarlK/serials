@@ -11,6 +11,11 @@
 //! ## Client mode with compile-time credentials
 //!
 //! ```no_run
+//! # #![no_std]
+//! # #![no_main]
+//! # use panic_probe as _;
+//! # use core::default::Default;
+//! # use core::matches;
 //! use serials::wifi::{Wifi, WifiMode};
 //!
 //! # async fn example(spawner: embassy_executor::Spawner) {
@@ -45,6 +50,10 @@
 //! ## Access Point mode for configuration
 //!
 //! ```no_run
+//! # #![no_std]
+//! # #![no_main]
+//! # use panic_probe as _;
+//! # use core::default::Default;
 //! use serials::wifi::{Wifi, WifiMode};
 //!
 //! # async fn example(spawner: embassy_executor::Spawner) {
@@ -77,6 +86,10 @@
 //! ## Client mode with runtime credentials
 //!
 //! ```no_run
+//! # #![no_std]
+//! # #![no_main]
+//! # use panic_probe as _;
+//! # use core::default::Default;
 //! use serials::wifi::{Wifi, WifiMode};
 //! use serials::wifi_config::WifiCredentials;
 //!

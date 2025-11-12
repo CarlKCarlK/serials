@@ -17,65 +17,9 @@
 //! values (0, 1, 2, ...) to identify each block.
 //!
 //! **Important**: Users are responsible for avoiding block_id collisions. Using the same
-//! block_id for different types will cause type hash mismatches and return `None` on reads
+//! block_id for different types will cause type hash mismatches and return `None` on reads.
 //!
-//! # Examples
-//!
-//! ## Storing custom device configuration
-//!
-//! ```no_run
-//! # #![no_std]
-//! # #![no_main]
-//! use serde::{Serialize, Deserialize};
-//! use serials::flash::{Flash, FlashNotifier};
-//!
-//! // Define your configuration type
-//! #[derive(Serialize, Deserialize, Debug, Default)]
-//! struct DeviceConfig {
-//!     brightness: u8,
-//!     timezone_offset: i16,
-//!     display_mode: u8,
-//! }
-//!
-//! # async fn example() -> serials::Result<()> {
-//! let p = embassy_rp::init(Default::default());
-//!
-//! // Initialize Flash device using the notifier pattern
-//! static FLASH_NOTIFIER: FlashNotifier = Flash::notifier();
-//! let mut flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
-//!
-//! // Load existing config from block 2, or use defaults
-//! let mut config = flash.load::<DeviceConfig>(2)?.unwrap_or_default();
-//!
-//! // Modify and save
-//! config.brightness = 255;
-//! flash.save(2, &config)?;
-//!
-//! // Can also clear storage with: flash.clear(2)?;
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! ## Whiteboard semantics demonstration
-//!
-//! ```no_run
-//! # #![no_std]
-//! # #![no_main]
-//! # use heapless::String;
-//! # use serials::flash::{Flash, FlashNotifier};
-//! # async fn example() -> serials::Result<()> {
-//! # let p = embassy_rp::init(Default::default());
-//! # static FLASH_NOTIFIER: FlashNotifier = Flash::notifier();
-//! # let mut flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
-//! // Save a string to block 3
-//! flash.save(3, &String::<64>::try_from("Hello")?)?;
-//!
-//! // Reading with a different type returns None (whiteboard semantics)
-//! let result: Option<u64> = flash.load(3)?;
-//! assert!(result.is_none());  // Different type (u64 vs String<64>)!
-//! # Ok(())
-//! # }
-//! ```
+//! See [`Flash`] for usage examples.
 
 use crc32fast::Hasher;
 use defmt::{error, info};
@@ -121,7 +65,68 @@ impl FlashNotifier {
 
 /// A device abstraction for type-safe persistent storage in flash memory.
 ///
-/// See the [module-level documentation](crate::flash) for usage examples.
+/// This provides type-safe persistent storage using postcard serialization with whiteboard
+/// semantics—reading with a different type than what was saved returns `None`.
+///
+/// # Examples
+///
+/// ## Storing custom device configuration
+///
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// use serde::{Serialize, Deserialize};
+/// use serials::flash::{Flash, FlashNotifier};
+///
+/// // Define your configuration type
+/// #[derive(Serialize, Deserialize, Debug, Default)]
+/// struct DeviceConfig {
+///     brightness: u8,
+///     timezone_offset: i16,
+///     display_mode: u8,
+/// }
+///
+/// # async fn example() -> serials::Result<()> {
+/// let p = embassy_rp::init(Default::default());
+///
+/// // Initialize Flash device using the notifier pattern
+/// static FLASH_NOTIFIER: FlashNotifier = Flash::notifier();
+/// let mut flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
+///
+/// // Load existing config from block 2, or use defaults
+/// let mut config = flash.load::<DeviceConfig>(2)?.unwrap_or_default();
+///
+/// // Modify and save
+/// config.brightness = 255;
+/// flash.save(2, &config)?;
+///
+/// // Can also clear storage with: flash.clear(2)?;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// ## Whiteboard semantics demonstration
+///
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// # use heapless::String;
+/// # use serials::flash::{Flash, FlashNotifier};
+/// # async fn example() -> serials::Result<()> {
+/// # let p = embassy_rp::init(Default::default());
+/// # static FLASH_NOTIFIER: FlashNotifier = Flash::notifier();
+/// # let mut flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
+/// // Save a string to block 3
+/// flash.save(3, &String::<64>::try_from("Hello")?)?;
+///
+/// // Reading with a different type returns None (whiteboard semantics)
+/// let result: Option<u64> = flash.load(3)?;
+/// assert!(result.is_none());  // Different type (u64 vs String<64>)!
+/// # Ok(())
+/// # }
+/// ```
 pub struct Flash {
     flash: &'static mut EmbassyFlash<'static, FLASH, Blocking, INTERNAL_FLASH_SIZE>,
 }
@@ -140,6 +145,9 @@ impl Flash {
     /// # Examples
     ///
     /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
+    /// # use panic_probe as _;
     /// # use embassy_executor::Spawner;
     /// # use serials::flash::Flash;
     /// # async fn example(p: embassy_rp::Peripherals) {
