@@ -88,23 +88,39 @@ For reliable IR operation alongside SPI RFID:
 
 ## Building
 
-Requires Rust nightly with thumbv6m-none-eabi target:
+Requires Rust nightly with appropriate target for your board:
 
 ```bash
-rustup target add thumbv6m-none-eabi
-cargo build                    # Library only
+rustup target add thumbv6m-none-eabi           # Pico 1 (ARM)
+rustup target add thumbv8m.main-none-eabihf    # Pico 2 (ARM)
+rustup target add riscv32imac-unknown-none-elf # Pico 2 (RISC-V)
+
+cargo build                    # Library only (defaults: pico1,arm)
 cargo build --example full     # Full peripheral demo
-cargo build --example wireless # WiFi example
+cargo build --example full --features pico2,arm  # Full demo for Pico 2
 ```
 
 Or use the cargo aliases:
 
 ```bash
+# Pico 1 (default, ARM, no WiFi)
 cargo full       # Run full demo (--release)
-cargo lcd_clock  # Run LCD clock (--release)
-cargo wireless   # Run wireless example (--release)
 cargo ir         # Run IR reader (--release)
+cargo flash      # Run flash example (--release)
+
+# Pico 1 with WiFi
+cargo full_w     # Run full demo with WiFi (--release)
+cargo lcd_clock_w # Run LCD clock (--release)
+
+# Pico 2 ARM
+cargo full_2     # Run full demo on Pico 2 (--release)
+cargo blinky_2   # Run blinky on Pico 2 (--release)
+
+# Pico 2 RISC-V (experimental)
+cargo blinky_2r  # Run blinky on Pico 2 RISC-V (--release)
 ```
+
+See `ARCHITECTURE.md` for detailed information about board and architecture features.
 
 ## Configuration
 

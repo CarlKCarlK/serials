@@ -1740,6 +1740,8 @@ dependencies = [
  "paste",
  "portable-atomic",
  "postcard",
+ "riscv",
+ "riscv-rt",
  "rp235x-hal",
  "serde",
  "smart-leds",

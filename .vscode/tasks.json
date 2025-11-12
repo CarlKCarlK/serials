@@ -10,7 +10,8 @@
 				"--target",
 				"thumbv8m.main-none-eabihf",
 				"--features",
-				"pico2"
+				"pico2,arm",
+				"--no-default-features"
 			],
 			"problemMatcher": [
 				"$rustc"
@@ -30,7 +31,8 @@
 				"--target",
 				"thumbv8m.main-none-eabihf",
 				"--features",
-				"pico2"
+				"pico2,arm",
+				"--no-default-features"
 			],
 			"problemMatcher": [
 				"$rustc"
@@ -47,7 +49,7 @@
 				"--target",
 				"thumbv6m-none-eabi",
 				"--features",
-				"pico1"
+				"pico1,arm"
 			],
 			"problemMatcher": [
 				"$rustc"

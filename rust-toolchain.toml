@@ -4,5 +4,7 @@
 channel = "nightly"
 components = [ "rustfmt" ]
 targets = [
-    "thumbv8m.main-none-eabihf"
+    "thumbv6m-none-eabi",       # Pico 1 (ARM Cortex-M0+)
+    "thumbv8m.main-none-eabihf", # Pico 2 ARM (Cortex-M33)
+    "riscv32imac-unknown-none-elf" # Pico 2 RISC-V (Hazard3)
 ]

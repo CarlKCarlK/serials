@@ -10,10 +10,12 @@ name = "serials"
 path = "src/lib.rs"
 
 [features]
-default = ["defmt"]
+default = ["defmt", "pico1", "arm"]
 defmt = []
 pico1 = ["dep:embassy-rp", "embassy-rp/rp2040"]
 pico2 = ["dep:embassy-rp", "embassy-rp/rp235xb", "dep:rp235x-hal"]
+arm = ["dep:cortex-m", "dep:cortex-m-rt", "embassy-executor/arch-cortex-m", "dep:embassy-hal-internal", "embassy-hal-internal/cortex-m", "embassy-hal-internal/prio-bits-2", "critical-section/restore-state-u8"]
+riscv = ["dep:riscv", "dep:riscv-rt", "embassy-executor/arch-riscv32", "dep:embassy-hal-internal", "critical-section/restore-state-bool"]
 qemu = []  # For testing without hardware dependencies
 wifi = [
     # WiFi currently only works with pico1
@@ -28,10 +30,16 @@ wifi = [
 defmt = "0.3.10"
 defmt-rtt = "1.1.0"
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }
-cortex-m-rt = "0.7.5"
-cortex-m = "0.7.7"
-embassy-executor = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
-    "arch-cortex-m",
+
+# ARM Cortex-M dependencies (for Pico 1 and Pico 2 ARM core)
+cortex-m-rt = { version = "0.7.5", optional = true }
+cortex-m = { version = "0.7.7", optional = true }
+
+# RISC-V dependencies (for Pico 2 RISC-V core)
+riscv-rt = { version = "0.12", optional = true }
+riscv = { version = "0.11", features = ["critical-section-single-hart"], optional = true }
+
+embassy-executor = { git = "https://github.com/embassy-rs/embassy", branch = "main", default-features = false, features = [
     "executor-thread",
     "defmt",
 ] }
@@ -62,7 +70,7 @@ rp235x-hal = { git = "https://github.com/rp-rs/rp-hal", branch = "main", package
 smart-leds = "0.4.0"
 itertools = { version = "0.13.0", default-features = false }
 crc32fast = { version = "1.4.0", default-features = false }
-critical-section = { version = "1.2.0", features = ["restore-state-u8"] }
+critical-section = { version = "1.2.0", default-features = false }
 embedded-hal = "1.0.0"
 embedded-hal-async = "1.0.0"
 embedded-io-async = "0.6.1"
@@ -75,7 +83,7 @@ cyw43-pio = { git = "https://github.com/embassy-rs/embassy", branch = "main", fe
 cyw43-firmware = { version = "0.1", features = ["wifi"], optional = true }
 embassy-net = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = ["defmt", "tcp", "udp", "dhcpv4", "dns", "medium-ethernet"], optional = true }
 static_cell = "2.1.0"
-embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = ["cortex-m", "prio-bits-2"] }
+embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy", branch = "main", default-features = false, optional = true }
 paste = "1.0"
 
 [patch.crates-io]

@@ -2,6 +2,24 @@
 #![no_std]
 #![no_main]
 
+// Compile-time checks: exactly one board must be selected
+#[cfg(not(any(feature = "pico1", feature = "pico2")))]
+compile_error!("Must enable exactly one board feature: 'pico1' or 'pico2'");
+
+#[cfg(all(feature = "pico1", feature = "pico2"))]
+compile_error!("Cannot enable both 'pico1' and 'pico2' features simultaneously");
+
+// Compile-time checks: exactly one architecture must be selected
+#[cfg(not(any(feature = "arm", feature = "riscv")))]
+compile_error!("Must enable exactly one architecture feature: 'arm' or 'riscv'");
+
+#[cfg(all(feature = "arm", feature = "riscv"))]
+compile_error!("Cannot enable both 'arm' and 'riscv' features simultaneously");
+
+// Compile-time check: pico1 only supports ARM
+#[cfg(all(feature = "pico1", feature = "riscv"))]
+compile_error!("Pico 1 (RP2040) only supports ARM architecture, not RISC-V");
+
 #[doc(hidden)]
 pub mod bit_matrix_led4;
 #[cfg(any(feature = "pico1", feature = "pico2"))]
