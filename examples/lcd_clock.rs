@@ -38,8 +38,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let char_lcd = CharLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &CHAR_LCD_NOTIFIER, spawner)?;
 
     // Create Clock device (starts ticking immediately)
+    const DEFAULT_UTC_OFFSET_MINUTES: i32 = 0;
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
+    clock
+        .set_utc_offset_minutes(DEFAULT_UTC_OFFSET_MINUTES)
+        .await;
 
     // Create TimeSync virtual device (creates WiFi internally)
     static TIME_SYNC: TimeSyncNotifier = TimeSync::notifier();

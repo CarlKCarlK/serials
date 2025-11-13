@@ -31,7 +31,7 @@ cargo full
 
 Pico W WiFi clock with automatic time sync:
 
-- Connects to WiFi network (credentials from `.env` file)
+- Collects WiFi credentials/timezone via on-device captive portal (stored in flash)
 - Fetches local time with DST support via WorldTimeAPI
 - Displays time in 12-hour format with AM/PM on LCD
 - Keeps local time, syncs with internet hourly
@@ -44,7 +44,7 @@ cargo lcd_clock
 
 Pico W WiFi connectivity example:
 
-- Connects to WiFi network (credentials from `.env` file)
+- Captive portal collects WiFi credentials before starting the network stack
 - Fetches current time via WorldTimeAPI (HTTP)
 - Displays local time every minute
 
@@ -124,15 +124,12 @@ See `ARCHITECTURE.md` for detailed information about board and architecture feat
 
 ## Configuration
 
-Create `.env` file in project root for WiFi credentials and timezone:
-
-```env
-WIFI_SSID=your_network_name
-WIFI_PASS=your_password
-TIMEZONE=America/Los_Angeles
-```
-
-Credentials are embedded at compile-time via `build.rs`.
+WiFi credentials and timezone offset are provisioned on-device. When the Pico W
+boots without stored settings it automatically starts in access-point mode
+(`PicoClock`) and hosts a captive portal at `http://192.168.4.1`. Use that page
+to enter your SSID, password, and UTC offset in minutes. The submission is saved
+to flash (blocks 0/1) and the device reboots into client mode. Clear those flash
+blocks or use the UI option in the clock demos to return to provisioning mode.
 
 ## Demo
 

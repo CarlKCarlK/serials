@@ -8,45 +8,6 @@
 //!
 //! # Examples
 //!
-//! ## Client mode with compile-time credentials
-//!
-//! ```no_run
-//! # #![no_std]
-//! # #![no_main]
-//! # use panic_probe as _;
-//! # use core::default::Default;
-//! # use core::matches;
-//! use serials::wifi::{Wifi, WifiMode};
-//!
-//! # async fn example(spawner: embassy_executor::Spawner) {
-//! let p = embassy_rp::init(Default::default());
-//!
-//! // Create WiFi resources
-//! static WIFI_NOTIFIER: serials::wifi::WifiNotifier = Wifi::notifier();
-//!
-//! // Initialize WiFi in client mode (requires WIFI_SSID and WIFI_PASS env vars)
-//! let wifi = Wifi::new(
-//!     &WIFI_NOTIFIER,
-//!     p.PIN_23,   // WiFi chip data out
-//!     p.PIN_25,   // WiFi chip data in
-//!     p.PIO0,     // PIO for WiFi communication
-//!     p.PIN_24,   // WiFi chip clock
-//!     p.PIN_29,   // WiFi chip select
-//!     p.DMA_CH0,  // DMA channel
-//!     WifiMode::ClientStatic,
-//!     spawner,
-//! );
-//!
-//! // Wait for connection and DHCP
-//! let event = wifi.wait().await;
-//! if matches!(event, serials::wifi::WifiEvent::ClientReady) {
-//!     // Get network stack for TCP/UDP operations
-//!     let stack = wifi.stack().await;
-//!     // ... use stack for networking ...
-//! }
-//! # }
-//! ```
-//!
 //! ## Access Point mode for configuration
 //!
 //! ```no_run
@@ -159,8 +120,6 @@ pub enum WifiEvent {
 pub enum WifiMode {
     /// Start in AP mode for configuration (no credentials needed)
     AccessPoint,
-    /// Connect to existing WiFi network with compile-time credentials
-    ClientStatic,
     /// Connect to WiFi network using runtime-provided credentials
     ClientConfigured(WifiCredentials),
 }
@@ -361,20 +320,6 @@ async fn wifi_device_loop(
             )
             .await
         }
-        WifiMode::ClientStatic => {
-            wifi_device_loop_client_static(
-                pin_23,
-                pin_25,
-                pio0,
-                pin_24,
-                pin_29,
-                dma_ch0,
-                wifi_events,
-                stack_storage,
-                spawner,
-            )
-            .await
-        }
         WifiMode::ClientConfigured(credentials) => {
             wifi_device_loop_client_configured(
                 pin_23,
@@ -502,42 +447,6 @@ async fn wifi_device_loop_ap(
     loop {
         Timer::after_secs(3600).await;
     }
-}
-
-/// WiFi device loop for client mode with compile-time credentials
-async fn wifi_device_loop_client_static(
-    pin_23: Peri<'static, PIN_23>,
-    pin_25: Peri<'static, PIN_25>,
-    pio0: Peri<'static, PIO0>,
-    pin_24: Peri<'static, PIN_24>,
-    pin_29: Peri<'static, PIN_29>,
-    dma_ch0: Peri<'static, DMA_CH0>,
-    wifi_events: &'static WifiEvents,
-    stack_storage: &'static StackStorage,
-    spawner: Spawner,
-) -> ! {
-    const WIFI_SSID: &str = env!("WIFI_SSID");
-    const WIFI_PASS: &str = env!("WIFI_PASS");
-
-    let mut ssid = heapless::String::<32>::new();
-    let mut password = heapless::String::<64>::new();
-    unwrap!(ssid.push_str(WIFI_SSID));
-    unwrap!(password.push_str(WIFI_PASS));
-
-    wifi_device_loop_client_impl(
-        pin_23,
-        pin_25,
-        pio0,
-        pin_24,
-        pin_29,
-        dma_ch0,
-        wifi_events,
-        stack_storage,
-        spawner,
-        ssid,
-        password,
-    )
-    .await
 }
 
 /// WiFi device loop for client mode with runtime credentials

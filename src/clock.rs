@@ -43,6 +43,8 @@ pub struct ClockEvent {
 pub enum ClockCommand {
     /// Set the current time from Unix timestamp.
     SetTime { unix_seconds: UnixSeconds },
+    /// Update the UTC offset (in minutes).
+    SetUtcOffset { minutes: i32 },
 }
 
 // ============================================================================
@@ -95,6 +97,13 @@ impl Clock {
     pub async fn set_time(&self, unix_seconds: UnixSeconds) {
         self.commands
             .send(ClockCommand::SetTime { unix_seconds })
+            .await;
+    }
+
+    /// Update the UTC offset used for subsequent ticks.
+    pub async fn set_utc_offset_minutes(&self, minutes: i32) {
+        self.commands
+            .send(ClockCommand::SetUtcOffset { minutes })
             .await;
     }
 
@@ -163,13 +172,8 @@ async fn clock_device_loop(resources: &'static ClockNotifier) -> ! {
 }
 
 async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<Infallible> {
-    // Read configuration from compile-time environment
-    const UTC_OFFSET_MINUTES: &str = env!("UTC_OFFSET_MINUTES");
-    let offset_minutes: i32 = UTC_OFFSET_MINUTES.parse().unwrap_or(0);
-
-    // Create UtcOffset from minutes
-    #[expect(clippy::arithmetic_side_effects, reason = "offset bounds checked")]
-    let utc_offset = UtcOffset::from_whole_seconds(offset_minutes * 60).unwrap_or(UtcOffset::UTC);
+    let mut offset_minutes: i32 = 0;
+    let mut utc_offset = UtcOffset::UTC;
 
     info!(
         "Clock device started (UTC offset: {} minutes)",
@@ -239,6 +243,28 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
                             state: clock_state,
                         };
                         resources.events.signal(time_info);
+                    }
+                    ClockCommand::SetUtcOffset { minutes } => {
+                        offset_minutes = minutes;
+                        #[expect(
+                            clippy::arithmetic_side_effects,
+                            reason = "offset bounds checked"
+                        )]
+                        {
+                            utc_offset = UtcOffset::from_whole_seconds(offset_minutes * 60)
+                                .unwrap_or(UtcOffset::UTC);
+                        }
+
+                        if let Some(anchor) = base_unix_seconds {
+                            current_time = anchor
+                                .to_offset_datetime(utc_offset)
+                                .expect("valid offset datetime");
+                        }
+
+                        info!(
+                            "Clock UTC offset updated to {} minutes",
+                            offset_minutes
+                        );
                     }
                 }
             }

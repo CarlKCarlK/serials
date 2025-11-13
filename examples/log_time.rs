@@ -59,10 +59,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let mut flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
 
     let stored_credentials: Option<WifiCredentials> = flash.load(0)?;
+    let stored_offset: i32 = flash.load::<i32>(1)?.unwrap_or(0);
 
     // Create Clock device (starts ticking immediately)
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
+    clock.set_utc_offset_minutes(stored_offset).await;
 
     // Create TimeSync virtual device with credentials if available
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
@@ -119,6 +121,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         );
         info!("");
         info!("Persisting credentials to flash storage...");
+        clock
+            .set_utc_offset_minutes(submission.timezone_offset_minutes)
+            .await;
         flash.save(0, &submission.credentials)?;
         flash.save(1, &submission.timezone_offset_minutes)?;
         info!("Device will reboot and connect using the stored credentials.");

@@ -105,8 +105,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     info!("LCD initialized");
 
+    const DEFAULT_UTC_OFFSET_MINUTES: i32 = 0;
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
+    clock
+        .set_utc_offset_minutes(DEFAULT_UTC_OFFSET_MINUTES)
+        .await;
 
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
     #[cfg(feature = "wifi")]
