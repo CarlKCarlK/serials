@@ -122,6 +122,24 @@ cargo blinky_2r  # Run blinky on Pico 2 RISC-V (--release)
 
 See `ARCHITECTURE.md` for detailed information about board and architecture features.
 
+## Windows/WSL Debug Probe Helper
+
+`probeusb.ps1` automates moving the CMSIS-DAP probe between Windows and WSL:
+
+```powershell
+# Show current owner ("Windows" vs "WSL")
+powershell -ExecutionPolicy Bypass -File .\probeusb.ps1
+
+# Give WSL exclusive access (Windows COM port disappears)
+powershell -ExecutionPolicy Bypass -File .\probeusb.ps1 wsl
+
+# Return the probe to Windows
+powershell -ExecutionPolicy Bypass -File .\probeusb.ps1 win
+```
+
+It detects the bus ID automatically (assumes a single probe is connected). If you
+have multiple USB entries, set `PROBEUSB_PATTERN` to part of the device name.
+
 ## Configuration
 
 WiFi credentials and timezone offset are provisioned on-device. When the Pico W
