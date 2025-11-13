@@ -1,0 +1,7 @@
+# Override parent config to build xtask for the host platform
+# This allows xtask to work on any platform (Windows, Linux, macOS, ARM, x86, etc.)
+# By not setting a target, cargo uses the host platform's default target
+
+[build]
+# No target set - uses host default
+target-dir = "../target"

@@ -1,3 +1,7 @@
+[workspace]
+members = ["xtask"]
+default-members = ["."]
+
 [package]
 edition = "2024"
 # if this changes, update .vscode/launch.json and .cargo/config.toml
