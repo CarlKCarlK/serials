@@ -24,19 +24,39 @@
 
 use core::convert::Infallible;
 use cortex_m::peripheral::SCB;
-use defmt::{info, unwrap};
+use defmt::{info, unwrap, warn};
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_net::Ipv4Address;
 use embassy_time::Timer;
 use panic_probe as _;
+use serials::Error;
 use serials::Result;
 use serials::clock::{Clock, ClockNotifier};
 use serials::dns_server::dns_server_task;
-use serials::flash_slice::{FlashSlice, FlashSliceNotifier};
+use serials::flash_slice::{FlashArray, FlashArrayHandle, FlashBlock};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
-use serials::wifi_config::{WifiCredentials, collect_wifi_credentials};
+use serials::wifi_config::collect_wifi_credentials;
+
+struct TimezoneStore {
+    block: FlashBlock,
+}
+
+impl TimezoneStore {
+    fn new(block: FlashBlock) -> Self {
+        Self { block }
+    }
+
+    fn load(&mut self) -> Result<i32> {
+        Ok(self.block.load::<i32>()?.unwrap_or(0))
+    }
+
+    fn save(&mut self, offset: i32) -> Result<()> {
+        self.block.save(&offset)
+    }
+
+}
 
 // ============================================================================
 // Main
@@ -55,13 +75,11 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize flash storage for WiFi credentials and timezone offset
-    static FLASH_SLICE_NOTIFIER: FlashSliceNotifier = FlashSlice::<2>::notifier();
-    let [mut credential_block, mut timezone_block] =
-        FlashSlice::new(&FLASH_SLICE_NOTIFIER, p.FLASH)?;
+    static FLASH_HANDLE: FlashArrayHandle = FlashArray::<2>::handle();
+    let [wifi_block, timezone_block] = FlashArray::new(&FLASH_HANDLE, p.FLASH)?;
+    let mut timezone_store = TimezoneStore::new(timezone_block);
 
-    let stored_credentials: Option<WifiCredentials> = credential_block.load()?;
-    let stored_offset: i32 = timezone_block.load::<i32>()?.unwrap_or(0);
-
+    let stored_offset: i32 = timezone_store.load()?;
     // Create Clock device (starts ticking immediately)
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
     let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
@@ -77,12 +95,13 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         p.PIN_24,  // WiFi chip clock
         p.PIN_29,  // WiFi chip select
         p.DMA_CH0, // DMA channel for WiFi
-        stored_credentials.clone(),
+        wifi_block,
+        None,
         spawner,
     );
 
     // Determine if we need to run captive portal or connect directly
-    if stored_credentials.is_none() {
+    if !time_sync.wifi().has_persisted_credentials() {
         info!("No stored WiFi credentials - starting configuration access point");
         info!("Starting WiFi in AP mode for configuration...");
         info!("WiFi AP mode - starting HTTP configuration server...");
@@ -125,18 +144,21 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         clock
             .set_utc_offset_minutes(submission.timezone_offset_minutes)
             .await;
-        credential_block.save(&submission.credentials)?;
-        timezone_block.save(&submission.timezone_offset_minutes)?;
+        time_sync
+            .wifi()
+            .persist_credentials(&submission.credentials)
+            .map_err(|e| {
+                warn!("{}", e);
+                Error::StorageCorrupted
+            })?;
+        timezone_store.save(submission.timezone_offset_minutes)?;
         info!("Device will reboot and connect using the stored credentials.");
         info!("==========================================================");
 
         Timer::after_millis(750).await;
         SCB::sys_reset();
     } else {
-        info!(
-            "Stored WiFi credentials found for SSID: {}",
-            stored_credentials.as_ref().unwrap().ssid
-        );
+        info!("Stored WiFi credentials found - starting client mode directly");
         info!("Using stored WiFi credentials - starting client mode directly");
     }
 

@@ -20,6 +20,8 @@ use panic_probe as _;
 use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdNotifier};
 use serials::clock::{Clock, ClockEvent, ClockNotifier, ClockState};
+#[cfg(feature = "wifi")]
+use serials::flash_slice::{FlashArray, FlashArrayHandle};
 use serials::ir::{Ir, IrEvent, IrNotifier};
 use serials::led_strip::Rgb;
 use serials::led_strip::colors;
@@ -28,6 +30,8 @@ use serials::led24x4::Led24x4;
 use serials::rfid::{Rfid, RfidEvent, RfidNotifier};
 use serials::servo::servo_a;
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
+#[cfg(feature = "wifi")]
+use serials::wifi_config::collect_wifi_credentials;
 
 use colors::{BLACK, BLUE, GREEN, RED, YELLOW};
 
@@ -114,17 +118,22 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
     #[cfg(feature = "wifi")]
-    let time_sync = TimeSync::new(
-        &TIME_SYNC_NOTIFIER,
-        p.PIN_23, // WiFi power enable
-        p.PIN_25, // WiFi chip select
-        p.PIO0,   // WiFi PIO block
-        p.PIN_24, // WiFi MOSI
-        p.PIN_29, // WiFi CLK
-        p.DMA_CH0,
-        None, // No WiFi credentials - use AP mode
-        spawner,
-    );
+    let time_sync = {
+        static WIFI_FLASH_HANDLE: FlashArrayHandle = FlashArray::<1>::handle();
+        let [wifi_block] = FlashArray::new(&WIFI_FLASH_HANDLE, p.FLASH)?;
+        TimeSync::new(
+            &TIME_SYNC_NOTIFIER,
+            p.PIN_23, // WiFi power enable
+            p.PIN_25, // WiFi chip select
+            p.PIO0,   // WiFi PIO block
+            p.PIN_24, // WiFi MOSI
+            p.PIN_29, // WiFi CLK
+            p.DMA_CH0,
+            wifi_block,
+            None, // No WiFi credentials - use AP mode
+            spawner,
+        )
+    };
     #[cfg(not(feature = "wifi"))]
     let time_sync = TimeSync::new(&TIME_SYNC_NOTIFIER, spawner);
 

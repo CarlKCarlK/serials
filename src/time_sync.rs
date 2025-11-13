@@ -16,6 +16,7 @@ mod wifi_impl {
     use static_cell::StaticCell;
 
     use crate::Result;
+    use crate::flash_slice::FlashBlock;
     use crate::unix_seconds::UnixSeconds;
     use crate::wifi::{Wifi, WifiEvent, WifiNotifier};
     use crate::wifi_config::WifiCredentials;
@@ -67,7 +68,8 @@ mod wifi_impl {
         /// Create a new TimeSync device (creates WiFi internally) and spawn its task
         ///
         /// # Arguments
-        /// * `credentials` - WiFi credentials for client mode, or None for AP mode
+        /// * `credential_store` - Flash block for persisted WiFi credentials
+        /// * `credentials` - Optional runtime credentials to use immediately
         pub fn new(
             resources: &'static TimeSyncNotifier,
             pin_23: Peri<'static, PIN_23>,
@@ -76,6 +78,7 @@ mod wifi_impl {
             pin_24: Peri<'static, PIN_24>,
             pin_29: Peri<'static, PIN_29>,
             dma_ch0: Peri<'static, DMA_CH0>,
+            credential_store: FlashBlock,
             credentials: Option<WifiCredentials>,
             spawner: Spawner,
         ) -> &'static Self {
@@ -88,6 +91,7 @@ mod wifi_impl {
                 pin_24,
                 pin_29,
                 dma_ch0,
+                credential_store,
                 credentials,
                 spawner,
             );

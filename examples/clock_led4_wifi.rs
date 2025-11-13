@@ -12,60 +12,45 @@
 
 use core::convert::Infallible;
 use cortex_m::peripheral::SCB;
-use defmt::{info, unwrap};
+use defmt::{info, unwrap, warn};
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_net::Ipv4Address;
 use embassy_rp::gpio::{self, Level};
 use embassy_time::Timer;
-use serials::Result;
 use serials::button::Button;
 use serials::clock_led4::state::ClockLed4State;
 use serials::clock_led4::{ClockLed4 as Clock, ClockLed4Notifier as ClockNotifier};
 use serials::dns_server::dns_server_task;
-use serials::flash_slice::{FlashBlock, FlashSlice, FlashSliceNotifier};
+use serials::flash_slice::{FlashArray, FlashArrayHandle, FlashBlock};
 use serials::led4::OutputArray;
 use serials::time_sync::{TimeSync, TimeSyncNotifier};
-use serials::wifi_config::{WifiCredentials, collect_wifi_credentials};
+use serials::wifi::Wifi;
+use serials::wifi_config::collect_wifi_credentials;
+use serials::{Error, Result};
 // Import clock_led4_time functions
 use panic_probe as _;
 use serials::clock_led4::time::{current_utc_offset_minutes, set_initial_utc_offset_minutes};
 
-struct WifiFlashStore {
-    credentials: FlashBlock,
-    timezone: FlashBlock,
+struct TimezoneStore {
+    block: FlashBlock,
 }
 
-impl WifiFlashStore {
-    fn new(credentials: FlashBlock, timezone: FlashBlock) -> Self {
-        Self {
-            credentials,
-            timezone,
-        }
+impl TimezoneStore {
+    fn new(block: FlashBlock) -> Self {
+        Self { block }
     }
 
-    fn load_credentials(&mut self) -> Result<Option<WifiCredentials>> {
-        self.credentials.load()
+    fn load(&mut self) -> Result<i32> {
+        Ok(self.block.load::<i32>()?.unwrap_or(0))
     }
 
-    fn save_credentials(&mut self, creds: &WifiCredentials) -> Result<()> {
-        self.credentials.save(creds)
+    fn save(&mut self, offset: i32) -> Result<()> {
+        self.block.save(&offset)
     }
 
-    fn clear_credentials(&mut self) -> Result<()> {
-        self.credentials.clear()
-    }
-
-    fn load_timezone_offset(&mut self) -> Result<i32> {
-        Ok(self.timezone.load::<i32>()?.unwrap_or(0))
-    }
-
-    fn save_timezone_offset(&mut self, offset: &i32) -> Result<()> {
-        self.timezone.save(offset)
-    }
-
-    fn clear_timezone_offset(&mut self) -> Result<()> {
-        self.timezone.clear()
+    fn clear(&mut self) -> Result<()> {
+        self.block.clear()
     }
 }
 
@@ -80,9 +65,13 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize flash storage
-    static FLASH_SLICE_NOTIFIER: FlashSliceNotifier = FlashSlice::<2>::notifier();
-    let [credentials_block, timezone_block] = FlashSlice::new(&FLASH_SLICE_NOTIFIER, p.FLASH)?;
-    let mut flash = WifiFlashStore::new(credentials_block, timezone_block);
+    static FLASH_HANDLE: FlashArrayHandle = FlashArray::<2>::handle();
+    let [wifi_block, timezone_block] = FlashArray::new(&FLASH_HANDLE, p.FLASH)?;
+    let mut timezone_store = TimezoneStore::new(timezone_block);
+    let stored_offset = timezone_store.load()?;
+    set_initial_utc_offset_minutes(stored_offset);
+    let stored_offset = timezone_store.load()?;
+    set_initial_utc_offset_minutes(stored_offset);
 
     // Initialize LED (unused but kept for compatibility)
     let mut led = gpio::Output::new(p.PIN_0, Level::Low);
@@ -113,11 +102,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let mut button = Button::new(p.PIN_13);
 
     // Determine initial boot phase by executing start logic
-    let mut wifi_setup_state = WifiSetupState::execute_start(&mut flash).await?;
-
-    // Initialize time sync with WiFi credentials from initial state
-    // NOTE: In the future, a typestate pattern could enforce at compile-time that
-    // execute_start never returns Running, eliminating the runtime check.
+    // Initialize time sync
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
     let time_sync = TimeSync::new(
         &TIME_SYNC_NOTIFIER,
@@ -127,14 +112,23 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         p.PIN_24,  // WiFi chip clock
         p.PIN_29,  // WiFi chip select
         p.DMA_CH0, // DMA channel for WiFi
-        wifi_setup_state.credentials_if_any(),
+        wifi_block,
+        None,
         spawner,
     );
+
+    let mut wifi_setup_state = WifiSetupState::execute_start(time_sync.wifi()).await?;
 
     // State machine loop
     loop {
         wifi_setup_state = wifi_setup_state
-            .execute(&mut flash, &mut clock, &mut button, &time_sync, spawner)
+            .execute(
+                &mut timezone_store,
+                &mut clock,
+                &mut button,
+                &time_sync,
+                spawner,
+            )
             .await?;
     }
 }
@@ -142,47 +136,25 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 #[derive(Debug, Clone)]
 enum WifiSetupState {
     CaptivePortal,
-    AttemptConnection(WifiCredentials),
+    AttemptConnection,
     Running,
 }
 
 impl WifiSetupState {
     /// Execute start-up logic to determine initial boot phase
-    async fn execute_start(flash: &mut WifiFlashStore) -> Result<Self> {
-        info!("Loading credentials from flash");
-        let stored_credentials: Option<WifiCredentials> = flash.load_credentials()?;
-        let stored_offset: i32 = flash.load_timezone_offset()?;
-        set_initial_utc_offset_minutes(stored_offset);
-
-        Ok(if let Some(credentials) = stored_credentials {
+    async fn execute_start(wifi: &Wifi) -> Result<Self> {
+        Ok(if wifi.has_persisted_credentials() {
             info!("Stored credentials found - will attempt connection");
-            Self::AttemptConnection(credentials)
+            Self::AttemptConnection
         } else {
             info!("No stored credentials - starting captive portal");
             Self::CaptivePortal
         })
     }
 
-    /// Extract WiFi credentials from boot phase
-    ///
-    /// Returns None for AccessPoint mode, Some(credentials) for client mode.
-    /// Panics if called on Running state (should never happen from execute_start,
-    /// but a typestate pattern could enforce this at compile-time in the future).
-    fn credentials_if_any(&self) -> Option<WifiCredentials> {
-        match self {
-            Self::CaptivePortal => None,
-            Self::AttemptConnection(credentials) => Some(credentials.clone()),
-            Self::Running => {
-                // This should never happen if execute_start is implemented correctly.
-                // A typestate pattern could prevent this at compile-time.
-                panic!("Invalid state: execute_start should never return Running")
-            }
-        }
-    }
-
     async fn execute(
         self,
-        flash: &mut WifiFlashStore,
+        timezone: &mut TimezoneStore,
         clock: &mut Clock<'_>,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
@@ -190,17 +162,17 @@ impl WifiSetupState {
     ) -> Result<Self> {
         match self {
             Self::CaptivePortal => {
-                Self::execute_captive_portal(flash, clock, time_sync, spawner).await
+                Self::execute_captive_portal(timezone, clock, time_sync, spawner).await
             }
-            Self::AttemptConnection(_credentials) => {
-                Self::execute_attempt_connection(clock, button, time_sync, flash).await
+            Self::AttemptConnection => {
+                Self::execute_attempt_connection(clock, button, time_sync).await
             }
-            Self::Running => Self::execute_running(clock, button, time_sync, flash).await,
+            Self::Running => Self::execute_running(clock, button, time_sync, timezone).await,
         }
     }
 
     async fn execute_captive_portal(
-        flash: &mut WifiFlashStore,
+        timezone: &mut TimezoneStore,
         clock: &mut Clock<'_>,
         time_sync: &TimeSync,
         spawner: Spawner,
@@ -224,8 +196,14 @@ impl WifiSetupState {
             submission.credentials.ssid, submission.timezone_offset_minutes
         );
 
-        flash.save_credentials(&submission.credentials)?;
-        flash.save_timezone_offset(&submission.timezone_offset_minutes)?;
+        time_sync
+            .wifi()
+            .persist_credentials(&submission.credentials)
+            .map_err(|e| {
+                warn!("{}", e);
+                Error::StorageCorrupted
+            })?;
+        timezone.save(submission.timezone_offset_minutes)?;
         set_initial_utc_offset_minutes(submission.timezone_offset_minutes);
 
         info!("Credentials saved; rebooting to Start state");
@@ -237,7 +215,6 @@ impl WifiSetupState {
         clock: &mut Clock<'_>,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        flash: &mut WifiFlashStore,
     ) -> Result<Self> {
         info!("WifiSetupState: AttemptConnection - attempting to connect and sync time");
         let mut clock_state = ClockLed4State::Connecting;
@@ -249,7 +226,13 @@ impl WifiSetupState {
             // If we timeout, clear credentials and go back to AP mode
             if matches!(clock_state, ClockLed4State::AccessPointSetup) {
                 info!("Connection timeout - clearing credentials and switching to AccessPoint");
-                flash.clear_credentials()?;
+                time_sync
+                    .wifi()
+                    .clear_persisted_credentials()
+                    .map_err(|e| {
+                        warn!("{}", e);
+                        Error::StorageCorrupted
+                    })?;
                 Timer::after_millis(500).await;
                 SCB::sys_reset();
             }
@@ -266,7 +249,7 @@ impl WifiSetupState {
         clock: &mut Clock<'_>,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        flash: &mut WifiFlashStore,
+        timezone: &mut TimezoneStore,
     ) -> Result<Self> {
         info!("WifiSetupState: Running - clock operational");
         let mut clock_state = ClockLed4State::HoursMinutes;
@@ -278,8 +261,14 @@ impl WifiSetupState {
             // Handle user confirming credential clear
             if let ClockLed4State::ConfirmedClear = clock_state {
                 info!("Confirmed clear - erasing credentials and rebooting to Start");
-                flash.clear_credentials()?;
-                flash.clear_timezone_offset()?;
+                time_sync
+                    .wifi()
+                    .clear_persisted_credentials()
+                    .map_err(|e| {
+                        warn!("{}", e);
+                        Error::StorageCorrupted
+                    })?;
+                timezone.clear()?;
                 set_initial_utc_offset_minutes(0);
                 clock.show_clearing_done().await;
                 Timer::after_millis(750).await;
@@ -289,7 +278,7 @@ impl WifiSetupState {
             // Persist timezone offset changes
             let current_offset = current_utc_offset_minutes();
             if current_offset != persisted_offset {
-                flash.save_timezone_offset(&current_offset)?;
+                timezone.save(current_offset)?;
                 persisted_offset = current_offset;
             }
         }

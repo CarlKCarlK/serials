@@ -14,6 +14,7 @@ use panic_probe as _;
 use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdNotifier};
 use serials::clock::{Clock, ClockNotifier};
+use serials::flash_slice::{FlashArray, FlashArrayHandle};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 
 // ============================================================================
@@ -48,16 +49,20 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     // Create TimeSync virtual device (creates WiFi internally)
     static TIME_SYNC: TimeSyncNotifier = TimeSync::notifier();
     #[cfg(feature = "wifi")]
-    let time_sync = TimeSync::new(
-        &TIME_SYNC, p.PIN_23,  // WiFi power enable
-        p.PIN_25,  // WiFi SPI chip select
-        p.PIO0,    // WiFi PIO block for SPI
-        p.PIN_24,  // WiFi SPI MOSI
-        p.PIN_29,  // WiFi SPI CLK
-        p.DMA_CH0, // WiFi DMA channel for SPI
-        None,      // No WiFi credentials - use access point mode
-        spawner,
-    );
+    let time_sync = {
+        static WIFI_FLASH_HANDLE: FlashArrayHandle = FlashArray::<1>::handle();
+        let [wifi_block] = FlashArray::new(&WIFI_FLASH_HANDLE, p.FLASH)?;
+        TimeSync::new(
+            &TIME_SYNC, p.PIN_23,  // WiFi power enable
+            p.PIN_25,  // WiFi SPI chip select
+            p.PIO0,    // WiFi PIO block for SPI
+            p.PIN_24,  // WiFi SPI MOSI
+            p.PIN_29,  // WiFi SPI CLK
+            p.DMA_CH0, // WiFi DMA channel for SPI
+            wifi_block, None, // No WiFi credentials - use access point mode
+            spawner,
+        )
+    };
     #[cfg(not(feature = "wifi"))]
     let time_sync = TimeSync::new(&TIME_SYNC, spawner);
 

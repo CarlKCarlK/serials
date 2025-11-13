@@ -1,4 +1,3 @@
-//! cmk Need to read and update all docs
 //! A device abstraction for type-safe persistent storage in flash memory.
 //!
 //! This module provides a generic flash block storage system that allows storing any
@@ -25,7 +24,7 @@
 //! **Important**: Users are responsible for avoiding block_id collisions. Using the same
 //! block_id for different types will cause type hash mismatches and return `None` on reads.
 //!
-//! See [`FlashSlice`] for usage examples.
+//! See [`FlashArray`] for usage examples.
 
 use core::array;
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -183,7 +182,7 @@ impl FlashSliceNotifier {
 /// # #![no_main]
 /// # use panic_probe as _;
 /// use serde::{Serialize, Deserialize};
-/// use serials::flash_slice::{FlashSlice, FlashSliceNotifier};
+/// use serials::flash_slice::{FlashArray, FlashArrayHandle};
 ///
 /// // Define your configuration type
 /// #[derive(Serialize, Deserialize, Debug, Default)]
@@ -196,11 +195,8 @@ impl FlashSliceNotifier {
 /// # async fn example() -> serials::Result<()> {
 /// let p = embassy_rp::init(Default::default());
 ///
-/// static FLASH_SLICE_NOTIFIER: FlashSliceNotifier = FlashSlice::<1>::notifier();
-/// let flash_slice = FlashSlice::new(&FLASH_SLICE_NOTIFIER, p.FLASH)?;
-///
-/// // Take block 0 for the device configuration.
-/// let [mut device_config_block] = flash_slice;
+/// static FLASH_HANDLE: FlashArrayHandle = FlashArray::<1>::handle();
+/// let [mut device_config_block] = FlashArray::new(&FLASH_HANDLE, p.FLASH)?;
 ///
 /// // Load existing config if present.
 /// let mut device_config: DeviceConfig = device_config_block
@@ -223,12 +219,11 @@ impl FlashSliceNotifier {
 /// # #![no_main]
 /// # use panic_probe as _;
 /// # use heapless::String;
-/// # use serials::flash_slice::{FlashSlice, FlashSliceNotifier};
+/// # use serials::flash_slice::{FlashArray, FlashArrayHandle};
 /// # async fn example() -> serials::Result<()> {
 /// # let p = embassy_rp::init(Default::default());
-/// # static FLASH_SLICE_NOTIFIER: FlashSliceNotifier = FlashSlice::<1>::notifier();
-/// # let flash_slice = FlashSlice::new(&FLASH_SLICE_NOTIFIER, p.FLASH)?;
-/// let [mut string_block] = flash_slice;
+/// # static FLASH_HANDLE: FlashArrayHandle = FlashArray::<1>::handle();
+/// # let [mut string_block] = FlashArray::new(&FLASH_HANDLE, p.FLASH)?;
 /// string_block.save(&String::<64>::try_from("Hello")?)?;
 ///
 /// // Reading with a different type returns None (whiteboard semantics)
@@ -255,6 +250,43 @@ impl<const N: usize> FlashSlice<N> {
     ) -> Result<[FlashBlock; N]> {
         let manager = notifier.manager(peripheral);
         manager.reserve::<N>()
+    }
+}
+
+/// Handle for reserving flash blocks via [`FlashArray`].
+pub struct FlashArrayHandle {
+    notifier: FlashSliceNotifier,
+}
+
+impl FlashArrayHandle {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            notifier: FlashSliceNotifier::notifier(),
+        }
+    }
+
+    fn notifier(&'static self) -> &'static FlashSliceNotifier {
+        &self.notifier
+    }
+}
+
+/// Convenience wrapper that reserves a compile-time length of blocks and returns them as an array.
+pub struct FlashArray<const N: usize>;
+
+impl<const N: usize> FlashArray<N> {
+    /// Create a handle that can later be used to reserve `N` blocks.
+    #[must_use]
+    pub const fn handle() -> FlashArrayHandle {
+        FlashArrayHandle::new()
+    }
+
+    /// Reserve `N` contiguous blocks using the provided handle and peripheral.
+    pub fn new(
+        handle: &'static FlashArrayHandle,
+        peripheral: Peri<'static, FLASH>,
+    ) -> Result<[FlashBlock; N]> {
+        FlashSlice::<N>::new(handle.notifier(), peripheral)
     }
 }
 

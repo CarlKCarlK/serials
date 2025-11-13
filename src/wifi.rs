@@ -15,12 +15,15 @@
 //! # #![no_main]
 //! # use panic_probe as _;
 //! # use core::default::Default;
+//! use serials::flash_slice::{FlashArray, FlashArrayHandle};
 //! use serials::wifi::Wifi;
 //!
 //! # async fn example(spawner: embassy_executor::Spawner) {
 //! let p = embassy_rp::init(Default::default());
 //!
 //! static WIFI_NOTIFIER: serials::wifi::WifiNotifier = Wifi::notifier();
+//! static FLASH_HANDLE: FlashArrayHandle = FlashArray::<1>::handle();
+//! let [wifi_block] = FlashArray::new(&FLASH_HANDLE, p.FLASH).unwrap();
 //!
 //! // Start in AP mode for user configuration
 //! let wifi = Wifi::new(
@@ -31,6 +34,7 @@
 //!     p.PIN_24,
 //!     p.PIN_29,
 //!     p.DMA_CH0,
+//!     wifi_block,
 //!     None,
 //!     spawner,
 //! );
@@ -51,6 +55,7 @@
 //! # #![no_main]
 //! # use panic_probe as _;
 //! # use core::default::Default;
+//! use serials::flash_slice::{FlashArray, FlashArrayHandle};
 //! use serials::wifi::Wifi;
 //! use serials::wifi_config::WifiCredentials;
 //!
@@ -58,6 +63,8 @@
 //! let p = embassy_rp::init(Default::default());
 //!
 //! static WIFI_NOTIFIER: serials::wifi::WifiNotifier = Wifi::notifier();
+//! static FLASH_HANDLE: FlashArrayHandle = FlashArray::<1>::handle();
+//! let [wifi_block] = FlashArray::new(&FLASH_HANDLE, p.FLASH).unwrap();
 //!
 //! // Connect using credentials that were provisioned earlier (e.g., loaded from flash)
 //! let wifi = Wifi::new(
@@ -68,6 +75,7 @@
 //!     p.PIN_24,
 //!     p.PIN_29,
 //!     p.DMA_CH0,
+//!     wifi_block,
 //!     Some(credentials),
 //!     spawner,
 //! );
@@ -84,7 +92,7 @@
     reason = "StackStorage uses UnsafeCell in single-threaded context"
 )]
 
-use core::cell::UnsafeCell;
+use core::cell::{RefCell, UnsafeCell};
 use cyw43::JoinOptions;
 use cyw43_pio::{DEFAULT_CLOCK_DIVIDER, PioSpi};
 use defmt::*;
@@ -94,13 +102,14 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0};
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_rp::{Peri, bind_interrupts};
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
 use embassy_sync::signal::Signal;
 use embassy_time::Timer;
 use portable_atomic::{AtomicBool, Ordering};
 use static_cell::StaticCell;
 
 use crate::dhcp_server::dhcp_server_task;
+use crate::flash_slice::FlashBlock;
 use crate::wifi_config::WifiCredentials;
 
 // ============================================================================
@@ -187,6 +196,7 @@ pub struct WifiNotifier {
 pub struct Wifi {
     events: &'static WifiEvents,
     stack: &'static StackStorage,
+    credential_store: Mutex<CriticalSectionRawMutex, RefCell<FlashBlock>>,
 }
 
 impl Wifi {
@@ -241,7 +251,8 @@ impl Wifi {
     /// * `pin_24` - WiFi chip clock pin (GPIO 24)
     /// * `pin_29` - WiFi chip data pin (GPIO 29)
     /// * `dma_ch0` - DMA channel for WiFi SPI communication
-    /// * `credentials` - `Some` to start in client mode, `None` to launch AP provisioning
+    /// * `credential_store` - Flash block reserved for WiFi credentials
+    /// * `credentials` - `Some` to start in client mode immediately, `None` to check persisted creds / launch AP
     /// * `spawner` - Embassy task spawner
     ///
     /// See the [module-level documentation](crate::wifi) for usage examples.
@@ -253,12 +264,28 @@ impl Wifi {
         pin_24: Peri<'static, PIN_24>,
         pin_29: Peri<'static, PIN_29>,
         dma_ch0: Peri<'static, DMA_CH0>,
+        credential_store: FlashBlock,
         credentials: Option<WifiCredentials>,
         spawner: Spawner,
     ) -> &'static Self {
-        let mode = match credentials {
-            Some(creds) => WifiMode::ClientConfigured(creds),
-            None => WifiMode::AccessPoint,
+        let mut store_block = credential_store;
+        let stored_credentials = match store_block.load::<WifiCredentials>() {
+            Ok(value) => value,
+            Err(_e) => {
+                warn!(
+                    "Failed to load stored WiFi credentials (block {})",
+                    store_block.block_id()
+                );
+                None
+            }
+        };
+
+        let mode = if let Some(creds) = credentials {
+            WifiMode::ClientConfigured(creds)
+        } else if let Some(creds) = stored_credentials {
+            WifiMode::ClientConfigured(creds)
+        } else {
+            WifiMode::AccessPoint
         };
         let token = unwrap!(wifi_device_loop(
             pin_23,
@@ -276,6 +303,7 @@ impl Wifi {
         resources.wifi_cell.init(Self {
             events: &resources.events,
             stack: &resources.stack,
+            credential_store: Mutex::new(RefCell::new(store_block)),
         })
     }
 
@@ -289,6 +317,52 @@ impl Wifi {
         // For now, we'll need to restart the device to switch modes
         // This is a limitation - full implementation would need control handle
         Err("Mode switch requires device restart - not yet implemented")
+    }
+
+    fn with_credential_store<F>(&self, f: F) -> Result<(), &'static str>
+    where
+        F: FnOnce(&mut FlashBlock) -> Result<(), &'static str>,
+    {
+        self.credential_store.lock(|cell| {
+            let mut block = cell.borrow_mut();
+            f(&mut *block)
+        })
+    }
+
+    /// Persist credentials into the configured flash store.
+    pub fn persist_credentials(&self, credentials: &WifiCredentials) -> Result<(), &'static str> {
+        self.with_credential_store(|block| {
+            block
+                .save(credentials)
+                .map_err(|_| "Failed to save WiFi credentials")
+        })
+    }
+
+    /// Remove any stored credentials from flash.
+    pub fn clear_persisted_credentials(&self) -> Result<(), &'static str> {
+        self.with_credential_store(|block| {
+            block
+                .clear()
+                .map_err(|_| "Failed to clear WiFi credentials")
+        })
+    }
+
+    /// Return whether credentials currently exist in flash.
+    pub fn has_persisted_credentials(&self) -> bool {
+        self.credential_store.lock(|cell| {
+            let mut block = cell.borrow_mut();
+            match block.load::<WifiCredentials>() {
+                Ok(Some(_)) => true,
+                Ok(None) => false,
+                Err(_) => {
+                    warn!(
+                        "Failed to load stored WiFi credentials (block {})",
+                        block.block_id()
+                    );
+                    false
+                }
+            }
+        })
     }
 }
 
