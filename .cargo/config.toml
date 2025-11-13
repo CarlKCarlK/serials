@@ -1,8 +1,9 @@
-[build]
-rustc-wrapper = "scripts/rustc-wrapper.sh"
-
 [env]
 DEFMT_LOG = "info"
+CARGO_TARGET_TMPDIR = { value = "target/tmp", relative = true }
+TMPDIR = { value = "target/tmp", relative = true }
+TMP = { value = "target/tmp", relative = true }
+TEMP = { value = "target/tmp", relative = true }
 
 [alias]
 # xtask command runner - note: must be run from workspace root
