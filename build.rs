@@ -33,5 +33,4 @@ fn main() {
         println!("cargo:rustc-link-search={}", out_dir.display());
         println!("cargo:rerun-if-changed=memory-pico1w.x");
     }
-
 }

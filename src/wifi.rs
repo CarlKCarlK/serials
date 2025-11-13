@@ -8,14 +8,14 @@
 //!
 //! # Examples
 //!
-//! ## Access Point mode for configuration
+//! ## Provisioning via captive portal
 //!
 //! ```no_run
 //! # #![no_std]
 //! # #![no_main]
 //! # use panic_probe as _;
 //! # use core::default::Default;
-//! use serials::wifi::{Wifi, WifiMode};
+//! use serials::wifi::Wifi;
 //!
 //! # async fn example(spawner: embassy_executor::Spawner) {
 //! let p = embassy_rp::init(Default::default());
@@ -31,7 +31,7 @@
 //!     p.PIN_24,
 //!     p.PIN_29,
 //!     p.DMA_CH0,
-//!     WifiMode::AccessPoint,
+//!     None,
 //!     spawner,
 //! );
 //!
@@ -44,14 +44,14 @@
 //! # }
 //! ```
 //!
-//! ## Client mode with runtime credentials
+//! ## Client mode with stored credentials
 //!
 //! ```no_run
 //! # #![no_std]
 //! # #![no_main]
 //! # use panic_probe as _;
 //! # use core::default::Default;
-//! use serials::wifi::{Wifi, WifiMode};
+//! use serials::wifi::Wifi;
 //! use serials::wifi_config::WifiCredentials;
 //!
 //! # async fn example(spawner: embassy_executor::Spawner, credentials: WifiCredentials) {
@@ -59,7 +59,7 @@
 //!
 //! static WIFI_NOTIFIER: serials::wifi::WifiNotifier = Wifi::notifier();
 //!
-//! // Connect using credentials obtained at runtime (e.g., from flash storage)
+//! // Connect using credentials that were provisioned earlier (e.g., loaded from flash)
 //! let wifi = Wifi::new(
 //!     &WIFI_NOTIFIER,
 //!     p.PIN_23,
@@ -68,7 +68,7 @@
 //!     p.PIN_24,
 //!     p.PIN_29,
 //!     p.DMA_CH0,
-//!     WifiMode::ClientConfigured(credentials),
+//!     Some(credentials),
 //!     spawner,
 //! );
 //!
@@ -115,12 +115,12 @@ pub enum WifiEvent {
     ClientReady,
 }
 
-/// WiFi operating mode.
+/// Internal WiFi operating mode used during startup.
 #[derive(Clone, PartialEq, Eq)]
-pub enum WifiMode {
+enum WifiMode {
     /// Start in AP mode for configuration (no credentials needed)
     AccessPoint,
-    /// Connect to WiFi network using runtime-provided credentials
+    /// Connect to WiFi network using provisioned credentials
     ClientConfigured(WifiCredentials),
 }
 
@@ -241,7 +241,7 @@ impl Wifi {
     /// * `pin_24` - WiFi chip clock pin (GPIO 24)
     /// * `pin_29` - WiFi chip data pin (GPIO 29)
     /// * `dma_ch0` - DMA channel for WiFi SPI communication
-    /// * `mode` - WiFi operating mode (see [`WifiMode`])
+    /// * `credentials` - `Some` to start in client mode, `None` to launch AP provisioning
     /// * `spawner` - Embassy task spawner
     ///
     /// See the [module-level documentation](crate::wifi) for usage examples.
@@ -253,9 +253,13 @@ impl Wifi {
         pin_24: Peri<'static, PIN_24>,
         pin_29: Peri<'static, PIN_29>,
         dma_ch0: Peri<'static, DMA_CH0>,
-        mode: WifiMode,
+        credentials: Option<WifiCredentials>,
         spawner: Spawner,
     ) -> &'static Self {
+        let mode = match credentials {
+            Some(creds) => WifiMode::ClientConfigured(creds),
+            None => WifiMode::AccessPoint,
+        };
         let token = unwrap!(wifi_device_loop(
             pin_23,
             pin_25,
@@ -449,7 +453,7 @@ async fn wifi_device_loop_ap(
     }
 }
 
-/// WiFi device loop for client mode with runtime credentials
+/// WiFi device loop for client mode with provisioned credentials
 async fn wifi_device_loop_client_configured(
     pin_23: Peri<'static, PIN_23>,
     pin_25: Peri<'static, PIN_25>,

@@ -13,8 +13,9 @@
 //!
 //! # Block Allocation
 //!
-//! Blocks are allocated from the end of flash memory backwards. Users choose unique `block_id`
-//! values (0, 1, 2, ...) to identify each block.
+//! Conceptually, flash is treated as a slice of fixed-size erase blocks counted from the end of
+//! memory backwards. Code can carve out disjoint partitions at compile time (like `split_at_mut`
+//! on slices) and hand those partitions to subsystems that need persistent storage.
 //!
 //! **Important**: Users are responsible for avoiding block_id collisions. Using the same
 //! block_id for different types will cause type hash mismatches and return `None` on reads.
@@ -26,6 +27,8 @@ use defmt::{error, info};
 use embassy_rp::Peri;
 use embassy_rp::flash::{Blocking, ERASE_SIZE, Flash as EmbassyFlash};
 use embassy_rp::peripherals::FLASH;
+use embassy_sync::blocking_mutex::Mutex;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use serde::{Deserialize, Serialize};
 use static_cell::StaticCell;
 
@@ -47,10 +50,41 @@ const MAGIC: u32 = 0x424C_4B53; // 'BLKS'
 const HEADER_SIZE: usize = 4 + 4 + 2; // Magic + TypeHash + PayloadLen
 const CRC_SIZE: usize = 4;
 const MAX_PAYLOAD_SIZE: usize = ERASE_SIZE - HEADER_SIZE - CRC_SIZE; // 3900 bytes
+const TOTAL_BLOCKS: u32 = (INTERNAL_FLASH_SIZE / ERASE_SIZE) as u32;
+
+/// Internal shared flash peripheral guarded by a mutex for safe concurrent partitions.
+struct FlashInner {
+    flash: Mutex<
+        CriticalSectionRawMutex,
+        core::cell::RefCell<
+            EmbassyFlash<'static, FLASH, Blocking, INTERNAL_FLASH_SIZE>,
+        >,
+    >,
+}
+
+impl FlashInner {
+    fn new(peripheral: Peri<'static, FLASH>) -> Self {
+        Self {
+            flash: Mutex::new(core::cell::RefCell::new(
+                EmbassyFlash::new_blocking(peripheral),
+            )),
+        }
+    }
+
+    fn with_flash<R>(
+        &self,
+        f: impl FnOnce(&mut EmbassyFlash<'static, FLASH, Blocking, INTERNAL_FLASH_SIZE>) -> Result<R>,
+    ) -> Result<R> {
+        self.flash.lock(|flash| {
+            let mut flash_ref = flash.borrow_mut();
+            f(&mut *flash_ref)
+        })
+    }
+}
 
 /// Notifier type for the `Flash` device abstraction.
 pub struct FlashNotifier {
-    flash_cell: StaticCell<EmbassyFlash<'static, FLASH, Blocking, INTERNAL_FLASH_SIZE>>,
+    flash_cell: StaticCell<FlashInner>,
 }
 
 impl FlashNotifier {
@@ -66,7 +100,9 @@ impl FlashNotifier {
 /// A device abstraction for type-safe persistent storage in flash memory.
 ///
 /// This provides type-safe persistent storage using postcard serialization with whiteboard
-/// semantics—reading with a different type than what was saved returns `None`.
+/// semantics—reading with a different type than what was saved returns `None`. Conceptually,
+/// a `Flash` value is like a mutable slice of blocks; you can `split` it to hand disjoint regions
+/// to subsystems that manage their portion of flash independently.
 ///
 /// # Examples
 ///
@@ -90,18 +126,20 @@ impl FlashNotifier {
 /// # async fn example() -> serials::Result<()> {
 /// let p = embassy_rp::init(Default::default());
 ///
-/// // Initialize Flash device using the notifier pattern
 /// static FLASH_NOTIFIER: FlashNotifier = Flash::notifier();
-/// let mut flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
+/// let flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
 ///
-/// // Load existing config from block 2, or use defaults
-/// let mut config = flash.load::<DeviceConfig>(2)?.unwrap_or_default();
+/// // Reserve the first block for configuration data and ignore the remainder for now.
+/// let (mut config_flash, _) = flash.split(1);
+///
+/// // Load existing config (block indices are relative to the partition, so 0 here)
+/// let mut config = config_flash.load::<DeviceConfig>(0)?.unwrap_or_default();
 ///
 /// // Modify and save
 /// config.brightness = 255;
-/// flash.save(2, &config)?;
+/// config_flash.save(0, &config)?;
 ///
-/// // Can also clear storage with: flash.clear(2)?;
+/// // Can also clear storage with: config_flash.clear(0)?;
 /// # Ok(())
 /// # }
 /// ```
@@ -118,7 +156,7 @@ impl FlashNotifier {
 /// # let p = embassy_rp::init(Default::default());
 /// # static FLASH_NOTIFIER: FlashNotifier = Flash::notifier();
 /// # let mut flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
-/// // Save a string to block 3
+/// // Save a string to block 3 (relative to the root partition)
 /// flash.save(3, &String::<64>::try_from("Hello")?)?;
 ///
 /// // Reading with a different type returns None (whiteboard semantics)
@@ -127,60 +165,69 @@ impl FlashNotifier {
 /// # Ok(())
 /// # }
 /// ```
+/// Partitioned flash view with exclusive access to a contiguous range of blocks.
 pub struct Flash {
-    flash: &'static mut EmbassyFlash<'static, FLASH, Blocking, INTERNAL_FLASH_SIZE>,
+    inner: &'static FlashInner,
+    start_block: u32,
+    block_count: u32,
 }
 
 impl Flash {
-    /// Create a new Flash device abstraction.
-    ///
-    /// This initializes the Flash peripheral and returns a device abstraction
-    /// that can be used to create FlashBlock instances.
-    ///
-    /// # Arguments
-    ///
-    /// * `notifier` - Static notifier created with `Flash::notifier()`
-    /// * `peripheral` - The FLASH peripheral from `embassy_rp::init()`
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # #![no_std]
-    /// # #![no_main]
-    /// # use panic_probe as _;
-    /// # use embassy_executor::Spawner;
-    /// # use serials::flash::Flash;
-    /// # async fn example(p: embassy_rp::Peripherals) {
-    /// static FLASH_NOTIFIER: serials::flash::FlashNotifier = Flash::notifier();
-    /// let flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
-    /// # }
-    /// ```
+    /// Create flash resources (root partition).
     #[must_use]
     pub const fn notifier() -> FlashNotifier {
         FlashNotifier::notifier()
     }
 
-    /// Create a new Flash device.
+    /// Create a new Flash manager that spans the whole flash space.
     #[must_use]
     pub fn new(notifier: &'static FlashNotifier, peripheral: Peri<'static, FLASH>) -> Self {
-        let flash = notifier
-            .flash_cell
-            .init(EmbassyFlash::new_blocking(peripheral));
-        Self { flash }
+        let inner = notifier.flash_cell.init(FlashInner::new(peripheral));
+        Self {
+            inner,
+            start_block: 0,
+            block_count: TOTAL_BLOCKS,
+        }
     }
 
-    /// Save data to a flash block.
-    ///
-    /// # Arguments
-    ///
-    /// * `block_id` - Unique identifier for this block (0-based from end of flash)
-    /// * `value` - The data to save
-    ///
-    /// See the [module-level documentation](crate::flash) for usage examples.
+    /// Number of blocks in this partition.
+    #[must_use]
+    pub fn len(&self) -> u32 {
+        self.block_count
+    }
+
+    /// Returns `true` if the partition contains no blocks.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.block_count == 0
+    }
+
+    /// Split this flash partition, returning disjoint left/right regions.
+    pub fn split(mut self, left_blocks: u32) -> (Self, Self) {
+        assert!(left_blocks <= self.block_count);
+        let left = Flash {
+            inner: self.inner,
+            start_block: self.start_block,
+            block_count: left_blocks,
+        };
+        self.start_block += left_blocks;
+        self.block_count -= left_blocks;
+        (left, self)
+    }
+
+    /// Convenience helper that carves out the first block in the partition.
+    pub fn take_first(self) -> (Self, Self) {
+        assert!(self.block_count >= 1);
+        self.split(1)
+    }
+
+    /// Save data to a block relative to this partition (0-based).
     pub fn save<T>(&mut self, block_id: u32, value: &T) -> Result<()>
     where
         T: Serialize + for<'de> Deserialize<'de>,
     {
+        let absolute_block = self.absolute_block(block_id)?;
+
         // Serialize to temporary buffer
         let mut payload_buffer = [0u8; MAX_PAYLOAD_SIZE];
         let payload_len = postcard::to_slice(value, &mut payload_buffer)
@@ -211,43 +258,47 @@ impl Flash {
         buffer[crc_offset..crc_offset + CRC_SIZE].copy_from_slice(&crc.to_le_bytes());
 
         // Write to flash
-        let offset = Self::block_offset(self.flash.capacity(), block_id);
-        self.flash
-            .blocking_erase(offset, offset + ERASE_SIZE as u32)
-            .map_err(Error::Flash)?;
-        self.flash
-            .blocking_write(offset, &buffer)
-            .map_err(Error::Flash)?;
+        let offset = block_offset(absolute_block);
+        self.inner.with_flash(|flash| {
+            flash
+                .blocking_erase(offset, offset + ERASE_SIZE as u32)
+                .map_err(Error::Flash)?;
+            flash
+                .blocking_write(offset, &buffer)
+                .map_err(Error::Flash)?;
+            Ok(())
+        })?;
 
-        info!("Flash: Saved {} bytes to block {}", payload_len, block_id);
+        info!(
+            "Flash: Saved {} bytes to block {} (absolute {})",
+            payload_len, block_id, absolute_block
+        );
         Ok(())
     }
 
-    /// Load data from a flash block.
-    ///
-    /// Returns `Ok(Some(value))` if valid data of the correct type is found,
-    /// `Ok(None)` if no data is stored or type mismatch occurs, or `Err` if
-    /// the stored data is corrupted.
-    ///
-    /// Type safety: If the stored data was saved with a different type, the type
-    /// hash will mismatch and this returns `Ok(None)`.
-    ///
-    /// See the [module-level documentation](crate::flash) for usage examples.
+    /// Load data from a relative block within this partition.
     pub fn load<T>(&mut self, block_id: u32) -> Result<Option<T>>
     where
         T: Serialize + for<'de> Deserialize<'de>,
     {
-        let offset = Self::block_offset(self.flash.capacity(), block_id);
+        let absolute_block = self.absolute_block(block_id)?;
+        let offset = block_offset(absolute_block);
         let mut buffer = [0u8; ERASE_SIZE];
 
-        self.flash
-            .blocking_read(offset, &mut buffer)
-            .map_err(Error::Flash)?;
+        self.inner.with_flash(|flash| {
+            flash
+                .blocking_read(offset, &mut buffer)
+                .map_err(Error::Flash)?;
+            Ok(())
+        })?;
 
         // Check magic number
         let magic = u32::from_le_bytes(buffer[0..4].try_into().unwrap());
         if magic != MAGIC {
-            info!("Flash: No data at block {}", block_id);
+            info!(
+                "Flash: No data at block {} (absolute {})",
+                block_id, absolute_block
+            );
             return Ok(None);
         }
 
@@ -256,8 +307,8 @@ impl Flash {
         let expected_type_hash = compute_type_hash::<T>();
         if stored_type_hash != expected_type_hash {
             info!(
-                "Flash: Type mismatch at block {} (expected hash {}, found {})",
-                block_id, expected_type_hash, stored_type_hash
+                "Flash: Type mismatch at block {} (abs {}) (expected hash {}, found {})",
+                block_id, absolute_block, expected_type_hash, stored_type_hash
             );
             return Ok(None);
         }
@@ -266,8 +317,8 @@ impl Flash {
         let payload_len = u16::from_le_bytes(buffer[8..10].try_into().unwrap()) as usize;
         if payload_len > MAX_PAYLOAD_SIZE {
             error!(
-                "Flash: Invalid payload length {} at block {}",
-                payload_len, block_id
+                "Flash: Invalid payload length {} at block {} (abs {})",
+                payload_len, block_id, absolute_block
             );
             return Err(Error::StorageCorrupted);
         }
@@ -282,8 +333,8 @@ impl Flash {
         let computed_crc = compute_crc(&buffer[0..crc_offset]);
         if stored_crc != computed_crc {
             error!(
-                "Flash: CRC mismatch at block {} (expected {}, found {})",
-                block_id, computed_crc, stored_crc
+                "Flash: CRC mismatch at block {} (abs {}) (expected {}, found {})",
+                block_id, absolute_block, computed_crc, stored_crc
             );
             return Err(Error::StorageCorrupted);
         }
@@ -291,43 +342,49 @@ impl Flash {
         // Deserialize payload
         let payload = &buffer[HEADER_SIZE..HEADER_SIZE + payload_len];
         let value: T = postcard::from_bytes(payload).map_err(|_| {
-            error!("Flash: Deserialization failed at block {}", block_id);
+            error!(
+                "Flash: Deserialization failed at block {} (abs {})",
+                block_id, absolute_block
+            );
             Error::StorageCorrupted
         })?;
 
-        info!("Flash: Loaded data from block {}", block_id);
+        info!(
+            "Flash: Loaded data from block {} (absolute {})",
+            block_id, absolute_block
+        );
         Ok(Some(value))
     }
 
-    /// Clear a flash block, erasing all stored data.
-    ///
-    /// See the [module-level documentation](crate::flash) for usage examples.
+    /// Clear a block relative to this partition.
     pub fn clear(&mut self, block_id: u32) -> Result<()> {
-        let offset = Self::block_offset(self.flash.capacity(), block_id);
-        self.flash
-            .blocking_erase(offset, offset + ERASE_SIZE as u32)
-            .map_err(Error::Flash)?;
-        info!("Flash: Cleared block {}", block_id);
+        let absolute_block = self.absolute_block(block_id)?;
+        let offset = block_offset(absolute_block);
+        self.inner.with_flash(|flash| {
+            flash
+                .blocking_erase(offset, offset + ERASE_SIZE as u32)
+                .map_err(Error::Flash)?;
+            Ok(())
+        })?;
+        info!(
+            "Flash: Cleared block {} (absolute {})",
+            block_id, absolute_block
+        );
         Ok(())
     }
 
-    /// Calculate the flash offset for a block.
-    ///
-    /// Blocks are allocated from the end of flash backwards.
-    fn block_offset(capacity: usize, block_id: u32) -> u32 {
-        let capacity = capacity as u32;
-        capacity - (block_id + 1) * ERASE_SIZE as u32
+    fn absolute_block(&self, block_id: u32) -> Result<u32> {
+        if block_id >= self.block_count {
+            return Err(Error::IndexOutOfBounds);
+        }
+        Ok(self.start_block + block_id)
     }
+}
 
-    /// Get a mutable reference to the underlying Flash peripheral.
-    ///
-    /// This is used by FlashBlock instances to perform read/write/erase operations.
-    #[must_use]
-    pub fn peripheral(
-        &mut self,
-    ) -> &mut EmbassyFlash<'static, FLASH, Blocking, INTERNAL_FLASH_SIZE> {
-        self.flash
-    }
+/// Blocks are allocated from the end of flash backwards.
+fn block_offset(block_id: u32) -> u32 {
+    let capacity = INTERNAL_FLASH_SIZE as u32;
+    capacity - (block_id + 1) * ERASE_SIZE as u32
 }
 
 /// Compute FNV-1a hash of the type name for type safety.

@@ -17,7 +17,7 @@ mod wifi_impl {
 
     use crate::Result;
     use crate::unix_seconds::UnixSeconds;
-    use crate::wifi::{Wifi, WifiEvent, WifiMode, WifiNotifier};
+    use crate::wifi::{Wifi, WifiEvent, WifiNotifier};
     use crate::wifi_config::WifiCredentials;
 
     // ============================================================================
@@ -79,11 +79,6 @@ mod wifi_impl {
             credentials: Option<WifiCredentials>,
             spawner: Spawner,
         ) -> &'static Self {
-            let mode = match credentials {
-                Some(creds) => WifiMode::ClientConfigured(creds),
-                None => WifiMode::AccessPoint,
-            };
-
             // Create WiFi device
             let wifi = Wifi::new(
                 &resources.wifi,
@@ -93,7 +88,7 @@ mod wifi_impl {
                 pin_24,
                 pin_29,
                 dma_ch0,
-                mode,
+                credentials,
                 spawner,
             );
 

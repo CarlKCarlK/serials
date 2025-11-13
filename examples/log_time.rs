@@ -56,10 +56,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     // Initialize flash storage for WiFi credentials and timezone offset
     static FLASH_NOTIFIER: FlashNotifier = Flash::notifier();
-    let mut flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
+    let flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
+    let (mut credential_flash, rest) = flash.take_first();
+    let (mut timezone_flash, _) = rest.take_first();
 
-    let stored_credentials: Option<WifiCredentials> = flash.load(0)?;
-    let stored_offset: i32 = flash.load::<i32>(1)?.unwrap_or(0);
+    let stored_credentials: Option<WifiCredentials> = credential_flash.load(0)?;
+    let stored_offset: i32 = timezone_flash.load::<i32>(0)?.unwrap_or(0);
 
     // Create Clock device (starts ticking immediately)
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
@@ -124,8 +126,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         clock
             .set_utc_offset_minutes(submission.timezone_offset_minutes)
             .await;
-        flash.save(0, &submission.credentials)?;
-        flash.save(1, &submission.timezone_offset_minutes)?;
+        credential_flash.save(0, &submission.credentials)?;
+        timezone_flash.save(0, &submission.timezone_offset_minutes)?;
         info!("Device will reboot and connect using the stored credentials.");
         info!("==========================================================");
 

@@ -246,10 +246,7 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
                     }
                     ClockCommand::SetUtcOffset { minutes } => {
                         offset_minutes = minutes;
-                        #[expect(
-                            clippy::arithmetic_side_effects,
-                            reason = "offset bounds checked"
-                        )]
+                        #[expect(clippy::arithmetic_side_effects, reason = "offset bounds checked")]
                         {
                             utc_offset = UtcOffset::from_whole_seconds(offset_minutes * 60)
                                 .unwrap_or(UtcOffset::UTC);
@@ -261,10 +258,7 @@ async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<In
                                 .expect("valid offset datetime");
                         }
 
-                        info!(
-                            "Clock UTC offset updated to {} minutes",
-                            offset_minutes
-                        );
+                        info!("Clock UTC offset updated to {} minutes", offset_minutes);
                     }
                 }
             }
