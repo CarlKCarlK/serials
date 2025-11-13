@@ -16,7 +16,7 @@ use panic_probe as _;
 use serde::{Deserialize, Serialize};
 
 use serials::Result;
-use serials::flash_slice::{FlashArray, FlashArrayHandle};
+use serials::flash_array::{FlashArray, FlashArrayHandle};
 
 // ============================================================================
 // Test Data Structures

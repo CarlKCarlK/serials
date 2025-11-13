@@ -13,9 +13,9 @@
 //!
 //! # Block Allocation
 //!
-//! Conceptually, flash is treated as a slice of fixed-size erase blocks counted from the end of
-//! memory backwards. Code can carve out disjoint partitions at compile time (like `split_at_mut`
-//! on slices) and hand those partitions to subsystems that need persistent storage.
+//! Conceptually, flash is treated as an array of fixed-size erase blocks counted from the end of
+//! memory backwards. Code can carve out disjoint partitions at compile time (similar to using
+//! `split_at_mut` on slices) and hand those partitions to subsystems that need persistent storage.
 //!
 //! ⚠️ **Warning**: The RP2040 stores firmware, vector tables, and user data in the same flash
 //! device. Only request block handles from regions you have explicitly reserved for storage.
@@ -137,13 +137,13 @@ impl FlashBlock {
     }
 }
 
-/// Notifier type for constructing flash slices.
-pub struct FlashSliceNotifier {
+/// Notifier type for constructing flash arrays.
+pub struct FlashArrayNotifier {
     manager_cell: StaticCell<FlashManager>,
     manager_ref: Mutex<CriticalSectionRawMutex, core::cell::RefCell<Option<&'static FlashManager>>>,
 }
 
-impl FlashSliceNotifier {
+impl FlashArrayNotifier {
     /// Create flash resources.
     #[must_use]
     pub const fn notifier() -> Self {
@@ -182,7 +182,7 @@ impl FlashSliceNotifier {
 /// # #![no_main]
 /// # use panic_probe as _;
 /// use serde::{Serialize, Deserialize};
-/// use serials::flash_slice::{FlashArray, FlashArrayHandle};
+/// use serials::flash_array::{FlashArray, FlashArrayHandle};
 ///
 /// // Define your configuration type
 /// #[derive(Serialize, Deserialize, Debug, Default)]
@@ -219,7 +219,7 @@ impl FlashSliceNotifier {
 /// # #![no_main]
 /// # use panic_probe as _;
 /// # use heapless::String;
-/// # use serials::flash_slice::{FlashArray, FlashArrayHandle};
+/// # use serials::flash_array::{FlashArray, FlashArrayHandle};
 /// # async fn example() -> serials::Result<()> {
 /// # let p = embassy_rp::init(Default::default());
 /// # static FLASH_HANDLE: FlashArrayHandle = FlashArray::<1>::handle();
@@ -232,49 +232,26 @@ impl FlashSliceNotifier {
 /// # Ok(())
 /// # }
 /// ```
-/// Marker type used as a namespace for creating flash slices of length `N`.
-pub struct FlashSlice<const N: usize>;
+/// Marker type used as a namespace for creating flash-backed arrays of length `N`.
+pub struct FlashArray<const N: usize>;
 
-impl<const N: usize> FlashSlice<N> {
-    /// Get a notifier for creating flash slices.
+impl<const N: usize> FlashArray<N> {
+    /// Get a notifier for creating flash arrays.
     #[must_use]
-    pub const fn notifier() -> FlashSliceNotifier {
-        FlashSliceNotifier::notifier()
+    pub const fn notifier() -> FlashArrayNotifier {
+        FlashArrayNotifier::notifier()
     }
 
     /// Reserve `N` contiguous blocks (starting from block 0 on the first call) and return them as
     /// an array that you can destructure however you like.
-    pub fn new(
-        notifier: &'static FlashSliceNotifier,
+    pub fn reserve_with_notifier(
+        notifier: &'static FlashArrayNotifier,
         peripheral: Peri<'static, FLASH>,
     ) -> Result<[FlashBlock; N]> {
         let manager = notifier.manager(peripheral);
         manager.reserve::<N>()
     }
-}
 
-/// Handle for reserving flash blocks via [`FlashArray`].
-pub struct FlashArrayHandle {
-    notifier: FlashSliceNotifier,
-}
-
-impl FlashArrayHandle {
-    #[must_use]
-    pub const fn new() -> Self {
-        Self {
-            notifier: FlashSliceNotifier::notifier(),
-        }
-    }
-
-    fn notifier(&'static self) -> &'static FlashSliceNotifier {
-        &self.notifier
-    }
-}
-
-/// Convenience wrapper that reserves a compile-time length of blocks and returns them as an array.
-pub struct FlashArray<const N: usize>;
-
-impl<const N: usize> FlashArray<N> {
     /// Create a handle that can later be used to reserve `N` blocks.
     #[must_use]
     pub const fn handle() -> FlashArrayHandle {
@@ -286,7 +263,25 @@ impl<const N: usize> FlashArray<N> {
         handle: &'static FlashArrayHandle,
         peripheral: Peri<'static, FLASH>,
     ) -> Result<[FlashBlock; N]> {
-        FlashSlice::<N>::new(handle.notifier(), peripheral)
+        Self::reserve_with_notifier(handle.notifier(), peripheral)
+    }
+}
+
+/// Handle for reserving flash blocks via [`FlashArray`].
+pub struct FlashArrayHandle {
+    notifier: FlashArrayNotifier,
+}
+
+impl FlashArrayHandle {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            notifier: FlashArrayNotifier::notifier(),
+        }
+    }
+
+    fn notifier(&'static self) -> &'static FlashArrayNotifier {
+        &self.notifier
     }
 }
 

@@ -35,7 +35,7 @@ use serials::Error;
 use serials::Result;
 use serials::clock::{Clock, ClockNotifier};
 use serials::dns_server::dns_server_task;
-use serials::flash_slice::{FlashArray, FlashArrayHandle, FlashBlock};
+use serials::flash_array::{FlashArray, FlashArrayHandle, FlashBlock};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 use serials::wifi_config::collect_wifi_credentials;
 
@@ -55,7 +55,6 @@ impl TimezoneStore {
     fn save(&mut self, offset: i32) -> Result<()> {
         self.block.save(&offset)
     }
-
 }
 
 // ============================================================================

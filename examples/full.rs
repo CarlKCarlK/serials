@@ -21,7 +21,7 @@ use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdNotifier};
 use serials::clock::{Clock, ClockEvent, ClockNotifier, ClockState};
 #[cfg(feature = "wifi")]
-use serials::flash_slice::{FlashArray, FlashArrayHandle};
+use serials::flash_array::{FlashArray, FlashArrayHandle};
 use serials::ir::{Ir, IrEvent, IrNotifier};
 use serials::led_strip::Rgb;
 use serials::led_strip::colors;

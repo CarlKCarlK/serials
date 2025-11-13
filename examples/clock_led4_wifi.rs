@@ -22,7 +22,7 @@ use serials::button::Button;
 use serials::clock_led4::state::ClockLed4State;
 use serials::clock_led4::{ClockLed4 as Clock, ClockLed4Notifier as ClockNotifier};
 use serials::dns_server::dns_server_task;
-use serials::flash_slice::{FlashArray, FlashArrayHandle, FlashBlock};
+use serials::flash_array::{FlashArray, FlashArrayHandle, FlashBlock};
 use serials::led4::OutputArray;
 use serials::time_sync::{TimeSync, TimeSyncNotifier};
 use serials::wifi::Wifi;

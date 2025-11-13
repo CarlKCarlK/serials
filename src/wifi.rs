@@ -15,7 +15,7 @@
 //! # #![no_main]
 //! # use panic_probe as _;
 //! # use core::default::Default;
-//! use serials::flash_slice::{FlashArray, FlashArrayHandle};
+//! use serials::flash_array::{FlashArray, FlashArrayHandle};
 //! use serials::wifi::Wifi;
 //!
 //! # async fn example(spawner: embassy_executor::Spawner) {
@@ -55,7 +55,7 @@
 //! # #![no_main]
 //! # use panic_probe as _;
 //! # use core::default::Default;
-//! use serials::flash_slice::{FlashArray, FlashArrayHandle};
+//! use serials::flash_array::{FlashArray, FlashArrayHandle};
 //! use serials::wifi::Wifi;
 //! use serials::wifi_config::WifiCredentials;
 //!
@@ -109,7 +109,7 @@ use portable_atomic::{AtomicBool, Ordering};
 use static_cell::StaticCell;
 
 use crate::dhcp_server::dhcp_server_task;
-use crate::flash_slice::FlashBlock;
+use crate::flash_array::FlashBlock;
 use crate::wifi_config::WifiCredentials;
 
 // ============================================================================

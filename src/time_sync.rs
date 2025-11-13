@@ -16,7 +16,7 @@ mod wifi_impl {
     use static_cell::StaticCell;
 
     use crate::Result;
-    use crate::flash_slice::FlashBlock;
+    use crate::flash_array::FlashBlock;
     use crate::unix_seconds::UnixSeconds;
     use crate::wifi::{Wifi, WifiEvent, WifiNotifier};
     use crate::wifi_config::WifiCredentials;

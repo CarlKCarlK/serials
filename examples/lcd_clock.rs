@@ -14,7 +14,7 @@ use panic_probe as _;
 use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdNotifier};
 use serials::clock::{Clock, ClockNotifier};
-use serials::flash_slice::{FlashArray, FlashArrayHandle};
+use serials::flash_array::{FlashArray, FlashArrayHandle};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 
 // ============================================================================
