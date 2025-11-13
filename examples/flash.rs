@@ -16,7 +16,7 @@ use panic_probe as _;
 use serde::{Deserialize, Serialize};
 
 use serials::Result;
-use serials::flash::{FlashSlice, FlashSliceNotifier};
+use serials::flash_slice::{FlashSlice, FlashSliceNotifier};
 
 // ============================================================================
 // Test Data Structures

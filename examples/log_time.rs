@@ -34,7 +34,7 @@ use panic_probe as _;
 use serials::Result;
 use serials::clock::{Clock, ClockNotifier};
 use serials::dns_server::dns_server_task;
-use serials::flash::{FlashSlice, FlashSliceNotifier};
+use serials::flash_slice::{FlashSlice, FlashSliceNotifier};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 use serials::wifi_config::{WifiCredentials, collect_wifi_credentials};
 

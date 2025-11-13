@@ -42,7 +42,7 @@ pub mod dns_server;
 #[cfg(not(feature = "host"))]
 mod error;
 #[cfg(not(feature = "host"))]
-pub mod flash;
+pub mod flash_slice;
 #[cfg(not(feature = "host"))]
 pub mod ir;
 #[cfg(not(feature = "host"))]

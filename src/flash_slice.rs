@@ -1,3 +1,4 @@
+//! cmk Need to read and update all docs
 //! A device abstraction for type-safe persistent storage in flash memory.
 //!
 //! This module provides a generic flash block storage system that allows storing any
@@ -182,7 +183,7 @@ impl FlashSliceNotifier {
 /// # #![no_main]
 /// # use panic_probe as _;
 /// use serde::{Serialize, Deserialize};
-/// use serials::flash::{FlashSlice, FlashSliceNotifier};
+/// use serials::flash_slice::{FlashSlice, FlashSliceNotifier};
 ///
 /// // Define your configuration type
 /// #[derive(Serialize, Deserialize, Debug, Default)]
@@ -222,7 +223,7 @@ impl FlashSliceNotifier {
 /// # #![no_main]
 /// # use panic_probe as _;
 /// # use heapless::String;
-/// # use serials::flash::{FlashSlice, FlashSliceNotifier};
+/// # use serials::flash_slice::{FlashSlice, FlashSliceNotifier};
 /// # async fn example() -> serials::Result<()> {
 /// # let p = embassy_rp::init(Default::default());
 /// # static FLASH_SLICE_NOTIFIER: FlashSliceNotifier = FlashSlice::<1>::notifier();
