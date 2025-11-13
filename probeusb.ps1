@@ -1,120 +1,84 @@
-<#
-.SYNOPSIS
-    Helper for moving a CMSIS-DAP style debug probe between Windows and WSL.
-.DESCRIPTION
-    - No argument: shows who currently owns the probe.
-    - 'wsl': attaches the probe to WSL (Windows loses access).
-    - 'win': detaches from WSL so Windows regains the device.
-    The script assumes exactly one debug probe is connected. If multiple USB
-    devices are present, it tries to match names containing "probe", "CMSIS",
-    or "DAP". Override the match via $env:PROBEUSB_PATTERN when needed.
-#>
 param(
-    [Parameter(Position = 0)]
     [ValidateSet('win', 'wsl')]
-    [string]$Target
+    [string]$Mode
 )
 
-Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
+# Look for the Raspberry Pi Debug Probe (CMSIS-DAP) by VID:PID 2e8a:000c
+$probeLine = usbipd list | Select-String '2e8a:000c'
 
-function Invoke-Usbipd {
-    param(
-        [Parameter(Mandatory)]
-        [string[]]$Arguments
-    )
-
-    $output = & usbipd @Arguments 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "usbipd $($Arguments -join ' ') failed:`n$output"
-    }
-    return $output
-}
-
-function Get-ProbeDevice {
-    $list = Invoke-Usbipd -Arguments @('wsl', 'list')
-    $deviceLines = $list | Where-Object { $_ -match '^\s*\d+-\d+' }
-    $devices = foreach ($line in $deviceLines) {
-        $parts = $line.Trim() -split '\s{2,}'
-        if ($parts.Length -lt 4) { continue }
-        [PSCustomObject]@{
-            BusId  = $parts[0]
-            VidPid = $parts[1]
-            State  = $parts[2]
-            Name   = ($parts[3..($parts.Length - 1)] -join '  ')
-        }
-    }
-
-    if (-not $devices) {
-        throw 'No USB devices detected via usbipd.'
-    }
-
-    $pattern = $env:PROBEUSB_PATTERN
-    if (-not $pattern) {
-        $pattern = '(?i)(probe|cmsis|dap)'
-    }
-
-    $candidates = $devices | Where-Object { $_.Name -match $pattern }
-    if (-not $candidates) {
-        if ($devices.Count -eq 1) {
-            return $devices[0]
-        }
-        throw "Unable to identify the probe. Set PROBEUSB_PATTERN to part of its name.`nDevices:`n$($devices | Format-Table -AutoSize | Out-String)"
-    }
-
-    if ($candidates.Count -gt 1) {
-        throw "Multiple devices match '$pattern'. Tighten PROBEUSB_PATTERN.`nMatches:`n$($candidates | Format-Table -AutoSize | Out-String)"
-    }
-
-    return $candidates[0]
-}
-
-function Describe-State {
-    param([string]$State)
-    if ($State -eq 'Attached') {
-        return 'WSL'
-    }
-    return 'Windows'
-}
-
-try {
-    $device = Get-ProbeDevice
-} catch {
-    Write-Error $_
+if (-not $probeLine) {
+    Write-Host "No Raspberry Pi Debug Probe (VID:PID 2e8a:000c) found." -ForegroundColor Yellow
     exit 1
 }
 
-switch ($Target) {
+$line = $probeLine.ToString()
+
+# Grab BUSID (pattern like 6-4) from the start of the line. Some usbipd versions add
+# leading whitespace, so rely on a regex rather than positional splitting.
+$busMatch = [regex]::Match($line, '^\s*(?<busid>\d+-\d+)')
+if (-not $busMatch.Success) {
+    Write-Host "Unable to parse BUSID from usbipd output: '$line'" -ForegroundColor Red
+    exit 1
+}
+$busId = $busMatch.Groups['busid'].Value
+
+# Extract "STATE" via regex: everything after double-space after the device name
+# We match: "2e8a:000c  <device text>  <state>"
+$match = [regex]::Match($line, '2e8a:000c\s+(?<device>.+?)\s{2,}(?<state>.+)$')
+if ($match.Success) {
+    $deviceName = $match.Groups['device'].Value.Trim()
+    $state      = $match.Groups['state'].Value.Trim()
+} else {
+    $deviceName = "Unknown device name"
+    $state      = "Unknown"
+}
+
+switch ($Mode) {
     'wsl' {
-        if ($device.State -eq 'Attached') {
-            Write-Host "Probe already attached to WSL (bus $($device.BusId))."
+        if ($state -like 'Attached*') {
+            Write-Host "Probe is already attached to WSL: $state" -ForegroundColor Green
             break
         }
 
-        Write-Host "Attaching $($device.Name) on bus $($device.BusId) to WSL..."
-        Invoke-Usbipd -Arguments @('wsl', 'attach', '--busid', $device.BusId)
-        Write-Host 'Done. Windows now relinquishes the probe.'
-    }
-    'win' {
-        if ($device.State -ne 'Attached') {
-            Write-Host "Probe already owned by Windows (bus $($device.BusId))."
-            break
-        }
+        Write-Host "Attaching probe $busId to WSL..." -ForegroundColor Cyan
+        usbipd attach --busid $busId --wsl
 
-        Write-Host "Detaching $($device.Name) from WSL (bus $($device.BusId))..."
-        Invoke-Usbipd -Arguments @('wsl', 'detach', '--busid', $device.BusId)
-        Write-Host 'Done. Windows can now access the probe/COM port.'
-    }
-    Default {
-        $owner = Describe-State -State $device.State
-        Write-Host "Probe: $($device.Name)"
-        Write-Host "BusID: $($device.BusId)"
-        Write-Host "VID:PID: $($device.VidPid)"
-        Write-Host "Owner: $owner"
-        if ($owner -eq 'WSL') {
-            Write-Host 'Run: powershell -File .\probeusb.ps1 win   # return to Windows'
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "Probe $busId attached to WSL (default distro)." -ForegroundColor Green
         } else {
-            Write-Host 'Run: powershell -File .\probeusb.ps1 wsl   # hand over to WSL'
+            Write-Host "Failed to attach probe $busId to WSL." -ForegroundColor Red
+        }
+    }
+
+    'win' {
+        if ($state -like 'Attached*') {
+            Write-Host "Detaching probe $busId from WSL so Windows can use it..." -ForegroundColor Cyan
+            usbipd detach --busid $busId
+
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "Probe $busId detached from WSL; Windows now owns it." -ForegroundColor Green
+            } else {
+                Write-Host "Failed to detach probe $busId from WSL." -ForegroundColor Red
+            }
+        } else {
+            Write-Host "Probe is not attached to WSL (state: '$state'). Windows already owns it." -ForegroundColor Green
+        }
+    }
+
+    default {
+        Write-Host "Found Debug Probe:" -ForegroundColor Cyan
+        Write-Host "  BUSID : $busId"
+        Write-Host "  Device: $deviceName"
+        Write-Host "  State : $state"
+
+        if ($state -like 'Attached*') {
+            Write-Host "→ Probe is currently attached to WSL." -ForegroundColor Yellow
+        } elseif ($state -like 'Shared*') {
+            Write-Host "→ Probe is shareable and currently usable by Windows; WSL can attach it." -ForegroundColor Yellow
+        } elseif ($state -like 'Not shared*') {
+            Write-Host "→ Probe is only visible to Windows (not shared with WSL yet)." -ForegroundColor Yellow
+        } else {
+            Write-Host "→ Probe state is unrecognized; run 'usbipd list' for details." -ForegroundColor Yellow
         }
     }
 }
