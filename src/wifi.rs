@@ -15,15 +15,15 @@
 //! # #![no_main]
 //! # use panic_probe as _;
 //! # use core::default::Default;
-//! use serials::flash_array::{FlashArray, FlashArrayHandle};
+//! use serials::flash_array::{FlashArray, FlashArrayNotifier};
 //! use serials::wifi::Wifi;
 //!
 //! # async fn example(spawner: embassy_executor::Spawner) {
 //! let p = embassy_rp::init(Default::default());
 //!
 //! static WIFI_NOTIFIER: serials::wifi::WifiNotifier = Wifi::notifier();
-//! static FLASH_HANDLE: FlashArrayHandle = FlashArray::<1>::handle();
-//! let [wifi_block] = FlashArray::new(&FLASH_HANDLE, p.FLASH).unwrap();
+//! static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
+//! let [wifi_block] = FlashArray::new(&FLASH_NOTIFIER, p.FLASH).unwrap();
 //!
 //! // Start in AP mode for user configuration
 //! let wifi = Wifi::new(
@@ -55,7 +55,7 @@
 //! # #![no_main]
 //! # use panic_probe as _;
 //! # use core::default::Default;
-//! use serials::flash_array::{FlashArray, FlashArrayHandle};
+//! use serials::flash_array::{FlashArray, FlashArrayNotifier};
 //! use serials::wifi::Wifi;
 //! use serials::wifi_config::WifiCredentials;
 //!
@@ -63,8 +63,8 @@
 //! let p = embassy_rp::init(Default::default());
 //!
 //! static WIFI_NOTIFIER: serials::wifi::WifiNotifier = Wifi::notifier();
-//! static FLASH_HANDLE: FlashArrayHandle = FlashArray::<1>::handle();
-//! let [wifi_block] = FlashArray::new(&FLASH_HANDLE, p.FLASH).unwrap();
+//! static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
+//! let [wifi_block] = FlashArray::new(&FLASH_NOTIFIER, p.FLASH).unwrap();
 //!
 //! // Connect using credentials that were provisioned earlier (e.g., loaded from flash)
 //! let wifi = Wifi::new(

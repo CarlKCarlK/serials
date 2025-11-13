@@ -182,7 +182,7 @@ impl FlashArrayNotifier {
 /// # #![no_main]
 /// # use panic_probe as _;
 /// use serde::{Serialize, Deserialize};
-/// use serials::flash_array::{FlashArray, FlashArrayHandle};
+/// use serials::flash_array::{FlashArray, FlashArrayNotifier};
 ///
 /// // Define your configuration type
 /// #[derive(Serialize, Deserialize, Debug, Default)]
@@ -195,8 +195,8 @@ impl FlashArrayNotifier {
 /// # async fn example() -> serials::Result<()> {
 /// let p = embassy_rp::init(Default::default());
 ///
-/// static FLASH_HANDLE: FlashArrayHandle = FlashArray::<1>::handle();
-/// let [mut device_config_block] = FlashArray::new(&FLASH_HANDLE, p.FLASH)?;
+/// static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
+/// let [mut device_config_block] = FlashArray::new(&FLASH_NOTIFIER, p.FLASH)?;
 ///
 /// // Load existing config if present.
 /// let mut device_config: DeviceConfig = device_config_block
@@ -219,11 +219,11 @@ impl FlashArrayNotifier {
 /// # #![no_main]
 /// # use panic_probe as _;
 /// # use heapless::String;
-/// # use serials::flash_array::{FlashArray, FlashArrayHandle};
+/// # use serials::flash_array::{FlashArray, FlashArrayNotifier};
 /// # async fn example() -> serials::Result<()> {
 /// # let p = embassy_rp::init(Default::default());
-/// # static FLASH_HANDLE: FlashArrayHandle = FlashArray::<1>::handle();
-/// # let [mut string_block] = FlashArray::new(&FLASH_HANDLE, p.FLASH)?;
+/// # static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
+/// # let [mut string_block] = FlashArray::new(&FLASH_NOTIFIER, p.FLASH)?;
 /// string_block.save(&String::<64>::try_from("Hello")?)?;
 ///
 /// // Reading with a different type returns None (whiteboard semantics)
@@ -244,44 +244,12 @@ impl<const N: usize> FlashArray<N> {
 
     /// Reserve `N` contiguous blocks (starting from block 0 on the first call) and return them as
     /// an array that you can destructure however you like.
-    pub fn reserve_with_notifier(
+    pub fn new(
         notifier: &'static FlashArrayNotifier,
         peripheral: Peri<'static, FLASH>,
     ) -> Result<[FlashBlock; N]> {
         let manager = notifier.manager(peripheral);
         manager.reserve::<N>()
-    }
-
-    /// Create a handle that can later be used to reserve `N` blocks.
-    #[must_use]
-    pub const fn handle() -> FlashArrayHandle {
-        FlashArrayHandle::new()
-    }
-
-    /// Reserve `N` contiguous blocks using the provided handle and peripheral.
-    pub fn new(
-        handle: &'static FlashArrayHandle,
-        peripheral: Peri<'static, FLASH>,
-    ) -> Result<[FlashBlock; N]> {
-        Self::reserve_with_notifier(handle.notifier(), peripheral)
-    }
-}
-
-/// Handle for reserving flash blocks via [`FlashArray`].
-pub struct FlashArrayHandle {
-    notifier: FlashArrayNotifier,
-}
-
-impl FlashArrayHandle {
-    #[must_use]
-    pub const fn new() -> Self {
-        Self {
-            notifier: FlashArrayNotifier::notifier(),
-        }
-    }
-
-    fn notifier(&'static self) -> &'static FlashArrayNotifier {
-        &self.notifier
     }
 }
 

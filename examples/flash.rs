@@ -16,7 +16,7 @@ use panic_probe as _;
 use serde::{Deserialize, Serialize};
 
 use serials::Result;
-use serials::flash_array::{FlashArray, FlashArrayHandle};
+use serials::flash_array::{FlashArray, FlashArrayNotifier};
 
 // ============================================================================
 // Test Data Structures
@@ -43,8 +43,8 @@ async fn inner_main(_spawner: Spawner) -> Result<()> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize Flash device using the notifier pattern
-    static FLASH_HANDLE: FlashArrayHandle = FlashArray::<5>::handle();
-    let [_, _, _, mut string_block, mut config_block] = FlashArray::new(&FLASH_HANDLE, p.FLASH)?;
+    static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<5>::notifier();
+    let [_, _, _, mut string_block, mut config_block] = FlashArray::new(&FLASH_NOTIFIER, p.FLASH)?;
 
     info!("Part 1: Storing data to flash");
     string_block.save(&String::<64>::try_from("Hello, Flash Storage!")?)?;

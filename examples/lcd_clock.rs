@@ -14,7 +14,7 @@ use panic_probe as _;
 use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdNotifier};
 use serials::clock::{Clock, ClockNotifier};
-use serials::flash_array::{FlashArray, FlashArrayHandle};
+use serials::flash_array::{FlashArray, FlashArrayNotifier};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 
 // ============================================================================
@@ -50,8 +50,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static TIME_SYNC: TimeSyncNotifier = TimeSync::notifier();
     #[cfg(feature = "wifi")]
     let time_sync = {
-        static WIFI_FLASH_HANDLE: FlashArrayHandle = FlashArray::<1>::handle();
-        let [wifi_block] = FlashArray::new(&WIFI_FLASH_HANDLE, p.FLASH)?;
+        static WIFI_FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
+        let [wifi_block] = FlashArray::new(&WIFI_FLASH_NOTIFIER, p.FLASH)?;
         TimeSync::new(
             &TIME_SYNC, p.PIN_23,  // WiFi power enable
             p.PIN_25,  // WiFi SPI chip select

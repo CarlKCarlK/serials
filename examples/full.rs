@@ -21,7 +21,7 @@ use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdNotifier};
 use serials::clock::{Clock, ClockEvent, ClockNotifier, ClockState};
 #[cfg(feature = "wifi")]
-use serials::flash_array::{FlashArray, FlashArrayHandle};
+use serials::flash_array::{FlashArray, FlashArrayNotifier};
 use serials::ir::{Ir, IrEvent, IrNotifier};
 use serials::led_strip::Rgb;
 use serials::led_strip::colors;
@@ -119,8 +119,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
     #[cfg(feature = "wifi")]
     let time_sync = {
-        static WIFI_FLASH_HANDLE: FlashArrayHandle = FlashArray::<1>::handle();
-        let [wifi_block] = FlashArray::new(&WIFI_FLASH_HANDLE, p.FLASH)?;
+        static WIFI_FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
+        let [wifi_block] = FlashArray::new(&WIFI_FLASH_NOTIFIER, p.FLASH)?;
         TimeSync::new(
             &TIME_SYNC_NOTIFIER,
             p.PIN_23, // WiFi power enable

@@ -35,7 +35,7 @@ use serials::Error;
 use serials::Result;
 use serials::clock::{Clock, ClockNotifier};
 use serials::dns_server::dns_server_task;
-use serials::flash_array::{FlashArray, FlashArrayHandle, FlashBlock};
+use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 use serials::wifi_config::collect_wifi_credentials;
 
@@ -74,8 +74,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize flash storage for WiFi credentials and timezone offset
-    static FLASH_HANDLE: FlashArrayHandle = FlashArray::<2>::handle();
-    let [wifi_block, timezone_block] = FlashArray::new(&FLASH_HANDLE, p.FLASH)?;
+    static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<2>::notifier();
+    let [wifi_block, timezone_block] = FlashArray::new(&FLASH_NOTIFIER, p.FLASH)?;
     let mut timezone_store = TimezoneStore::new(timezone_block);
 
     let stored_offset: i32 = timezone_store.load()?;
