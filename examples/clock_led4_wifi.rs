@@ -23,7 +23,7 @@ use serials::button::Button;
 use serials::clock_led4::state::ClockLed4State;
 use serials::clock_led4::{ClockLed4 as Clock, ClockLed4Notifier as ClockNotifier};
 use serials::dns_server::dns_server_task;
-use serials::flash::{Flash, FlashNotifier};
+use serials::flash::{FlashBlock, FlashSlice, FlashSliceNotifier};
 use serials::led4::OutputArray;
 use serials::time_sync::{TimeSync, TimeSyncNotifier};
 use serials::wifi_config::{WifiCredentials, collect_wifi_credentials};
@@ -32,12 +32,12 @@ use panic_probe as _;
 use serials::clock_led4::time::{current_utc_offset_minutes, set_initial_utc_offset_minutes};
 
 struct WifiFlashStore {
-    credentials: Flash,
-    timezone: Flash,
+    credentials: FlashBlock,
+    timezone: FlashBlock,
 }
 
 impl WifiFlashStore {
-    fn new(credentials: Flash, timezone: Flash) -> Self {
+    fn new(credentials: FlashBlock, timezone: FlashBlock) -> Self {
         Self {
             credentials,
             timezone,
@@ -45,27 +45,27 @@ impl WifiFlashStore {
     }
 
     fn load_credentials(&mut self) -> Result<Option<WifiCredentials>> {
-        self.credentials.load(0)
+        self.credentials.load()
     }
 
     fn save_credentials(&mut self, creds: &WifiCredentials) -> Result<()> {
-        self.credentials.save(0, creds)
+        self.credentials.save(creds)
     }
 
     fn clear_credentials(&mut self) -> Result<()> {
-        self.credentials.clear(0)
+        self.credentials.clear()
     }
 
     fn load_timezone_offset(&mut self) -> Result<i32> {
-        Ok(self.timezone.load::<i32>(0)?.unwrap_or(0))
+        Ok(self.timezone.load::<i32>()?.unwrap_or(0))
     }
 
     fn save_timezone_offset(&mut self, offset: &i32) -> Result<()> {
-        self.timezone.save(0, offset)
+        self.timezone.save(offset)
     }
 
     fn clear_timezone_offset(&mut self) -> Result<()> {
-        self.timezone.clear(0)
+        self.timezone.clear()
     }
 }
 
@@ -80,11 +80,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize flash storage
-    static FLASH_NOTIFIER: FlashNotifier = Flash::notifier();
-    let flash_root = Flash::new(&FLASH_NOTIFIER, p.FLASH);
-    let (credentials_flash, rest) = flash_root.take_first();
-    let (timezone_flash, _) = rest.take_first();
-    let mut flash = WifiFlashStore::new(credentials_flash, timezone_flash);
+    static FLASH_SLICE_NOTIFIER: FlashSliceNotifier = FlashSlice::<2>::notifier();
+    let [credentials_block, timezone_block] = FlashSlice::new(&FLASH_SLICE_NOTIFIER, p.FLASH)?;
+    let mut flash = WifiFlashStore::new(credentials_block, timezone_block);
 
     // Initialize LED (unused but kept for compatibility)
     let mut led = gpio::Output::new(p.PIN_0, Level::Low);

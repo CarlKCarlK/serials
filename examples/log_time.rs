@@ -34,7 +34,7 @@ use panic_probe as _;
 use serials::Result;
 use serials::clock::{Clock, ClockNotifier};
 use serials::dns_server::dns_server_task;
-use serials::flash::{Flash, FlashNotifier};
+use serials::flash::{FlashSlice, FlashSliceNotifier};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 use serials::wifi_config::{WifiCredentials, collect_wifi_credentials};
 
@@ -55,13 +55,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize flash storage for WiFi credentials and timezone offset
-    static FLASH_NOTIFIER: FlashNotifier = Flash::notifier();
-    let flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
-    let (mut credential_flash, rest) = flash.take_first();
-    let (mut timezone_flash, _) = rest.take_first();
+    static FLASH_SLICE_NOTIFIER: FlashSliceNotifier = FlashSlice::<2>::notifier();
+    let [mut credential_block, mut timezone_block] =
+        FlashSlice::new(&FLASH_SLICE_NOTIFIER, p.FLASH)?;
 
-    let stored_credentials: Option<WifiCredentials> = credential_flash.load(0)?;
-    let stored_offset: i32 = timezone_flash.load::<i32>(0)?.unwrap_or(0);
+    let stored_credentials: Option<WifiCredentials> = credential_block.load()?;
+    let stored_offset: i32 = timezone_block.load::<i32>()?.unwrap_or(0);
 
     // Create Clock device (starts ticking immediately)
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
@@ -126,8 +125,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         clock
             .set_utc_offset_minutes(submission.timezone_offset_minutes)
             .await;
-        credential_flash.save(0, &submission.credentials)?;
-        timezone_flash.save(0, &submission.timezone_offset_minutes)?;
+        credential_block.save(&submission.credentials)?;
+        timezone_block.save(&submission.timezone_offset_minutes)?;
         info!("Device will reboot and connect using the stored credentials.");
         info!("==========================================================");
 
