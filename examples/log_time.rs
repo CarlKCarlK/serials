@@ -30,13 +30,13 @@ use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_net::Ipv4Address;
 use embassy_time::Timer;
+use panic_probe as _;
 use serials::Result;
 use serials::clock::{Clock, ClockNotifier};
-use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
-use serials::wifi_config::{collect_wifi_credentials, WifiCredentials};
 use serials::dns_server::dns_server_task;
 use serials::flash::{Flash, FlashNotifier};
-use panic_probe as _;
+use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
+use serials::wifi_config::{WifiCredentials, collect_wifi_credentials};
 
 // ============================================================================
 // Main
@@ -57,7 +57,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     // Initialize flash storage for WiFi credentials and timezone offset
     static FLASH_NOTIFIER: FlashNotifier = Flash::notifier();
     let mut flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
-    
+
     let stored_credentials: Option<WifiCredentials> = flash.load(0)?;
 
     // Create Clock device (starts ticking immediately)
@@ -68,12 +68,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
     let time_sync = TimeSync::new(
         &TIME_SYNC_NOTIFIER,
-        p.PIN_23,   // WiFi chip data out
-        p.PIN_25,   // WiFi chip data in
-        p.PIO0,     // PIO for WiFi chip communication
-        p.PIN_24,   // WiFi chip clock
-        p.PIN_29,   // WiFi chip select
-        p.DMA_CH0,  // DMA channel for WiFi
+        p.PIN_23,  // WiFi chip data out
+        p.PIN_25,  // WiFi chip data in
+        p.PIO0,    // PIO for WiFi chip communication
+        p.PIN_24,  // WiFi chip clock
+        p.PIN_29,  // WiFi chip select
+        p.DMA_CH0, // DMA channel for WiFi
         stored_credentials.clone(),
         spawner,
     );

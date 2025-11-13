@@ -10,11 +10,11 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use heapless::String;
+use panic_probe as _;
 use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdNotifier};
 use serials::clock::{Clock, ClockNotifier};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
-use panic_probe as _;
 
 // ============================================================================
 // Main Orchestrator
@@ -45,8 +45,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static TIME_SYNC: TimeSyncNotifier = TimeSync::notifier();
     #[cfg(feature = "wifi")]
     let time_sync = TimeSync::new(
-        &TIME_SYNC,
-        p.PIN_23,  // WiFi power enable
+        &TIME_SYNC, p.PIN_23,  // WiFi power enable
         p.PIN_25,  // WiFi SPI chip select
         p.PIO0,    // WiFi PIO block for SPI
         p.PIN_24,  // WiFi SPI MOSI

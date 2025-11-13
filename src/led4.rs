@@ -121,7 +121,8 @@ pub struct Led4<'a>(&'a Led4OuterNotifier);
 pub type Led4Notifier = (Led4OuterNotifier, Led4SimpleNotifier);
 
 /// Signal for sending blink state and text to the [`Led4`] device.
-pub(crate) type Led4OuterNotifier = Signal<CriticalSectionRawMutex, (BlinkState, [char; CELL_COUNT])>;
+pub(crate) type Led4OuterNotifier =
+    Signal<CriticalSectionRawMutex, (BlinkState, [char; CELL_COUNT])>;
 
 impl Led4<'_> {
     /// Creates the display device and spawns its background task.

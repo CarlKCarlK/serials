@@ -15,19 +15,19 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
-use heapless::{String, FnvIndexMap};
+use heapless::{FnvIndexMap, String};
+use panic_probe as _;
 use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdNotifier};
 use serials::clock::{Clock, ClockEvent, ClockNotifier, ClockState};
 use serials::ir::{Ir, IrEvent, IrNotifier};
-use serials::led24x4::Led24x4;
-use serials::rfid::{Rfid, RfidEvent, RfidNotifier};
-use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 use serials::led_strip::Rgb;
 use serials::led_strip::colors;
 use serials::led_strip::define_led_strips;
+use serials::led24x4::Led24x4;
+use serials::rfid::{Rfid, RfidEvent, RfidNotifier};
 use serials::servo::servo_a;
-use panic_probe as _;
+use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
 
 use colors::{BLACK, BLUE, GREEN, RED, YELLOW};
 
@@ -125,11 +125,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let time_sync = TimeSync::new(&TIME_SYNC_NOTIFIER, spawner);
 
     static IR_NEC_NOTIFIER: IrNotifier = Ir::notifier();
-    let ir = Ir::new(
-        p.PIN_28,
-        &IR_NEC_NOTIFIER,
-        spawner,
-    )?;
+    let ir = Ir::new(p.PIN_28, &IR_NEC_NOTIFIER, spawner)?;
 
     // Initialize MFRC522 RFID reader device abstraction
     static RFID_NOTIFIER: RfidNotifier = Rfid::notifier();

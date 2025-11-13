@@ -177,17 +177,17 @@ fn nec_ok(f: u32) -> Option<(u16, u8)> {
     let b1 = ((f >> 8) & 0xFF) as u8;
     let b2 = ((f >> 16) & 0xFF) as u8;
     let b3 = ((f >> 24) & 0xFF) as u8;
-    
+
     // Validate command with its inverse (required in both variants)
     if (b2 ^ b3) != 0xFF {
         return None;
     }
-    
+
     // Standard NEC: second byte is inverse of the first (8-bit address)
     if (b0 ^ b1) == 0xFF {
         return Some((b0 as u16, b2));
     }
-    
+
     // Extended NEC: two address bytes (16-bit address)
     let addr16 = ((b1 as u16) << 8) | (b0 as u16);
     Some((addr16, b2))
@@ -294,11 +294,7 @@ fn feed(
             if !level_low && inr(dt, BIT_LOW) {
                 decoder_state = Idle;
                 // Stop bit validated - emit the event
-                return (
-                    decoder_state,
-                    Some(IrEvent::Press { addr, cmd }),
-                    last_code,
-                );
+                return (decoder_state, Some(IrEvent::Press { addr, cmd }), last_code);
             } else {
                 decoder_state = Idle;
                 defmt::info!("IR: Decode failed (missing or bad stop bit, dt={}µs)", dt);

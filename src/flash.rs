@@ -23,9 +23,9 @@
 
 use crc32fast::Hasher;
 use defmt::{error, info};
-use embassy_rp::flash::{Blocking, Flash as EmbassyFlash, ERASE_SIZE};
-use embassy_rp::peripherals::FLASH;
 use embassy_rp::Peri;
+use embassy_rp::flash::{Blocking, ERASE_SIZE, Flash as EmbassyFlash};
+use embassy_rp::peripherals::FLASH;
 use serde::{Deserialize, Serialize};
 use static_cell::StaticCell;
 
@@ -163,7 +163,9 @@ impl Flash {
     /// Create a new Flash device.
     #[must_use]
     pub fn new(notifier: &'static FlashNotifier, peripheral: Peri<'static, FLASH>) -> Self {
-        let flash = notifier.flash_cell.init(EmbassyFlash::new_blocking(peripheral));
+        let flash = notifier
+            .flash_cell
+            .init(EmbassyFlash::new_blocking(peripheral));
         Self { flash }
     }
 
@@ -217,10 +219,7 @@ impl Flash {
             .blocking_write(offset, &buffer)
             .map_err(Error::Flash)?;
 
-        info!(
-            "Flash: Saved {} bytes to block {}",
-            payload_len, block_id
-        );
+        info!("Flash: Saved {} bytes to block {}", payload_len, block_id);
         Ok(())
     }
 
@@ -292,10 +291,7 @@ impl Flash {
         // Deserialize payload
         let payload = &buffer[HEADER_SIZE..HEADER_SIZE + payload_len];
         let value: T = postcard::from_bytes(payload).map_err(|_| {
-            error!(
-                "Flash: Deserialization failed at block {}",
-                block_id
-            );
+            error!("Flash: Deserialization failed at block {}", block_id);
             Error::StorageCorrupted
         })?;
 
@@ -327,7 +323,9 @@ impl Flash {
     ///
     /// This is used by FlashBlock instances to perform read/write/erase operations.
     #[must_use]
-    pub fn peripheral(&mut self) -> &mut EmbassyFlash<'static, FLASH, Blocking, INTERNAL_FLASH_SIZE> {
+    pub fn peripheral(
+        &mut self,
+    ) -> &mut EmbassyFlash<'static, FLASH, Blocking, INTERNAL_FLASH_SIZE> {
         self.flash
     }
 }

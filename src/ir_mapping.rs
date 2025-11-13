@@ -7,11 +7,11 @@ use embassy_rp::Peri;
 use embassy_rp::gpio::Pin;
 use heapless::LinearMap;
 
-use crate::ir::{Ir, IrEvent, IrNotifier};
 use crate::Result;
+use crate::ir::{Ir, IrEvent, IrNotifier};
 
 /// Notifier channel for IR mapping events.
-/// 
+///
 /// See [`IrMapping`] for usage examples.
 pub struct IrMappingNotifier(IrNotifier);
 
@@ -94,14 +94,17 @@ where
         spawner: Spawner,
     ) -> Result<Self> {
         let ir = Ir::new(pin, notifier.inner(), spawner)?;
-        
+
         // Convert the flat array to a LinearMap
         let mut map = LinearMap::new();
         for &(addr, cmd, button) in button_map {
             let _ = map.insert((addr, cmd), button);
         }
-        
-        Ok(Self { ir, button_map: map })
+
+        Ok(Self {
+            ir,
+            button_map: map,
+        })
     }
 
     /// Wait for the next recognized button press.

@@ -1,16 +1,12 @@
 [build]
-target = "thumbv8m.main-none-eabihf"
+rustc-wrapper = "scripts/rustc-wrapper.sh"
 
 [env]
 DEFMT_LOG = "info"
 
 [alias]
 # xtask command runner - note: must be run from workspace root
-# Note: Uses x86_64-pc-windows-msvc on Windows. On Linux/Mac, create a shell alias like:
-#   alias xtask='cargo run --manifest-path xtask/Cargo.toml --target x86_64-unknown-linux-gnu --'
-# Or just run: cargo run --manifest-path xtask/Cargo.toml --target <your-host-triple> --
-xtask = "run --manifest-path xtask/Cargo.toml --target x86_64-pc-windows-msvc --"
-
+xtask = "run --manifest-path xtask/Cargo.toml --"
 # Comprehensive checks - runs all builds, tests, and doc generation
 check-all = "xtask check-all"
 
@@ -55,7 +51,7 @@ servos = "run --example servos --release --target thumbv6m-none-eabi --features 
 # Documentation alias
 # Note: Using pico2,arm,wifi instead of pico1,arm,wifi because embassy-rp from git main
 # currently has a regression with Cortex-M0+ (tries to access MPU.rasr field that doesn't exist).
-docdoc = "doc --no-deps --features pico2,arm,wifi --no-default-features --open"
+docdoc = "doc --target thumbv8m.main-none-eabihf --no-deps --features pico2,arm,wifi --no-default-features --open"
 
 [target.thumbv6m-none-eabi]
 runner = "probe-rs run --chip=RP2040"

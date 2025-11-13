@@ -53,7 +53,7 @@ pub async fn main(_spawner: Spawner) -> ! {
     servo2.center();
 
     Timer::after_millis(500).await;
-    
+
     info!("Relaxing servos");
     servo0.disable();
     servo2.disable();

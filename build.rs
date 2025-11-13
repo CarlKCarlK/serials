@@ -14,7 +14,8 @@ fn main() {
         println!("cargo:rerun-if-changed=memory-pico2.x");
     } else if target.starts_with("riscv32imac") {
         // Pico 2 RISC-V: copy our custom memory-pico2-riscv.x to OUT_DIR as memory.x
-        let memory_x = fs::read_to_string("memory-pico2-riscv.x").expect("Failed to read memory-pico2-riscv.x");
+        let memory_x = fs::read_to_string("memory-pico2-riscv.x")
+            .expect("Failed to read memory-pico2-riscv.x");
         let dest = out_dir.join("memory.x");
         fs::write(&dest, memory_x).expect("Failed to write memory.x");
         println!("cargo:rustc-link-search={}", out_dir.display());
@@ -29,38 +30,33 @@ fn main() {
         println!("cargo:rerun-if-changed=memory-pico1w.x");
     }
 
-    // 2) Try project-local .env (ignored by git)
+    // 2) Load optional env files (still supported for convenience)
     let _ = dotenvy::from_filename(".env");
+    load_home_env(".pico.env");
+    load_home_env(".env");
 
-    // 3) Fall back to HOME/.pico.env or HOME/.env (Windows: USERPROFILE)
-    if env::var("WIFI_SSID").is_err()
-        || env::var("WIFI_PASS").is_err()
-        || env::var("UTC_OFFSET_MINUTES").is_err()
-    {
-        let home = env::var_os("USERPROFILE")
-            .or_else(|| env::var_os("HOME"))
-            .expect("Could not determine home directory (USERPROFILE/HOME not set)");
-        let mut p = PathBuf::from(&home);
-        p.push(".pico.env");
-        if dotenvy::from_path(&p).is_err() {
-            let mut p = PathBuf::from(&home);
-            p.push(".env");
-            let _ = dotenvy::from_path(&p);
+    // 3) Provide fallbacks so Wi-Fi/clock features can compile without .env
+    let wifi_ssid = env_or_default("WIFI_SSID", "");
+    let wifi_pass = env_or_default("WIFI_PASS", "");
+    let utc_offset = env_or_default("UTC_OFFSET_MINUTES", "0");
+
+    // Warn only if Wi-Fi was explicitly enabled but credentials are missing.
+    if env::var_os("CARGO_FEATURE_WIFI").is_some() {
+        if wifi_ssid.is_empty() {
+            println!(
+                "cargo:warning=WIFI feature enabled but WIFI_SSID is not set; using empty string"
+            );
+        }
+        if wifi_pass.is_empty() {
+            println!(
+                "cargo:warning=WIFI feature enabled but WIFI_PASS is not set; using empty string"
+            );
         }
     }
 
-    // 4) Require all vars (fail fast with clear message)
-    let ssid =
-        env::var("WIFI_SSID").expect("Missing WIFI_SSID (set in ./.env, ~/.pico.env, or ~/.env)");
-    let pass =
-        env::var("WIFI_PASS").expect("Missing WIFI_PASS (set in ./.env, ~/.pico.env, or ~/.env)");
-    let utc_offset = env::var("UTC_OFFSET_MINUTES").expect(
-        "Missing UTC_OFFSET_MINUTES (set in ./.env, ~/.pico.env, or ~/.env, e.g., -420 for PST)",
-    );
-
-    // 5) Expose as compile-time constants
-    println!("cargo:rustc-env=WIFI_SSID={ssid}");
-    println!("cargo:rustc-env=WIFI_PASS={pass}");
+    // 4) Expose as compile-time constants
+    println!("cargo:rustc-env=WIFI_SSID={wifi_ssid}");
+    println!("cargo:rustc-env=WIFI_PASS={wifi_pass}");
     println!("cargo:rustc-env=UTC_OFFSET_MINUTES={utc_offset}");
 
     // Optional: don't rebuild unless these change
@@ -69,4 +65,17 @@ fn main() {
     println!("cargo:rerun-if-env-changed=UTC_OFFSET_MINUTES");
     println!("cargo:rerun-if-env-changed=DST_OFFSET_MINUTES");
     println!("cargo:rerun-if-changed=.env");
+}
+
+fn load_home_env(file: &str) {
+    let home = match env::var_os("USERPROFILE").or_else(|| env::var_os("HOME")) {
+        Some(path) => PathBuf::from(path),
+        None => return,
+    };
+    let path = home.join(file);
+    let _ = dotenvy::from_path(&path);
+}
+
+fn env_or_default(key: &str, default: &str) -> String {
+    env::var(key).unwrap_or_else(|_| default.to_string())
 }

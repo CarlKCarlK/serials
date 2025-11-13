@@ -4,8 +4,8 @@
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use serials::ir::{Ir, IrEvent, IrNotifier};
 use panic_probe as _;
+use serials::ir::{Ir, IrEvent, IrNotifier};
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {

@@ -19,17 +19,17 @@ use embassy_net::Ipv4Address;
 use embassy_rp::gpio::{self, Level};
 use embassy_time::Timer;
 use serials::Result;
-use serials::led_4seg::OutputArray;
 use serials::button::Button;
-use serials::clock_4led::{Clock4Led as Clock, Clock4LedNotifier as ClockNotifier};
 use serials::clock_4led::state::Clock4LedState;
-use serials::time_sync::{TimeSync, TimeSyncNotifier};
-use serials::wifi_config::{WifiCredentials, collect_wifi_credentials};
+use serials::clock_4led::{Clock4Led as Clock, Clock4LedNotifier as ClockNotifier};
 use serials::dns_server::dns_server_task;
 use serials::flash::{Flash, FlashNotifier};
+use serials::led_4seg::OutputArray;
+use serials::time_sync::{TimeSync, TimeSyncNotifier};
+use serials::wifi_config::{WifiCredentials, collect_wifi_credentials};
 // Import clock_4led_time functions
-use serials::clock_4led::time::{current_utc_offset_minutes, set_initial_utc_offset_minutes};
 use panic_probe as _;
+use serials::clock_4led::time::{current_utc_offset_minutes, set_initial_utc_offset_minutes};
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -40,7 +40,7 @@ pub async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("Starting Wi-Fi 4-digit clock");
     let p = embassy_rp::init(Default::default());
-    
+
     // Initialize flash storage
     static FLASH_NOTIFIER: FlashNotifier = Flash::notifier();
     let mut flash = Flash::new(&FLASH_NOTIFIER, p.FLASH);
@@ -82,22 +82,23 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
     let time_sync = TimeSync::new(
         &TIME_SYNC_NOTIFIER,
-        p.PIN_23,   // WiFi chip data out
-        p.PIN_25,   // WiFi chip data in
-        p.PIO0,     // PIO for WiFi chip communication
-        p.PIN_24,   // WiFi chip clock
-        p.PIN_29,   // WiFi chip select
-        p.DMA_CH0,  // DMA channel for WiFi
+        p.PIN_23,  // WiFi chip data out
+        p.PIN_25,  // WiFi chip data in
+        p.PIO0,    // PIO for WiFi chip communication
+        p.PIN_24,  // WiFi chip clock
+        p.PIN_29,  // WiFi chip select
+        p.DMA_CH0, // DMA channel for WiFi
         wifi_setup_state.credentials_if_any(),
         spawner,
     );
 
     // State machine loop
     loop {
-        wifi_setup_state = wifi_setup_state.execute(flash, &mut clock, &mut button, &time_sync, spawner).await?;
+        wifi_setup_state = wifi_setup_state
+            .execute(flash, &mut clock, &mut button, &time_sync, spawner)
+            .await?;
     }
 }
-
 
 #[derive(Debug, Clone)]
 enum WifiSetupState {
@@ -108,9 +109,7 @@ enum WifiSetupState {
 
 impl WifiSetupState {
     /// Execute start-up logic to determine initial boot phase
-    async fn execute_start(
-        flash: &mut Flash,
-    ) -> Result<Self> {
+    async fn execute_start(flash: &mut Flash) -> Result<Self> {
         info!("Loading credentials from flash");
         let stored_credentials: Option<WifiCredentials> = flash.load(0)?;
         let stored_offset: i32 = flash.load::<i32>(1)?.unwrap_or(0);
@@ -126,7 +125,7 @@ impl WifiSetupState {
     }
 
     /// Extract WiFi credentials from boot phase
-    /// 
+    ///
     /// Returns None for AccessPoint mode, Some(credentials) for client mode.
     /// Panics if called on Running state (should never happen from execute_start,
     /// but a typestate pattern could enforce this at compile-time in the future).
@@ -151,8 +150,12 @@ impl WifiSetupState {
         spawner: Spawner,
     ) -> Result<Self> {
         match self {
-            Self::CaptivePortal => Self::execute_captive_portal(flash, clock, time_sync, spawner).await,
-            Self::AttemptConnection(_credentials) => Self::execute_attempt_connection(clock, button, time_sync, flash).await,
+            Self::CaptivePortal => {
+                Self::execute_captive_portal(flash, clock, time_sync, spawner).await
+            }
+            Self::AttemptConnection(_credentials) => {
+                Self::execute_attempt_connection(clock, button, time_sync, flash).await
+            }
             Self::Running => Self::execute_running(clock, button, time_sync, flash).await,
         }
     }
@@ -165,7 +168,7 @@ impl WifiSetupState {
     ) -> Result<Self> {
         info!("WifiSetupState: CaptivePortal - starting captive portal");
         clock.show_access_point_setup().await;
-        
+
         // Wait for AP to be fully initialized before getting stack
         time_sync.wifi().wait().await;
         let stack = time_sync.wifi().stack().await;
@@ -185,7 +188,7 @@ impl WifiSetupState {
         flash.save(0, &submission.credentials)?;
         flash.save(1, &submission.timezone_offset_minutes)?;
         set_initial_utc_offset_minutes(submission.timezone_offset_minutes);
-        
+
         info!("Credentials saved; rebooting to Start state");
         Timer::after_millis(750).await;
         SCB::sys_reset();
@@ -203,7 +206,7 @@ impl WifiSetupState {
         // Keep trying to connect, checking for timeout
         loop {
             clock_state = clock_state.execute(clock, button, time_sync).await;
-            
+
             // If we timeout, clear credentials and go back to AP mode
             if matches!(clock_state, Clock4LedState::AccessPointSetup) {
                 info!("Connection timeout - clearing credentials and switching to AccessPoint");
@@ -211,7 +214,7 @@ impl WifiSetupState {
                 Timer::after_millis(500).await;
                 SCB::sys_reset();
             }
-            
+
             // If we successfully synced time, move to ready state
             if matches!(clock_state, Clock4LedState::HoursMinutes) {
                 info!("Time synced - moving to Running state");

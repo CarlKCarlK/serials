@@ -5,9 +5,9 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use serials::led24x4::Led24x4;
-use serials::led_strip::define_led_strips;
 use panic_probe as _;
+use serials::led_strip::define_led_strips;
+use serials::led24x4::Led24x4;
 use smart_leds::RGB8;
 
 // 4x12 panel (48 pixels) using PIO1, SM0, DMA_CH1, GPIO16

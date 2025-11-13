@@ -5,8 +5,8 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
-use serials::led_strip::define_led_strips;
 use panic_probe as _;
+use serials::led_strip::define_led_strips;
 use smart_leds::RGB8;
 
 // WS2812B 4x12 LED matrix (48 pixels)

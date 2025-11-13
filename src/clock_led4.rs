@@ -10,12 +10,12 @@ use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Timer};
 
-use crate::led4::{Led4, Led4Notifier};
 use self::state::ClockLed4State;
 use self::time::ClockTime;
+use crate::clock_led4::time::ONE_MINUTE;
 use crate::led4::OutputArray;
 use crate::led4::{CELL_COUNT, SEGMENT_COUNT};
-use crate::clock_led4::time::ONE_MINUTE;
+use crate::led4::{Led4, Led4Notifier};
 
 /// A device abstraction for a 4-digit LED clock.
 pub struct ClockLed4<'a>(&'a ClockLed4OuterNotifier);
@@ -60,7 +60,9 @@ impl ClockLed4<'_> {
 
     /// Adjust the UTC offset by the given number of hours.
     pub async fn adjust_utc_offset_hours(&self, hours: i32) {
-        self.0.send(ClockLed4Command::AdjustUtcOffsetHours(hours)).await;
+        self.0
+            .send(ClockLed4Command::AdjustUtcOffsetHours(hours))
+            .await;
     }
 
     /// Display the completion message for flash-clearing workflows.
@@ -115,7 +117,10 @@ impl ClockLed4Command {
 }
 
 #[embassy_executor::task]
-async fn clock_led4_device_loop(clock_notifier: &'static ClockLed4OuterNotifier, blinker: Led4<'static>) -> ! {
+async fn clock_led4_device_loop(
+    clock_notifier: &'static ClockLed4OuterNotifier,
+    blinker: Led4<'static>,
+) -> ! {
     let mut clock_time = ClockTime::default();
     let mut clock_state = ClockLed4State::default();
 

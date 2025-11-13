@@ -6,8 +6,8 @@ use embassy_executor::Spawner;
 use embassy_rp::Peri;
 use embassy_rp::gpio::Pin;
 
-use crate::ir_mapping::{IrMapping, IrMappingNotifier};
 use crate::Result;
+use crate::ir_mapping::{IrMapping, IrMappingNotifier};
 
 /// Button types for the SunFounder Kepler Kit remote control.
 #[derive(defmt::Format, Clone, Copy, PartialEq, Eq)]
@@ -27,14 +27,14 @@ pub enum KeplerButton {
 }
 
 /// Notifier type for Kepler IR remote events.
-/// 
+///
 /// This is a type alias to [`IrMappingNotifier`] for convenience.
-/// 
+///
 /// See [`IrKepler`] for usage examples.
 pub type IrKeplerNotifier = IrMappingNotifier;
 
 /// Type alias for the Kepler button mapping.
-/// 
+///
 /// See [`IrKepler`] for usage examples.
 type IrKeplerMapping<'a> = IrMapping<'a, KeplerButton, 21>;
 

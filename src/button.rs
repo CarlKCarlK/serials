@@ -4,8 +4,8 @@
 
 use defmt::info;
 use embassy_futures::select::{Either, select};
-use embassy_rp::gpio::{Input, Pull};
 use embassy_rp::Peri;
+use embassy_rp::gpio::{Input, Pull};
 use embassy_time::{Duration, Timer};
 
 // ============================================================================
@@ -52,9 +52,9 @@ pub enum PressDuration {
 /// # Example
 ///
 /// ```no_run
-/// #![no_std]
-/// #![no_main]
-/// 
+/// # #![no_std]
+/// # #![no_main]
+///
 /// use serials::button::{Button, PressDuration};
 /// # use core::panic::PanicInfo;
 /// # #[panic_handler]
@@ -80,7 +80,7 @@ pub struct Button<'a>(Input<'a>);
 
 impl<'a> Button<'a> {
     /// Creates a new `Button` instance from a pin.
-    /// 
+    ///
     /// The pin is configured with an internal pull-down resistor.
     #[must_use]
     pub fn new<P: embassy_rp::gpio::Pin>(pin: Peri<'a, P>) -> Self {

@@ -4,9 +4,9 @@
 
 use core::convert::Infallible;
 
+use crate::Result;
 use crate::bit_matrix_led4::BitMatrixLed4;
 use crate::bit_matrix_led4::BitsToIndexes;
-use crate::Result;
 use crate::led4::OutputArray;
 use crate::led4::{CELL_COUNT, MULTIPLEX_SLEEP, SEGMENT_COUNT};
 #[cfg(feature = "display-trace")]

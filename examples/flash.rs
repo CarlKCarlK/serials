@@ -8,10 +8,10 @@
 #![no_std]
 #![no_main]
 
-use heapless::String;
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
+use heapless::String;
 use panic_probe as _;
 use serde::{Deserialize, Serialize};
 
@@ -61,11 +61,14 @@ async fn inner_main(_spawner: Spawner) -> Result<()> {
     let string: Option<String<64>> = flash.load(3)?;
     assert!(string.as_deref() == Some("Hello, Flash Storage!"));
     let config: Option<SensorConfig> = flash.load(4)?;
-    assert!(config == Some(SensorConfig {
-        name: String::<32>::try_from("Temperature")?,
-        sample_rate_hz: 1000,
-        enabled: true,
-    }));
+    assert!(
+        config
+            == Some(SensorConfig {
+                name: String::<32>::try_from("Temperature")?,
+                sample_rate_hz: 1000,
+                enabled: true,
+            })
+    );
 
     info!("Part 3: Reading a different type counts as empty");
     // Try to read block 3 (which contains a String) as a SensorConfig
