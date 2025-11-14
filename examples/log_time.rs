@@ -95,7 +95,6 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         p.PIN_29,  // WiFi chip select
         p.DMA_CH0, // DMA channel for WiFi
         wifi_block,
-        None,
         spawner,
     );
 

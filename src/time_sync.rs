@@ -19,7 +19,6 @@ mod wifi_impl {
     use crate::flash_array::FlashBlock;
     use crate::unix_seconds::UnixSeconds;
     use crate::wifi::{Wifi, WifiEvent, WifiNotifier};
-    use crate::wifi_config::WifiCredentials;
 
     // ============================================================================
     // Types
@@ -69,7 +68,6 @@ mod wifi_impl {
         ///
         /// # Arguments
         /// * `credential_store` - Flash block for persisted WiFi credentials
-        /// * `credentials` - Optional runtime credentials to use immediately
         pub fn new(
             resources: &'static TimeSyncNotifier,
             pin_23: Peri<'static, PIN_23>,
@@ -79,7 +77,6 @@ mod wifi_impl {
             pin_29: Peri<'static, PIN_29>,
             dma_ch0: Peri<'static, DMA_CH0>,
             credential_store: FlashBlock,
-            credentials: Option<WifiCredentials>,
             spawner: Spawner,
         ) -> &'static Self {
             // Create WiFi device
@@ -92,7 +89,6 @@ mod wifi_impl {
                 pin_29,
                 dma_ch0,
                 credential_store,
-                credentials,
                 spawner,
             );
 

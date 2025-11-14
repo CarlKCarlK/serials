@@ -28,37 +28,36 @@ pub const TICKS_IN_ONE_DAY: u64 = ONE_DAY.as_ticks();
 // ClockTime Implementation
 // ============================================================================
 
-static INITIAL_UTC_OFFSET_MINUTES: AtomicI32 = AtomicI32::new(0);
-static CURRENT_UTC_OFFSET_MINUTES: AtomicI32 = AtomicI32::new(0);
-
 pub struct ClockTime {
     offset: Duration,
     utc_offset_minutes: i32,
-}
-
-impl Default for ClockTime {
-    fn default() -> Self {
-        info!("Now: {:?}", Instant::now());
-        let utc_offset_minutes = INITIAL_UTC_OFFSET_MINUTES.load(Ordering::Relaxed);
-        CURRENT_UTC_OFFSET_MINUTES.store(utc_offset_minutes, Ordering::Relaxed);
-        Self {
-            offset: Duration::from_millis(12 * 3600 * 1000),
-            utc_offset_minutes,
-        }
-    }
-}
-
-#[must_use]
-pub fn current_utc_offset_minutes() -> i32 {
-    CURRENT_UTC_OFFSET_MINUTES.load(Ordering::Relaxed)
-}
-
-pub fn set_initial_utc_offset_minutes(minutes: i32) {
-    INITIAL_UTC_OFFSET_MINUTES.store(minutes, Ordering::Relaxed);
-    CURRENT_UTC_OFFSET_MINUTES.store(minutes, Ordering::Relaxed);
+    utc_offset_mirror: &'static AtomicI32,
 }
 
 impl ClockTime {
+    pub(crate) fn new(
+        initial_utc_offset_minutes: i32,
+        utc_offset_mirror: &'static AtomicI32,
+    ) -> Self {
+        info!("Now: {:?}", Instant::now());
+        utc_offset_mirror.store(initial_utc_offset_minutes, Ordering::Relaxed);
+        Self {
+            offset: Duration::from_millis(12 * 3600 * 1000),
+            utc_offset_minutes: initial_utc_offset_minutes,
+            utc_offset_mirror,
+        }
+    }
+
+    #[must_use]
+    pub fn utc_offset_minutes(&self) -> i32 {
+        self.utc_offset_minutes
+    }
+
+    pub fn set_utc_offset_minutes(&mut self, minutes: i32) {
+        self.utc_offset_minutes = minutes;
+        self.utc_offset_mirror.store(minutes, Ordering::Relaxed);
+    }
+
     #[expect(
         clippy::integer_division_remainder_used,
         clippy::arithmetic_side_effects,
@@ -161,7 +160,8 @@ impl ClockTime {
         }
 
         self.utc_offset_minutes = wrapped * 60;
-        CURRENT_UTC_OFFSET_MINUTES.store(self.utc_offset_minutes, Ordering::Relaxed);
+        self.utc_offset_mirror
+            .store(self.utc_offset_minutes, Ordering::Relaxed);
         info!(
             "Adjusted UTC offset from {} to {} hours (delta: {} hours)",
             current_offset_hours, wrapped, delta_hours

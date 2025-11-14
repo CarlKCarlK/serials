@@ -252,7 +252,6 @@ impl Wifi {
     /// * `pin_29` - WiFi chip data pin (GPIO 29)
     /// * `dma_ch0` - DMA channel for WiFi SPI communication
     /// * `credential_store` - Flash block reserved for WiFi credentials
-    /// * `credentials` - `Some` to start in client mode immediately, `None` to check persisted creds / launch AP
     /// * `spawner` - Embassy task spawner
     ///
     /// See the [module-level documentation](crate::wifi) for usage examples.
@@ -265,7 +264,6 @@ impl Wifi {
         pin_29: Peri<'static, PIN_29>,
         dma_ch0: Peri<'static, DMA_CH0>,
         credential_store: FlashBlock,
-        credentials: Option<WifiCredentials>,
         spawner: Spawner,
     ) -> &'static Self {
         let mut store_block = credential_store;
@@ -280,9 +278,7 @@ impl Wifi {
             }
         };
 
-        let mode = if let Some(creds) = credentials {
-            WifiMode::ClientConfigured(creds)
-        } else if let Some(creds) = stored_credentials {
+        let mode = if let Some(creds) = stored_credentials {
             WifiMode::ClientConfigured(creds)
         } else {
             WifiMode::AccessPoint

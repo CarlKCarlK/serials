@@ -28,31 +28,7 @@ use serials::time_sync::{TimeSync, TimeSyncNotifier};
 use serials::wifi::Wifi;
 use serials::wifi_config::collect_wifi_credentials;
 use serials::{Error, Result};
-// Import clock_led4_time functions
 use panic_probe as _;
-use serials::clock_led4::time::{current_utc_offset_minutes, set_initial_utc_offset_minutes};
-
-struct TimezoneStore {
-    block: FlashBlock,
-}
-
-impl TimezoneStore {
-    fn new(block: FlashBlock) -> Self {
-        Self { block }
-    }
-
-    fn load(&mut self) -> Result<i32> {
-        Ok(self.block.load::<i32>()?.unwrap_or(0))
-    }
-
-    fn save(&mut self, offset: i32) -> Result<()> {
-        self.block.save(&offset)
-    }
-
-    fn clear(&mut self) -> Result<()> {
-        self.block.clear()
-    }
-}
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -66,12 +42,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     // Initialize flash storage
     static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<2>::notifier();
-    let [wifi_block, timezone_block] = FlashArray::new(&FLASH_NOTIFIER, p.FLASH)?;
-    let mut timezone_store = TimezoneStore::new(timezone_block);
-    let stored_offset = timezone_store.load()?;
-    set_initial_utc_offset_minutes(stored_offset);
-    let stored_offset = timezone_store.load()?;
-    set_initial_utc_offset_minutes(stored_offset);
+    let [wifi_credentials_flash, mut timezone_offset_minutes_flash] =
+        FlashArray::new(&FLASH_NOTIFIER, p.FLASH)?;
 
     // Initialize LED (unused but kept for compatibility)
     let mut led = gpio::Output::new(p.PIN_0, Level::Low);
@@ -96,9 +68,16 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         gpio::Output::new(p.PIN_12, Level::Low),
     ]);
 
+    let timezone_offset_minutes = timezone_offset_minutes_flash
+        .load::<i32>()?
+        .unwrap_or(0);
+
+
+    // cmk consider passing in the timezone_flash_block to clock for direct saving        
     // Initialize clock and button
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
-    let mut clock = Clock::new(cells, segments, &CLOCK_NOTIFIER, spawner)?;
+    let mut clock =
+        Clock::new(cells, segments, &CLOCK_NOTIFIER, spawner, timezone_offset_minutes)?;
     let mut button = Button::new(p.PIN_13);
 
     // Determine initial boot phase by executing start logic
@@ -112,9 +91,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         p.PIN_24,  // WiFi chip clock
         p.PIN_29,  // WiFi chip select
         p.DMA_CH0, // DMA channel for WiFi
-        wifi_block,
-        None,
-        spawner,
+        wifi_credentials_flash, // Flash partition containing WiFi credentials
+        spawner,                // Embassy spawner for background tasks
     );
 
     let mut wifi_setup_state = WifiSetupState::execute_start(time_sync.wifi()).await?;
@@ -123,7 +101,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     loop {
         wifi_setup_state = wifi_setup_state
             .execute(
-                &mut timezone_store,
+                &mut timezone_offset_minutes_flash,
                 &mut clock,
                 &mut button,
                 &time_sync,
@@ -154,7 +132,7 @@ impl WifiSetupState {
 
     async fn execute(
         self,
-        timezone: &mut TimezoneStore,
+        timezone_offset_minutes_flash: &mut FlashBlock,
         clock: &mut Clock<'_>,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
@@ -162,17 +140,29 @@ impl WifiSetupState {
     ) -> Result<Self> {
         match self {
             Self::CaptivePortal => {
-                Self::execute_captive_portal(timezone, clock, time_sync, spawner).await
+                Self::execute_captive_portal(
+                    timezone_offset_minutes_flash,
+                    clock,
+                    time_sync,
+                    spawner,
+                )
+                .await
             }
             Self::AttemptConnection => {
                 Self::execute_attempt_connection(clock, button, time_sync).await
             }
-            Self::Running => Self::execute_running(clock, button, time_sync, timezone).await,
+            Self::Running => Self::execute_running(
+                clock,
+                button,
+                time_sync,
+                timezone_offset_minutes_flash,
+            )
+            .await,
         }
     }
 
     async fn execute_captive_portal(
-        timezone: &mut TimezoneStore,
+        timezone_offset_minutes_flash: &mut FlashBlock,
         clock: &mut Clock<'_>,
         time_sync: &TimeSync,
         spawner: Spawner,
@@ -203,8 +193,10 @@ impl WifiSetupState {
                 warn!("{}", e);
                 Error::StorageCorrupted
             })?;
-        timezone.save(submission.timezone_offset_minutes)?;
-        set_initial_utc_offset_minutes(submission.timezone_offset_minutes);
+        timezone_offset_minutes_flash.save(&submission.timezone_offset_minutes)?;
+        clock
+            .set_utc_offset_minutes(submission.timezone_offset_minutes)
+            .await;
 
         info!("Credentials saved; rebooting to Start state");
         Timer::after_millis(750).await;
@@ -249,11 +241,11 @@ impl WifiSetupState {
         clock: &mut Clock<'_>,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        timezone: &mut TimezoneStore,
+        timezone_offset_minutes_flash: &mut FlashBlock,
     ) -> Result<Self> {
         info!("WifiSetupState: Running - clock operational");
         let mut clock_state = ClockLed4State::HoursMinutes;
-        let mut persisted_offset = current_utc_offset_minutes();
+        let mut persisted_offset = clock.utc_offset_minutes();
 
         loop {
             clock_state = clock_state.execute(clock, button, time_sync).await;
@@ -268,17 +260,17 @@ impl WifiSetupState {
                         warn!("{}", e);
                         Error::StorageCorrupted
                     })?;
-                timezone.clear()?;
-                set_initial_utc_offset_minutes(0);
+                timezone_offset_minutes_flash.clear()?;
+                clock.set_utc_offset_minutes(0).await;
                 clock.show_clearing_done().await;
                 Timer::after_millis(750).await;
                 SCB::sys_reset();
             }
 
             // Persist timezone offset changes
-            let current_offset = current_utc_offset_minutes();
+            let current_offset = clock.utc_offset_minutes();
             if current_offset != persisted_offset {
-                timezone.save(current_offset)?;
+                timezone_offset_minutes_flash.save(&current_offset)?;
                 persisted_offset = current_offset;
             }
         }
