@@ -1,6 +1,18 @@
 {
-    "rust-analyzer.cargo.target": "thumbv6m-none-eabi",
     "rust-analyzer.cargo.allTargets": false,
+    "rust-analyzer.cargo.features": [
+        "wifi"
+    ],
+    "rust-analyzer.check.overrideCommand": [
+        "cargo",
+        "check",
+        "--package",
+        "serials",
+        "--features",
+        "wifi",
+        "--target",
+        "thumbv6m-none-eabi"
+    ],
     "cSpell.words": [
         "atqa",
         "iface",
@@ -13,5 +25,5 @@
         "refdiv",
         "reqa",
         "syncer"
-    ],
+    ]
 }

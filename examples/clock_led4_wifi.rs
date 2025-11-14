@@ -1,9 +1,9 @@
 //! Port of the `clock-wifi` example that now reuses the shared Wi-Fi onboarding and
-//! NTP synchronisation flow from `examples/log_time.rs`.
+//! NTP synchronization flow from `examples/log_time.rs`.
 //!
 //! The clock starts at `12:00`, launches the captive-portal workflow if credentials
 //! are missing, then keeps the display updated with hourly NTP refreshes. Buttons
-//! continue to toggle between `HH:MM` and `MM:SS` once synchronised.
+//! continue to toggle between `HH:MM` and `MM:SS` once synchronized.
 
 #![cfg(feature = "wifi")]
 #![no_std]
