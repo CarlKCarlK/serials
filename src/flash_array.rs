@@ -27,7 +27,6 @@
 //! See [`FlashArray`] for usage examples.
 
 use core::array;
-use core::sync::atomic::{AtomicU32, Ordering};
 use crc32fast::Hasher;
 use defmt::{error, info};
 use embassy_rp::Peri;
@@ -35,6 +34,7 @@ use embassy_rp::flash::{Blocking, ERASE_SIZE, Flash as EmbassyFlash};
 use embassy_rp::peripherals::FLASH;
 use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use portable_atomic::{AtomicU32, Ordering};
 use serde::{Deserialize, Serialize};
 use static_cell::StaticCell;
 

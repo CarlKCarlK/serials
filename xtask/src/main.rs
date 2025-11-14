@@ -115,20 +115,23 @@ fn main() -> ExitCode {
 
 fn check_all() -> ExitCode {
     let workspace_root = workspace_root();
-    let board = Board::Pico2;
     let arch = Arch::Arm;
-    let target = arch.target(board);
-    let features_no_wifi = "pico2,arm";
-    let features_wifi = "pico2,arm,wifi";
+    let board_pico2 = Board::Pico2;
+    let board_pico1 = Board::Pico1;
+    let target_pico2 = arch.target(board_pico2);
+    let target_pico1 = arch.target(board_pico1);
+    let features_no_wifi = build_features(board_pico2, arch, false);
+    let features_wifi_pico2 = build_features(board_pico2, arch, true);
+    let features_wifi_pico1 = build_features(board_pico1, arch, true);
 
     println!("{}", "==> Building library...".cyan());
     if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
         "build",
         "--lib",
         "--target",
-        target,
+        target_pico2,
         "--features",
-        features_no_wifi,
+        features_no_wifi.as_str(),
         "--no-default-features",
     ])) {
         return ExitCode::FAILURE;
@@ -152,9 +155,9 @@ fn check_all() -> ExitCode {
             "--example",
             example,
             "--target",
-            target,
+            target_pico2,
             "--features",
-            features_no_wifi,
+            features_no_wifi.as_str(),
             "--no-default-features",
         ])) {
             return ExitCode::FAILURE;
@@ -173,9 +176,29 @@ fn check_all() -> ExitCode {
             "--example",
             example,
             "--target",
-            target,
+            target_pico2,
             "--features",
-            features_wifi,
+            features_wifi_pico2.as_str(),
+            "--no-default-features",
+        ])) {
+            return ExitCode::FAILURE;
+        }
+    }
+
+    println!(
+        "\n{}",
+        "==> Building examples (pico1, arm, with wifi)...".cyan()
+    );
+    for example in &examples_wifi {
+        println!("  {}", format!("- {example}").bright_black());
+        if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
+            "build",
+            "--example",
+            example,
+            "--target",
+            target_pico1,
+            "--features",
+            features_wifi_pico1.as_str(),
             "--no-default-features",
         ])) {
             return ExitCode::FAILURE;
@@ -187,9 +210,9 @@ fn check_all() -> ExitCode {
         "test",
         "--doc",
         "--target",
-        target,
+        target_pico2,
         "--features",
-        features_wifi,
+        features_wifi_pico2.as_str(),
         "--no-default-features",
     ])) {
         return ExitCode::FAILURE;
@@ -231,10 +254,10 @@ fn check_all() -> ExitCode {
     if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
         "doc",
         "--target",
-        target,
+        target_pico2,
         "--no-deps",
         "--features",
-        features_wifi,
+        features_wifi_pico2.as_str(),
         "--no-default-features",
     ])) {
         return ExitCode::FAILURE;
