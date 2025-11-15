@@ -143,6 +143,10 @@ pub type Led4Animation = Vec<AnimationFrame, ANIMATION_MAX_FRAMES>;
 ///     Ok(())
 /// }
 /// ```
+///
+/// Beyond simple text, the driver can loop animations via [`Led4::animate_text`].
+/// The struct owns the background task and signal wiring; create it once with
+/// [`Led4::new`] and use the returned handle for all display updates.
 pub struct Led4<'a>(&'a Led4OuterNotifier);
 
 /// Notifier for the [`Led4`] device.
@@ -152,11 +156,7 @@ pub type Led4Notifier = (Led4OuterNotifier, Led4SimpleNotifier);
 pub(crate) type Led4OuterNotifier = Signal<CriticalSectionRawMutex, Led4Command>;
 
 impl Led4<'_> {
-    /// Creates the display device and spawns its background task.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the task cannot be spawned.
+    /// Creates the display device and spawns its background task; see [`Led4`] docs.
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
         cell_pins: OutputArray<'static, CELL_COUNT>,
@@ -171,7 +171,7 @@ impl Led4<'_> {
         Ok(Self(outer_notifier))
     }
 
-    /// Creates a notifier for the display.
+    /// Creates a notifier for [`Led4::new`]; see [`Led4`] docs.
     #[must_use]
     pub const fn notifier() -> Led4Notifier {
         (Signal::new(), Led4Simple::notifier())
@@ -184,8 +184,40 @@ impl Led4<'_> {
         self.0.signal(Led4Command::Text { blink_state, text });
     }
 
-    /// Plays a looped animation using the provided frames.
-    pub fn animate(&self, animation: Led4Animation) {
+    /// Plays a looped text animation using the provided frames.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use embassy_rp::gpio::{Level, Output};
+    /// # use embassy_executor::Spawner;
+    /// # use serials::led4::{Led4, Led4Notifier, OutputArray, AnimationFrame, Led4Animation};
+    /// # async fn demo(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
+    /// let cells = OutputArray::new([
+    ///     Output::new(p.PIN_1, Level::High),
+    ///     Output::new(p.PIN_2, Level::High),
+    ///     Output::new(p.PIN_3, Level::High),
+    ///     Output::new(p.PIN_4, Level::High),
+    /// ]);
+    /// let segments = OutputArray::new([
+    ///     Output::new(p.PIN_5, Level::Low),
+    ///     Output::new(p.PIN_6, Level::Low),
+    ///     Output::new(p.PIN_7, Level::Low),
+    ///     Output::new(p.PIN_8, Level::Low),
+    ///     Output::new(p.PIN_9, Level::Low),
+    ///     Output::new(p.PIN_10, Level::Low),
+    ///     Output::new(p.PIN_11, Level::Low),
+    ///     Output::new(p.PIN_12, Level::Low),
+    /// ]);
+    /// static NOTIFIER: Led4Notifier = Led4::notifier();
+    /// let display = Led4::new(cells, segments, &NOTIFIER, spawner)?;
+    /// let mut animation = Led4Animation::new();
+    /// animation.push(AnimationFrame::new(['-', '-', '-', '-'], embassy_time::Duration::from_millis(100))).ok();
+    /// animation.push(AnimationFrame::new([' ', ' ', ' ', ' '], embassy_time::Duration::from_millis(100))).ok();
+    /// display.animate_text(animation);
+    /// # Ok(()) }
+    /// ```
+    pub fn animate_text(&self, animation: Led4Animation) {
         self.0.signal(Led4Command::Animation(animation));
     }
 }

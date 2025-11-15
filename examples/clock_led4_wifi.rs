@@ -23,7 +23,7 @@ use serials::clock_led4::state::ClockLed4State;
 use serials::clock_led4::{ClockLed4 as Clock, ClockLed4Notifier as ClockNotifier};
 use serials::dns_server::dns_server_task;
 use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
-use serials::led4::OutputArray;
+use serials::led4::{AnimationFrame, Led4Animation, OutputArray};
 use serials::time_sync::{TimeSync, TimeSyncNotifier};
 use serials::wifi::Wifi;
 use serials::wifi_config::{collect_wifi_credentials, WifiConfigOptions};
