@@ -2,8 +2,8 @@
 //! abstraction and displays connection status on a 4-digit LED display.
 //!
 //! // cmk0 Future iterations should add extra captive-portal widgets (e.g. nickname)
-//! // and show how to persist their flash-backed values before
-//! // handing control back to the application logic.
+//! // and show how to persist their flash-backed values before handing control back
+//! // to the application logic.
 
 #![cfg(feature = "wifi")]
 #![no_std]
@@ -18,9 +18,7 @@ use embassy_futures::join::join;
 use embassy_rp::gpio::{self, Level};
 use embassy_time::Timer;
 use panic_probe as _;
-use serials::button::Button;
 use serials::flash_array::{FlashArray, FlashArrayNotifier};
-use serials::wifi_config::WifiCredentials;
 use serials::led4::{BlinkState, Led4, Led4Notifier, OutputArray};
 use serials::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoNotifier};
 use serials::Result;
@@ -36,17 +34,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let peripherals = embassy_rp::init(Default::default());
 
     static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
-    let [mut wifi_credentials_flash] = FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
-
-    let stored_credentials: Option<WifiCredentials> = wifi_credentials_flash.load()?;
-
-    // Boot gesture: if the button is held while powering up, drop into AP mode.
-    let button = Button::new(peripherals.PIN_13);
-    let force_ap = button.is_pressed();
-    if force_ap {
-        info!("Force AP: button held at boot");
-        wifi_credentials_flash.clear()?;
-    }
+    let [wifi_credentials_flash] = FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
 
     let cells = OutputArray::new([
         gpio::Output::new(peripherals.PIN_1, Level::High),
@@ -69,8 +57,6 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let led4 = Led4::new(cells, segments, &LED4_NOTIFIER, spawner)?;
 
     static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
-    // cmk0 When type-state support lands, thread the button / extra flash blocks
-    // into WifiAuto::new so the provisioning phase can own them temporarily.
     let wifi_auto = WifiAuto::new(
         &WIFI_AUTO_NOTIFIER,
         peripherals.PIN_23,
@@ -80,22 +66,20 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         peripherals.PIN_29,
         peripherals.DMA_CH0,
         wifi_credentials_flash,
+        peripherals.PIN_13,
+        "PicoClock",
         spawner,
-    );
-
-    if force_ap {
-        if let Some(creds) = stored_credentials {
-            wifi_auto.set_default_credentials(creds);
-        }
-        wifi_auto.force_captive_portal();
-    }
+    )?;
 
     let status_future = async {
         loop {
             match wifi_auto.wait_event().await {
                 WifiAutoEvent::CaptivePortalReady => {
-                    // cmk0 Consider alternating between CONNECT / URL messaging once multi-state UI lands.
-                    led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
+                    let mut text = [' ', ' ', ' ', ' '];
+                    for (dst, ch) in text.iter_mut().zip(wifi_auto.ap_ssid().chars()) {
+                        *dst = ch;
+                    }
+                    led4.write_text(BlinkState::BlinkingAndOn, text);
                 }
                 WifiAutoEvent::ClientConnecting => {
                     led4.write_text(BlinkState::BlinkingAndOn, ['C', 'N', 'N', ' ']);
@@ -111,6 +95,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let ensure_future = wifi_auto.ensure_connected(spawner);
     let (_status, result) = join(status_future, ensure_future).await;
     result?;
+
+    let _button = wifi_auto.take_button();
 
     loop {
         Timer::after_secs(1).await;

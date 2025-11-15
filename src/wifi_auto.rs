@@ -8,13 +8,13 @@ use cortex_m::peripheral::SCB;
 use defmt::{info, warn, unwrap};
 use embassy_executor::Spawner;
 use embassy_net::Ipv4Address;
-use embassy_rp::peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0};
-use embassy_rp::Peri;
+use embassy_rp::{Peri, peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0}};
 use embassy_sync::{blocking_mutex::{raw::CriticalSectionRawMutex, Mutex}, signal::Signal};
 use embassy_time::Timer;
 use portable_atomic::{AtomicBool, Ordering};
 use static_cell::StaticCell;
 
+use crate::button::Button;
 use crate::dns_server::dns_server_task;
 use crate::flash_array::FlashBlock;
 use crate::wifi::{Wifi, WifiEvent, WifiNotifier};
@@ -37,6 +37,7 @@ pub struct WifiAutoNotifier {
     wifi_auto_cell: StaticCell<WifiAuto>,
     force_ap: AtomicBool,
     defaults: Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>>,
+    button: Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>>,
 }
 
 pub struct WifiAuto {
@@ -44,6 +45,8 @@ pub struct WifiAuto {
     wifi: &'static Wifi,
     force_ap: &'static AtomicBool,
     defaults: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>>,
+    button: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>>,
+    ap_ssid: &'static str,
 }
 
 impl WifiAutoNotifier {
@@ -53,6 +56,10 @@ impl WifiAutoNotifier {
 
     fn defaults(&'static self) -> &'static Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>> {
         &self.defaults
+    }
+
+    fn button(&'static self) -> &'static Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>> {
+        &self.button
     }
 }
 
@@ -65,6 +72,7 @@ impl WifiAuto {
             wifi_auto_cell: StaticCell::new(),
             force_ap: AtomicBool::new(false),
             defaults: Mutex::new(RefCell::new(None)),
+            button: Mutex::new(RefCell::new(None)),
         }
     }
 
@@ -77,9 +85,23 @@ impl WifiAuto {
         pin_24: Peri<'static, PIN_24>,
         pin_29: Peri<'static, PIN_29>,
         dma_ch0: Peri<'static, DMA_CH0>,
-        credential_store: FlashBlock,
+        mut credential_store: FlashBlock,
+        button_pin: Peri<'static, impl embassy_rp::gpio::Pin>,
+        ap_ssid: &'static str,
         spawner: Spawner,
-    ) -> &'static Self {
+    ) -> Result<&'static Self> {
+        let stored_credentials = credential_store.load::<WifiCredentials>()?;
+        let button = Button::new(button_pin);
+        let force_ap = button.is_pressed();
+        if force_ap {
+            if let Some(creds) = stored_credentials.clone() {
+                resources.defaults.lock(|cell| {
+                    *cell.borrow_mut() = Some(creds);
+                });
+            }
+            credential_store.clear()?;
+        }
+
         let wifi = Wifi::new(
             &resources.wifi,
             pin_23,
@@ -92,16 +114,32 @@ impl WifiAuto {
             spawner,
         );
 
-        resources.wifi_auto_cell.init(Self {
+        resources.button.lock(|cell| {
+            *cell.borrow_mut() = Some(button);
+        });
+
+        let instance = resources.wifi_auto_cell.init(Self {
             events: &resources.events,
             wifi,
             force_ap: resources.force_ap_flag(),
             defaults: resources.defaults(),
-        })
+            button: resources.button(),
+            ap_ssid,
+        });
+
+        if force_ap {
+            instance.force_captive_portal();
+        }
+
+        Ok(instance)
     }
 
     pub fn wifi(&self) -> &'static Wifi {
         self.wifi
+    }
+
+    pub fn ap_ssid(&self) -> &'static str {
+        self.ap_ssid
     }
 
     pub fn force_captive_portal(&self) {
@@ -112,6 +150,10 @@ impl WifiAuto {
         self.defaults.lock(|cell| {
             *cell.borrow_mut() = Some(credentials);
         });
+    }
+
+    pub fn take_button(&self) -> Option<Button<'static>> {
+        self.button.lock(|cell| cell.borrow_mut().take())
     }
 
     pub async fn wait_event(&self) -> WifiAutoEvent {
