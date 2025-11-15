@@ -8,16 +8,16 @@ use cortex_m::peripheral::SCB;
 use defmt::{info, warn, unwrap};
 use embassy_executor::Spawner;
 use embassy_net::Ipv4Address;
-use embassy_rp::{Peri, peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0}};
+use embassy_rp::{Peri, peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0}, gpio::Pin};
 use embassy_sync::{blocking_mutex::{raw::CriticalSectionRawMutex, Mutex}, signal::Signal};
-use embassy_time::Timer;
+use embassy_time::{Duration, Timer, with_timeout};
 use portable_atomic::{AtomicBool, Ordering};
 use static_cell::StaticCell;
 
 use crate::button::Button;
 use crate::dns_server::dns_server_task;
 use crate::flash_array::FlashBlock;
-use crate::wifi::{Wifi, WifiEvent, WifiNotifier};
+use crate::wifi::{Wifi, WifiEvent, WifiNotifier, WifiStartMode};
 use crate::wifi_config::{collect_wifi_credentials, WifiConfigOptions, WifiCredentials};
 use crate::{Error, Result};
 
@@ -28,6 +28,10 @@ pub enum WifiAutoEvent {
     ClientConnecting,
     Connected,
 }
+
+const MAX_CONNECT_ATTEMPTS: u8 = 2;
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+const RETRY_DELAY: Duration = Duration::from_secs(3);
 
 pub type WifiAutoEvents = Signal<CriticalSectionRawMutex, WifiAutoEvent>;
 
@@ -86,12 +90,21 @@ impl WifiAuto {
         pin_29: Peri<'static, PIN_29>,
         dma_ch0: Peri<'static, DMA_CH0>,
         mut credential_store: FlashBlock,
-        button_pin: Peri<'static, impl embassy_rp::gpio::Pin>,
+        button_pin: Peri<'static, impl Pin>,
         ap_ssid: &'static str,
         spawner: Spawner,
     ) -> Result<&'static Self> {
-        let stored_credentials = credential_store.load::<WifiCredentials>()?;
-        let button = Button::new(button_pin);
+        let stored_credentials = Wifi::peek_credentials(&mut credential_store);
+        let stored_start_mode = Wifi::peek_start_mode(&mut credential_store);
+        if matches!(stored_start_mode, WifiStartMode::AccessPoint) {
+            if let Some(creds) = stored_credentials.clone() {
+                resources.defaults.lock(|cell| {
+                    *cell.borrow_mut() = Some(creds);
+                });
+            }
+        }
+
+        let mut button = Button::new(button_pin);
         let force_ap = button.is_pressed();
         if force_ap {
             if let Some(creds) = stored_credentials.clone() {
@@ -99,7 +112,8 @@ impl WifiAuto {
                     *cell.borrow_mut() = Some(creds);
                 });
             }
-            credential_store.clear()?;
+            Wifi::prepare_start_mode(&mut credential_store, WifiStartMode::AccessPoint)
+                .map_err(|_| Error::StorageCorrupted)?;
         }
 
         let wifi = Wifi::new(
@@ -161,28 +175,68 @@ impl WifiAuto {
     }
 
     pub async fn ensure_connected(&self, spawner: Spawner) -> Result<()> {
-        let force_portal = self.force_ap.swap(false, Ordering::AcqRel);
-        if force_portal || !self.wifi.has_persisted_credentials() {
-            self.events.signal(WifiAutoEvent::CaptivePortalReady);
-            self.run_captive_portal(spawner).await?;
-            unreachable!("Device should reset after captive portal submission");
-        }
+        loop {
+            let force_portal = self.force_ap.swap(false, Ordering::AcqRel);
+            let start_mode = self.wifi.current_start_mode();
+            let has_creds = self.wifi.has_persisted_credentials();
+            if force_portal || matches!(start_mode, WifiStartMode::AccessPoint) || !has_creds {
+                if has_creds {
+                    if let Some(creds) = self.wifi.load_persisted_credentials() {
+                        self.defaults.lock(|cell| {
+                            *cell.borrow_mut() = Some(creds);
+                        });
+                    }
+                }
+                self.events.signal(WifiAutoEvent::CaptivePortalReady);
+                self.run_captive_portal(spawner).await?;
+                unreachable!("Device should reset after captive portal submission");
+            }
 
-        self.events.signal(WifiAutoEvent::ClientConnecting);
-        self.wait_for_client_ready().await;
-        self.events.signal(WifiAutoEvent::Connected);
-        Ok(())
+            for attempt in 1..=MAX_CONNECT_ATTEMPTS {
+                info!(
+                    "WifiAuto: connection attempt {}/{}",
+                    attempt,
+                    MAX_CONNECT_ATTEMPTS
+                );
+                self.events.signal(WifiAutoEvent::ClientConnecting);
+                if self.wait_for_client_ready_with_timeout(CONNECT_TIMEOUT).await {
+                    self.events.signal(WifiAutoEvent::Connected);
+                    return Ok(());
+                }
+                warn!("WifiAuto: connection attempt {} timed out", attempt);
+                Timer::after(RETRY_DELAY).await;
+            }
+
+            info!(
+                "WifiAuto: failed to connect after {} attempts, returning to captive portal",
+                MAX_CONNECT_ATTEMPTS
+            );
+            if let Some(creds) = self.wifi.load_persisted_credentials() {
+                self.defaults.lock(|cell| {
+                    *cell.borrow_mut() = Some(creds);
+                });
+            }
+            self.wifi
+                .set_start_mode(WifiStartMode::AccessPoint)
+                .map_err(|_| Error::StorageCorrupted)?;
+            Timer::after_millis(500).await;
+            SCB::sys_reset();
+        }
     }
 
-    async fn wait_for_client_ready(&self) {
-        loop {
-            match self.wifi.wait().await {
-                WifiEvent::ClientReady => break,
-                WifiEvent::ApReady => {
-                    info!("WifiAuto: received AP-ready event while waiting for client mode");
+    async fn wait_for_client_ready_with_timeout(&self, timeout: Duration) -> bool {
+        with_timeout(timeout, async {
+            loop {
+                match self.wifi.wait().await {
+                    WifiEvent::ClientReady => break,
+                    WifiEvent::ApReady => {
+                        info!("WifiAuto: received AP-ready event while waiting for client mode");
+                    }
                 }
             }
-        }
+        })
+        .await
+        .is_ok()
     }
 
     #[allow(unreachable_code)]
@@ -213,4 +267,5 @@ impl WifiAuto {
             cortex_m::asm::nop();
         }
     }
+
 }

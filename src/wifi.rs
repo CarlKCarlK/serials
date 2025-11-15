@@ -124,6 +124,27 @@ pub enum WifiEvent {
     ClientReady,
 }
 
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub enum WifiStartMode {
+    AccessPoint,
+    Client,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct WifiStoredState {
+    credentials: Option<WifiCredentials>,
+    start_mode: WifiStartMode,
+}
+
+impl Default for WifiStoredState {
+    fn default() -> Self {
+        Self {
+            credentials: None,
+            start_mode: WifiStartMode::AccessPoint,
+        }
+    }
+}
+
 /// Internal WiFi operating mode used during startup.
 #[derive(Clone, PartialEq, Eq)]
 enum WifiMode {
@@ -267,21 +288,16 @@ impl Wifi {
         spawner: Spawner,
     ) -> &'static Self {
         let mut store_block = credential_store;
-        let stored_credentials = match store_block.load::<WifiCredentials>() {
-            Ok(value) => value,
-            Err(_e) => {
-                warn!(
-                    "Failed to load stored WiFi credentials (block {})",
-                    store_block.block_id()
-                );
-                None
+        let stored_state = load_state_from_block(&mut store_block);
+        let mode = match stored_state.start_mode {
+            WifiStartMode::AccessPoint => WifiMode::AccessPoint,
+            WifiStartMode::Client => {
+                if let Some(creds) = stored_state.credentials.clone() {
+                    WifiMode::ClientConfigured(creds)
+                } else {
+                    WifiMode::AccessPoint
+                }
             }
-        };
-
-        let mode = if let Some(creds) = stored_credentials {
-            WifiMode::ClientConfigured(creds)
-        } else {
-            WifiMode::AccessPoint
         };
         let token = unwrap!(wifi_device_loop(
             pin_23,
@@ -315,69 +331,107 @@ impl Wifi {
         Err("Mode switch requires device restart - not yet implemented")
     }
 
-    fn with_credential_store<F>(&self, f: F) -> Result<(), &'static str>
+    fn update_state<F>(&self, f: F) -> Result<(), &'static str>
     where
-        F: FnOnce(&mut FlashBlock) -> Result<(), &'static str>,
+        F: FnOnce(&mut WifiStoredState),
     {
         self.credential_store.lock(|cell| {
             let mut block = cell.borrow_mut();
-            f(&mut *block)
+            let mut state = load_state_from_block(&mut block);
+            f(&mut state);
+            save_state_to_block(&mut block, &state)
+        })
+    }
+
+    fn read_state<R>(&self, f: impl FnOnce(&WifiStoredState) -> R) -> R {
+        self.credential_store.lock(|cell| {
+            let mut block = cell.borrow_mut();
+            let state = load_state_from_block(&mut block);
+            f(&state)
         })
     }
 
     /// Persist credentials into the configured flash store.
     pub fn persist_credentials(&self, credentials: &WifiCredentials) -> Result<(), &'static str> {
-        self.with_credential_store(|block| {
-            block
-                .save(credentials)
-                .map_err(|_| "Failed to save WiFi credentials")
+        let cloned = credentials.clone();
+        self.update_state(|state| {
+            state.credentials = Some(cloned.clone());
+            state.start_mode = WifiStartMode::Client;
         })
     }
 
     /// Remove any stored credentials from flash.
     pub fn clear_persisted_credentials(&self) -> Result<(), &'static str> {
-        self.with_credential_store(|block| {
-            block
-                .clear()
-                .map_err(|_| "Failed to clear WiFi credentials")
+        self.update_state(|state| {
+            state.credentials = None;
+            state.start_mode = WifiStartMode::AccessPoint;
         })
     }
 
     /// Return whether credentials currently exist in flash.
     pub fn has_persisted_credentials(&self) -> bool {
-        self.credential_store.lock(|cell| {
-            let mut block = cell.borrow_mut();
-            match block.load::<WifiCredentials>() {
-                Ok(Some(_)) => true,
-                Ok(None) => false,
-                Err(_) => {
-                    warn!(
-                        "Failed to load stored WiFi credentials (block {})",
-                        block.block_id()
-                    );
-                    false
-                }
-            }
-        })
+        self.read_state(|state| state.credentials.is_some())
     }
 
     /// Load stored credentials if available.
     pub fn load_persisted_credentials(&self) -> Option<WifiCredentials> {
-        self.credential_store.lock(|cell| {
-            let mut block = cell.borrow_mut();
-            match block.load::<WifiCredentials>() {
-                Ok(Some(creds)) => Some(creds),
-                Ok(None) => None,
-                Err(_) => {
-                    warn!(
-                        "Failed to load stored WiFi credentials (block {})",
-                        block.block_id()
-                    );
-                    None
-                }
-            }
+        self.read_state(|state| state.credentials.clone())
+    }
+
+    /// Return the currently configured start mode.
+    pub fn current_start_mode(&self) -> WifiStartMode {
+        self.read_state(|state| state.start_mode)
+    }
+
+    /// Change the stored start mode flag.
+    pub fn set_start_mode(&self, mode: WifiStartMode) -> Result<(), &'static str> {
+        self.update_state(|state| {
+            state.start_mode = mode;
         })
     }
+
+    /// Update the start mode flag in a raw flash block before WiFi initialization.
+    pub fn prepare_start_mode(
+        block: &mut FlashBlock,
+        mode: WifiStartMode,
+    ) -> Result<(), &'static str> {
+        let mut state = load_state_from_block(block);
+        state.start_mode = mode;
+        save_state_to_block(block, &state)
+    }
+
+    /// Peek stored credentials directly from a flash block.
+    pub fn peek_credentials(block: &mut FlashBlock) -> Option<WifiCredentials> {
+        load_state_from_block(block).credentials
+    }
+
+    /// Peek the stored start mode directly from a flash block.
+    pub fn peek_start_mode(block: &mut FlashBlock) -> WifiStartMode {
+        load_state_from_block(block).start_mode
+    }
+}
+
+fn load_state_from_block(block: &mut FlashBlock) -> WifiStoredState {
+    match block.load::<WifiStoredState>() {
+        Ok(Some(state)) => state,
+        Ok(None) => WifiStoredState::default(),
+        Err(_) => {
+            warn!(
+                "Failed to load stored WiFi state (block {})",
+                block.block_id()
+            );
+            WifiStoredState::default()
+        }
+    }
+}
+
+fn save_state_to_block(
+    block: &mut FlashBlock,
+    state: &WifiStoredState,
+) -> Result<(), &'static str> {
+    block
+        .save(state)
+        .map_err(|_| "Failed to save WiFi state to flash")
 }
 
 bind_interrupts!(struct Irqs {

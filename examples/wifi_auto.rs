@@ -59,15 +59,15 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
     let wifi_auto = WifiAuto::new(
         &WIFI_AUTO_NOTIFIER,
-        peripherals.PIN_23,
-        peripherals.PIN_25,
-        peripherals.PIO0,
-        peripherals.PIN_24,
-        peripherals.PIN_29,
-        peripherals.DMA_CH0,
-        wifi_credentials_flash,
-        peripherals.PIN_13,
-        "PicoClock",
+        peripherals.PIN_23, // CYW43 power
+        peripherals.PIN_25, // CYW43 chip select
+        peripherals.PIO0,   // CYW43 PIO interface
+        peripherals.PIN_24, // CYW43 clock
+        peripherals.PIN_29, // CYW43 data pin
+        peripherals.DMA_CH0, // CYW43 DMA channel
+        wifi_credentials_flash, // Flash block storing Wi-Fi creds
+        peripherals.PIN_13, // User button pin
+        "PicoClock",        // Captive-portal SSID to display
         spawner,
     )?;
 
@@ -75,14 +75,10 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         loop {
             match wifi_auto.wait_event().await {
                 WifiAutoEvent::CaptivePortalReady => {
-                    let mut text = [' ', ' ', ' ', ' '];
-                    for (dst, ch) in text.iter_mut().zip(wifi_auto.ap_ssid().chars()) {
-                        *dst = ch;
-                    }
-                    led4.write_text(BlinkState::BlinkingAndOn, text);
+                    led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
                 }
                 WifiAutoEvent::ClientConnecting => {
-                    led4.write_text(BlinkState::BlinkingAndOn, ['C', 'N', 'N', ' ']);
+                    led4.write_text(BlinkState::BlinkingAndOn, ['[', 'I', 'I', ']']);
                 }
                 WifiAutoEvent::Connected => {
                     led4.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
