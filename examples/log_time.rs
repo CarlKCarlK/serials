@@ -37,7 +37,7 @@ use serials::clock::{Clock, ClockNotifier};
 use serials::dns_server::dns_server_task;
 use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
-use serials::wifi_config::collect_wifi_credentials;
+use serials::wifi_config::{collect_wifi_credentials, WifiConfigOptions};
 
 struct TimezoneStore {
     block: FlashBlock,
@@ -126,7 +126,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         info!("");
 
         // Collect credentials from user via web interface
-        let submission = collect_wifi_credentials(stack, spawner).await?;
+        let submission = collect_wifi_credentials(stack, spawner, WifiConfigOptions::default()).await?;
 
         info!("==========================================================");
         info!("CREDENTIALS RECEIVED!");

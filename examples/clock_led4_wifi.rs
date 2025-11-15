@@ -26,7 +26,7 @@ use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
 use serials::led4::OutputArray;
 use serials::time_sync::{TimeSync, TimeSyncNotifier};
 use serials::wifi::Wifi;
-use serials::wifi_config::collect_wifi_credentials;
+use serials::wifi_config::{collect_wifi_credentials, WifiConfigOptions};
 use serials::{Error, Result};
 use panic_probe as _;
 
@@ -180,7 +180,7 @@ impl WifiSetupState {
         spawner.spawn(dns_token);
 
         info!("Captive portal running - connect to PicoClock and browse to http://192.168.4.1");
-        let submission = collect_wifi_credentials(stack, spawner).await?;
+        let submission = collect_wifi_credentials(stack, spawner, WifiConfigOptions::default()).await?;
         info!(
             "Credentials received for SSID: {} (offset {} minutes)",
             submission.credentials.ssid, submission.timezone_offset_minutes

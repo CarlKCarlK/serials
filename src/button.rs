@@ -87,6 +87,13 @@ impl<'a> Button<'a> {
         Self(Input::new(pin, Pull::Down))
     }
 
+    /// Returns whether the button is currently pressed.
+    #[must_use]
+    pub fn is_pressed(&self) -> bool {
+        self.0.is_high()
+    }
+
+
     #[inline]
     async fn wait_for_button_up(&mut self) -> &mut Self {
         self.0.wait_for_low().await;

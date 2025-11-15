@@ -1,108 +1,118 @@
-// //! Example showing how a future `WifiAuto` abstraction could drive
-// //! Wi-Fi onboarding plus extra settings (timezone, nickname, etc.).
-// //!
-// //! This file intentionally references APIs that do not exist yet. The goal is to
-// //! illustrate how the final ergonomics could look for applications that want to
-// //! reuse a shared onboarding state machine while collecting additional data.
+//! Minimal example that provisions Wi-Fi credentials using the `WifiAuto`
+//! abstraction and displays connection status on a 4-digit LED display.
+//!
+//! // cmk0 Future iterations should add extra captive-portal widgets (e.g. nickname)
+//! // and show how to persist their flash-backed values before
+//! // handing control back to the application logic.
 
-// #![cfg(feature = "wifi")]
-// #![no_std]
-// #![no_main]
+#![cfg(feature = "wifi")]
+#![no_std]
+#![no_main]
+#![allow(clippy::future_not_send, reason = "single-threaded")]
 
-// use core::convert::Infallible;
-// use defmt::info;
-// use defmt_rtt as _;
-// use embassy_executor::Spawner;
-// use embassy_rp::gpio::{self, Level};
-// use embassy_time::Timer;
-// use panic_probe as _;
-// use serials::button::Button;
-// use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
-// use serials::led4::OutputArray;
-// use serials::wifi_auto::{
-//     ExtraFieldValue, SelectOption, WifiAuto, WifiAutoConfig, WifiAutoEvent,
-//     WifiAutoEventHandler, WifiAutoField, WifiAutoNotifier, WifiAutoRecoveryTrigger,
-//     WifiAutoRunConfig, WifiAutoSubmission,
-// };
-// use serials::{Error, Result};
+use core::convert::Infallible;
+use defmt::info;
+use defmt_rtt as _;
+use embassy_executor::Spawner;
+use embassy_futures::join::join;
+use embassy_rp::gpio::{self, Level};
+use embassy_time::Timer;
+use panic_probe as _;
+use serials::button::Button;
+use serials::flash_array::{FlashArray, FlashArrayNotifier};
+use serials::wifi_config::WifiCredentials;
+use serials::led4::{BlinkState, Led4, Led4Notifier, OutputArray};
+use serials::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoNotifier};
+use serials::Result;
 
-// #[embassy_executor::main]
-// pub async fn main(spawner: Spawner) -> ! {
-//     let err = inner_main(spawner).await.unwrap_err();
-//     core::panic!("{err}");
-// }
+#[embassy_executor::main]
+pub async fn main(spawner: Spawner) -> ! {
+    let err = inner_main(spawner).await.unwrap_err();
+    core::panic!("{err}");
+}
 
-// async fn inner_main(spawner: Spawner) -> Result<Infallible> {
-//     info!("Starting clock with hypothetical WifiAuto onboarding");
-//     let peripherals = embassy_rp::init(Default::default());
+async fn inner_main(spawner: Spawner) -> Result<Infallible> {
+    info!("Starting wifi_auto example");
+    let peripherals = embassy_rp::init(Default::default());
 
-//     static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<3>::notifier();
-//     let [wifi_credentials_flash, timezone_flash, nickname_flash] =
-//         FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
+    static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
+    let [mut wifi_credentials_flash] = FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
 
-//     let cells = OutputArray::new([
-//         gpio::Output::new(peripherals.PIN_1, Level::High),
-//         gpio::Output::new(peripherals.PIN_2, Level::High),
-//         gpio::Output::new(peripherals.PIN_3, Level::High),
-//         gpio::Output::new(peripherals.PIN_4, Level::High),
-//     ]);
-//     let segments = OutputArray::new([
-//         gpio::Output::new(peripherals.PIN_5, Level::Low),
-//         gpio::Output::new(peripherals.PIN_6, Level::Low),
-//         gpio::Output::new(peripherals.PIN_7, Level::Low),
-//         gpio::Output::new(peripherals.PIN_8, Level::Low),
-//         gpio::Output::new(peripherals.PIN_9, Level::Low),
-//         gpio::Output::new(peripherals.PIN_10, Level::Low),
-//         gpio::Output::new(peripherals.PIN_11, Level::Low),
-//         gpio::Output::new(peripherals.PIN_12, Level::Low),
-//     ]);
+    let stored_credentials: Option<WifiCredentials> = wifi_credentials_flash.load()?;
 
-//     static LED4_NOTIFIER: LED4Notifier = Led4::notifier();
-//     let led4 = Led4::new(cells, segments, &LED4_NOTIFIER);
+    // Boot gesture: if the button is held while powering up, drop into AP mode.
+    let button = Button::new(peripherals.PIN_13);
+    let force_ap = button.is_pressed();
+    if force_ap {
+        info!("Force AP: button held at boot");
+        wifi_credentials_flash.clear()?;
+    }
 
-//     let mut button = Button::new(peripherals.PIN_13);
+    let cells = OutputArray::new([
+        gpio::Output::new(peripherals.PIN_1, Level::High),
+        gpio::Output::new(peripherals.PIN_2, Level::High),
+        gpio::Output::new(peripherals.PIN_3, Level::High),
+        gpio::Output::new(peripherals.PIN_4, Level::High),
+    ]);
+    let segments = OutputArray::new([
+        gpio::Output::new(peripherals.PIN_5, Level::Low),
+        gpio::Output::new(peripherals.PIN_6, Level::Low),
+        gpio::Output::new(peripherals.PIN_7, Level::Low),
+        gpio::Output::new(peripherals.PIN_8, Level::Low),
+        gpio::Output::new(peripherals.PIN_9, Level::Low),
+        gpio::Output::new(peripherals.PIN_10, Level::Low),
+        gpio::Output::new(peripherals.PIN_11, Level::Low),
+        gpio::Output::new(peripherals.PIN_12, Level::Low),
+    ]);
 
-//     static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
-//     let wifi_auto = WifiAuto::new(
-//         p.PIN_23,  // WiFi chip data out
-//         p.PIN_25,  // WiFi chip data in
-//         p.PIO0,    // PIO for WiFi chip communication
-//         p.PIN_24,  // WiFi chip clock
-//         p.PIN_29,  // WiFi chip select
-//         p.DMA_CH0, // DMA channel for WiFi
-//         &button, // TODO can we borrow the button here, but later use it in the clock?
-//         &WIFI_AUTO_NOTIFIER, // TODO should this be last?
-//         &[WifiAutoField::timezone_dropdown(&timezone_flash),
-//           WifiAutoField::text(
-//                 "nickname",
-//                 "Device nickname",
-//                 16,
-//                 Some("Clock"),
-//                 nickname_flash,
-//             )],
-//         spawner,
-//     )?;
+    static LED4_NOTIFIER: Led4Notifier = Led4::notifier();
+    let led4 = Led4::new(cells, segments, &LED4_NOTIFIER, spawner)?;
 
-//     // TODO Loop on events from wifi_auto until it is connected.
-//     loop {
-//         led4.write(['C', 'O', 'N', 'N']).await;
-//         let event = wifi_auto.next_event().await;
-//         // todo if connected then break
-//         // else info! the event
-//     }
+    static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
+    // cmk0 When type-state support lands, thread the button / extra flash blocks
+    // into WifiAuto::new so the provisioning phase can own them temporarily.
+    let wifi_auto = WifiAuto::new(
+        &WIFI_AUTO_NOTIFIER,
+        peripherals.PIN_23,
+        peripherals.PIN_25,
+        peripherals.PIO0,
+        peripherals.PIN_24,
+        peripherals.PIN_29,
+        peripherals.DMA_CH0,
+        wifi_credentials_flash,
+        spawner,
+    );
 
-//     // TODO pull info from the flash blocks an then ...
-//     // TODO display the timezone off set on LED4 for 15 seconds
-//     // TODO display the nickname on LED4 for 15 seconds
+    if force_ap {
+        if let Some(creds) = stored_credentials {
+            wifi_auto.set_default_credentials(creds);
+        }
+        wifi_auto.force_captive_portal();
+    }
 
-//     // TODO we need to turn wifi_auto into wifi connected and free the button for later use.
+    let status_future = async {
+        loop {
+            match wifi_auto.wait_event().await {
+                WifiAutoEvent::CaptivePortalReady => {
+                    // cmk0 Consider alternating between CONNECT / URL messaging once multi-state UI lands.
+                    led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
+                }
+                WifiAutoEvent::ClientConnecting => {
+                    led4.write_text(BlinkState::BlinkingAndOn, ['C', 'N', 'N', ' ']);
+                }
+                WifiAutoEvent::Connected => {
+                    led4.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
+                    break;
+                }
+            }
+        }
+    };
 
-//     let mut counter = 0usize;
-//     loop {
-//     // TODO Now that we are connected, get the time from the internet and display it to info!
-//     // TODO await 30 seconds or the button being pressed, or wifi not connected
-//     // TODO  if button pressed, increment the counter and display the number to LED4
-//     // TODO if time expires, get the time from the internet and display it to info!
-//     // TODO if wifi not connected, reset the device
-//     }
-//     }
+    let ensure_future = wifi_auto.ensure_connected(spawner);
+    let (_status, result) = join(status_future, ensure_future).await;
+    result?;
+
+    loop {
+        Timer::after_secs(1).await;
+    }
+}

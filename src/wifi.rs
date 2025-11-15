@@ -360,6 +360,24 @@ impl Wifi {
             }
         })
     }
+
+    /// Load stored credentials if available.
+    pub fn load_persisted_credentials(&self) -> Option<WifiCredentials> {
+        self.credential_store.lock(|cell| {
+            let mut block = cell.borrow_mut();
+            match block.load::<WifiCredentials>() {
+                Ok(Some(creds)) => Some(creds),
+                Ok(None) => None,
+                Err(_) => {
+                    warn!(
+                        "Failed to load stored WiFi credentials (block {})",
+                        block.block_id()
+                    );
+                    None
+                }
+            }
+        })
+    }
 }
 
 bind_interrupts!(struct Irqs {

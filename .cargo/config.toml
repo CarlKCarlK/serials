@@ -18,6 +18,7 @@ lcd-clock-w = "run --example lcd_clock --release --target thumbv6m-none-eabi --f
 clock-led4-wifi-w = "run --example clock_led4_wifi --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 log-time-w = "run --example log_time --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 wifi-web-w = "run --example wifi_web --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
+wifi-auto-w = "run --example wifi_auto --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 
 # Pico 2 ARM aliases
 flash-2 = "run --example flash --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
