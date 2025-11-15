@@ -16,10 +16,10 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_rp::gpio::{self, Level};
-use embassy_time::Timer;
+use embassy_time::{Duration, Timer};
 use panic_probe as _;
 use serials::flash_array::{FlashArray, FlashArrayNotifier};
-use serials::led4::{BlinkState, Led4, Led4Notifier, OutputArray};
+use serials::led4::{AnimationFrame, BlinkState, Led4, Led4Animation, Led4Notifier, OutputArray};
 use serials::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoNotifier};
 use serials::Result;
 
@@ -78,7 +78,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                     led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
                 }
                 WifiAutoEvent::ClientConnecting => {
-                    led4.write_text(BlinkState::BlinkingAndOn, ['[', 'I', 'I', ']']);
+                    led4.animate(circular_outline_animation());
                 }
                 WifiAutoEvent::Connected => {
                     led4.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
@@ -97,4 +97,20 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     loop {
         Timer::after_secs(1).await;
     }
+}
+
+fn circular_outline_animation() -> Led4Animation {
+    const FRAME_DURATION: Duration = Duration::from_millis(80);
+    const FRAMES: [[char; 4]; 4] = [
+        ['[', 'I', 'I', ']'], // top edge
+        [' ', ' ', ' ', '|'], // right edge
+        ['(', 'I', 'I', ')'], // bottom edge
+        ['|', ' ', ' ', ' '], // left edge
+    ];
+
+    let mut animation = Led4Animation::new();
+    for text in FRAMES {
+        let _ = animation.push(AnimationFrame::new(text, FRAME_DURATION));
+    }
+    animation
 }

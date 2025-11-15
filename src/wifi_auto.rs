@@ -104,7 +104,7 @@ impl WifiAuto {
             }
         }
 
-        let mut button = Button::new(button_pin);
+        let button = Button::new(button_pin);
         let force_ap = button.is_pressed();
         if force_ap {
             if let Some(creds) = stored_credentials.clone() {

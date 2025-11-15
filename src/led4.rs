@@ -7,8 +7,10 @@
 //! See [`Led4`] for the main device abstraction and usage examples.
 
 use embassy_executor::Spawner;
+use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-use embassy_time::Duration;
+use embassy_time::{Duration, Timer};
+use heapless::Vec;
 
 use crate::Result;
 use crate::led4_simple::{Led4Simple, Led4SimpleNotifier};
@@ -43,6 +45,8 @@ const BLINK_OFF_DELAY: Duration = Duration::from_millis(50);
 /// Delay for the "on" state during blinking.
 const BLINK_ON_DELAY: Duration = Duration::from_millis(150);
 
+const ANIMATION_MAX_FRAMES: usize = 16;
+
 // ============================================================================
 // BlinkState Enum
 // ============================================================================
@@ -58,6 +62,30 @@ pub enum BlinkState {
     BlinkingAndOn,
     BlinkingButOff,
 }
+
+#[derive(Clone)]
+pub enum Led4Command {
+    Text {
+        blink_state: BlinkState,
+        text: [char; CELL_COUNT],
+    },
+    Animation(Led4Animation),
+}
+
+#[derive(Clone, Copy)]
+pub struct AnimationFrame {
+    pub text: [char; CELL_COUNT],
+    pub duration: Duration,
+}
+
+impl AnimationFrame {
+    #[must_use]
+    pub const fn new(text: [char; CELL_COUNT], duration: Duration) -> Self {
+        Self { text, duration }
+    }
+}
+
+pub type Led4Animation = Vec<AnimationFrame, ANIMATION_MAX_FRAMES>;
 
 // ============================================================================
 // Led4 Virtual Device
@@ -120,9 +148,8 @@ pub struct Led4<'a>(&'a Led4OuterNotifier);
 /// Notifier for the [`Led4`] device.
 pub type Led4Notifier = (Led4OuterNotifier, Led4SimpleNotifier);
 
-/// Signal for sending blink state and text to the [`Led4`] device.
-pub(crate) type Led4OuterNotifier =
-    Signal<CriticalSectionRawMutex, (BlinkState, [char; CELL_COUNT])>;
+/// Signal for sending display commands to the [`Led4`] device.
+pub(crate) type Led4OuterNotifier = Signal<CriticalSectionRawMutex, Led4Command>;
 
 impl Led4<'_> {
     /// Creates the display device and spawns its background task.
@@ -154,7 +181,12 @@ impl Led4<'_> {
     pub fn write_text(&self, blink_state: BlinkState, text: [char; CELL_COUNT]) {
         #[cfg(feature = "display-trace")]
         info!("blink_state: {:?}, text: {:?}", blink_state, text);
-        self.0.signal((blink_state, text));
+        self.0.signal(Led4Command::Text { blink_state, text });
+    }
+
+    /// Plays a looped animation using the provided frames.
+    pub fn animate(&self, animation: Led4Animation) {
+        self.0.signal(Led4Command::Animation(animation));
     }
 }
 
@@ -163,48 +195,73 @@ async fn device_loop(
     outer_notifier: &'static Led4OuterNotifier,
     display: Led4Simple<'static>,
 ) -> ! {
-    let mut blink_state = BlinkState::default();
-    let mut text = [' '; CELL_COUNT];
-    #[expect(clippy::shadow_unrelated, reason = "False positive; not shadowing")]
+    let mut command = Led4Command::Text {
+        blink_state: BlinkState::default(),
+        text: [' '; CELL_COUNT],
+    };
+
     loop {
-        (blink_state, text) = blink_state.execute(outer_notifier, &display, text).await;
+        command = match command {
+            Led4Command::Text { blink_state, text } => {
+                run_text_loop(blink_state, text, outer_notifier, &display).await
+            }
+            Led4Command::Animation(animation) => {
+                run_animation_loop(animation, outer_notifier, &display).await
+            }
+        };
     }
 }
 
-impl BlinkState {
-    pub async fn execute(
-        self,
-        outer_notifier: &'static Led4OuterNotifier,
-        display: &Led4Simple<'_>,
-        text: [char; CELL_COUNT],
-    ) -> (Self, [char; CELL_COUNT]) {
-        use embassy_futures::select::{Either, select};
-        use embassy_time::Timer;
-
-        match self {
-            Self::Solid => {
+async fn run_text_loop(
+    mut blink_state: BlinkState,
+    text: [char; CELL_COUNT],
+    outer_notifier: &'static Led4OuterNotifier,
+    display: &Led4Simple<'_>,
+) -> Led4Command {
+    loop {
+        match blink_state {
+            BlinkState::Solid => {
                 display.write_text(text);
-                outer_notifier.wait().await
+                return outer_notifier.wait().await;
             }
-            Self::BlinkingAndOn => {
+            BlinkState::BlinkingAndOn => {
                 display.write_text(text);
-                if let Either::First((new_state, new_text)) =
-                    select(outer_notifier.wait(), Timer::after(BLINK_ON_DELAY)).await
-                {
-                    (new_state, new_text)
-                } else {
-                    (Self::BlinkingButOff, text)
+                match select(outer_notifier.wait(), Timer::after(BLINK_ON_DELAY)).await {
+                    Either::First(command) => return command,
+                    Either::Second(()) => blink_state = BlinkState::BlinkingButOff,
                 }
             }
-            Self::BlinkingButOff => {
+            BlinkState::BlinkingButOff => {
                 display.write_text([' '; CELL_COUNT]);
-                if let Either::First((new_state, new_text)) =
-                    select(outer_notifier.wait(), Timer::after(BLINK_OFF_DELAY)).await
-                {
-                    (new_state, new_text)
-                } else {
-                    (Self::BlinkingAndOn, text)
+                match select(outer_notifier.wait(), Timer::after(BLINK_OFF_DELAY)).await {
+                    Either::First(command) => return command,
+                    Either::Second(()) => blink_state = BlinkState::BlinkingAndOn,
                 }
+            }
+        }
+    }
+}
+
+async fn run_animation_loop(
+    animation: Led4Animation,
+    outer_notifier: &'static Led4OuterNotifier,
+    display: &Led4Simple<'_>,
+) -> Led4Command {
+    if animation.is_empty() {
+        return outer_notifier.wait().await;
+    }
+
+    let frames = animation;
+    let len = frames.len();
+    let mut index = 0;
+
+    loop {
+        let frame = frames[index];
+        display.write_text(frame.text);
+        match select(outer_notifier.wait(), Timer::after(frame.duration)).await {
+            Either::First(command) => return command,
+            Either::Second(()) => {
+                index = (index + 1) % len;
             }
         }
     }
