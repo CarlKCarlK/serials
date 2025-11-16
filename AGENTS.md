@@ -93,3 +93,5 @@ Guidelines:
 Spelling:
 
 Use American over British spelling
+
+When making up variable notes for examples and elsewhere, never use the prefix "My". I hate that.

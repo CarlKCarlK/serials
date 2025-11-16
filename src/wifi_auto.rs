@@ -1,5 +1,10 @@
-//! WiFi auto-provisioning helper that falls back to a captive portal when
-//! credentials are missing.
+//! WiFi auto-provisioning with captive portal fallback.
+//!
+//! This module provides [`WifiAuto`], a high-level abstraction for managing WiFi
+//! connections with automatic credential provisioning through a captive portal when
+//! credentials are missing or connection fails.
+//!
+//! See [`WifiAuto`] for a complete example.
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
@@ -26,17 +31,27 @@ use crate::button::Button;
 use crate::dns_server::dns_server_task;
 use crate::flash_array::FlashBlock;
 use crate::wifi::{Wifi, WifiEvent, WifiNotifier, WifiStartMode};
-use crate::wifi_auto_portal::{self};
 use crate::wifi_config::WifiCredentials;
 use crate::{Error, Result};
 
-pub use crate::wifi_auto_portal::{FormData, HtmlBuffer, WifiAutoField};
+mod portal;
+pub mod fields;
+
+pub use portal::WifiAutoField;
 
 /// Events emitted while provisioning or connecting.
 #[derive(Clone, Copy, Debug, defmt::Format)]
 pub enum WifiAutoEvent {
+    /// Captive portal is ready and waiting for user configuration.
     CaptivePortalReady,
-    ClientConnecting { try_index: u8, try_count: u8 },
+    /// Attempting to connect to WiFi network.
+    ClientConnecting {
+        /// Current attempt number (0-based).
+        try_index: u8,
+        /// Total number of attempts that will be made.
+        try_count: u8,
+    },
+    /// Successfully connected to WiFi network.
     Connected,
 }
 
@@ -48,6 +63,7 @@ pub type WifiAutoEvents = Signal<CriticalSectionRawMutex, WifiAutoEvent>;
 
 const MAX_WIFI_AUTO_FIELDS: usize = 8;
 
+/// Notifier for [`WifiAuto`]. See [`WifiAuto`] for usage example.
 pub struct WifiAutoNotifier {
     events: WifiAutoEvents,
     wifi: WifiNotifier,
@@ -58,6 +74,95 @@ pub struct WifiAutoNotifier {
     fields_storage: StaticCell<Vec<&'static dyn WifiAutoField, MAX_WIFI_AUTO_FIELDS>>,
 }
 
+/// WiFi auto-provisioning with captive portal and custom configuration fields.
+///
+/// Manages WiFi connectivity with automatic fallback to a captive portal when credentials
+/// are missing or invalid. Supports collecting additional configuration (e.g., timezone,
+/// device name) through custom [`WifiAutoField`] implementations.
+///
+/// # Features
+/// - Automatic captive portal on first boot or failed connections
+/// - Customizable configuration fields beyond WiFi credentials
+/// - Button-triggered reconfiguration
+/// - Event-driven UI updates via [`ensure_connected_with_ui`](Self::ensure_connected_with_ui)
+///
+/// # Example
+///
+/// ```no_run
+/// # use serials::flash_array::{FlashArray, FlashArrayNotifier};
+/// # use serials::wifi_auto::{WifiAuto, WifiAutoNotifier, WifiAutoEvent};
+/// # use serials::wifi_auto::{TimezoneField, TimezoneFieldNotifier};
+/// # use serials::led4::{Led4, Led4Notifier, BlinkState, OutputArray};
+/// # use embassy_executor::Spawner;
+/// # use embassy_rp::{gpio, peripherals};
+/// # async fn example(
+/// #     spawner: Spawner,
+/// #     peripherals: peripherals::Peripherals,
+/// # ) -> Result<(), serials::Error> {
+/// // Set up flash storage for WiFi credentials and timezone
+/// static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<2>::notifier();
+/// let [wifi_flash, timezone_flash] =
+///     FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
+///
+/// // Create a timezone field to collect during provisioning
+/// static TIMEZONE_NOTIFIER: TimezoneFieldNotifier = TimezoneField::notifier();
+/// let timezone_field = TimezoneField::new(&TIMEZONE_NOTIFIER, timezone_flash);
+///
+/// // Initialize WifiAuto with the custom field
+/// static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
+/// let wifi_auto = WifiAuto::new(
+///     &WIFI_AUTO_NOTIFIER,
+///     peripherals.PIN_23,     // CYW43 power
+///     peripherals.PIN_25,     // CYW43 chip select
+///     peripherals.PIO0,       // CYW43 PIO interface
+///     peripherals.PIN_24,     // CYW43 clock
+///     peripherals.PIN_29,     // CYW43 data
+///     peripherals.DMA_CH0,    // CYW43 DMA
+///     wifi_flash,             // Flash for WiFi credentials
+///     peripherals.PIN_13,     // Button for forced reconfiguration
+///     "MyDevice",             // AP SSID for captive portal
+///     [timezone_field],       // Array of custom fields
+///     spawner,
+/// )?;
+///
+/// // Connect with UI feedback (blocks until connected)
+/// # let cells = OutputArray::new([
+/// #     gpio::Output::new(peripherals.PIN_1, gpio::Level::High),
+/// #     gpio::Output::new(peripherals.PIN_2, gpio::Level::High),
+/// #     gpio::Output::new(peripherals.PIN_3, gpio::Level::High),
+/// #     gpio::Output::new(peripherals.PIN_4, gpio::Level::High),
+/// # ]);
+/// # let segments = OutputArray::new([
+/// #     gpio::Output::new(peripherals.PIN_5, gpio::Level::Low),
+/// #     gpio::Output::new(peripherals.PIN_6, gpio::Level::Low),
+/// #     gpio::Output::new(peripherals.PIN_7, gpio::Level::Low),
+/// #     gpio::Output::new(peripherals.PIN_8, gpio::Level::Low),
+/// #     gpio::Output::new(peripherals.PIN_9, gpio::Level::Low),
+/// #     gpio::Output::new(peripherals.PIN_10, gpio::Level::Low),
+/// #     gpio::Output::new(peripherals.PIN_11, gpio::Level::Low),
+/// #     gpio::Output::new(peripherals.PIN_12, gpio::Level::Low),
+/// # ]);
+/// # static LED4_NOTIFIER: Led4Notifier = Led4::notifier();
+/// # let led4 = Led4::new(cells, segments, &LED4_NOTIFIER, spawner)?;
+/// let (stack, button) = wifi_auto
+///     .ensure_connected_with_ui(spawner, |event| match event {
+///         WifiAutoEvent::CaptivePortalReady => {
+///             led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
+///         }
+///         WifiAutoEvent::ClientConnecting { try_index, .. } => {
+///             led4.write_text(BlinkState::Solid, ['T', 'R', 'Y', char::from_digit(try_index.into(), 10).unwrap()]);
+///         }
+///         WifiAutoEvent::Connected => {
+///             led4.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
+///         }
+///     })
+///     .await?;
+///
+/// // Now connected - retrieve timezone configuration
+/// let offset = timezone_field.load_offset()?.unwrap_or(0);
+/// # Ok(())
+/// # }
+/// ```
 pub struct WifiAuto {
     events: &'static WifiAutoEvents,
     wifi: &'static Wifi,
@@ -99,11 +204,17 @@ impl WifiAutoNotifier {
 }
 
 impl WifiAuto {
+    /// Create a new notifier for [`WifiAuto`].
+    ///
+    /// See [`WifiAuto`] for a complete example.
     #[must_use]
     pub const fn notifier() -> WifiAutoNotifier {
         WifiAutoNotifier::new()
     }
 
+    /// Initialize WiFi auto-provisioning with custom configuration fields.
+    ///
+    /// See [`WifiAuto`] for a complete example.
     #[allow(clippy::too_many_arguments)]
     pub fn new<const N: usize>(
         resources: &'static WifiAutoNotifier,
@@ -355,7 +466,7 @@ impl WifiAuto {
             .defaults
             .lock(|cell| cell.borrow_mut().take())
             .or_else(|| self.wifi.load_persisted_credentials());
-        let submission = wifi_auto_portal::collect_credentials(
+        let submission = portal::collect_credentials(
             stack,
             spawner,
             defaults_owned.as_ref(),

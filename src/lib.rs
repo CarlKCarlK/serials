@@ -70,8 +70,6 @@ pub mod wifi;
 #[cfg(all(feature = "wifi", not(feature = "host")))]
 pub mod wifi_auto;
 #[cfg(all(feature = "wifi", not(feature = "host")))]
-mod wifi_auto_portal;
-#[cfg(all(feature = "wifi", not(feature = "host")))]
 pub mod wifi_config;
 
 // Re-export error types and result (used throughout)

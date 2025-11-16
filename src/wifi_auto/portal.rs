@@ -15,9 +15,48 @@ use crate::wifi_config::WifiCredentials;
 
 pub type HtmlBuffer = String<16384>;
 
+/// Trait for custom configuration fields in the WiFi provisioning portal.
+///
+/// Implement this trait to collect additional configuration beyond WiFi credentials
+/// during the captive portal setup. Fields must be `Sync` since they're shared across
+/// async tasks.
+///
+/// See [`TimezoneField`](super::fields::TimezoneField) and
+/// [`UserNameField`](super::fields::UserNameField) for complete
+/// implementation examples.
+///
+/// # Methods
+///
+/// - [`render`](Self::render): Generate HTML form elements for the captive portal
+/// - [`parse`](Self::parse): Parse and save submitted form data
+/// - [`is_satisfied`](Self::is_satisfied): Check if field has valid configuration
 pub trait WifiAutoField: Sync {
+    /// Render HTML form elements for this field.
+    ///
+    /// Append form elements (labels, inputs, selects, etc.) to the `page` buffer.
+    /// This is called when generating the captive portal page.
+    ///
+    /// See [`TimezoneField`](super::fields::TimezoneField) and
+    /// [`UserNameField`](super::fields::UserNameField) for examples.
     fn render(&self, page: &mut HtmlBuffer) -> Result<()>;
+    
+    /// Parse and save form data submitted by the user.
+    ///
+    /// Extract values from the `form` data and persist them (typically to flash).
+    /// Return an error if validation fails.
+    ///
+    /// See [`TimezoneField`](super::fields::TimezoneField) and
+    /// [`UserNameField`](super::fields::UserNameField) for examples.
     fn parse(&self, form: &FormData<'_>) -> Result<()>;
+    
+    /// Check if this field has valid configuration.
+    ///
+    /// Returns `true` if the field has been configured (default implementation always
+    /// returns `true`). If `false`, the captive portal will be shown even if WiFi
+    /// credentials exist.
+    ///
+    /// See [`TimezoneField`](super::fields::TimezoneField) and
+    /// [`UserNameField`](super::fields::UserNameField) for examples.
     fn is_satisfied(&self) -> Result<bool> {
         Ok(true)
     }
