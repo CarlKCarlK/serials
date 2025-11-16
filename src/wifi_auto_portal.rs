@@ -13,7 +13,7 @@ use static_cell::StaticCell;
 use crate::Result;
 use crate::wifi_config::WifiCredentials;
 
-pub type HtmlBuffer = String<8192>;
+pub type HtmlBuffer = String<16384>;
 
 pub trait WifiAutoField: Sync {
     fn render(&self, page: &mut HtmlBuffer) -> Result<()>;
@@ -254,11 +254,6 @@ fn generate_config_page(state: &FormState, fields: &[&'static dyn WifiAutoField]
             warn!("WifiAuto field render failed: {}", Debug2Format(&err));
         }
     }
-    let nickname_present = page.contains("name=\"nickname\"");
-    info!(
-        "WifiAuto portal HTML contains nickname input: {}",
-        nickname_present
-    );
 
     let _ = page.push_str("<button type=\"submit\">Connect</button></form></body></html>");
 

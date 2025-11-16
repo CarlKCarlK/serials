@@ -18,6 +18,7 @@ use embassy_sync::{
     signal::Signal,
 };
 use embassy_time::{Duration, Timer, with_timeout};
+use heapless::Vec;
 use portable_atomic::{AtomicBool, Ordering};
 use static_cell::StaticCell;
 
@@ -45,6 +46,8 @@ const RETRY_DELAY: Duration = Duration::from_secs(3);
 
 pub type WifiAutoEvents = Signal<CriticalSectionRawMutex, WifiAutoEvent>;
 
+const MAX_WIFI_AUTO_FIELDS: usize = 8;
+
 pub struct WifiAutoNotifier {
     events: WifiAutoEvents,
     wifi: WifiNotifier,
@@ -52,7 +55,7 @@ pub struct WifiAutoNotifier {
     force_ap: AtomicBool,
     defaults: Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>>,
     button: Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>>,
-    fields_storage: StaticCell<[&'static dyn WifiAutoField; 8]>,
+    fields_storage: StaticCell<Vec<&'static dyn WifiAutoField, MAX_WIFI_AUTO_FIELDS>>,
 }
 
 pub struct WifiAuto {
@@ -157,12 +160,18 @@ impl WifiAuto {
         });
 
         // Store fields array and convert to slice
-        let fields_ref = if N > 0 {
-            let mut storage_array: [&'static dyn WifiAutoField; 8] = 
-                [fields[0]; 8]; // Initialize with first element
-            storage_array[..N].copy_from_slice(&fields);
-            let stored = resources.fields_storage.init(storage_array);
-            &stored[..N]
+        let fields_ref: &'static [&'static dyn WifiAutoField] = if N > 0 {
+            assert!(
+                N <= MAX_WIFI_AUTO_FIELDS,
+                "WifiAuto supports at most {} custom fields",
+                MAX_WIFI_AUTO_FIELDS
+            );
+            let mut storage: Vec<&'static dyn WifiAutoField, MAX_WIFI_AUTO_FIELDS> = Vec::new();
+            for field in fields {
+                storage.push(field).unwrap_or_else(|_| unreachable!());
+            }
+            let stored_vec = resources.fields_storage.init(storage);
+            stored_vec.as_slice()
         } else {
             &[]
         };

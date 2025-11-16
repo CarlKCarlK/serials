@@ -31,8 +31,30 @@ use static_cell::StaticCell;
 
 type UserName = String<32>;
 
-static TIMEZONE_FIELD: StaticCell<TimezoneField> = StaticCell::new();
-static USER_NAME_FIELD: StaticCell<UserNameField> = StaticCell::new();
+struct TimezoneFieldNotifier {
+    cell: StaticCell<TimezoneField>,
+}
+
+impl TimezoneFieldNotifier {
+    const fn new() -> Self {
+        Self {
+            cell: StaticCell::new(),
+        }
+    }
+}
+
+struct UserNameFieldNotifier {
+    cell: StaticCell<UserNameField>,
+}
+
+impl UserNameFieldNotifier {
+    const fn new() -> Self {
+        Self {
+            cell: StaticCell::new(),
+        }
+    }
+}
+
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -68,8 +90,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static LED4_NOTIFIER: Led4Notifier = Led4::notifier();
     let led4 = Led4::new(cells, segments, &LED4_NOTIFIER, spawner)?;
 
-    let timezone_field = TIMEZONE_FIELD.init(TimezoneField::new(timezone_flash));
-    let user_name_field = USER_NAME_FIELD.init(UserNameField::new(nickname_flash, "PicoClock", 32));
+    static TIMEZONE_FIELD_NOTIFIER: TimezoneFieldNotifier = TimezoneField::notifier();
+    let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_NOTIFIER, timezone_flash);
+
+    static USER_NAME_FIELD_NOTIFIER: UserNameFieldNotifier = UserNameField::notifier();
+    let user_name_field =
+        UserNameField::new(&USER_NAME_FIELD_NOTIFIER, nickname_flash, "PicoClock", 32);
 
     static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
     let wifi_auto = WifiAuto::new(
@@ -223,7 +249,15 @@ struct TimezoneField {
 }
 
 impl TimezoneField {
-    fn new(flash: FlashBlock) -> Self {
+    pub const fn notifier() -> TimezoneFieldNotifier {
+        TimezoneFieldNotifier::new()
+    }
+
+    pub fn new(notifier: &'static TimezoneFieldNotifier, flash: FlashBlock) -> &'static Self {
+        notifier.cell.init(Self::from_flash(flash))
+    }
+
+    fn from_flash(flash: FlashBlock) -> Self {
         Self {
             flash: Mutex::new(RefCell::new(flash)),
         }
@@ -461,7 +495,22 @@ struct UserNameField {
 }
 
 impl UserNameField {
-    fn new(flash: FlashBlock, placeholder: &'static str, max_len: usize) -> Self {
+    pub const fn notifier() -> UserNameFieldNotifier {
+        UserNameFieldNotifier::new()
+    }
+
+    pub fn new(
+        notifier: &'static UserNameFieldNotifier,
+        flash: FlashBlock,
+        placeholder: &'static str,
+        max_len: usize,
+    ) -> &'static Self {
+        notifier
+            .cell
+            .init(Self::from_flash(flash, placeholder, max_len))
+    }
+
+    fn from_flash(flash: FlashBlock, placeholder: &'static str, max_len: usize) -> Self {
         Self {
             flash: Mutex::new(RefCell::new(flash)),
             max_len,
