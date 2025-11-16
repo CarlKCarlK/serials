@@ -4,8 +4,8 @@
 
 use core::{cell::RefCell, fmt::Write};
 use defmt::{info, unwrap, warn};
-use embassy_net::{tcp::TcpSocket, Stack};
-use embassy_sync::blocking_mutex::{raw::CriticalSectionRawMutex, Mutex};
+use embassy_net::{Stack, tcp::TcpSocket};
+use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
 use embassy_sync::channel::Channel;
 use embassy_time::{Duration, Timer};
 use embedded_io_async::Write as _;
@@ -366,5 +366,7 @@ fn empty_favicon_response() -> heapless::String<4096> {
 }
 
 fn redirect_to_root() -> heapless::String<4096> {
-    static_page("HTTP/1.1 302 Found\r\nLocation: /\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+    static_page(
+        "HTTP/1.1 302 Found\r\nLocation: /\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+    )
 }

@@ -3,9 +3,9 @@
 pub mod state;
 pub mod time;
 
+use core::sync::atomic::{AtomicI32, Ordering};
 #[cfg(feature = "display-trace")]
 use defmt::info;
-use core::sync::atomic::{AtomicI32, Ordering};
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};

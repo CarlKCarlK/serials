@@ -18,6 +18,7 @@ use embassy_executor::Spawner;
 use embassy_net::Ipv4Address;
 use embassy_rp::gpio::{self, Level};
 use embassy_time::Timer;
+use panic_probe as _;
 use serials::button::Button;
 use serials::clock_led4::state::ClockLed4State;
 use serials::clock_led4::{ClockLed4 as Clock, ClockLed4Notifier as ClockNotifier};
@@ -26,9 +27,8 @@ use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
 use serials::led4::{AnimationFrame, Led4Animation, OutputArray};
 use serials::time_sync::{TimeSync, TimeSyncNotifier};
 use serials::wifi::Wifi;
-use serials::wifi_config::{collect_wifi_credentials, WifiConfigOptions};
+use serials::wifi_config::{WifiConfigOptions, collect_wifi_credentials};
 use serials::{Error, Result};
-use panic_probe as _;
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -68,16 +68,18 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         gpio::Output::new(p.PIN_12, Level::Low),
     ]);
 
-    let timezone_offset_minutes = timezone_offset_minutes_flash
-        .load::<i32>()?
-        .unwrap_or(0);
+    let timezone_offset_minutes = timezone_offset_minutes_flash.load::<i32>()?.unwrap_or(0);
 
-
-    // cmk consider passing in the timezone_flash_block to clock for direct saving        
+    // cmk consider passing in the timezone_flash_block to clock for direct saving
     // Initialize clock and button
     static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
-    let mut clock =
-        Clock::new(cells, segments, &CLOCK_NOTIFIER, spawner, timezone_offset_minutes)?;
+    let mut clock = Clock::new(
+        cells,
+        segments,
+        &CLOCK_NOTIFIER,
+        spawner,
+        timezone_offset_minutes,
+    )?;
     let mut button = Button::new(p.PIN_13);
 
     // Determine initial boot phase by executing start logic
@@ -85,12 +87,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
     let time_sync = TimeSync::new(
         &TIME_SYNC_NOTIFIER,
-        p.PIN_23,  // WiFi chip data out
-        p.PIN_25,  // WiFi chip data in
-        p.PIO0,    // PIO for WiFi chip communication
-        p.PIN_24,  // WiFi chip clock
-        p.PIN_29,  // WiFi chip select
-        p.DMA_CH0, // DMA channel for WiFi
+        p.PIN_23,               // WiFi chip data out
+        p.PIN_25,               // WiFi chip data in
+        p.PIO0,                 // PIO for WiFi chip communication
+        p.PIN_24,               // WiFi chip clock
+        p.PIN_29,               // WiFi chip select
+        p.DMA_CH0,              // DMA channel for WiFi
         wifi_credentials_flash, // Flash partition containing WiFi credentials
         spawner,                // Embassy spawner for background tasks
     );
@@ -151,13 +153,9 @@ impl WifiSetupState {
             Self::AttemptConnection => {
                 Self::execute_attempt_connection(clock, button, time_sync).await
             }
-            Self::Running => Self::execute_running(
-                clock,
-                button,
-                time_sync,
-                timezone_offset_minutes_flash,
-            )
-            .await,
+            Self::Running => {
+                Self::execute_running(clock, button, time_sync, timezone_offset_minutes_flash).await
+            }
         }
     }
 
@@ -180,7 +178,8 @@ impl WifiSetupState {
         spawner.spawn(dns_token);
 
         info!("Captive portal running - connect to PicoClock and browse to http://192.168.4.1");
-        let submission = collect_wifi_credentials(stack, spawner, WifiConfigOptions::default()).await?;
+        let submission =
+            collect_wifi_credentials(stack, spawner, WifiConfigOptions::default()).await?;
         info!(
             "Credentials received for SSID: {} (offset {} minutes)",
             submission.credentials.ssid, submission.timezone_offset_minutes

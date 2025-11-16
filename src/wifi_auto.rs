@@ -5,11 +5,18 @@
 
 use core::{cell::RefCell, convert::Infallible};
 use cortex_m::peripheral::SCB;
-use defmt::{info, warn, unwrap};
+use defmt::{info, unwrap, warn};
 use embassy_executor::Spawner;
 use embassy_net::Ipv4Address;
-use embassy_rp::{Peri, peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0}, gpio::Pin};
-use embassy_sync::{blocking_mutex::{raw::CriticalSectionRawMutex, Mutex}, signal::Signal};
+use embassy_rp::{
+    Peri,
+    gpio::Pin,
+    peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0},
+};
+use embassy_sync::{
+    blocking_mutex::{Mutex, raw::CriticalSectionRawMutex},
+    signal::Signal,
+};
 use embassy_time::{Duration, Timer, with_timeout};
 use portable_atomic::{AtomicBool, Ordering};
 use static_cell::StaticCell;
@@ -18,18 +25,25 @@ use crate::button::Button;
 use crate::dns_server::dns_server_task;
 use crate::flash_array::FlashBlock;
 use crate::wifi::{Wifi, WifiEvent, WifiNotifier, WifiStartMode};
-use crate::wifi_config::{collect_wifi_credentials, WifiConfigOptions, WifiCredentials};
+use crate::wifi_config::{WifiConfigOptions, WifiCredentials, collect_wifi_credentials};
 use crate::{Error, Result};
 
 /// Events emitted while provisioning or connecting.
 #[derive(Clone, Copy, Debug, defmt::Format)]
 pub enum WifiAutoEvent {
     CaptivePortalReady,
-    ClientConnecting {
-        try_index: u8,
-        try_count: u8,
-    },
+    ClientConnecting { try_index: u8, try_count: u8 },
     Connected,
+}
+
+#[must_use]
+pub struct WifiSession {
+    pub wifi: &'static Wifi,
+    pub button: Button<'static>,
+}
+
+pub struct WifiAutoHandle {
+    inner: &'static WifiAuto,
 }
 
 const MAX_CONNECT_ATTEMPTS: u8 = 2;
@@ -57,22 +71,8 @@ pub struct WifiAuto {
 }
 
 impl WifiAutoNotifier {
-    fn force_ap_flag(&'static self) -> &'static AtomicBool {
-        &self.force_ap
-    }
-
-    fn defaults(&'static self) -> &'static Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>> {
-        &self.defaults
-    }
-
-    fn button(&'static self) -> &'static Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>> {
-        &self.button
-    }
-}
-
-impl WifiAuto {
     #[must_use]
-    pub const fn notifier() -> WifiAutoNotifier {
+    pub const fn new() -> Self {
         WifiAutoNotifier {
             events: Signal::new(),
             wifi: Wifi::notifier(),
@@ -83,8 +83,31 @@ impl WifiAuto {
         }
     }
 
+    fn force_ap_flag(&'static self) -> &'static AtomicBool {
+        &self.force_ap
+    }
+
+    fn defaults(
+        &'static self,
+    ) -> &'static Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>> {
+        &self.defaults
+    }
+
+    fn button(
+        &'static self,
+    ) -> &'static Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>> {
+        &self.button
+    }
+}
+
+impl WifiAuto {
+    #[must_use]
+    pub const fn notifier() -> WifiAutoNotifier {
+        WifiAutoNotifier::new()
+    }
+
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    fn new(
         resources: &'static WifiAutoNotifier,
         pin_23: Peri<'static, PIN_23>,
         pin_25: Peri<'static, PIN_25>,
@@ -212,7 +235,7 @@ impl WifiAuto {
         &self,
         spawner: Spawner,
         mut on_event: F,
-    ) -> Result<()>
+    ) -> Result<WifiSession>
     where
         F: FnMut(WifiAutoEvent),
     {
@@ -228,10 +251,15 @@ impl WifiAuto {
         };
 
         let (result, ()) = embassy_futures::join::join(self.ensure_connected(spawner), ui).await;
-        result
+        result?;
+        let button = self.take_button().ok_or(Error::StorageCorrupted)?;
+        Ok(WifiSession {
+            wifi: self.wifi(),
+            button,
+        })
     }
 
-    pub async fn ensure_connected(&self, spawner: Spawner) -> Result<()> {
+    async fn ensure_connected(&self, spawner: Spawner) -> Result<()> {
         loop {
             let force_portal = self.force_ap.swap(false, Ordering::AcqRel);
             let start_mode = self.wifi.current_start_mode();
@@ -252,14 +280,16 @@ impl WifiAuto {
             for attempt in 1..=MAX_CONNECT_ATTEMPTS {
                 info!(
                     "WifiAuto: connection attempt {}/{}",
-                    attempt,
-                    MAX_CONNECT_ATTEMPTS
+                    attempt, MAX_CONNECT_ATTEMPTS
                 );
                 self.events.signal(WifiAutoEvent::ClientConnecting {
                     try_index: attempt - 1,
                     try_count: MAX_CONNECT_ATTEMPTS,
                 });
-                if self.wait_for_client_ready_with_timeout(CONNECT_TIMEOUT).await {
+                if self
+                    .wait_for_client_ready_with_timeout(CONNECT_TIMEOUT)
+                    .await
+                {
                     self.events.signal(WifiAutoEvent::Connected);
                     return Ok(());
                 }
@@ -327,5 +357,51 @@ impl WifiAuto {
             cortex_m::asm::nop();
         }
     }
+}
 
+impl WifiAutoHandle {
+    #[must_use]
+    pub const fn notifier() -> WifiAutoNotifier {
+        WifiAutoNotifier::new()
+    }
+
+    pub fn new(
+        resources: &'static WifiAutoNotifier,
+        pin_23: Peri<'static, PIN_23>,
+        pin_25: Peri<'static, PIN_25>,
+        pio0: Peri<'static, PIO0>,
+        pin_24: Peri<'static, PIN_24>,
+        pin_29: Peri<'static, PIN_29>,
+        dma_ch0: Peri<'static, DMA_CH0>,
+        credential_store: FlashBlock,
+        button_pin: Peri<'static, impl Pin>,
+        ap_ssid: &'static str,
+        spawner: Spawner,
+    ) -> Result<Self> {
+        WifiAuto::new(
+            resources,
+            pin_23,
+            pin_25,
+            pio0,
+            pin_24,
+            pin_29,
+            dma_ch0,
+            credential_store,
+            button_pin,
+            ap_ssid,
+            spawner,
+        )
+        .map(|inner| Self { inner })
+    }
+
+    pub async fn ensure_connected_with_ui<F>(
+        self,
+        spawner: Spawner,
+        on_event: F,
+    ) -> Result<WifiSession>
+    where
+        F: FnMut(WifiAutoEvent),
+    {
+        self.inner.ensure_connected_with_ui(spawner, on_event).await
+    }
 }

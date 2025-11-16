@@ -64,13 +64,13 @@ pub mod servo;
 #[cfg(not(feature = "host"))]
 pub mod time_sync;
 #[cfg(not(feature = "host"))]
-mod unix_seconds;
+pub mod unix_seconds;
 #[cfg(all(feature = "wifi", not(feature = "host")))]
 pub mod wifi;
 #[cfg(all(feature = "wifi", not(feature = "host")))]
-pub mod wifi_config;
-#[cfg(all(feature = "wifi", not(feature = "host")))]
 pub mod wifi_auto;
+#[cfg(all(feature = "wifi", not(feature = "host")))]
+pub mod wifi_config;
 
 // Re-export error types and result (used throughout)
 #[cfg(not(feature = "host"))]

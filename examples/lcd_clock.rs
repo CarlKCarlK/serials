@@ -53,12 +53,13 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         static WIFI_FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
         let [wifi_block] = FlashArray::new(&WIFI_FLASH_NOTIFIER, p.FLASH)?;
         TimeSync::new(
-            &TIME_SYNC, p.PIN_23,  // WiFi power enable
-            p.PIN_25,  // WiFi SPI chip select
-            p.PIO0,    // WiFi PIO block for SPI
-            p.PIN_24,  // WiFi SPI MOSI
-            p.PIN_29,  // WiFi SPI CLK
-            p.DMA_CH0, // WiFi DMA channel for SPI
+            &TIME_SYNC,
+            p.PIN_23,   // WiFi power enable
+            p.PIN_25,   // WiFi SPI chip select
+            p.PIO0,     // WiFi PIO block for SPI
+            p.PIN_24,   // WiFi SPI MOSI
+            p.PIN_29,   // WiFi SPI CLK
+            p.DMA_CH0,  // WiFi DMA channel for SPI
             wifi_block, // Flash partition for WiFi credentials
             serials::wifi::DEFAULT_AP_SSID,
             spawner,

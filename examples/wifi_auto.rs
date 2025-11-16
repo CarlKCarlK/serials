@@ -11,16 +11,18 @@
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
 use core::convert::Infallible;
-use defmt::info;
+use defmt::{info, warn};
 use defmt_rtt as _;
 use embassy_executor::Spawner;
+use embassy_net::{Stack, dns::DnsQueryType, udp};
 use embassy_rp::gpio::{self, Level};
-use embassy_time::{Duration, Timer};
+use embassy_time::Duration;
 use panic_probe as _;
 use serials::Result;
 use serials::flash_array::{FlashArray, FlashArrayNotifier};
 use serials::led4::{AnimationFrame, BlinkState, Led4, Led4Animation, Led4Notifier, OutputArray};
-use serials::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoNotifier};
+use serials::unix_seconds::UnixSeconds;
+use serials::wifi_auto::{WifiAutoEvent, WifiAutoHandle, WifiAutoNotifier, WifiSession};
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -55,8 +57,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static LED4_NOTIFIER: Led4Notifier = Led4::notifier();
     let led4 = Led4::new(cells, segments, &LED4_NOTIFIER, spawner)?;
 
-    static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
-    let wifi_auto = WifiAuto::new(
+    static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAutoHandle::notifier();
+    let wifi_auto = WifiAutoHandle::new(
         &WIFI_AUTO_NOTIFIER,
         peripherals.PIN_23,     // CYW43 power
         peripherals.PIN_25,     // CYW43 chip select
@@ -70,7 +72,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         spawner,
     )?;
 
-    wifi_auto
+    let WifiSession { wifi, mut button } = wifi_auto
         .ensure_connected_with_ui(spawner, |event| match event {
             WifiAutoEvent::CaptivePortalReady => {
                 led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
@@ -86,8 +88,13 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         })
         .await?;
 
-    let _button = wifi_auto.take_button();    loop {
-        Timer::after_secs(1).await;
+    let stack = wifi.stack().await;
+    loop {
+        button.wait_for_press().await;
+        match fetch_ntp_time(stack).await {
+            Ok(unix_seconds) => info!("Current time: {}", unix_seconds.as_i64()),
+            Err(err) => warn!("Failed to fetch time: {}", err),
+        }
     }
 }
 
@@ -120,4 +127,70 @@ fn circular_outline_animation(clockwise: bool) -> Led4Animation {
         let _ = animation.push(AnimationFrame::new(*text, FRAME_DURATION));
     }
     animation
+}
+
+async fn fetch_ntp_time(stack: &'static Stack<'static>) -> Result<UnixSeconds, &'static str> {
+    use udp::UdpSocket;
+
+    const NTP_SERVER: &str = "pool.ntp.org";
+    const NTP_PORT: u16 = 123;
+
+    info!("Resolving {}...", NTP_SERVER);
+    let dns_result = stack
+        .dns_query(NTP_SERVER, DnsQueryType::A)
+        .await
+        .map_err(|e| {
+            warn!("DNS lookup failed: {:?}", e);
+            "DNS lookup failed"
+        })?;
+    let server_addr = dns_result.first().ok_or("No DNS results")?;
+
+    let mut rx_meta = [udp::PacketMetadata::EMPTY; 1];
+    let mut rx_buffer = [0; 128];
+    let mut tx_meta = [udp::PacketMetadata::EMPTY; 1];
+    let mut tx_buffer = [0; 128];
+    let mut socket = UdpSocket::new(
+        *stack,
+        &mut rx_meta,
+        &mut rx_buffer,
+        &mut tx_meta,
+        &mut tx_buffer,
+    );
+
+    socket.bind(0).map_err(|e| {
+        warn!("Socket bind failed: {:?}", e);
+        "Socket bind failed"
+    })?;
+
+    let mut ntp_request = [0u8; 48];
+    ntp_request[0] = 0x1B;
+    info!("Sending NTP request...");
+    socket
+        .send_to(&ntp_request, (*server_addr, NTP_PORT))
+        .await
+        .map_err(|e| {
+            warn!("NTP send failed: {:?}", e);
+            "NTP send failed"
+        })?;
+
+    let mut response = [0u8; 48];
+    let (n, _) =
+        embassy_time::with_timeout(Duration::from_secs(5), socket.recv_from(&mut response))
+            .await
+            .map_err(|_| {
+                warn!("NTP receive timeout");
+                "NTP receive timeout"
+            })?
+            .map_err(|e| {
+                warn!("NTP receive failed: {:?}", e);
+                "NTP receive failed"
+            })?;
+
+    if n < 48 {
+        warn!("NTP response too short: {} bytes", n);
+        return Err("NTP response too short");
+    }
+
+    let ntp_seconds = u32::from_be_bytes([response[40], response[41], response[42], response[43]]);
+    UnixSeconds::from_ntp_seconds(ntp_seconds).ok_or("Invalid NTP timestamp")
 }

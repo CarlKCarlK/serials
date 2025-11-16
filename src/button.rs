@@ -93,7 +93,6 @@ impl<'a> Button<'a> {
         self.0.is_high()
     }
 
-
     #[inline]
     async fn wait_for_button_up(&mut self) -> &mut Self {
         self.0.wait_for_low().await;
