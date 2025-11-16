@@ -7,7 +7,7 @@ use core::{cell::RefCell, convert::Infallible};
 use cortex_m::peripheral::SCB;
 use defmt::{info, unwrap, warn};
 use embassy_executor::Spawner;
-use embassy_net::Ipv4Address;
+use embassy_net::{Ipv4Address, Stack};
 use embassy_rp::{
     Peri,
     gpio::Pin,
@@ -34,12 +34,6 @@ pub enum WifiAutoEvent {
     CaptivePortalReady,
     ClientConnecting { try_index: u8, try_count: u8 },
     Connected,
-}
-
-#[must_use]
-pub struct WifiSession {
-    pub wifi: &'static Wifi,
-    pub button: Button<'static>,
 }
 
 pub struct WifiAutoHandle {
@@ -235,7 +229,7 @@ impl WifiAuto {
         &self,
         spawner: Spawner,
         mut on_event: F,
-    ) -> Result<WifiSession>
+    ) -> Result<(&'static Stack<'static>, Button<'static>)>
     where
         F: FnMut(WifiAutoEvent),
     {
@@ -252,11 +246,9 @@ impl WifiAuto {
 
         let (result, ()) = embassy_futures::join::join(self.ensure_connected(spawner), ui).await;
         result?;
+        let stack = self.wifi.stack().await;
         let button = self.take_button().ok_or(Error::StorageCorrupted)?;
-        Ok(WifiSession {
-            wifi: self.wifi(),
-            button,
-        })
+        Ok((stack, button))
     }
 
     async fn ensure_connected(&self, spawner: Spawner) -> Result<()> {
@@ -398,7 +390,7 @@ impl WifiAutoHandle {
         self,
         spawner: Spawner,
         on_event: F,
-    ) -> Result<WifiSession>
+    ) -> Result<(&'static Stack<'static>, Button<'static>)>
     where
         F: FnMut(WifiAutoEvent),
     {

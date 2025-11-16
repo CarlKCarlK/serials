@@ -22,7 +22,7 @@ use serials::Result;
 use serials::flash_array::{FlashArray, FlashArrayNotifier};
 use serials::led4::{AnimationFrame, BlinkState, Led4, Led4Animation, Led4Notifier, OutputArray};
 use serials::unix_seconds::UnixSeconds;
-use serials::wifi_auto::{WifiAutoEvent, WifiAutoHandle, WifiAutoNotifier, WifiSession};
+use serials::wifi_auto::{WifiAutoEvent, WifiAutoHandle, WifiAutoNotifier};
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -72,7 +72,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         spawner,
     )?;
 
-    let WifiSession { wifi, mut button } = wifi_auto
+    let (stack, mut button) = wifi_auto
         .ensure_connected_with_ui(spawner, |event| match event {
             WifiAutoEvent::CaptivePortalReady => {
                 led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
@@ -87,8 +87,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
             }
         })
         .await?;
-
-    let stack = wifi.stack().await;
+    info!("push button");
     loop {
         button.wait_for_press().await;
         match fetch_ntp_time(stack).await {
