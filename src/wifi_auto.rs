@@ -178,6 +178,59 @@ impl WifiAuto {
         self.events.wait().await
     }
 
+    /// Ensures WiFi connection with UI callback for event-driven status updates.
+    ///
+    /// This is a convenience wrapper around [`ensure_connected`](Self::ensure_connected)
+    /// that automatically monitors connection events and invokes a callback for each event,
+    /// eliminating the need for manual `join()` and event loop boilerplate.
+    ///
+    /// # Parameters
+    /// - `spawner`: Embassy task spawner for background WiFi tasks
+    /// - `on_event`: Callback invoked for each [`WifiAutoEvent`] during connection
+    ///
+    /// # Returns
+    /// - `Ok(())` when successfully connected to WiFi
+    /// - `Err(_)` if flash operations fail or other unrecoverable errors occur
+    ///
+    /// # Example
+    /// ```no_run
+    /// wifi_auto.ensure_connected_with_ui(spawner, |event| {
+    ///     match event {
+    ///         WifiAutoEvent::CaptivePortalReady => {
+    ///             led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
+    ///         }
+    ///         WifiAutoEvent::ClientConnecting { try_index, .. } => {
+    ///             led4.animate_text(animation(try_index));
+    ///         }
+    ///         WifiAutoEvent::Connected => {
+    ///             led4.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
+    ///         }
+    ///     }
+    /// }).await?;
+    /// ```
+    pub async fn ensure_connected_with_ui<F>(
+        &self,
+        spawner: Spawner,
+        mut on_event: F,
+    ) -> Result<()>
+    where
+        F: FnMut(WifiAutoEvent),
+    {
+        let ui = async {
+            loop {
+                let event = self.wait_event().await;
+                on_event(event);
+
+                if matches!(event, WifiAutoEvent::Connected) {
+                    break;
+                }
+            }
+        };
+
+        let (result, ()) = embassy_futures::join::join(self.ensure_connected(spawner), ui).await;
+        result
+    }
+
     pub async fn ensure_connected(&self, spawner: Spawner) -> Result<()> {
         loop {
             let force_portal = self.force_ap.swap(false, Ordering::AcqRel);

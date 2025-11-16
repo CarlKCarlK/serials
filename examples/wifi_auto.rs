@@ -14,7 +14,6 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_futures::join::join;
 use embassy_rp::gpio::{self, Level};
 use embassy_time::{Duration, Timer};
 use panic_probe as _;
@@ -71,32 +70,23 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         spawner,
     )?;
 
-    let (wifi_result, ()) = join(wifi_auto.ensure_connected(spawner),
-        // UI loop
-         async {
-        loop {
-            match wifi_auto.wait_event().await {
-                WifiAutoEvent::CaptivePortalReady => {
-                    led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N'])
-                }
-
-                WifiAutoEvent::ClientConnecting { try_index, .. } => {
-                    led4.animate_text(circular_outline_animation((try_index & 1) == 0))
-                }
-
-                WifiAutoEvent::Connected => {
-                    led4.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
-                    break;
-                }
+    wifi_auto
+        .ensure_connected_with_ui(spawner, |event| match event {
+            WifiAutoEvent::CaptivePortalReady => {
+                led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
             }
-        }
-    })
-    .await;
-    wifi_result?;
-    
-    let _button = wifi_auto.take_button();
 
-    loop {
+            WifiAutoEvent::ClientConnecting { try_index, .. } => {
+                led4.animate_text(circular_outline_animation((try_index & 1) == 0));
+            }
+
+            WifiAutoEvent::Connected => {
+                led4.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
+            }
+        })
+        .await?;
+
+    let _button = wifi_auto.take_button();    loop {
         Timer::after_secs(1).await;
     }
 }
