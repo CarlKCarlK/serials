@@ -27,7 +27,10 @@ use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
 use serials::led4::{AnimationFrame, Led4Animation, OutputArray};
 use serials::time_sync::{TimeSync, TimeSyncNotifier};
 use serials::wifi::Wifi;
-use serials::wifi_config::{WifiConfigOptions, collect_wifi_credentials};
+use serials::wifi_config::{
+    MAX_NICKNAME_LEN, Nickname, NicknameFieldOptions, TimezoneFieldOptions, WifiConfigOptions,
+    collect_wifi_credentials,
+};
 use serials::{Error, Result};
 
 #[embassy_executor::main]
@@ -41,9 +44,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize flash storage
-    static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<2>::notifier();
-    let [wifi_credentials_flash, mut timezone_offset_minutes_flash] =
-        FlashArray::new(&FLASH_NOTIFIER, p.FLASH)?;
+    static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<3>::notifier();
+    let [
+        wifi_credentials_flash,
+        mut timezone_offset_minutes_flash,
+        mut nickname_flash,
+    ] = FlashArray::new(&FLASH_NOTIFIER, p.FLASH)?;
 
     // Initialize LED (unused but kept for compatibility)
     let mut led = gpio::Output::new(p.PIN_0, Level::Low);
@@ -104,6 +110,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         wifi_setup_state = wifi_setup_state
             .execute(
                 &mut timezone_offset_minutes_flash,
+                &mut nickname_flash,
                 &mut clock,
                 &mut button,
                 &time_sync,
@@ -111,6 +118,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
             )
             .await?;
     }
+}
+
+fn default_nickname() -> Nickname {
+    let mut nickname = Nickname::new();
+    let _ = nickname.push_str("PicoClock");
+    nickname
 }
 
 #[derive(Debug, Clone)]
@@ -135,6 +148,7 @@ impl WifiSetupState {
     async fn execute(
         self,
         timezone_offset_minutes_flash: &mut FlashBlock,
+        nickname_flash: &mut FlashBlock,
         clock: &mut Clock<'_>,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
@@ -144,6 +158,7 @@ impl WifiSetupState {
             Self::CaptivePortal => {
                 Self::execute_captive_portal(
                     timezone_offset_minutes_flash,
+                    nickname_flash,
                     clock,
                     time_sync,
                     spawner,
@@ -161,6 +176,7 @@ impl WifiSetupState {
 
     async fn execute_captive_portal(
         timezone_offset_minutes_flash: &mut FlashBlock,
+        nickname_flash: &mut FlashBlock,
         clock: &mut Clock<'_>,
         time_sync: &TimeSync,
         spawner: Spawner,
@@ -178,8 +194,23 @@ impl WifiSetupState {
         spawner.spawn(dns_token);
 
         info!("Captive portal running - connect to PicoClock and browse to http://192.168.4.1");
-        let submission =
-            collect_wifi_credentials(stack, spawner, WifiConfigOptions::default()).await?;
+        let timezone_default = timezone_offset_minutes_flash.load::<i32>()?.unwrap_or(0);
+        let nickname_default = nickname_flash
+            .load::<Nickname>()?
+            .unwrap_or_else(default_nickname);
+        let submission = collect_wifi_credentials(
+            stack,
+            spawner,
+            WifiConfigOptions::default()
+                .with_timezone(TimezoneFieldOptions {
+                    default_offset_minutes: timezone_default,
+                })
+                .with_nickname(NicknameFieldOptions {
+                    default_value: Some(nickname_default.clone()),
+                    max_len: MAX_NICKNAME_LEN,
+                }),
+        )
+        .await?;
         info!(
             "Credentials received for SSID: {} (offset {} minutes)",
             submission.credentials.ssid, submission.timezone_offset_minutes
@@ -193,6 +224,10 @@ impl WifiSetupState {
                 Error::StorageCorrupted
             })?;
         timezone_offset_minutes_flash.save(&submission.timezone_offset_minutes)?;
+        let nickname = submission
+            .nickname
+            .unwrap_or_else(|| nickname_default.clone());
+        nickname_flash.save(&nickname)?;
         clock
             .set_utc_offset_minutes(submission.timezone_offset_minutes)
             .await;

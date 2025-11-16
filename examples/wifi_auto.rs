@@ -22,7 +22,10 @@ use serials::Result;
 use serials::flash_array::{FlashArray, FlashArrayNotifier};
 use serials::led4::{AnimationFrame, BlinkState, Led4, Led4Animation, Led4Notifier, OutputArray};
 use serials::unix_seconds::UnixSeconds;
-use serials::wifi_auto::{WifiAutoEvent, WifiAutoHandle, WifiAutoNotifier};
+use serials::wifi_auto::{
+    WifiAutoConfig, WifiAutoConnected, WifiAutoEvent, WifiAutoHandle, WifiAutoNotifier,
+};
+use serials::wifi_config::Nickname;
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -34,8 +37,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("Starting wifi_auto example");
     let peripherals = embassy_rp::init(Default::default());
 
-    static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
-    let [wifi_credentials_flash] = FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
+    static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<3>::notifier();
+    let [wifi_credentials_flash, timezone_flash, nickname_flash] =
+        FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
 
     let cells = OutputArray::new([
         gpio::Output::new(peripherals.PIN_1, Level::High),
@@ -69,10 +73,18 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         wifi_credentials_flash, // Flash block storing Wi-Fi creds
         peripherals.PIN_13,     // User button pin
         "Pico",                 // Captive-portal SSID to display
+        WifiAutoConfig::new()
+            .with_timezone(timezone_flash) // Flash block storing timezone offset
+            .with_nickname(nickname_flash), // Flash block storing user nickname
         spawner,
     )?;
 
-    let (stack, mut button) = wifi_auto
+    let WifiAutoConnected {
+        stack,
+        mut button,
+        mut timezone_flash,
+        mut nickname_flash,
+    } = wifi_auto
         .ensure_connected_with_ui(spawner, |event| match event {
             WifiAutoEvent::CaptivePortalReady => {
                 led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
@@ -87,6 +99,19 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
             }
         })
         .await?;
+
+    let mut timezone_flash = timezone_flash.expect("timezone flash not returned");
+    let timezone_offset_minutes = timezone_flash.load::<i32>()?.unwrap_or(0);
+    let mut nickname_flash = nickname_flash.expect("nickname flash not returned");
+    let nickname: Nickname = nickname_flash.load::<Nickname>()?.unwrap_or_else(|| {
+        let mut fallback = Nickname::new();
+        let _ = fallback.push_str("PicoClock");
+        fallback
+    });
+    info!(
+        "Nickname '{}' configured with offset {} minutes",
+        nickname, timezone_offset_minutes
+    );
     info!("push button");
     loop {
         button.wait_for_press().await;
