@@ -25,7 +25,10 @@ use crate::{Error, Result};
 #[derive(Clone, Copy, Debug, defmt::Format)]
 pub enum WifiAutoEvent {
     CaptivePortalReady,
-    ClientConnecting,
+    ClientConnecting {
+        try_index: u8,
+        try_count: u8,
+    },
     Connected,
 }
 
@@ -116,7 +119,7 @@ impl WifiAuto {
                 .map_err(|_| Error::StorageCorrupted)?;
         }
 
-        let wifi = Wifi::new(
+        let wifi = Wifi::new_with_ap_ssid(
             &resources.wifi,
             pin_23,
             pin_25,
@@ -125,6 +128,7 @@ impl WifiAuto {
             pin_29,
             dma_ch0,
             credential_store,
+            ap_ssid,
             spawner,
         );
 
@@ -198,7 +202,10 @@ impl WifiAuto {
                     attempt,
                     MAX_CONNECT_ATTEMPTS
                 );
-                self.events.signal(WifiAutoEvent::ClientConnecting);
+                self.events.signal(WifiAutoEvent::ClientConnecting {
+                    try_index: attempt - 1,
+                    try_count: MAX_CONNECT_ATTEMPTS,
+                });
                 if self.wait_for_client_ready_with_timeout(CONNECT_TIMEOUT).await {
                     self.events.signal(WifiAutoEvent::Connected);
                     return Ok(());

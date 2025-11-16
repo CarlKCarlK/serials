@@ -126,25 +126,27 @@ pub async fn http_config_server_task(stack: &'static Stack<'static>) -> ! {
         let request_line = lines.next().unwrap_or("");
         let mut parts = request_line.split_whitespace();
         let method = parts.next().unwrap_or("");
+        let path = parts.next().unwrap_or("/");
 
         let state_snapshot = FORM_STATE.lock(|state| state.borrow().clone());
 
-        let response: heapless::String<4096> = if method == "GET" {
-            generate_config_page(&state_snapshot)
-        } else if method == "POST" {
-            if let Some(submission) = parse_credentials_from_post(request_text) {
-                info!("Received WiFi credentials:");
-                info!("  SSID: {}", submission.credentials.ssid);
-                info!("  Password: [hidden]");
+        let response: heapless::String<4096> = match (method, path) {
+            ("GET", "/") => generate_config_page(&state_snapshot),
+            ("GET", "/favicon.ico") => empty_favicon_response(),
+            ("POST", "/") => {
+                if let Some(submission) = parse_credentials_from_post(request_text) {
+                    info!("Received WiFi credentials:");
+                    info!("  SSID: {}", submission.credentials.ssid);
+                    info!("  Password: [hidden]");
 
-                CREDENTIAL_CHANNEL.send(submission).await;
-                static_page(generate_success_page())
-            } else {
-                warn!("Failed to parse credentials");
-                static_page(generate_error_page())
+                    CREDENTIAL_CHANNEL.send(submission).await;
+                    static_page(generate_success_page())
+                } else {
+                    warn!("Failed to parse credentials");
+                    static_page(generate_error_page())
+                }
             }
-        } else {
-            static_page(generate_error_page())
+            _ => redirect_to_root(),
         };
 
         if let Err(e) = socket.write_all(response.as_bytes()).await {
@@ -215,6 +217,7 @@ fn generate_config_page(state: &FormState) -> heapless::String<4096> {
          <head>\
              <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
              <title>WiFi Configuration</title>\
+             <link rel=\"icon\" href=\"data:,\">\
              <style>\
                  body {{ font-family: Arial, sans-serif; max-width: 500px; margin: 50px auto; padding: 20px; }}\
                  h1 {{ color: #333; }}\
@@ -356,4 +359,12 @@ fn static_page(content: &'static str) -> heapless::String<4096> {
     let mut page = heapless::String::<4096>::new();
     let _ = page.push_str(content);
     page
+}
+
+fn empty_favicon_response() -> heapless::String<4096> {
+    static_page("HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n")
+}
+
+fn redirect_to_root() -> heapless::String<4096> {
+    static_page("HTTP/1.1 302 Found\r\nLocation: /\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
 }

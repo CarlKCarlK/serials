@@ -35,7 +35,7 @@
 //!     p.PIN_29,
 //!     p.DMA_CH0,
 //!     wifi_block,
-//!     None,
+//!     serials::wifi::DEFAULT_AP_SSID,
 //!     spawner,
 //! );
 //!
@@ -76,7 +76,7 @@
 //!     p.PIN_29,
 //!     p.DMA_CH0,
 //!     wifi_block,
-//!     Some(credentials),
+//!     serials::wifi::DEFAULT_AP_SSID,
 //!     spawner,
 //! );
 //!
@@ -111,6 +111,8 @@ use static_cell::StaticCell;
 use crate::dhcp_server::dhcp_server_task;
 use crate::flash_array::FlashBlock;
 use crate::wifi_config::WifiCredentials;
+
+pub const DEFAULT_AP_SSID: &str = "PicoClock";
 
 // ============================================================================
 // Types
@@ -287,6 +289,32 @@ impl Wifi {
         credential_store: FlashBlock,
         spawner: Spawner,
     ) -> &'static Self {
+        Self::new_with_ap_ssid(
+            resources,
+            pin_23,
+            pin_25,
+            pio0,
+            pin_24,
+            pin_29,
+            dma_ch0,
+            credential_store,
+            DEFAULT_AP_SSID,
+            spawner,
+        )
+    }
+
+    pub fn new_with_ap_ssid(
+        resources: &'static WifiNotifier,
+        pin_23: Peri<'static, PIN_23>,
+        pin_25: Peri<'static, PIN_25>,
+        pio0: Peri<'static, PIO0>,
+        pin_24: Peri<'static, PIN_24>,
+        pin_29: Peri<'static, PIN_29>,
+        dma_ch0: Peri<'static, DMA_CH0>,
+        credential_store: FlashBlock,
+        ap_ssid: &'static str,
+        spawner: Spawner,
+    ) -> &'static Self {
         let mut store_block = credential_store;
         let stored_state = load_state_from_block(&mut store_block);
         let mode = match stored_state.start_mode {
@@ -307,6 +335,7 @@ impl Wifi {
             pin_29,
             dma_ch0,
             mode,
+            ap_ssid,
             &resources.events,
             &resources.stack,
             spawner,
@@ -447,6 +476,7 @@ async fn wifi_device_loop(
     pin_29: Peri<'static, PIN_29>,
     dma_ch0: Peri<'static, DMA_CH0>,
     mode: WifiMode,
+    ap_ssid: &'static str,
     wifi_events: &'static WifiEvents,
     stack_storage: &'static StackStorage,
     spawner: Spawner,
@@ -460,6 +490,7 @@ async fn wifi_device_loop(
                 pin_24,
                 pin_29,
                 dma_ch0,
+                ap_ssid,
                 wifi_events,
                 stack_storage,
                 spawner,
@@ -492,11 +523,12 @@ async fn wifi_device_loop_ap(
     pin_24: Peri<'static, PIN_24>,
     pin_29: Peri<'static, PIN_29>,
     dma_ch0: Peri<'static, DMA_CH0>,
+    ap_ssid: &'static str,
     wifi_events: &'static WifiEvents,
     stack_storage: &'static StackStorage,
     spawner: Spawner,
 ) -> ! {
-    info!("WiFi device initializing in AP mode");
+    info!("WiFi device initializing in AP mode ({})", ap_ssid);
 
     // Initialize WiFi hardware
     let fw = cyw43_firmware::CYW43_43439A0;
@@ -528,10 +560,9 @@ async fn wifi_device_loop_ap(
         .await;
 
     // Start AP mode
-    const AP_SSID: &str = "PicoClock";
     const AP_PASSWORD: &str = ""; // Open network
 
-    info!("Starting AP mode: {}", AP_SSID);
+    info!("Starting AP mode: {}", ap_ssid);
 
     // Configure static IP for AP mode (we are the gateway)
     let config = Config::ipv4_static(embassy_net::StaticConfigV4 {
@@ -558,12 +589,12 @@ async fn wifi_device_loop_ap(
 
     // Start AP
     if AP_PASSWORD.is_empty() {
-        control.start_ap_open(AP_SSID, 1).await;
+        control.start_ap_open(ap_ssid, 1).await;
     } else {
-        control.start_ap_wpa2(AP_SSID, AP_PASSWORD, 1).await;
+        control.start_ap_wpa2(ap_ssid, AP_PASSWORD, 1).await;
     }
 
-    info!("AP mode started! SSID: {}", AP_SSID);
+    info!("AP mode started! SSID: {}", ap_ssid);
 
     stack.wait_config_up().await;
 
@@ -583,7 +614,7 @@ async fn wifi_device_loop_ap(
     spawner.spawn(dhcp_token);
 
     info!("DHCP server started (pool: 192.168.4.2-254)");
-    info!("WiFi AP ready - connect to '{}'", AP_SSID);
+    info!("WiFi AP ready - connect to '{}'", ap_ssid);
 
     // Store stack reference and emit ApReady event
     stack_storage.init(stack);

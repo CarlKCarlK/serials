@@ -67,7 +67,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         peripherals.DMA_CH0, // CYW43 DMA channel
         wifi_credentials_flash, // Flash block storing Wi-Fi creds
         peripherals.PIN_13, // User button pin
-        "PicoClock",        // Captive-portal SSID to display
+        "Pico",        // Captive-portal SSID to display
         spawner,
     )?;
 
@@ -77,8 +77,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                 WifiAutoEvent::CaptivePortalReady => {
                     led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
                 }
-                WifiAutoEvent::ClientConnecting => {
-                    led4.animate_text(circular_outline_animation());
+                WifiAutoEvent::ClientConnecting { try_index, .. } => {
+                    let clockwise = (try_index & 1) == 0;
+                    led4.animate_text(circular_outline_animation(clockwise));
                 }
                 WifiAutoEvent::Connected => {
                     led4.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
@@ -99,9 +100,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     }
 }
 
-fn circular_outline_animation() -> Led4Animation {
+fn circular_outline_animation(clockwise: bool) -> Led4Animation {
     const FRAME_DURATION: Duration = Duration::from_millis(120);
-    const FRAMES: [[char; 4]; 8] = [
+    const CLOCKWISE: [[char; 4]; 8] = [
         ['\'', '\'', '\'', '\''],
         ['\'', '\'', '\'', '"'],
         [' ', ' ', ' ', '>'],
@@ -111,10 +112,21 @@ fn circular_outline_animation() -> Led4Animation {
         ['<', ' ', ' ', ' '],
         ['(', '\'', '\'', '\''],
     ];
+    const COUNTER: [[char; 4]; 8] = [
+        ['(', '\'', '\'', '\''],
+        ['<', ' ', ' ', ' '],
+        ['*', '_', '_', '_'],
+        ['_', '_', '_', '_'],
+        [' ', ' ', ' ', ')'],
+        [' ', ' ', ' ', '>'],
+        ['\'', '\'', '\'', '"'],
+        ['\'', '\'', '\'', '\''],
+    ];
 
     let mut animation = Led4Animation::new();
-    for text in FRAMES {
-        let _ = animation.push(AnimationFrame::new(text, FRAME_DURATION));
+    let frames = if clockwise { &CLOCKWISE } else { &COUNTER };
+    for text in frames {
+        let _ = animation.push(AnimationFrame::new(*text, FRAME_DURATION));
     }
     animation
 }

@@ -130,6 +130,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
             p.PIN_29, // WiFi CLK
             p.DMA_CH0,
             wifi_block,
+            serials::wifi::DEFAULT_AP_SSID,
             spawner,
         )
     };
