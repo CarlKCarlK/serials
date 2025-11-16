@@ -24,8 +24,7 @@ use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
 use serials::led4::{AnimationFrame, BlinkState, Led4, Led4Animation, Led4Notifier, OutputArray};
 use serials::unix_seconds::UnixSeconds;
 use serials::wifi_auto::{
-    FormData, HtmlBuffer, WifiAutoConfig, WifiAutoConnected, WifiAutoEvent, WifiAutoField,
-    WifiAutoHandle, WifiAutoNotifier,
+    FormData, HtmlBuffer, WifiAuto, WifiAutoConfig, WifiAutoEvent, WifiAutoField, WifiAutoNotifier,
 };
 use serials::{Error, Result};
 use static_cell::StaticCell;
@@ -78,8 +77,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static LED4_NOTIFIER: Led4Notifier = Led4::notifier();
     let led4 = Led4::new(cells, segments, &LED4_NOTIFIER, spawner)?;
 
-    static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAutoHandle::notifier();
-    let wifi_auto = WifiAutoHandle::new(
+    static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
+    let wifi_auto = WifiAuto::new(
         &WIFI_AUTO_NOTIFIER,
         peripherals.PIN_23,     // CYW43 power
         peripherals.PIN_25,     // CYW43 chip select
@@ -94,9 +93,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         spawner,
     )?;
 
-    let WifiAutoConnected {
-        stack, mut button, ..
-    } = wifi_auto
+    let (stack, mut button) = wifi_auto
         .ensure_connected_with_ui(spawner, |event| match event {
             WifiAutoEvent::CaptivePortalReady => {
                 led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);

@@ -62,15 +62,6 @@ impl Default for WifiAutoConfig {
     }
 }
 
-pub struct WifiAutoConnected {
-    pub stack: &'static Stack<'static>,
-    pub button: Button<'static>,
-}
-
-pub struct WifiAutoHandle {
-    inner: &'static WifiAuto,
-}
-
 const MAX_CONNECT_ATTEMPTS: u8 = 2;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 const RETRY_DELAY: Duration = Duration::from_secs(3);
@@ -133,7 +124,7 @@ impl WifiAuto {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn new(
+    pub fn new(
         resources: &'static WifiAutoNotifier,
         pin_23: Peri<'static, PIN_23>,
         pin_25: Peri<'static, PIN_25>,
@@ -256,7 +247,7 @@ impl WifiAuto {
     ///
     /// # Example
     /// ```no_run
-    /// let WifiAutoConnected { stack, button, .. } =
+    /// let (stack, button) =
     ///     wifi_auto.ensure_connected_with_ui(spawner, |event| match event {
     ///         WifiAutoEvent::CaptivePortalReady => {
     ///             led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
@@ -273,7 +264,7 @@ impl WifiAuto {
         &self,
         spawner: Spawner,
         mut on_event: F,
-    ) -> Result<WifiAutoConnected>
+    ) -> Result<(&'static Stack<'static>, Button<'static>)>
     where
         F: FnMut(WifiAutoEvent),
     {
@@ -292,7 +283,7 @@ impl WifiAuto {
         result?;
         let stack = self.wifi.stack().await;
         let button = self.take_button().ok_or(Error::StorageCorrupted)?;
-        Ok(WifiAutoConnected { stack, button })
+        Ok((stack, button))
     }
 
     async fn ensure_connected(&self, spawner: Spawner) -> Result<()> {
@@ -400,54 +391,5 @@ impl WifiAuto {
         loop {
             cortex_m::asm::nop();
         }
-    }
-}
-
-impl WifiAutoHandle {
-    #[must_use]
-    pub const fn notifier() -> WifiAutoNotifier {
-        WifiAutoNotifier::new()
-    }
-
-    pub fn new(
-        resources: &'static WifiAutoNotifier,
-        pin_23: Peri<'static, PIN_23>,
-        pin_25: Peri<'static, PIN_25>,
-        pio0: Peri<'static, PIO0>,
-        pin_24: Peri<'static, PIN_24>,
-        pin_29: Peri<'static, PIN_29>,
-        dma_ch0: Peri<'static, DMA_CH0>,
-        credential_store: FlashBlock,
-        button_pin: Peri<'static, impl Pin>,
-        ap_ssid: &'static str,
-        config: WifiAutoConfig,
-        spawner: Spawner,
-    ) -> Result<Self> {
-        WifiAuto::new(
-            resources,
-            pin_23,
-            pin_25,
-            pio0,
-            pin_24,
-            pin_29,
-            dma_ch0,
-            credential_store,
-            button_pin,
-            ap_ssid,
-            config,
-            spawner,
-        )
-        .map(|inner| Self { inner })
-    }
-
-    pub async fn ensure_connected_with_ui<F>(
-        self,
-        spawner: Spawner,
-        on_event: F,
-    ) -> Result<WifiAutoConnected>
-    where
-        F: FnMut(WifiAutoEvent),
-    {
-        self.inner.ensure_connected_with_ui(spawner, on_event).await
     }
 }

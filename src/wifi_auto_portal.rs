@@ -10,8 +10,8 @@ use embedded_io_async::Write as _;
 use heapless::{FnvIndexMap, String};
 use static_cell::StaticCell;
 
-use crate::wifi_config::WifiCredentials;
 use crate::Result;
+use crate::wifi_config::WifiCredentials;
 
 pub type HtmlBuffer = String<8192>;
 
@@ -192,10 +192,7 @@ fn parse_post(request: &str, fields: &[&'static dyn WifiAutoField]) -> Option<Wi
     Some(WifiCredentials { ssid, password })
 }
 
-fn generate_config_page(
-    state: &FormState,
-    fields: &[&'static dyn WifiAutoField],
-) -> HtmlBuffer {
+fn generate_config_page(state: &FormState, fields: &[&'static dyn WifiAutoField]) -> HtmlBuffer {
     info!("WifiAuto portal rendering {} fields", fields.len());
     let mut page = HtmlBuffer::new();
     let ssid = state
