@@ -16,11 +16,12 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_net::{Stack, dns::DnsQueryType, udp};
 use embassy_time::Duration;
+use heapless::String;
 use panic_probe as _;
 use serials::flash_array::{FlashArray, FlashArrayNotifier};
 use serials::unix_seconds::UnixSeconds;
 use serials::wifi_auto::fields::{
-    TimezoneField, TimezoneFieldNotifier, UserNameField, UserNameFieldNotifier,
+    TextField, TextFieldNotifier, TimezoneField, TimezoneFieldNotifier,
 };
 use serials::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoNotifier};
 use serials::Result;
@@ -35,16 +36,30 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("Starting wifi_auto example");
     let peripherals = embassy_rp::init(Default::default());
 
-    static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<3>::notifier();
-    let [wifi_credentials_flash, timezone_flash, nickname_flash] =
+    static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<4>::notifier();
+    let [wifi_credentials_flash, timezone_flash, device_name_flash, location_flash] =
         FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
 
     static TIMEZONE_FIELD_NOTIFIER: TimezoneFieldNotifier = TimezoneField::notifier();
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_NOTIFIER, timezone_flash);
 
-    static USER_NAME_FIELD_NOTIFIER: UserNameFieldNotifier = UserNameField::notifier();
-    let user_name_field =
-        UserNameField::new(&USER_NAME_FIELD_NOTIFIER, nickname_flash, "PicoClock", 32);
+    static DEVICE_NAME_FIELD_NOTIFIER: TextFieldNotifier<32> = TextField::notifier();
+    let device_name_field = TextField::new(
+        &DEVICE_NAME_FIELD_NOTIFIER,
+        device_name_flash,
+        "device_name",
+        "Device Name",
+        "PicoClock",
+    );
+
+    static LOCATION_FIELD_NOTIFIER: TextFieldNotifier<64> = TextField::notifier();
+    let location_field = TextField::new(
+        &LOCATION_FIELD_NOTIFIER,
+        location_flash,
+        "location",
+        "Location",
+        "Living Room",
+    );
 
     static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
     let wifi_auto = WifiAuto::new(
@@ -58,7 +73,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         wifi_credentials_flash, // Flash block storing Wi-Fi creds
         peripherals.PIN_13,     // Reset button pin
         "Pico",                 // Captive-portal SSID to display
-        [timezone_field, user_name_field],
+        [timezone_field, device_name_field, location_field],
         spawner,
     )?;
 
@@ -68,8 +83,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                 info!("Captive portal ready - connect to WiFi network");
             }
 
-            WifiAutoEvent::ClientConnecting { try_index, .. } => {
-                info!("Connecting to WiFi (attempt {})...", try_index + 1);
+            WifiAutoEvent::ClientConnecting { try_index, try_count } => {
+                info!("Connecting to WiFi (attempt {} of {})...", try_index + 1, try_count);
             }
 
             WifiAutoEvent::Connected => {
@@ -78,13 +93,20 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         })
         .await?;
 
-    let timezone_offset_minutes = timezone_field.load_offset()?.unwrap_or(0);
-    let nickname = user_name_field
-        .load_name()?
-        .unwrap_or_else(|| user_name_field.default_name());
+    let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
+    let device_name = device_name_field.text()?.unwrap_or_else(|| {
+        let mut name = String::new();
+        let _ = name.push_str("PicoClock");
+        name
+    });
+    let location = location_field.text()?.unwrap_or_else(|| {
+        let mut name = String::new();
+        let _ = name.push_str("Living Room");
+        name
+    });
     info!(
-        "Nickname '{}' configured with offset {} minutes",
-        nickname, timezone_offset_minutes
+        "Device '{}' in '{}' configured with timezone offset {} minutes",
+        device_name, location, timezone_offset_minutes
     );
 
     // At this point, `stack` can be used for internet access (HTTP, MQTT, etc.)

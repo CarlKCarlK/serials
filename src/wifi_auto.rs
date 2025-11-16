@@ -91,10 +91,9 @@ pub struct WifiAutoNotifier {
 /// ```no_run
 /// # use serials::flash_array::{FlashArray, FlashArrayNotifier};
 /// # use serials::wifi_auto::{WifiAuto, WifiAutoNotifier, WifiAutoEvent};
-/// # use serials::wifi_auto::{TimezoneField, TimezoneFieldNotifier};
-/// # use serials::led4::{Led4, Led4Notifier, BlinkState, OutputArray};
+/// # use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldNotifier};
 /// # use embassy_executor::Spawner;
-/// # use embassy_rp::{gpio, peripherals};
+/// # use embassy_rp::peripherals;
 /// # async fn example(
 /// #     spawner: Spawner,
 /// #     peripherals: peripherals::Peripherals,
@@ -120,46 +119,31 @@ pub struct WifiAutoNotifier {
 ///     peripherals.DMA_CH0,    // CYW43 DMA
 ///     wifi_flash,             // Flash for WiFi credentials
 ///     peripherals.PIN_13,     // Button for forced reconfiguration
-///     "MyDevice",             // AP SSID for captive portal
+///     "Pico",                 // AP SSID for captive portal
 ///     [timezone_field],       // Array of custom fields
 ///     spawner,
 /// )?;
 ///
 /// // Connect with UI feedback (blocks until connected)
-/// # let cells = OutputArray::new([
-/// #     gpio::Output::new(peripherals.PIN_1, gpio::Level::High),
-/// #     gpio::Output::new(peripherals.PIN_2, gpio::Level::High),
-/// #     gpio::Output::new(peripherals.PIN_3, gpio::Level::High),
-/// #     gpio::Output::new(peripherals.PIN_4, gpio::Level::High),
-/// # ]);
-/// # let segments = OutputArray::new([
-/// #     gpio::Output::new(peripherals.PIN_5, gpio::Level::Low),
-/// #     gpio::Output::new(peripherals.PIN_6, gpio::Level::Low),
-/// #     gpio::Output::new(peripherals.PIN_7, gpio::Level::Low),
-/// #     gpio::Output::new(peripherals.PIN_8, gpio::Level::Low),
-/// #     gpio::Output::new(peripherals.PIN_9, gpio::Level::Low),
-/// #     gpio::Output::new(peripherals.PIN_10, gpio::Level::Low),
-/// #     gpio::Output::new(peripherals.PIN_11, gpio::Level::Low),
-/// #     gpio::Output::new(peripherals.PIN_12, gpio::Level::Low),
-/// # ]);
-/// # static LED4_NOTIFIER: Led4Notifier = Led4::notifier();
-/// # let led4 = Led4::new(cells, segments, &LED4_NOTIFIER, spawner)?;
 /// let (stack, button) = wifi_auto
 ///     .ensure_connected_with_ui(spawner, |event| match event {
 ///         WifiAutoEvent::CaptivePortalReady => {
-///             led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
+///             defmt::info!("Captive portal ready - connect to WiFi network");
 ///         }
-///         WifiAutoEvent::ClientConnecting { try_index, .. } => {
-///             led4.write_text(BlinkState::Solid, ['T', 'R', 'Y', char::from_digit(try_index.into(), 10).unwrap()]);
+///         WifiAutoEvent::ClientConnecting { try_index, try_count } => {
+///             defmt::info!("Connecting to WiFi (attempt {} of {})...", try_index + 1, try_count);
 ///         }
 ///         WifiAutoEvent::Connected => {
-///             led4.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
+///             defmt::info!("WiFi connected successfully!");
 ///         }
 ///     })
 ///     .await?;
 ///
 /// // Now connected - retrieve timezone configuration
-/// let offset = timezone_field.load_offset()?.unwrap_or(0);
+/// let offset = timezone_field.offset_minutes()?.unwrap_or(0);
+///
+/// // Use stack for internet access and button for user interactions
+/// // Example: fetch NTP time, make HTTP requests, etc.
 /// # Ok(())
 /// # }
 /// ```
@@ -325,9 +309,8 @@ impl WifiAuto {
 
     /// Ensures WiFi connection with UI callback for event-driven status updates.
     ///
-    /// This is a convenience wrapper around [`ensure_connected`](Self::ensure_connected)
-    /// that automatically monitors connection events and invokes a callback for each event,
-    /// eliminating the need for manual `join()` and event loop boilerplate.
+    /// Automatically monitors connection events and invokes a callback for each event,
+    /// eliminating the need for manual event loop boilerplate.
     ///
     /// # Parameters
     /// - `spawner`: Embassy task spawner for background WiFi tasks

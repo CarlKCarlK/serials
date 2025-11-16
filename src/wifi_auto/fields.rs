@@ -1,10 +1,10 @@
-//! Pre-built field implementations for [`WifiAutoField`](super::WifiAutoField).
+//! Pre-built field implementations for [`WifiAutoField`].
 //!
 //! This module provides ready-to-use field types that can be passed to
 //! [`WifiAuto::new()`](super::WifiAuto::new) for collecting additional
 //! configuration beyond WiFi credentials.
 //!
-//! See [`TimezoneField`] for a complete example of implementing custom fields.
+//! See [`TimezoneField`] and [`TextField`] for complete examples of implementing custom fields.
 
 use core::{cell::RefCell, fmt::Write as FmtWrite};
 use defmt::info;
@@ -61,7 +61,7 @@ use crate::{Error, Result};
 /// )?;
 ///
 /// // Later, retrieve the timezone offset
-/// let offset_minutes = timezone_field.load_offset()?.unwrap_or(0);
+/// let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
 /// # Ok(())
 /// # }
 /// ```
@@ -108,7 +108,7 @@ impl TimezoneField {
     /// Returns `None` if no timezone has been configured yet.
     ///
     /// See [`TimezoneField`] for a complete example.
-    pub fn load_offset(&self) -> Result<Option<i32>> {
+    pub fn offset_minutes(&self) -> Result<Option<i32>> {
         self.flash.lock(|cell| cell.borrow_mut().load::<i32>())
     }
 
@@ -120,7 +120,7 @@ impl TimezoneField {
 impl WifiAutoField for TimezoneField {
     fn render(&self, page: &mut HtmlBuffer) -> Result<()> {
         info!("WifiAuto field: rendering timezone select");
-        let current = self.load_offset()?.unwrap_or(0);
+        let current = self.offset_minutes()?.unwrap_or(0);
         FmtWrite::write_str(page, "<label for=\"timezone\">Time zone:</label>")
             .map_err(|_| Error::FormatError)?;
         FmtWrite::write_str(page, "<select id=\"timezone\" name=\"timezone\" required>")
@@ -151,7 +151,7 @@ impl WifiAutoField for TimezoneField {
     }
 
     fn is_satisfied(&self) -> Result<bool> {
-        Ok(self.load_offset()?.is_some())
+        Ok(self.offset_minutes()?.is_some())
     }
 }
 
@@ -335,30 +335,77 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
     },
 ];
 
-/// Maximum length for user names.
-const MAX_USER_NAME_LEN: usize = 32;
-
-/// Type alias for user name strings.
-type UserName = String<MAX_USER_NAME_LEN>;
-
-/// A text input field for collecting a user name during WiFi provisioning.
+/// A generic text input field for collecting user input during WiFi provisioning.
 ///
-/// Presents a text input box in the captive portal that validates and stores
-/// a user-provided name to flash. Useful for device identification or personalization.
+/// Presents a customizable text input box in the captive portal that validates and stores
+/// user-provided text to flash. Can be used for device names, locations, or any other
+/// text-based configuration.
 ///
-/// See [`TimezoneField`] for a complete usage example (the pattern is identical).
-pub struct UserNameField {
+/// Multiple `TextField` instances can be created with different labels and field names
+/// to collect various pieces of information during the provisioning process.
+///
+/// # Example
+///
+/// ```no_run
+/// # use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
+/// # use serials::wifi_auto::{WifiAuto, WifiAutoNotifier};
+/// # use serials::wifi_auto::fields::{TextField, TextFieldNotifier};
+/// # use embassy_executor::Spawner;
+/// # use embassy_rp::peripherals;
+/// # async fn example(
+/// #     spawner: Spawner,
+/// #     peripherals: peripherals::Peripherals,
+/// # ) -> Result<(), serials::Error> {
+/// // Set up flash storage
+/// static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<2>::notifier();
+/// let [wifi_flash, device_name_flash] =
+///     FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
+///
+/// // Create device name field (max 32 chars)
+/// static DEVICE_NAME_NOTIFIER: TextFieldNotifier<32> = TextField::notifier();
+/// let device_name_field = TextField::new(
+///     &DEVICE_NAME_NOTIFIER,
+///     device_name_flash,
+///     "device_name",    // HTML field name
+///     "Device Name",    // Label text
+///     "Pico",           // Default value
+/// );
+///
+/// // Pass to WifiAuto
+/// static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
+/// let wifi_auto = WifiAuto::new(
+///     &WIFI_AUTO_NOTIFIER,
+///     peripherals.PIN_23,
+///     peripherals.PIN_25,
+///     peripherals.PIO0,
+///     peripherals.PIN_24,
+///     peripherals.PIN_29,
+///     peripherals.DMA_CH0,
+///     wifi_flash,
+///     peripherals.PIN_13,
+///     "Pico",
+///     [device_name_field],  // Custom fields array
+///     spawner,
+/// )?;
+///
+/// // Later, retrieve the device name
+/// let device_name = device_name_field.text()?.unwrap_or_default();
+/// # Ok(())
+/// # }
+/// ```
+pub struct TextField<const N: usize> {
     flash: Mutex<CriticalSectionRawMutex, RefCell<FlashBlock>>,
-    max_len: usize,
-    placeholder: &'static str,
+    field_name: &'static str,
+    label: &'static str,
+    default_value: &'static str,
 }
 
-/// Notifier for [`UserNameField`]. See [`TimezoneField`] for usage example.
-pub struct UserNameFieldNotifier {
-    cell: StaticCell<UserNameField>,
+/// Notifier for [`TextField`]. See [`TextField`] for usage example.
+pub struct TextFieldNotifier<const N: usize> {
+    cell: StaticCell<TextField<N>>,
 }
 
-impl UserNameFieldNotifier {
+impl<const N: usize> TextFieldNotifier<N> {
     const fn new() -> Self {
         Self {
             cell: StaticCell::new(),
@@ -366,80 +413,93 @@ impl UserNameFieldNotifier {
     }
 }
 
-impl UserNameField {
-    /// Create a new notifier for [`UserNameField`].
+impl<const N: usize> TextField<N> {
+    /// Create a new notifier for [`TextField`].
     ///
-    /// See [`TimezoneField`] for a complete example.
-    pub const fn notifier() -> UserNameFieldNotifier {
-        UserNameFieldNotifier::new()
+    /// See [`TextField`] for a complete example.
+    pub const fn notifier() -> TextFieldNotifier<N> {
+        TextFieldNotifier::new()
     }
 
-    /// Initialize a new user name field.
+    /// Initialize a new text input field.
     ///
     /// # Parameters
     /// - `notifier`: Static notifier for initialization
     /// - `flash`: Flash block for persistent storage
-    /// - `placeholder`: Default text shown in the input field
-    /// - `max_len`: Maximum allowed length (must be ≤ [`MAX_USER_NAME_LEN`])
+    /// - `field_name`: HTML form field name (e.g., "device_name", "location")
+    /// - `label`: HTML label text (e.g., "Device Name:", "Location:")
+    /// - `default_value`: Initial value if nothing saved
     ///
-    /// See [`TimezoneField`] for a complete example.
+    /// The maximum length is determined by the generic parameter `N`.
+    ///
+    /// See [`TextField`] for a complete example.
     pub fn new(
-        notifier: &'static UserNameFieldNotifier,
+        notifier: &'static TextFieldNotifier<N>,
         flash: FlashBlock,
-        placeholder: &'static str,
-        max_len: usize,
+        field_name: &'static str,
+        label: &'static str,
+        default_value: &'static str,
     ) -> &'static Self {
-        notifier
-            .cell
-            .init(Self::from_flash(flash, placeholder, max_len))
+        notifier.cell.init(Self::from_flash(
+            flash,
+            field_name,
+            label,
+            default_value,
+        ))
     }
 
-    fn from_flash(flash: FlashBlock, placeholder: &'static str, max_len: usize) -> Self {
+    fn from_flash(
+        flash: FlashBlock,
+        field_name: &'static str,
+        label: &'static str,
+        default_value: &'static str,
+    ) -> Self {
         Self {
             flash: Mutex::new(RefCell::new(flash)),
-            max_len,
-            placeholder,
+            field_name,
+            label,
+            default_value,
         }
     }
 
-    /// Load the stored user name from flash.
+    /// Load the stored text from flash.
     ///
-    /// Returns `None` if no name has been configured yet.
+    /// Returns `None` if no text has been configured yet.
     ///
-    /// See [`TimezoneField`] for a complete example.
-    pub fn load_name(&self) -> Result<Option<UserName>> {
-        self.flash.lock(|cell| cell.borrow_mut().load::<UserName>())
+    /// See [`TextField`] for a complete example.
+    pub fn text(&self) -> Result<Option<String<N>>> {
+        self.flash.lock(|cell| cell.borrow_mut().load::<String<N>>())
     }
 
-    fn save_name(&self, name: &UserName) -> Result<()> {
-        self.flash.lock(|cell| cell.borrow_mut().save(name))
-    }
-
-    /// Returns the default/placeholder name.
-    ///
-    /// See [`TimezoneField`] for a complete example.
-    pub fn default_name(&self) -> UserName {
-        let mut name = UserName::new();
-        let _ = name.push_str(self.placeholder);
-        name
+    fn save_text(&self, text: &String<N>) -> Result<()> {
+        self.flash.lock(|cell| cell.borrow_mut().save(text))
     }
 }
 
-impl WifiAutoField for UserNameField {
+impl<const N: usize> WifiAutoField for TextField<N> {
     fn render(&self, page: &mut HtmlBuffer) -> Result<()> {
-        info!("WifiAuto field: rendering user name input");
+        info!("WifiAuto field: rendering text input");
         let current = self
-            .load_name()?
+            .text()?
             .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| self.default_name());
+            .unwrap_or_else(|| {
+                let mut text = String::<N>::new();
+                let _ = text.push_str(self.default_value);
+                text
+            });
         let escaped = simple_escape(current.as_str());
         FmtWrite::write_fmt(
             page,
             format_args!(
-                "<label for=\"nickname\">User name:</label>\
-                 <input type=\"text\" id=\"nickname\" name=\"nickname\" value=\"{}\" \
+                "<label for=\"{}\">{}:</label>\
+                 <input type=\"text\" id=\"{}\" name=\"{}\" value=\"{}\" \
                  maxlength=\"{}\" required>",
-                escaped, self.max_len
+                self.field_name,
+                self.label,
+                self.field_name,
+                self.field_name,
+                escaped,
+                N
             ),
         )
         .map_err(|_| Error::FormatError)?;
@@ -447,21 +507,21 @@ impl WifiAutoField for UserNameField {
     }
 
     fn parse(&self, form: &FormData<'_>) -> Result<()> {
-        let Some(value) = form.get("nickname") else {
-            info!("WifiAuto field: user name missing from submission");
+        let Some(value) = form.get(self.field_name) else {
+            info!("WifiAuto field: text input missing from submission");
             return Ok(());
         };
         let trimmed = value.trim();
-        if trimmed.is_empty() || trimmed.len() > self.max_len {
+        if trimmed.is_empty() || trimmed.len() > N {
             return Err(Error::FormatError);
         }
-        let mut name = UserName::new();
-        name.push_str(trimmed).map_err(|_| Error::FormatError)?;
-        self.save_name(&name)
+        let mut text = String::<N>::new();
+        text.push_str(trimmed).map_err(|_| Error::FormatError)?;
+        self.save_text(&text)
     }
 
     fn is_satisfied(&self) -> Result<bool> {
-        Ok(self.load_name()?.map_or(false, |name| !name.is_empty()))
+        Ok(self.text()?.map_or(false, |text| !text.is_empty()))
     }
 }
 

@@ -22,7 +22,7 @@ pub type HtmlBuffer = String<16384>;
 /// async tasks.
 ///
 /// See [`TimezoneField`](super::fields::TimezoneField) and
-/// [`UserNameField`](super::fields::UserNameField) for complete
+/// [`TextField`](super::fields::TextField) for complete
 /// implementation examples.
 ///
 /// # Methods
@@ -37,7 +37,7 @@ pub trait WifiAutoField: Sync {
     /// This is called when generating the captive portal page.
     ///
     /// See [`TimezoneField`](super::fields::TimezoneField) and
-    /// [`UserNameField`](super::fields::UserNameField) for examples.
+    /// [`TextField`](super::fields::TextField) for examples.
     fn render(&self, page: &mut HtmlBuffer) -> Result<()>;
     
     /// Parse and save form data submitted by the user.
@@ -46,7 +46,7 @@ pub trait WifiAutoField: Sync {
     /// Return an error if validation fails.
     ///
     /// See [`TimezoneField`](super::fields::TimezoneField) and
-    /// [`UserNameField`](super::fields::UserNameField) for examples.
+    /// [`TextField`](super::fields::TextField) for examples.
     fn parse(&self, form: &FormData<'_>) -> Result<()>;
     
     /// Check if this field has valid configuration.
@@ -56,7 +56,7 @@ pub trait WifiAutoField: Sync {
     /// credentials exist.
     ///
     /// See [`TimezoneField`](super::fields::TimezoneField) and
-    /// [`UserNameField`](super::fields::UserNameField) for examples.
+    /// [`TextField`](super::fields::TextField) for examples.
     fn is_satisfied(&self) -> Result<bool> {
         Ok(true)
     }
@@ -263,7 +263,8 @@ fn generate_config_page(state: &FormState, fields: &[&'static dyn WifiAutoField]
                  form {{ margin-top: 20px; }}\
                  input {{ width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }}\
                  label {{ display: block; margin-top: 10px; }}\
-                 .toggle {{ display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: #444; }}\
+                 .toggle {{ display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: #444; margin-top: 5px; }}\
+                 .toggle input {{ width: auto; margin: 0; }}\
                  button {{ width: 100%; padding: 12px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }}\
                  button:hover {{ background-color: #45a049; }}\
              </style>\
@@ -278,11 +279,11 @@ fn generate_config_page(state: &FormState, fields: &[&'static dyn WifiAutoField]
              <h1>WiFi Configuration</h1>\
              <p>Enter your WiFi network credentials:</p>\
              <form method=\"POST\" action=\"/\">\
-                 <label for=\"ssid\">WiFi Network Name (SSID):</label>\
-                 <input type=\"text\" id=\"ssid\" name=\"ssid\" value=\"{}\" required>\
-                 <label for=\"password\">Password:</label>\
-                 <input type=\"password\" id=\"password\" name=\"password\" value=\"{}\" required>\
-                 <label class=\"toggle\"><input type=\"checkbox\" onclick=\"togglePasswordVisibility()\">Show password</label>\
+                <label for=\"ssid\">WiFi Network Name (SSID):</label>\
+                <input type=\"text\" id=\"ssid\" name=\"ssid\" value=\"{}\" required>\
+                <label for=\"password\">Password:</label>\
+                <input type=\"password\" id=\"password\" name=\"password\" value=\"{}\" required>\
+                <label class=\"toggle\"><input type=\"checkbox\" onclick=\"togglePasswordVisibility()\">Show password</label>\
 ",
         ssid, password
     )
