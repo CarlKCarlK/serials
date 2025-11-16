@@ -10,22 +10,31 @@
 #![no_main]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
-use core::convert::Infallible;
+use core::{cell::RefCell, convert::Infallible, fmt::Write as FmtWrite};
 use defmt::{info, warn};
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_net::{Stack, dns::DnsQueryType, udp};
 use embassy_rp::gpio::{self, Level};
+use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
 use embassy_time::Duration;
+use heapless::String;
 use panic_probe as _;
-use serials::Result;
-use serials::flash_array::{FlashArray, FlashArrayNotifier};
+use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
 use serials::led4::{AnimationFrame, BlinkState, Led4, Led4Animation, Led4Notifier, OutputArray};
 use serials::unix_seconds::UnixSeconds;
 use serials::wifi_auto::{
-    WifiAutoConfig, WifiAutoConnected, WifiAutoEvent, WifiAutoHandle, WifiAutoNotifier,
+    FormData, HtmlBuffer, WifiAutoConfig, WifiAutoConnected, WifiAutoEvent, WifiAutoField,
+    WifiAutoHandle, WifiAutoNotifier,
 };
-use serials::wifi_config::Nickname;
+use serials::{Error, Result};
+use static_cell::StaticCell;
+
+type UserName = String<32>;
+
+static TIMEZONE_FIELD_CELL: StaticCell<TimezoneField> = StaticCell::new();
+static USER_NAME_FIELD_CELL: StaticCell<UserNameField> = StaticCell::new();
+static FIELD_COLLECTION: StaticCell<[&'static dyn WifiAutoField; 2]> = StaticCell::new();
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -40,6 +49,14 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<3>::notifier();
     let [wifi_credentials_flash, timezone_flash, nickname_flash] =
         FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
+
+    let timezone_field = TIMEZONE_FIELD_CELL.init(TimezoneField::new(timezone_flash));
+    let user_name_field =
+        USER_NAME_FIELD_CELL.init(UserNameField::new(nickname_flash, "PicoClock", 32));
+    let field_slice = FIELD_COLLECTION.init([
+        timezone_field as &dyn WifiAutoField,
+        user_name_field as &dyn WifiAutoField,
+    ]);
 
     let cells = OutputArray::new([
         gpio::Output::new(peripherals.PIN_1, Level::High),
@@ -73,17 +90,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         wifi_credentials_flash, // Flash block storing Wi-Fi creds
         peripherals.PIN_13,     // User button pin
         "Pico",                 // Captive-portal SSID to display
-        WifiAutoConfig::new()
-            .with_timezone(timezone_flash) // Flash block storing timezone offset
-            .with_nickname(nickname_flash), // Flash block storing user nickname
+        WifiAutoConfig::new().with_fields(field_slice),
         spawner,
     )?;
 
     let WifiAutoConnected {
-        stack,
-        mut button,
-        mut timezone_flash,
-        mut nickname_flash,
+        stack, mut button, ..
     } = wifi_auto
         .ensure_connected_with_ui(spawner, |event| match event {
             WifiAutoEvent::CaptivePortalReady => {
@@ -100,14 +112,10 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         })
         .await?;
 
-    let mut timezone_flash = timezone_flash.expect("timezone flash not returned");
-    let timezone_offset_minutes = timezone_flash.load::<i32>()?.unwrap_or(0);
-    let mut nickname_flash = nickname_flash.expect("nickname flash not returned");
-    let nickname: Nickname = nickname_flash.load::<Nickname>()?.unwrap_or_else(|| {
-        let mut fallback = Nickname::new();
-        let _ = fallback.push_str("PicoClock");
-        fallback
-    });
+    let timezone_offset_minutes = timezone_field.load_offset()?.unwrap_or(0);
+    let nickname = user_name_field
+        .load_name()?
+        .unwrap_or_else(|| user_name_field.default_name());
     info!(
         "Nickname '{}' configured with offset {} minutes",
         nickname, timezone_offset_minutes
@@ -217,4 +225,335 @@ async fn fetch_ntp_time(stack: &'static Stack<'static>) -> Result<UnixSeconds, &
 
     let ntp_seconds = u32::from_be_bytes([response[40], response[41], response[42], response[43]]);
     UnixSeconds::from_ntp_seconds(ntp_seconds).ok_or("Invalid NTP timestamp")
+}
+
+struct TimezoneField {
+    flash: Mutex<CriticalSectionRawMutex, RefCell<FlashBlock>>,
+}
+
+impl TimezoneField {
+    fn new(flash: FlashBlock) -> Self {
+        Self {
+            flash: Mutex::new(RefCell::new(flash)),
+        }
+    }
+
+    fn load_offset(&self) -> Result<Option<i32>> {
+        self.flash.lock(|cell| cell.borrow_mut().load::<i32>())
+    }
+
+    fn save_offset(&self, offset: i32) -> Result<()> {
+        self.flash.lock(|cell| cell.borrow_mut().save(&offset))
+    }
+}
+
+impl WifiAutoField for TimezoneField {
+    fn render(&self, page: &mut HtmlBuffer) -> Result<()> {
+        info!("WifiAuto field: rendering timezone select");
+        let current = self.load_offset()?.unwrap_or(0);
+        FmtWrite::write_str(page, "<label for=\"timezone\">Time zone:</label>")
+            .map_err(|_| Error::FormatError)?;
+        FmtWrite::write_str(page, "<select id=\"timezone\" name=\"timezone\" required>")
+            .map_err(|_| Error::FormatError)?;
+        for option in TIMEZONE_OPTIONS {
+            let selected = if option.minutes == current {
+                " selected"
+            } else {
+                ""
+            };
+            write!(
+                page,
+                "<option value=\"{}\"{}>{}</option>",
+                option.minutes, selected, option.label
+            )
+            .map_err(|_| Error::FormatError)?;
+        }
+        page.push_str("</select>").map_err(|_| Error::FormatError)?;
+        Ok(())
+    }
+
+    fn parse(&self, form: &FormData<'_>) -> Result<()> {
+        let value = form.get("timezone").ok_or(Error::FormatError)?;
+        let offset = value.parse::<i32>().map_err(|_| Error::FormatError)?;
+        self.save_offset(offset)
+    }
+
+    fn is_satisfied(&self) -> Result<bool> {
+        Ok(self.load_offset()?.is_some())
+    }
+}
+
+struct TimezoneOption {
+    minutes: i32,
+    label: &'static str,
+}
+
+const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
+    TimezoneOption {
+        minutes: -720,
+        label: "Baker Island (UTC-12:00)",
+    },
+    TimezoneOption {
+        minutes: -660,
+        label: "American Samoa (UTC-11:00)",
+    },
+    TimezoneOption {
+        minutes: -600,
+        label: "Honolulu (UTC-10:00)",
+    },
+    TimezoneOption {
+        minutes: -540,
+        label: "Anchorage, Alaska ST (UTC-09:00)",
+    },
+    TimezoneOption {
+        minutes: -480,
+        label: "Anchorage, Alaska DT (UTC-08:00)",
+    },
+    TimezoneOption {
+        minutes: -480,
+        label: "Los Angeles, San Francisco, Seattle ST (UTC-08:00)",
+    },
+    TimezoneOption {
+        minutes: -420,
+        label: "Los Angeles, San Francisco, Seattle DT (UTC-07:00)",
+    },
+    TimezoneOption {
+        minutes: -420,
+        label: "Denver, Phoenix ST (UTC-07:00)",
+    },
+    TimezoneOption {
+        minutes: -360,
+        label: "Denver DT (UTC-06:00)",
+    },
+    TimezoneOption {
+        minutes: -360,
+        label: "Chicago, Dallas, Mexico City ST (UTC-06:00)",
+    },
+    TimezoneOption {
+        minutes: -300,
+        label: "Chicago, Dallas DT (UTC-05:00)",
+    },
+    TimezoneOption {
+        minutes: -300,
+        label: "New York, Toronto, Bogota ST (UTC-05:00)",
+    },
+    TimezoneOption {
+        minutes: -240,
+        label: "New York, Toronto DT (UTC-04:00)",
+    },
+    TimezoneOption {
+        minutes: -240,
+        label: "Santiago, Halifax ST (UTC-04:00)",
+    },
+    TimezoneOption {
+        minutes: -210,
+        label: "St. John's, Newfoundland ST (UTC-03:30)",
+    },
+    TimezoneOption {
+        minutes: -180,
+        label: "Buenos Aires, Sao Paulo (UTC-03:00)",
+    },
+    TimezoneOption {
+        minutes: -120,
+        label: "South Georgia (UTC-02:00)",
+    },
+    TimezoneOption {
+        minutes: -60,
+        label: "Azores ST (UTC-01:00)",
+    },
+    TimezoneOption {
+        minutes: 0,
+        label: "London, Lisbon ST (UTC+00:00)",
+    },
+    TimezoneOption {
+        minutes: 60,
+        label: "London, Paris, Berlin DT (UTC+01:00)",
+    },
+    TimezoneOption {
+        minutes: 60,
+        label: "Paris, Berlin, Rome ST (UTC+01:00)",
+    },
+    TimezoneOption {
+        minutes: 120,
+        label: "Paris, Berlin, Rome DT (UTC+02:00)",
+    },
+    TimezoneOption {
+        minutes: 120,
+        label: "Athens, Cairo, Johannesburg ST (UTC+02:00)",
+    },
+    TimezoneOption {
+        minutes: 180,
+        label: "Athens DT (UTC+03:00)",
+    },
+    TimezoneOption {
+        minutes: 180,
+        label: "Moscow, Istanbul, Nairobi (UTC+03:00)",
+    },
+    TimezoneOption {
+        minutes: 240,
+        label: "Dubai, Baku (UTC+04:00)",
+    },
+    TimezoneOption {
+        minutes: 270,
+        label: "Tehran ST (UTC+04:30)",
+    },
+    TimezoneOption {
+        minutes: 300,
+        label: "Karachi, Tashkent (UTC+05:00)",
+    },
+    TimezoneOption {
+        minutes: 330,
+        label: "Mumbai, Delhi (UTC+05:30)",
+    },
+    TimezoneOption {
+        minutes: 345,
+        label: "Kathmandu (UTC+05:45)",
+    },
+    TimezoneOption {
+        minutes: 360,
+        label: "Dhaka, Almaty (UTC+06:00)",
+    },
+    TimezoneOption {
+        minutes: 390,
+        label: "Yangon (UTC+06:30)",
+    },
+    TimezoneOption {
+        minutes: 420,
+        label: "Bangkok, Jakarta (UTC+07:00)",
+    },
+    TimezoneOption {
+        minutes: 480,
+        label: "Singapore, Hong Kong, Beijing (UTC+08:00)",
+    },
+    TimezoneOption {
+        minutes: 525,
+        label: "Eucla, Australia (UTC+08:45)",
+    },
+    TimezoneOption {
+        minutes: 540,
+        label: "Tokyo, Seoul (UTC+09:00)",
+    },
+    TimezoneOption {
+        minutes: 570,
+        label: "Adelaide ST (UTC+09:30)",
+    },
+    TimezoneOption {
+        minutes: 600,
+        label: "Sydney, Melbourne ST (UTC+10:00)",
+    },
+    TimezoneOption {
+        minutes: 630,
+        label: "Adelaide DT (UTC+10:30)",
+    },
+    TimezoneOption {
+        minutes: 660,
+        label: "Sydney, Melbourne DT (UTC+11:00)",
+    },
+    TimezoneOption {
+        minutes: 720,
+        label: "Auckland, Fiji ST (UTC+12:00)",
+    },
+    TimezoneOption {
+        minutes: 780,
+        label: "Auckland DT (UTC+13:00)",
+    },
+    TimezoneOption {
+        minutes: 840,
+        label: "Kiribati (UTC+14:00)",
+    },
+];
+
+struct UserNameField {
+    flash: Mutex<CriticalSectionRawMutex, RefCell<FlashBlock>>,
+    max_len: usize,
+    placeholder: &'static str,
+}
+
+impl UserNameField {
+    fn new(flash: FlashBlock, placeholder: &'static str, max_len: usize) -> Self {
+        Self {
+            flash: Mutex::new(RefCell::new(flash)),
+            max_len,
+            placeholder,
+        }
+    }
+
+    fn load_name(&self) -> Result<Option<UserName>> {
+        self.flash.lock(|cell| cell.borrow_mut().load::<UserName>())
+    }
+
+    fn save_name(&self, name: &UserName) -> Result<()> {
+        self.flash.lock(|cell| cell.borrow_mut().save(name))
+    }
+
+    fn default_name(&self) -> UserName {
+        let mut name = UserName::new();
+        let _ = name.push_str(self.placeholder);
+        name
+    }
+}
+
+impl WifiAutoField for UserNameField {
+    fn render(&self, page: &mut HtmlBuffer) -> Result<()> {
+        info!("WifiAuto field: rendering user name input");
+        let current = self
+            .load_name()?
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| self.default_name());
+        let escaped = simple_escape(current.as_str());
+        write!(
+            page,
+            "<label for=\"nickname\">User name:</label>\
+             <input type=\"text\" id=\"nickname\" name=\"nickname\" value=\"{}\" \
+             maxlength=\"{}\" required>",
+            escaped, self.max_len
+        )
+        .map_err(|_| Error::FormatError)?;
+        Ok(())
+    }
+
+    fn parse(&self, form: &FormData<'_>) -> Result<()> {
+        let Some(value) = form.get("nickname") else {
+            info!("WifiAuto field: user name missing from submission");
+            return Ok(());
+        };
+        let trimmed = value.trim();
+        if trimmed.is_empty() || trimmed.len() > self.max_len {
+            return Err(Error::FormatError);
+        }
+        let mut name = UserName::new();
+        name.push_str(trimmed).map_err(|_| Error::FormatError)?;
+        self.save_name(&name)
+    }
+
+    fn is_satisfied(&self) -> Result<bool> {
+        Ok(self.load_name()?.map_or(false, |name| !name.is_empty()))
+    }
+}
+
+fn simple_escape(input: &str) -> String<128> {
+    let mut escaped = String::<128>::new();
+    for ch in input.chars() {
+        match ch {
+            '&' => {
+                let _ = escaped.push_str("&amp;");
+            }
+            '<' => {
+                let _ = escaped.push_str("&lt;");
+            }
+            '>' => {
+                let _ = escaped.push_str("&gt;");
+            }
+            '"' => {
+                let _ = escaped.push_str("&quot;");
+            }
+            '\'' => {
+                let _ = escaped.push_str("&#39;");
+            }
+            _ => {
+                let _ = escaped.push(ch);
+            }
+        }
+    }
+    escaped
 }

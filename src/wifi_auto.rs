@@ -25,11 +25,11 @@ use crate::button::Button;
 use crate::dns_server::dns_server_task;
 use crate::flash_array::FlashBlock;
 use crate::wifi::{Wifi, WifiEvent, WifiNotifier, WifiStartMode};
-use crate::wifi_config::{
-    MAX_NICKNAME_LEN, Nickname, NicknameFieldOptions, TimezoneFieldOptions, WifiConfigOptions,
-    WifiCredentials, collect_wifi_credentials,
-};
+use crate::wifi_auto_portal::{self};
+use crate::wifi_config::WifiCredentials;
 use crate::{Error, Result};
+
+pub use crate::wifi_auto_portal::{FormData, HtmlBuffer, WifiAutoField};
 
 /// Events emitted while provisioning or connecting.
 #[derive(Clone, Copy, Debug, defmt::Format)]
@@ -40,28 +40,18 @@ pub enum WifiAutoEvent {
 }
 
 pub struct WifiAutoConfig {
-    pub timezone_flash: Option<FlashBlock>,
-    pub nickname_flash: Option<FlashBlock>,
+    pub fields: &'static [&'static dyn WifiAutoField],
 }
 
 impl WifiAutoConfig {
     #[must_use]
     pub const fn new() -> Self {
-        Self {
-            timezone_flash: None,
-            nickname_flash: None,
-        }
+        Self { fields: &[] }
     }
 
     #[must_use]
-    pub fn with_timezone(mut self, flash: FlashBlock) -> Self {
-        self.timezone_flash = Some(flash);
-        self
-    }
-
-    #[must_use]
-    pub fn with_nickname(mut self, flash: FlashBlock) -> Self {
-        self.nickname_flash = Some(flash);
+    pub const fn with_fields(mut self, fields: &'static [&'static dyn WifiAutoField]) -> Self {
+        self.fields = fields;
         self
     }
 }
@@ -75,8 +65,6 @@ impl Default for WifiAutoConfig {
 pub struct WifiAutoConnected {
     pub stack: &'static Stack<'static>,
     pub button: Button<'static>,
-    pub timezone_flash: Option<FlashBlock>,
-    pub nickname_flash: Option<FlashBlock>,
 }
 
 pub struct WifiAutoHandle {
@@ -96,8 +84,6 @@ pub struct WifiAutoNotifier {
     force_ap: AtomicBool,
     defaults: Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>>,
     button: Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>>,
-    timezone_flash: Mutex<CriticalSectionRawMutex, RefCell<Option<FlashBlock>>>,
-    nickname_flash: Mutex<CriticalSectionRawMutex, RefCell<Option<FlashBlock>>>,
 }
 
 pub struct WifiAuto {
@@ -107,10 +93,7 @@ pub struct WifiAuto {
     defaults: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>>,
     button: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>>,
     ap_ssid: &'static str,
-    timezone_flash: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<FlashBlock>>>,
-    nickname_flash: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<FlashBlock>>>,
-    timezone_required: bool,
-    nickname_required: bool,
+    fields: &'static [&'static dyn WifiAutoField],
 }
 
 impl WifiAutoNotifier {
@@ -123,8 +106,6 @@ impl WifiAutoNotifier {
             force_ap: AtomicBool::new(false),
             defaults: Mutex::new(RefCell::new(None)),
             button: Mutex::new(RefCell::new(None)),
-            timezone_flash: Mutex::new(RefCell::new(None)),
-            nickname_flash: Mutex::new(RefCell::new(None)),
         }
     }
 
@@ -142,18 +123,6 @@ impl WifiAutoNotifier {
         &'static self,
     ) -> &'static Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>> {
         &self.button
-    }
-
-    fn timezone_flash(
-        &'static self,
-    ) -> &'static Mutex<CriticalSectionRawMutex, RefCell<Option<FlashBlock>>> {
-        &self.timezone_flash
-    }
-
-    fn nickname_flash(
-        &'static self,
-    ) -> &'static Mutex<CriticalSectionRawMutex, RefCell<Option<FlashBlock>>> {
-        &self.nickname_flash
     }
 }
 
@@ -178,12 +147,7 @@ impl WifiAuto {
         config: WifiAutoConfig,
         spawner: Spawner,
     ) -> Result<&'static Self> {
-        let WifiAutoConfig {
-            timezone_flash,
-            nickname_flash,
-        } = config;
-        let timezone_required = timezone_flash.is_some();
-        let nickname_required = nickname_flash.is_some();
+        let WifiAutoConfig { fields } = config;
 
         let stored_credentials = Wifi::peek_credentials(&mut credential_store);
         let stored_start_mode = Wifi::peek_start_mode(&mut credential_store);
@@ -224,14 +188,6 @@ impl WifiAuto {
             *cell.borrow_mut() = Some(button);
         });
 
-        resources.timezone_flash.lock(|cell| {
-            *cell.borrow_mut() = timezone_flash;
-        });
-
-        resources.nickname_flash.lock(|cell| {
-            *cell.borrow_mut() = nickname_flash;
-        });
-
         let instance = resources.wifi_auto_cell.init(Self {
             events: &resources.events,
             wifi,
@@ -239,10 +195,7 @@ impl WifiAuto {
             defaults: resources.defaults(),
             button: resources.button(),
             ap_ssid,
-            timezone_flash: resources.timezone_flash(),
-            nickname_flash: resources.nickname_flash(),
-            timezone_required,
-            nickname_required,
+            fields,
         });
 
         if force_ap {
@@ -274,73 +227,9 @@ impl WifiAuto {
         self.button.lock(|cell| cell.borrow_mut().take())
     }
 
-    fn with_flash_block<R>(
-        store: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<FlashBlock>>>,
-        f: impl FnOnce(&mut FlashBlock) -> Result<R>,
-    ) -> Result<Option<R>> {
-        store.lock(|cell| {
-            let mut slot = cell.borrow_mut();
-            if let Some(block) = slot.as_mut() {
-                f(block).map(Some)
-            } else {
-                Ok(None)
-            }
-        })
-    }
-
-    fn load_timezone_offset(&self) -> Result<Option<i32>> {
-        if !self.timezone_required {
-            return Ok(None);
-        }
-        Self::with_flash_block(self.timezone_flash, |block| block.load::<i32>())
-            .map(|opt| opt.flatten())
-    }
-
-    fn save_timezone_offset(&self, offset: i32) -> Result<()> {
-        if !self.timezone_required {
-            return Ok(());
-        }
-        Self::with_flash_block(self.timezone_flash, |block| block.save(&offset))?;
-        Ok(())
-    }
-
-    fn load_nickname(&self) -> Result<Option<Nickname>> {
-        if !self.nickname_required {
-            return Ok(None);
-        }
-        Self::with_flash_block(self.nickname_flash, |block| block.load::<Nickname>())
-            .map(|opt| opt.flatten())
-    }
-
-    fn save_nickname(&self, nickname: &Nickname) -> Result<()> {
-        if !self.nickname_required {
-            return Ok(());
-        }
-        Self::with_flash_block(self.nickname_flash, |block| block.save(nickname))?;
-        Ok(())
-    }
-
-    fn take_timezone_flash(&self) -> Option<FlashBlock> {
-        if !self.timezone_required {
-            return None;
-        }
-        self.timezone_flash.lock(|cell| cell.borrow_mut().take())
-    }
-
-    fn take_nickname_flash(&self) -> Option<FlashBlock> {
-        if !self.nickname_required {
-            return None;
-        }
-        self.nickname_flash.lock(|cell| cell.borrow_mut().take())
-    }
-
-    fn extra_settings_ready(&self) -> Result<bool> {
-        if self.timezone_required && self.load_timezone_offset()?.is_none() {
-            return Ok(false);
-        }
-        if self.nickname_required {
-            let nickname = self.load_nickname()?;
-            if nickname.as_ref().map_or(true, |value| value.is_empty()) {
+    fn extra_fields_ready(&self) -> Result<bool> {
+        for field in self.fields {
+            if !field.is_satisfied().map_err(|_| Error::StorageCorrupted)? {
                 return Ok(false);
             }
         }
@@ -403,14 +292,7 @@ impl WifiAuto {
         result?;
         let stack = self.wifi.stack().await;
         let button = self.take_button().ok_or(Error::StorageCorrupted)?;
-        let timezone_flash = self.take_timezone_flash();
-        let nickname_flash = self.take_nickname_flash();
-        Ok(WifiAutoConnected {
-            stack,
-            button,
-            timezone_flash,
-            nickname_flash,
-        })
+        Ok(WifiAutoConnected { stack, button })
     }
 
     async fn ensure_connected(&self, spawner: Spawner) -> Result<()> {
@@ -418,7 +300,7 @@ impl WifiAuto {
             let force_portal = self.force_ap.swap(false, Ordering::AcqRel);
             let start_mode = self.wifi.current_start_mode();
             let has_creds = self.wifi.has_persisted_credentials();
-            let extras_ready = self.extra_settings_ready()?;
+            let extras_ready = self.extra_fields_ready()?;
             if force_portal
                 || matches!(start_mode, WifiStartMode::AccessPoint)
                 || !has_creds
@@ -501,37 +383,17 @@ impl WifiAuto {
             .defaults
             .lock(|cell| cell.borrow_mut().take())
             .or_else(|| self.wifi.load_persisted_credentials());
-        let timezone_default = self.load_timezone_offset()?.unwrap_or(0);
-        let nickname_default = self.load_nickname()?;
-        let mut options = WifiConfigOptions::with_defaults(defaults_owned.as_ref());
-        if self.timezone_required {
-            options = options.with_timezone(TimezoneFieldOptions {
-                default_offset_minutes: timezone_default,
-            });
-        }
-        if self.nickname_required {
-            options = options.with_nickname(NicknameFieldOptions {
-                default_value: nickname_default.clone(),
-                max_len: MAX_NICKNAME_LEN,
-            });
-        }
-        let submission = collect_wifi_credentials(stack, spawner, options).await?;
-        self.wifi
-            .persist_credentials(&submission.credentials)
-            .map_err(|err| {
-                warn!("{}", err);
-                Error::StorageCorrupted
-            })?;
-        if self.timezone_required {
-            self.save_timezone_offset(submission.timezone_offset_minutes)?;
-        }
-        if self.nickname_required {
-            let nickname = submission
-                .nickname
-                .as_ref()
-                .ok_or(Error::StorageCorrupted)?;
-            self.save_nickname(nickname)?;
-        }
+        let submission = wifi_auto_portal::collect_credentials(
+            stack,
+            spawner,
+            defaults_owned.as_ref(),
+            self.fields,
+        )
+        .await?;
+        self.wifi.persist_credentials(&submission).map_err(|err| {
+            warn!("{}", err);
+            Error::StorageCorrupted
+        })?;
 
         Timer::after_millis(750).await;
         SCB::sys_reset();
