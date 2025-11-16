@@ -64,7 +64,6 @@ pub struct WifiAuto {
     force_ap: &'static AtomicBool,
     defaults: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>>,
     button: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>>,
-    ap_ssid: &'static str,
     fields: &'static [&'static dyn WifiAutoField],
 }
 
@@ -182,7 +181,6 @@ impl WifiAuto {
             force_ap: resources.force_ap_flag(),
             defaults: resources.defaults(),
             button: resources.button(),
-            ap_ssid,
             fields: fields_ref,
         });
 
@@ -193,25 +191,11 @@ impl WifiAuto {
         Ok(instance)
     }
 
-    pub fn wifi(&self) -> &'static Wifi {
-        self.wifi
-    }
-
-    pub fn ap_ssid(&self) -> &'static str {
-        self.ap_ssid
-    }
-
-    pub fn force_captive_portal(&self) {
+    fn force_captive_portal(&self) {
         self.force_ap.store(true, Ordering::Relaxed);
     }
 
-    pub fn set_default_credentials(&self, credentials: WifiCredentials) {
-        self.defaults.lock(|cell| {
-            *cell.borrow_mut() = Some(credentials);
-        });
-    }
-
-    pub fn take_button(&self) -> Option<Button<'static>> {
+    fn take_button(&self) -> Option<Button<'static>> {
         self.button.lock(|cell| cell.borrow_mut().take())
     }
 
@@ -224,7 +208,7 @@ impl WifiAuto {
         Ok(true)
     }
 
-    pub async fn wait_event(&self) -> WifiAutoEvent {
+    async fn wait_event(&self) -> WifiAutoEvent {
         self.events.wait().await
     }
 
