@@ -52,6 +52,7 @@ pub struct WifiAutoNotifier {
     force_ap: AtomicBool,
     defaults: Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>>,
     button: Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>>,
+    fields_storage: StaticCell<[&'static dyn WifiAutoField; 8]>,
 }
 
 pub struct WifiAuto {
@@ -74,6 +75,7 @@ impl WifiAutoNotifier {
             force_ap: AtomicBool::new(false),
             defaults: Mutex::new(RefCell::new(None)),
             button: Mutex::new(RefCell::new(None)),
+            fields_storage: StaticCell::new(),
         }
     }
 
@@ -101,7 +103,7 @@ impl WifiAuto {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub fn new<const N: usize>(
         resources: &'static WifiAutoNotifier,
         pin_23: Peri<'static, PIN_23>,
         pin_25: Peri<'static, PIN_25>,
@@ -112,7 +114,7 @@ impl WifiAuto {
         mut credential_store: FlashBlock,
         button_pin: Peri<'static, impl Pin>,
         ap_ssid: &'static str,
-        fields: &'static [&'static dyn WifiAutoField],
+        fields: [&'static dyn WifiAutoField; N],
         spawner: Spawner,
     ) -> Result<&'static Self> {
         let stored_credentials = Wifi::peek_credentials(&mut credential_store);
@@ -154,6 +156,17 @@ impl WifiAuto {
             *cell.borrow_mut() = Some(button);
         });
 
+        // Store fields array and convert to slice
+        let fields_ref = if N > 0 {
+            let mut storage_array: [&'static dyn WifiAutoField; 8] = 
+                [fields[0]; 8]; // Initialize with first element
+            storage_array[..N].copy_from_slice(&fields);
+            let stored = resources.fields_storage.init(storage_array);
+            &stored[..N]
+        } else {
+            &[]
+        };
+
         let instance = resources.wifi_auto_cell.init(Self {
             events: &resources.events,
             wifi,
@@ -161,7 +174,7 @@ impl WifiAuto {
             defaults: resources.defaults(),
             button: resources.button(),
             ap_ssid,
-            fields,
+            fields: fields_ref,
         });
 
         if force_ap {

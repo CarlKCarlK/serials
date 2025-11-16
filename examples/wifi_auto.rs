@@ -31,9 +31,8 @@ use static_cell::StaticCell;
 
 type UserName = String<32>;
 
-static TIMEZONE_FIELD_CELL: StaticCell<TimezoneField> = StaticCell::new();
-static USER_NAME_FIELD_CELL: StaticCell<UserNameField> = StaticCell::new();
-static FIELD_COLLECTION: StaticCell<[&'static dyn WifiAutoField; 2]> = StaticCell::new();
+static TIMEZONE_FIELD: StaticCell<TimezoneField> = StaticCell::new();
+static USER_NAME_FIELD: StaticCell<UserNameField> = StaticCell::new();
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -48,14 +47,6 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<3>::notifier();
     let [wifi_credentials_flash, timezone_flash, nickname_flash] =
         FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
-
-    let timezone_field = TIMEZONE_FIELD_CELL.init(TimezoneField::new(timezone_flash));
-    let user_name_field =
-        USER_NAME_FIELD_CELL.init(UserNameField::new(nickname_flash, "PicoClock", 32));
-    let field_slice = FIELD_COLLECTION.init([
-        timezone_field as &dyn WifiAutoField,
-        user_name_field as &dyn WifiAutoField,
-    ]);
 
     let cells = OutputArray::new([
         gpio::Output::new(peripherals.PIN_1, Level::High),
@@ -77,6 +68,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static LED4_NOTIFIER: Led4Notifier = Led4::notifier();
     let led4 = Led4::new(cells, segments, &LED4_NOTIFIER, spawner)?;
 
+    let timezone_field = TIMEZONE_FIELD.init(TimezoneField::new(timezone_flash));
+    let user_name_field = USER_NAME_FIELD.init(UserNameField::new(nickname_flash, "PicoClock", 32));
+
     static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
     let wifi_auto = WifiAuto::new(
         &WIFI_AUTO_NOTIFIER,
@@ -87,9 +81,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         peripherals.PIN_29,     // CYW43 data pin
         peripherals.DMA_CH0,    // CYW43 DMA channel
         wifi_credentials_flash, // Flash block storing Wi-Fi creds
-        peripherals.PIN_13,           // Reset button pin
-        "Pico",        // Captive-portal SSID to display
-        field_slice,    // Extra fields to render in captive portal
+        peripherals.PIN_13,     // Reset button pin
+        "Pico",                 // Captive-portal SSID to display
+        [timezone_field, user_name_field],
         spawner,
     )?;
 
