@@ -18,10 +18,10 @@ use embassy_futures::join::join;
 use embassy_rp::gpio::{self, Level};
 use embassy_time::{Duration, Timer};
 use panic_probe as _;
+use serials::Result;
 use serials::flash_array::{FlashArray, FlashArrayNotifier};
 use serials::led4::{AnimationFrame, BlinkState, Led4, Led4Animation, Led4Notifier, OutputArray};
 use serials::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoNotifier};
-use serials::Result;
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -59,40 +59,41 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
     let wifi_auto = WifiAuto::new(
         &WIFI_AUTO_NOTIFIER,
-        peripherals.PIN_23, // CYW43 power
-        peripherals.PIN_25, // CYW43 chip select
-        peripherals.PIO0,   // CYW43 PIO interface
-        peripherals.PIN_24, // CYW43 clock
-        peripherals.PIN_29, // CYW43 data pin
-        peripherals.DMA_CH0, // CYW43 DMA channel
+        peripherals.PIN_23,     // CYW43 power
+        peripherals.PIN_25,     // CYW43 chip select
+        peripherals.PIO0,       // CYW43 PIO interface
+        peripherals.PIN_24,     // CYW43 clock
+        peripherals.PIN_29,     // CYW43 data pin
+        peripherals.DMA_CH0,    // CYW43 DMA channel
         wifi_credentials_flash, // Flash block storing Wi-Fi creds
-        peripherals.PIN_13, // User button pin
-        "Pico",        // Captive-portal SSID to display
+        peripherals.PIN_13,     // User button pin
+        "Pico",                 // Captive-portal SSID to display
         spawner,
     )?;
 
-    let status_future = async {
+    let (wifi_result, ()) = join(wifi_auto.ensure_connected(spawner),
+        // UI loop
+         async {
         loop {
             match wifi_auto.wait_event().await {
                 WifiAutoEvent::CaptivePortalReady => {
-                    led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
+                    led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N'])
                 }
+
                 WifiAutoEvent::ClientConnecting { try_index, .. } => {
-                    let clockwise = (try_index & 1) == 0;
-                    led4.animate_text(circular_outline_animation(clockwise));
+                    led4.animate_text(circular_outline_animation((try_index & 1) == 0))
                 }
+
                 WifiAutoEvent::Connected => {
                     led4.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
                     break;
                 }
             }
         }
-    };
-
-    let ensure_future = wifi_auto.ensure_connected(spawner);
-    let (_status, result) = join(status_future, ensure_future).await;
-    result?;
-
+    })
+    .await;
+    wifi_result?;
+    
     let _button = wifi_auto.take_button();
 
     loop {
