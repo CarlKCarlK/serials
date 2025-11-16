@@ -24,7 +24,7 @@ use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
 use serials::led4::{AnimationFrame, BlinkState, Led4, Led4Animation, Led4Notifier, OutputArray};
 use serials::unix_seconds::UnixSeconds;
 use serials::wifi_auto::{
-    FormData, HtmlBuffer, WifiAuto, WifiAutoConfig, WifiAutoEvent, WifiAutoField, WifiAutoNotifier,
+    FormData, HtmlBuffer, WifiAuto, WifiAutoEvent, WifiAutoField, WifiAutoNotifier,
 };
 use serials::{Error, Result};
 use static_cell::StaticCell;
@@ -87,9 +87,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         peripherals.PIN_29,     // CYW43 data pin
         peripherals.DMA_CH0,    // CYW43 DMA channel
         wifi_credentials_flash, // Flash block storing Wi-Fi creds
-        peripherals.PIN_13,     // User button pin
-        "Pico",                 // Captive-portal SSID to display
-        WifiAutoConfig::new().with_fields(field_slice),
+        peripherals.PIN_13,           // Reset button pin
+        "Pico",        // Captive-portal SSID to display
+        field_slice,    // Extra fields to render in captive portal
         spawner,
     )?;
 

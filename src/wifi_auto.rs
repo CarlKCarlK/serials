@@ -39,29 +39,6 @@ pub enum WifiAutoEvent {
     Connected,
 }
 
-pub struct WifiAutoConfig {
-    pub fields: &'static [&'static dyn WifiAutoField],
-}
-
-impl WifiAutoConfig {
-    #[must_use]
-    pub const fn new() -> Self {
-        Self { fields: &[] }
-    }
-
-    #[must_use]
-    pub const fn with_fields(mut self, fields: &'static [&'static dyn WifiAutoField]) -> Self {
-        self.fields = fields;
-        self
-    }
-}
-
-impl Default for WifiAutoConfig {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 const MAX_CONNECT_ATTEMPTS: u8 = 2;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 const RETRY_DELAY: Duration = Duration::from_secs(3);
@@ -135,11 +112,9 @@ impl WifiAuto {
         mut credential_store: FlashBlock,
         button_pin: Peri<'static, impl Pin>,
         ap_ssid: &'static str,
-        config: WifiAutoConfig,
+        fields: &'static [&'static dyn WifiAutoField],
         spawner: Spawner,
     ) -> Result<&'static Self> {
-        let WifiAutoConfig { fields } = config;
-
         let stored_credentials = Wifi::peek_credentials(&mut credential_store);
         let stored_start_mode = Wifi::peek_start_mode(&mut credential_store);
         if matches!(stored_start_mode, WifiStartMode::AccessPoint) {
