@@ -24,25 +24,25 @@ pub enum RfidEvent {
     CardDetected { uid: [u8; 10] },
 }
 
-/// Notifier type for RFID reader events
+/// Static type for RFID reader events
 pub type Mfrc522Device = MFRC522<
     SpiDriver<
         ExclusiveDevice<Spi<'static, SPI0, embassy_rp::spi::Async>, Output<'static>, NoDelay>,
     >,
 >;
 
-/// Notifier type for the `Rfid` device abstraction.
-pub type RfidNotifier = EmbassyChannel<CriticalSectionRawMutex, RfidEvent, 4>;
+/// Static type for the `Rfid` device abstraction.
+pub type RfidStatic = EmbassyChannel<CriticalSectionRawMutex, RfidEvent, 4>;
 
 /// A device abstraction for an RFID reader using the MFRC522 chip.
 pub struct Rfid<'a> {
-    notifier: &'a RfidNotifier,
+    rfid_static: &'a RfidStatic,
 }
 
 impl Rfid<'_> {
-    /// Create a new notifier for the RFID reader
+    /// Create static channel resources for the RFID reader
     #[must_use]
-    pub const fn notifier() -> RfidNotifier {
+    pub const fn new_static() -> RfidStatic {
         EmbassyChannel::new()
     }
 
@@ -58,7 +58,7 @@ impl Rfid<'_> {
         dma_ch1: Peri<'static, Dma1>,
         cs: Peri<'static, Cs>,
         rst: Peri<'static, Rst>,
-        notifier: &'static RfidNotifier,
+        rfid_static: &'static RfidStatic,
         spawner: Spawner,
     ) -> Result<Self>
     where
@@ -75,15 +75,15 @@ impl Rfid<'_> {
             init_mfrc522_hardware(spi, sck, mosi, miso, dma_ch0, dma_ch1, cs, rst).await?;
 
         // Spawn the polling task
-        let token = rfid_polling_task(mfrc522, notifier).map_err(Error::TaskSpawn)?;
+        let token = rfid_polling_task(mfrc522, rfid_static).map_err(Error::TaskSpawn)?;
         spawner.spawn(token);
 
-        Ok(Self { notifier })
+        Ok(Self { rfid_static })
     }
 
     /// Wait for the next RFID event (card detection)
     pub async fn wait(&self) -> RfidEvent {
-        self.notifier.receive().await
+        self.rfid_static.receive().await
     }
 }
 
@@ -101,7 +101,7 @@ fn uid_to_fixed_array(uid_bytes: &[u8]) -> [u8; 10] {
 
 /// Embassy task that continuously polls for RFID cards
 #[embassy_executor::task]
-async fn rfid_polling_task(mut mfrc522: Mfrc522Device, notifier: &'static RfidNotifier) -> ! {
+async fn rfid_polling_task(mut mfrc522: Mfrc522Device, rfid_static: &'static RfidStatic) -> ! {
     info!("RFID polling task started");
 
     loop {
@@ -126,7 +126,7 @@ async fn rfid_polling_task(mut mfrc522: Mfrc522Device, notifier: &'static RfidNo
         let uid_key = uid_to_fixed_array(&uid.uid_bytes);
 
         // Send event to channel
-        notifier
+        rfid_static
             .send(RfidEvent::CardDetected { uid: uid_key })
             .await;
 

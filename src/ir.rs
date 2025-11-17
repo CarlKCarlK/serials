@@ -25,10 +25,10 @@ pub enum IrEvent {
     // Repeat { addr: u16, cmd: u8 },
 }
 
-/// Notifier type for the `Ir` device abstraction.
+/// Static type for the `Ir` device abstraction.
 ///
 /// See [`Ir`] for usage examples.
-pub type IrNotifier = EmbassyChannel<CriticalSectionRawMutex, IrEvent, 8>;
+pub type IrStatic = EmbassyChannel<CriticalSectionRawMutex, IrEvent, 8>;
 
 /// A device abstraction for an infrared receiver using the NEC protocol.
 ///
@@ -41,8 +41,8 @@ pub type IrNotifier = EmbassyChannel<CriticalSectionRawMutex, IrEvent, 8>;
 /// # use embassy_executor::Spawner;
 /// # use serials::ir::{Ir, IrEvent};
 /// # async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
-/// static IR_NOTIFIER: serials::ir::IrNotifier = Ir::notifier();
-/// let ir = Ir::new(p.PIN_15, &IR_NOTIFIER, spawner)?;
+/// static IR_STATIC: serials::ir::IrStatic = Ir::new_static();
+/// let ir = Ir::new(p.PIN_15, &IR_STATIC, spawner)?;
 ///
 /// loop {
 ///     let event = ir.wait().await;
@@ -55,15 +55,15 @@ pub type IrNotifier = EmbassyChannel<CriticalSectionRawMutex, IrEvent, 8>;
 /// # }
 /// ```
 pub struct Ir<'a> {
-    notifier: &'a IrNotifier,
+    ir_static: &'a IrStatic,
 }
 
 impl Ir<'_> {
-    /// Create a new notifier channel for IR events.
+    /// Create static channel resources for IR events.
     ///
     /// See [`Ir`] for usage examples.
     #[must_use]
-    pub const fn notifier() -> IrNotifier {
+    pub const fn new_static() -> IrStatic {
         EmbassyChannel::new()
     }
 
@@ -75,27 +75,27 @@ impl Ir<'_> {
     /// Returns an error if the background task cannot be spawned.
     pub fn new<P: Pin>(
         pin: Peri<'static, P>,
-        notifier: &'static IrNotifier,
+        ir_static: &'static IrStatic,
         spawner: Spawner,
     ) -> Result<Self> {
         // Type erase to Peri<'static, AnyPin> (keep the Peri wrapper!)
         let any: Peri<'static, AnyPin> = pin.into();
         // Use Pull::Up for typical IR receivers (they idle HIGH with active-low modules)
-        let token = nec_ir_task(Input::new(any, Pull::Up), notifier).map_err(Error::TaskSpawn)?;
+        let token = nec_ir_task(Input::new(any, Pull::Up), ir_static).map_err(Error::TaskSpawn)?;
         spawner.spawn(token);
-        Ok(Self { notifier })
+        Ok(Self { ir_static })
     }
 
     /// Wait for the next IR event.
     ///
     /// See [`Ir`] for usage examples.
     pub async fn wait(&self) -> IrEvent {
-        self.notifier.receive().await
+        self.ir_static.receive().await
     }
 }
 
 #[embassy_executor::task]
-async fn nec_ir_task(mut pin: Input<'static>, notifier: &'static IrNotifier) -> ! {
+async fn nec_ir_task(mut pin: Input<'static>, ir_static: &'static IrStatic) -> ! {
     let mut decoder_state: DecoderState = DecoderState::Idle;
     let mut last_code: Option<(u16, u8)> = None;
     let mut level_low: bool = pin.is_low(); // Initialize from pin state
@@ -137,7 +137,7 @@ async fn nec_ir_task(mut pin: Input<'static>, notifier: &'static IrNotifier) -> 
         last_code = last_code0;
 
         if let Some(ir_event) = ir_nec_event {
-            notifier.send(ir_event).await;
+            ir_static.send(ir_event).await;
         }
     }
 }

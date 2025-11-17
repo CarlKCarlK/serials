@@ -29,9 +29,9 @@ use crate::{Error, Result};
 /// # Example
 ///
 /// ```no_run
-/// # use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
-/// # use serials::wifi_auto::{WifiAuto, WifiAutoNotifier};
-/// # use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldNotifier};
+/// # use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
+/// # use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
+/// # use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 /// # use embassy_executor::Spawner;
 /// # use embassy_rp::peripherals;
 /// # async fn example(
@@ -39,18 +39,18 @@ use crate::{Error, Result};
 /// #     peripherals: peripherals::Peripherals,
 /// # ) -> Result<(), serials::Error> {
 /// // Set up flash storage
-/// static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<2>::notifier();
+/// static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
 /// let [wifi_flash, timezone_flash] =
-///     FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
+///     FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
 ///
 /// // Create timezone field
-/// static TIMEZONE_NOTIFIER: TimezoneFieldNotifier = TimezoneField::notifier();
-/// let timezone_field = TimezoneField::new(&TIMEZONE_NOTIFIER, timezone_flash);
+/// static TIMEZONE_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
+/// let timezone_field = TimezoneField::new(&TIMEZONE_STATIC, timezone_flash);
 ///
 /// // Pass to WifiAuto
-/// static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
+/// static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
 /// let wifi_auto = WifiAuto::new(
-///     &WIFI_AUTO_NOTIFIER,
+///     &WIFI_AUTO_STATIC,
 ///     peripherals.PIN_23,
 ///     peripherals.PIN_25,
 ///     peripherals.PIO0,
@@ -79,12 +79,12 @@ pub struct TimezoneField {
 // are stored in static storage, not because of actual concurrent access.
 unsafe impl Sync for TimezoneField {}
 
-/// Notifier for [`TimezoneField`]. See [`TimezoneField`] for usage example.
-pub struct TimezoneFieldNotifier {
+/// Static for [`TimezoneField`]. See [`TimezoneField`] for usage example.
+pub struct TimezoneFieldStatic {
     cell: StaticCell<TimezoneField>,
 }
 
-impl TimezoneFieldNotifier {
+impl TimezoneFieldStatic {
     const fn new() -> Self {
         Self {
             cell: StaticCell::new(),
@@ -93,18 +93,18 @@ impl TimezoneFieldNotifier {
 }
 
 impl TimezoneField {
-    /// Create a new notifier for [`TimezoneField`].
+    /// Create static resources for [`TimezoneField`].
     ///
     /// See [`TimezoneField`] for a complete example.
-    pub const fn notifier() -> TimezoneFieldNotifier {
-        TimezoneFieldNotifier::new()
+    pub const fn new_static() -> TimezoneFieldStatic {
+        TimezoneFieldStatic::new()
     }
 
     /// Initialize a new timezone field.
     ///
     /// See [`TimezoneField`] for a complete example.
-    pub fn new(notifier: &'static TimezoneFieldNotifier, flash: FlashBlock) -> &'static Self {
-        notifier.cell.init(Self::from_flash(flash))
+    pub fn new(timezone_static: &'static TimezoneFieldStatic, flash: FlashBlock) -> &'static Self {
+        timezone_static.cell.init(Self::from_flash(flash))
     }
 
     fn from_flash(flash: FlashBlock) -> Self {
@@ -364,9 +364,9 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 /// # Example
 ///
 /// ```no_run
-/// # use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
-/// # use serials::wifi_auto::{WifiAuto, WifiAutoNotifier};
-/// # use serials::wifi_auto::fields::{TextField, TextFieldNotifier};
+/// # use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
+/// # use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
+/// # use serials::wifi_auto::fields::{TextField, TextFieldStatic};
 /// # use embassy_executor::Spawner;
 /// # use embassy_rp::peripherals;
 /// # async fn example(
@@ -374,14 +374,14 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 /// #     peripherals: peripherals::Peripherals,
 /// # ) -> Result<(), serials::Error> {
 /// // Set up flash storage
-/// static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<2>::notifier();
+/// static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
 /// let [wifi_flash, device_name_flash] =
-///     FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
+///     FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
 ///
 /// // Create device name field (max 32 chars)
-/// static DEVICE_NAME_NOTIFIER: TextFieldNotifier<32> = TextField::notifier();
+/// static DEVICE_NAME_STATIC: TextFieldStatic<32> = TextField::new_static();
 /// let device_name_field = TextField::new(
-///     &DEVICE_NAME_NOTIFIER,
+///     &DEVICE_NAME_STATIC,
 ///     device_name_flash,
 ///     "device_name",    // HTML field name
 ///     "Device Name",    // Label text
@@ -389,9 +389,9 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 /// );
 ///
 /// // Pass to WifiAuto
-/// static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
+/// static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
 /// let wifi_auto = WifiAuto::new(
-///     &WIFI_AUTO_NOTIFIER,
+///     &WIFI_AUTO_STATIC,
 ///     peripherals.PIN_23,
 ///     peripherals.PIN_25,
 ///     peripherals.PIO0,
@@ -423,12 +423,12 @@ pub struct TextField<const N: usize> {
 // are stored in static storage, not because of actual concurrent access.
 unsafe impl<const N: usize> Sync for TextField<N> {}
 
-/// Notifier for [`TextField`]. See [`TextField`] for usage example.
-pub struct TextFieldNotifier<const N: usize> {
+/// Static for [`TextField`]. See [`TextField`] for usage example.
+pub struct TextFieldStatic<const N: usize> {
     cell: StaticCell<TextField<N>>,
 }
 
-impl<const N: usize> TextFieldNotifier<N> {
+impl<const N: usize> TextFieldStatic<N> {
     const fn new() -> Self {
         Self {
             cell: StaticCell::new(),
@@ -437,17 +437,17 @@ impl<const N: usize> TextFieldNotifier<N> {
 }
 
 impl<const N: usize> TextField<N> {
-    /// Create a new notifier for [`TextField`].
+    /// Create static resources for [`TextField`].
     ///
     /// See [`TextField`] for a complete example.
-    pub const fn notifier() -> TextFieldNotifier<N> {
-        TextFieldNotifier::new()
+    pub const fn new_static() -> TextFieldStatic<N> {
+        TextFieldStatic::new()
     }
 
     /// Initialize a new text input field.
     ///
     /// # Parameters
-    /// - `notifier`: Static notifier for initialization
+    /// - `text_field_static`: Static resources for initialization
     /// - `flash`: Flash block for persistent storage
     /// - `field_name`: HTML form field name (e.g., "device_name", "location")
     /// - `label`: HTML label text (e.g., "Device Name:", "Location:")
@@ -457,13 +457,13 @@ impl<const N: usize> TextField<N> {
     ///
     /// See [`TextField`] for a complete example.
     pub fn new(
-        notifier: &'static TextFieldNotifier<N>,
+        text_field_static: &'static TextFieldStatic<N>,
         flash: FlashBlock,
         field_name: &'static str,
         label: &'static str,
         default_value: &'static str,
     ) -> &'static Self {
-        notifier.cell.init(Self::from_flash(
+        text_field_static.cell.init(Self::from_flash(
             flash,
             field_name,
             label,

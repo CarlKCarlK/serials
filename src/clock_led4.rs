@@ -16,37 +16,37 @@ use self::time::ClockTime;
 use crate::clock_led4::time::ONE_MINUTE;
 use crate::led4::OutputArray;
 use crate::led4::{CELL_COUNT, SEGMENT_COUNT};
-use crate::led4::{Led4, Led4Notifier};
+use crate::led4::{Led4, Led4Static};
 
 /// A device abstraction for a 4-digit LED clock.
 pub struct ClockLed4<'a> {
-    commands: &'a ClockLed4OuterNotifier,
+    commands: &'a ClockLed4OuterStatic,
     utc_offset_mirror: &'a AtomicI32,
 }
-/// Notifier type for the `ClockLed4` device abstraction.
-pub struct ClockLed4Notifier {
-    commands: ClockLed4OuterNotifier,
-    led: Led4Notifier,
+/// Static type for the `ClockLed4` device abstraction.
+pub struct ClockLed4Static {
+    commands: ClockLed4OuterStatic,
+    led: Led4Static,
     utc_offset_minutes: AtomicI32,
 }
 /// Channel type for sending commands to the `ClockLed4` device.
-pub type ClockLed4OuterNotifier = Channel<CriticalSectionRawMutex, ClockLed4Command, 4>;
+pub type ClockLed4OuterStatic = Channel<CriticalSectionRawMutex, ClockLed4Command, 4>;
 
-impl ClockLed4Notifier {
+impl ClockLed4Static {
     #[must_use]
-    pub const fn notifier() -> Self {
+    pub const fn new_static() -> Self {
         Self {
             commands: Channel::new(),
-            led: Led4::notifier(),
+            led: Led4::new_static(),
             utc_offset_minutes: AtomicI32::new(0),
         }
     }
 
-    fn commands(&'static self) -> &'static ClockLed4OuterNotifier {
+    fn commands(&'static self) -> &'static ClockLed4OuterStatic {
         &self.commands
     }
 
-    fn led(&'static self) -> &'static Led4Notifier {
+    fn led(&'static self) -> &'static Led4Static {
         &self.led
     }
 
@@ -61,28 +61,28 @@ impl ClockLed4<'_> {
     pub fn new(
         cell_pins: OutputArray<'static, CELL_COUNT>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-        notifier: &'static ClockLed4Notifier,
+        clock_led4_static: &'static ClockLed4Static,
         spawner: Spawner,
         initial_utc_offset_minutes: i32,
     ) -> crate::Result<Self> {
-        let blinkable_display = Led4::new(cell_pins, segment_pins, notifier.led(), spawner)?;
+        let blinkable_display = Led4::new(cell_pins, segment_pins, clock_led4_static.led(), spawner)?;
         let token = clock_led4_device_loop(
-            notifier.commands(),
+            clock_led4_static.commands(),
             blinkable_display,
             initial_utc_offset_minutes,
-            notifier.utc_offset_mirror(),
+            clock_led4_static.utc_offset_mirror(),
         )?;
         spawner.spawn(token);
         Ok(Self {
-            commands: notifier.commands(),
-            utc_offset_mirror: notifier.utc_offset_mirror(),
+            commands: clock_led4_static.commands(),
+            utc_offset_mirror: clock_led4_static.utc_offset_mirror(),
         })
     }
 
-    /// Creates a new `ClockLed4Notifier` instance.
+    /// Creates a new `ClockLed4Static` instance.
     #[must_use]
-    pub const fn notifier() -> ClockLed4Notifier {
-        ClockLed4Notifier::notifier()
+    pub const fn new_static() -> ClockLed4Static {
+        ClockLed4Static::new_static()
     }
 
     /// Set the clock state directly.
@@ -177,7 +177,7 @@ impl ClockLed4Command {
 
 #[embassy_executor::task]
 async fn clock_led4_device_loop(
-    clock_notifier: &'static ClockLed4OuterNotifier,
+    clock_commands: &'static ClockLed4OuterStatic,
     blinker: Led4<'static>,
     initial_utc_offset_minutes: i32,
     utc_offset_mirror: &'static AtomicI32,
@@ -192,7 +192,7 @@ async fn clock_led4_device_loop(
         #[cfg(feature = "display-trace")]
         info!("Sleep for {:?}", sleep_duration);
         if let Either::First(notification) =
-            select(clock_notifier.receive(), Timer::after(sleep_duration)).await
+            select(clock_commands.receive(), Timer::after(sleep_duration)).await
         {
             notification.apply(&mut clock_time, &mut clock_state);
         }

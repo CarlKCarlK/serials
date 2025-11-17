@@ -8,23 +8,23 @@ use embassy_rp::gpio::Pin;
 use heapless::LinearMap;
 
 use crate::Result;
-use crate::ir::{Ir, IrEvent, IrNotifier};
+use crate::ir::{Ir, IrEvent, IrStatic};
 
-/// Notifier channel for IR mapping events.
+/// Static channel for IR mapping events.
 ///
 /// See [`IrMapping`] for usage examples.
-pub struct IrMappingNotifier(IrNotifier);
+pub struct IrMappingStatic(IrStatic);
 
-impl IrMappingNotifier {
-    /// Create a new mapping notifier.
+impl IrMappingStatic {
+    /// Create static mapping resources.
     #[must_use]
     pub(crate) const fn new() -> Self {
-        Self(Ir::notifier())
+        Self(Ir::new_static())
     }
 
-    /// Get a reference to the inner notifier.
+    /// Get a reference to the inner channel resources.
     #[must_use]
-    pub(crate) const fn inner(&self) -> &IrNotifier {
+    pub(crate) const fn inner(&self) -> &IrStatic {
         &self.0
     }
 }
@@ -38,7 +38,7 @@ impl IrMappingNotifier {
 /// # use panic_probe as _;
 /// # use core::prelude::rust_2024::derive;
 /// # use embassy_executor::Spawner;
-/// # use serials::ir_mapping::{IrMapping, IrMappingNotifier};
+/// # use serials::ir_mapping::{IrMapping, IrMappingStatic};
 /// #
 /// #[derive(Debug, Clone, Copy)]
 /// enum RemoteButton { Power, Play, Stop }
@@ -49,8 +49,8 @@ impl IrMappingNotifier {
 ///     (0x0000, 0x08, RemoteButton::Stop),
 /// ];
 ///
-/// static IR_MAPPING_NOTIFIER: IrMappingNotifier = IrMapping::<RemoteButton, 3>::notifier();
-/// let ir_mapping: IrMapping<RemoteButton, 3> = IrMapping::new(p.PIN_15, &button_map, &IR_MAPPING_NOTIFIER, spawner)?;
+/// static IR_MAPPING_STATIC: IrMappingStatic = IrMapping::<RemoteButton, 3>::new_static();
+/// let ir_mapping: IrMapping<RemoteButton, 3> = IrMapping::new(p.PIN_15, &button_map, &IR_MAPPING_STATIC, spawner)?;
 ///
 /// loop {
 ///     let button = ir_mapping.wait().await;
@@ -67,12 +67,12 @@ impl<'a, B, const N: usize> IrMapping<'a, B, N>
 where
     B: Copy,
 {
-    /// Create a new notifier channel for IR events.
+    /// Create static channel resources for IR mapping events.
     ///
     /// See [`IrMapping`] for usage examples.
     #[must_use]
-    pub const fn notifier() -> IrMappingNotifier {
-        IrMappingNotifier::new()
+    pub const fn new_static() -> IrMappingStatic {
+        IrMappingStatic::new()
     }
 
     /// Create a new IR remote button mapper.
@@ -80,7 +80,7 @@ where
     /// # Parameters
     /// - `pin`: GPIO pin connected to the IR receiver
     /// - `button_map`: Array mapping (address, command) pairs to button types
-    /// - `notifier`: Static reference to the notifier channel
+    /// - `ir_mapping_static`: Static reference to the channel resources
     /// - `spawner`: Embassy spawner for background task
     ///
     /// See [`IrMapping`] for usage examples.
@@ -90,10 +90,10 @@ where
     pub fn new<P: Pin>(
         pin: Peri<'static, P>,
         button_map: &[(u16, u8, B)],
-        notifier: &'static IrMappingNotifier,
+        ir_mapping_static: &'static IrMappingStatic,
         spawner: Spawner,
     ) -> Result<Self> {
-        let ir = Ir::new(pin, notifier.inner(), spawner)?;
+        let ir = Ir::new(pin, ir_mapping_static.inner(), spawner)?;
 
         // Convert the flat array to a LinearMap
         let mut map = LinearMap::new();

@@ -5,7 +5,7 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use panic_probe as _;
-use serials::ir::{Ir, IrEvent, IrNotifier};
+use serials::ir::{Ir, IrEvent, IrStatic};
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
@@ -13,8 +13,8 @@ async fn main(spawner: Spawner) -> ! {
 
     info!("IR NEC decoder example starting...");
 
-    static IR_NOTIFIER: IrNotifier = Ir::notifier();
-    let ir = Ir::new(p.PIN_15, &IR_NOTIFIER, spawner)
+    static IR_STATIC: IrStatic = Ir::new_static();
+    let ir = Ir::new(p.PIN_15, &IR_STATIC, spawner)
         .unwrap_or_else(|e| panic!("Failed to initialize IR receiver: {:?}", e));
 
     info!("IR receiver initialized on GP15");

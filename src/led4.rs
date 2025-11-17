@@ -13,7 +13,7 @@ use embassy_time::{Duration, Timer};
 use heapless::Vec;
 
 use crate::Result;
-use crate::led4_simple::{Led4Simple, Led4SimpleNotifier};
+use crate::led4_simple::{Led4Simple, Led4SimpleStatic};
 
 #[cfg(feature = "display-trace")]
 use defmt::info;
@@ -106,7 +106,7 @@ pub type Led4Animation = Vec<AnimationFrame, ANIMATION_MAX_FRAMES>;
 /// # #![no_main]
 /// # use panic_probe as _;
 /// use embassy_rp::gpio::{Level, Output};
-/// use serials::{Error, led4::{BlinkState, Led4, Led4Notifier, OutputArray}};
+/// use serials::{Error, led4::{BlinkState, Led4, Led4Static, OutputArray}};
 /// # use embassy_executor::Spawner;
 ///
 /// async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<(), Error> {
@@ -131,8 +131,8 @@ pub type Led4Animation = Vec<AnimationFrame, ANIMATION_MAX_FRAMES>;
 ///     ]);
 ///
 ///     // Create the display
-///     static NOTIFIER: Led4Notifier = Led4::notifier();
-///     let display = Led4::new(cells, segments, &NOTIFIER, spawner)?;
+///     static LED4_STATIC: Led4Static = Led4::new_static();
+///     let display = Led4::new(cells, segments, &LED4_STATIC, spawner)?;
 ///
 ///     // Display "1234" (solid)
 ///     display.write_text(BlinkState::Solid, ['1', '2', '3', '4']);
@@ -147,13 +147,13 @@ pub type Led4Animation = Vec<AnimationFrame, ANIMATION_MAX_FRAMES>;
 /// Beyond simple text, the driver can loop animations via [`Led4::animate_text`].
 /// The struct owns the background task and signal wiring; create it once with
 /// [`Led4::new`] and use the returned handle for all display updates.
-pub struct Led4<'a>(&'a Led4OuterNotifier);
+pub struct Led4<'a>(&'a Led4OuterStatic);
 
-/// Notifier for the [`Led4`] device.
-pub type Led4Notifier = (Led4OuterNotifier, Led4SimpleNotifier);
+/// Static for the [`Led4`] device.
+pub type Led4Static = (Led4OuterStatic, Led4SimpleStatic);
 
 /// Signal for sending display commands to the [`Led4`] device.
-pub(crate) type Led4OuterNotifier = Signal<CriticalSectionRawMutex, Led4Command>;
+pub(crate) type Led4OuterStatic = Signal<CriticalSectionRawMutex, Led4Command>;
 
 impl Led4<'_> {
     /// Creates the display device and spawns its background task; see [`Led4`] docs.
@@ -161,20 +161,20 @@ impl Led4<'_> {
     pub fn new(
         cell_pins: OutputArray<'static, CELL_COUNT>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-        notifier: &'static Led4Notifier,
+        led4_static: &'static Led4Static,
         spawner: Spawner,
     ) -> Result<Self> {
-        let (outer_notifier, display_notifier) = notifier;
-        let display = Led4Simple::new(cell_pins, segment_pins, display_notifier, spawner)?;
-        let token = device_loop(outer_notifier, display)?;
+        let (outer_static, display_static) = led4_static;
+        let display = Led4Simple::new(cell_pins, segment_pins, display_static, spawner)?;
+        let token = device_loop(outer_static, display)?;
         spawner.spawn(token);
-        Ok(Self(outer_notifier))
+        Ok(Self(outer_static))
     }
 
-    /// Creates a notifier for [`Led4::new`]; see [`Led4`] docs.
+    /// Creates static channel resources for [`Led4::new`]; see [`Led4`] docs.
     #[must_use]
-    pub const fn notifier() -> Led4Notifier {
-        (Signal::new(), Led4Simple::notifier())
+    pub const fn new_static() -> Led4Static {
+        (Signal::new(), Led4Simple::new_static())
     }
 
     /// Sends text to the display with optional blinking.
@@ -191,7 +191,7 @@ impl Led4<'_> {
     /// ```no_run
     /// # use embassy_rp::gpio::{Level, Output};
     /// # use embassy_executor::Spawner;
-    /// # use serials::led4::{Led4, Led4Notifier, OutputArray, AnimationFrame, Led4Animation};
+    /// # use serials::led4::{Led4, Led4Static, OutputArray, AnimationFrame, Led4Animation};
     /// # async fn demo(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
     /// let cells = OutputArray::new([
     ///     Output::new(p.PIN_1, Level::High),
@@ -209,8 +209,8 @@ impl Led4<'_> {
     ///     Output::new(p.PIN_11, Level::Low),
     ///     Output::new(p.PIN_12, Level::Low),
     /// ]);
-    /// static NOTIFIER: Led4Notifier = Led4::notifier();
-    /// let display = Led4::new(cells, segments, &NOTIFIER, spawner)?;
+    /// static LED4_STATIC: Led4Static = Led4::new_static();
+    /// let display = Led4::new(cells, segments, &LED4_STATIC, spawner)?;
     /// let mut animation = Led4Animation::new();
     /// animation.push(AnimationFrame::new(['-', '-', '-', '-'], embassy_time::Duration::from_millis(100))).ok();
     /// animation.push(AnimationFrame::new([' ', ' ', ' ', ' '], embassy_time::Duration::from_millis(100))).ok();
@@ -224,7 +224,7 @@ impl Led4<'_> {
 
 #[embassy_executor::task]
 async fn device_loop(
-    outer_notifier: &'static Led4OuterNotifier,
+    outer_static: &'static Led4OuterStatic,
     display: Led4Simple<'static>,
 ) -> ! {
     let mut command = Led4Command::Text {
@@ -235,10 +235,10 @@ async fn device_loop(
     loop {
         command = match command {
             Led4Command::Text { blink_state, text } => {
-                run_text_loop(blink_state, text, outer_notifier, &display).await
+                run_text_loop(blink_state, text, outer_static, &display).await
             }
             Led4Command::Animation(animation) => {
-                run_animation_loop(animation, outer_notifier, &display).await
+                run_animation_loop(animation, outer_static, &display).await
             }
         };
     }
@@ -247,25 +247,25 @@ async fn device_loop(
 async fn run_text_loop(
     mut blink_state: BlinkState,
     text: [char; CELL_COUNT],
-    outer_notifier: &'static Led4OuterNotifier,
+    outer_static: &'static Led4OuterStatic,
     display: &Led4Simple<'_>,
 ) -> Led4Command {
     loop {
         match blink_state {
             BlinkState::Solid => {
                 display.write_text(text);
-                return outer_notifier.wait().await;
+                return outer_static.wait().await;
             }
             BlinkState::BlinkingAndOn => {
                 display.write_text(text);
-                match select(outer_notifier.wait(), Timer::after(BLINK_ON_DELAY)).await {
+                match select(outer_static.wait(), Timer::after(BLINK_ON_DELAY)).await {
                     Either::First(command) => return command,
                     Either::Second(()) => blink_state = BlinkState::BlinkingButOff,
                 }
             }
             BlinkState::BlinkingButOff => {
                 display.write_text([' '; CELL_COUNT]);
-                match select(outer_notifier.wait(), Timer::after(BLINK_OFF_DELAY)).await {
+                match select(outer_static.wait(), Timer::after(BLINK_OFF_DELAY)).await {
                     Either::First(command) => return command,
                     Either::Second(()) => blink_state = BlinkState::BlinkingAndOn,
                 }
@@ -276,11 +276,11 @@ async fn run_text_loop(
 
 async fn run_animation_loop(
     animation: Led4Animation,
-    outer_notifier: &'static Led4OuterNotifier,
+    outer_static: &'static Led4OuterStatic,
     display: &Led4Simple<'_>,
 ) -> Led4Command {
     if animation.is_empty() {
-        return outer_notifier.wait().await;
+        return outer_static.wait().await;
     }
 
     let frames = animation;
@@ -290,7 +290,7 @@ async fn run_animation_loop(
     loop {
         let frame = frames[index];
         display.write_text(frame.text);
-        match select(outer_notifier.wait(), Timer::after(frame.duration)).await {
+        match select(outer_static.wait(), Timer::after(frame.duration)).await {
             Either::First(command) => return command,
             Either::Second(()) => {
                 index = (index + 1) % len;

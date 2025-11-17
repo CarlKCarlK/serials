@@ -17,8 +17,8 @@ use embassy_rp::gpio::Level;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::Timer;
 
-/// Notifier for the [`Led4Simple`] device.
-pub type Led4SimpleNotifier = Signal<CriticalSectionRawMutex, BitMatrixLed4>;
+/// Static for the [`Led4Simple`] device.
+pub type Led4SimpleStatic = Signal<CriticalSectionRawMutex, BitMatrixLed4>;
 
 /// A device abstraction for a non-blinking 4-digit 7-segment LED display.
 ///
@@ -32,7 +32,7 @@ pub type Led4SimpleNotifier = Signal<CriticalSectionRawMutex, BitMatrixLed4>;
 /// # #![no_main]
 /// # use panic_probe as _;
 /// use embassy_rp::gpio::{Level, Output};
-/// use serials::led4_simple::{Led4Simple, Led4SimpleNotifier};
+/// use serials::led4_simple::{Led4Simple, Led4SimpleStatic};
 /// use serials::led4::OutputArray;
 /// # use embassy_executor::Spawner;
 ///
@@ -54,8 +54,8 @@ pub type Led4SimpleNotifier = Signal<CriticalSectionRawMutex, BitMatrixLed4>;
 ///         Output::new(p.PIN_12, Level::Low),
 ///     ]);
 ///     
-///     static NOTIFIER: Led4SimpleNotifier = Led4Simple::notifier();
-///     let display = Led4Simple::new(cells, segments, &NOTIFIER, spawner)?;
+///     static LED4_SIMPLE_STATIC: Led4SimpleStatic = Led4Simple::new_static();
+///     let display = Led4Simple::new(cells, segments, &LED4_SIMPLE_STATIC, spawner)?;
 ///     
 ///     // Display "1234"
 ///     display.write_text(['1', '2', '3', '4']);
@@ -66,12 +66,12 @@ pub type Led4SimpleNotifier = Signal<CriticalSectionRawMutex, BitMatrixLed4>;
 ///     Ok(())
 /// }
 /// ```
-pub struct Led4Simple<'a>(&'a Led4SimpleNotifier);
+pub struct Led4Simple<'a>(&'a Led4SimpleStatic);
 
 impl Led4Simple<'_> {
-    /// Creates a notifier for the display.
+    /// Creates static channel resources for the display.
     #[must_use]
-    pub const fn notifier() -> Led4SimpleNotifier {
+    pub const fn new_static() -> Led4SimpleStatic {
         Signal::new()
     }
 
@@ -84,12 +84,12 @@ impl Led4Simple<'_> {
     pub fn new(
         cell_pins: OutputArray<'static, CELL_COUNT>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-        notifier: &'static Led4SimpleNotifier,
+        led4_simple_static: &'static Led4SimpleStatic,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
-        let token = device_loop(cell_pins, segment_pins, notifier)?;
+        let token = device_loop(cell_pins, segment_pins, led4_simple_static)?;
         spawner.spawn(token);
-        Ok(Self(notifier))
+        Ok(Self(led4_simple_static))
     }
 
     /// Sends text to the display.
@@ -104,9 +104,9 @@ impl Led4Simple<'_> {
 async fn device_loop(
     cell_pins: OutputArray<'static, CELL_COUNT>,
     segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-    notifier: &'static Led4SimpleNotifier,
+    led4_simple_static: &'static Led4SimpleStatic,
 ) -> ! {
-    let err = inner_device_loop(cell_pins, segment_pins, notifier)
+    let err = inner_device_loop(cell_pins, segment_pins, led4_simple_static)
         .await
         .unwrap_err();
     panic!("{err}");
@@ -115,7 +115,7 @@ async fn device_loop(
 async fn inner_device_loop(
     mut cell_pins: OutputArray<'static, CELL_COUNT>,
     mut segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-    notifier: &'static Led4SimpleNotifier,
+    led4_simple_static: &'static Led4SimpleStatic,
 ) -> Result<Infallible> {
     let mut bit_matrix = BitMatrixLed4::default();
     let mut bits_to_indexes = BitsToIndexes::default();
@@ -127,11 +127,11 @@ async fn inner_device_loop(
         info!("# of unique cell bit_matrix: {:?}", bits_to_indexes.len());
 
         match bits_to_indexes.iter().next() {
-            None => bit_matrix = notifier.wait().await,
+            None => bit_matrix = led4_simple_static.wait().await,
             Some((&bits, indexes)) if bits_to_indexes.len() == 1 => {
                 segment_pins.set_from_nonzero_bits(bits);
                 cell_pins.set_levels_at_indexes(indexes, Level::Low)?;
-                bit_matrix = notifier.wait().await;
+                bit_matrix = led4_simple_static.wait().await;
                 cell_pins.set_levels_at_indexes(indexes, Level::High)?;
             }
             _ => loop {
@@ -139,7 +139,7 @@ async fn inner_device_loop(
                     segment_pins.set_from_nonzero_bits(*bits);
                     cell_pins.set_levels_at_indexes(indexes, Level::Low)?;
                     let timeout_or_signal =
-                        select(Timer::after(MULTIPLEX_SLEEP), notifier.wait()).await;
+                        select(Timer::after(MULTIPLEX_SLEEP), led4_simple_static.wait()).await;
                     cell_pins.set_levels_at_indexes(indexes, Level::High)?;
                     if let Either::Second(notification) = timeout_or_signal {
                         bit_matrix = notification;

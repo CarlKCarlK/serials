@@ -137,16 +137,16 @@ impl FlashBlock {
     }
 }
 
-/// Notifier type for constructing flash arrays.
-pub struct FlashArrayNotifier {
+/// Static type for constructing flash arrays.
+pub struct FlashArrayStatic {
     manager_cell: StaticCell<FlashManager>,
     manager_ref: Mutex<CriticalSectionRawMutex, core::cell::RefCell<Option<&'static FlashManager>>>,
 }
 
-impl FlashArrayNotifier {
+impl FlashArrayStatic {
     /// Create flash resources.
     #[must_use]
-    pub const fn notifier() -> Self {
+    pub const fn new_static() -> Self {
         Self {
             manager_cell: StaticCell::new(),
             manager_ref: Mutex::new(core::cell::RefCell::new(None)),
@@ -182,7 +182,7 @@ impl FlashArrayNotifier {
 /// # #![no_main]
 /// # use panic_probe as _;
 /// use serde::{Serialize, Deserialize};
-/// use serials::flash_array::{FlashArray, FlashArrayNotifier};
+/// use serials::flash_array::{FlashArray, FlashArrayStatic};
 ///
 /// // Define your configuration type
 /// #[derive(Serialize, Deserialize, Debug, Default)]
@@ -195,8 +195,8 @@ impl FlashArrayNotifier {
 /// # async fn example() -> serials::Result<()> {
 /// let p = embassy_rp::init(Default::default());
 ///
-/// static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
-/// let [mut device_config_block] = FlashArray::new(&FLASH_NOTIFIER, p.FLASH)?;
+/// static FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
+/// let [mut device_config_block] = FlashArray::new(&FLASH_STATIC, p.FLASH)?;
 ///
 /// // Load existing config if present.
 /// let mut device_config: DeviceConfig = device_config_block
@@ -219,11 +219,11 @@ impl FlashArrayNotifier {
 /// # #![no_main]
 /// # use panic_probe as _;
 /// # use heapless::String;
-/// # use serials::flash_array::{FlashArray, FlashArrayNotifier};
+/// # use serials::flash_array::{FlashArray, FlashArrayStatic};
 /// # async fn example() -> serials::Result<()> {
 /// # let p = embassy_rp::init(Default::default());
-/// # static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
-/// # let [mut string_block] = FlashArray::new(&FLASH_NOTIFIER, p.FLASH)?;
+/// # static FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
+/// # let [mut string_block] = FlashArray::new(&FLASH_STATIC, p.FLASH)?;
 /// string_block.save(&String::<64>::try_from("Hello")?)?;
 ///
 /// // Reading with a different type returns None (whiteboard semantics)
@@ -236,19 +236,19 @@ impl FlashArrayNotifier {
 pub struct FlashArray<const N: usize>;
 
 impl<const N: usize> FlashArray<N> {
-    /// Get a notifier for creating flash arrays.
+    /// Get static resources for creating flash arrays.
     #[must_use]
-    pub const fn notifier() -> FlashArrayNotifier {
-        FlashArrayNotifier::notifier()
+    pub const fn new_static() -> FlashArrayStatic {
+        FlashArrayStatic::new_static()
     }
 
     /// Reserve `N` contiguous blocks (starting from block 0 on the first call) and return them as
     /// an array that you can destructure however you like.
     pub fn new(
-        notifier: &'static FlashArrayNotifier,
+        flash_static: &'static FlashArrayStatic,
         peripheral: Peri<'static, FLASH>,
     ) -> Result<[FlashBlock; N]> {
-        let manager = notifier.manager(peripheral);
+        let manager = flash_static.manager(peripheral);
         manager.reserve::<N>()
     }
 }

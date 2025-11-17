@@ -15,19 +15,19 @@
 //! # #![no_main]
 //! # use panic_probe as _;
 //! # use core::default::Default;
-//! use serials::flash_array::{FlashArray, FlashArrayNotifier};
+//! use serials::flash_array::{FlashArray, FlashArrayStatic};
 //! use serials::wifi::Wifi;
 //!
 //! # async fn example(spawner: embassy_executor::Spawner) {
 //! let p = embassy_rp::init(Default::default());
 //!
-//! static WIFI_NOTIFIER: serials::wifi::WifiNotifier = Wifi::notifier();
-//! static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
-//! let [wifi_block] = FlashArray::new(&FLASH_NOTIFIER, p.FLASH).unwrap();
+//! static WIFI_STATIC: serials::wifi::WifiStatic = Wifi::new_static();
+//! static FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
+//! let [wifi_block] = FlashArray::new(&FLASH_STATIC, p.FLASH).unwrap();
 //!
 //! // Start in AP mode for user configuration
 //! let wifi = Wifi::new(
-//!     &WIFI_NOTIFIER,
+//!     &WIFI_STATIC,
 //!     p.PIN_23,
 //!     p.PIN_25,
 //!     p.PIO0,
@@ -55,20 +55,20 @@
 //! # #![no_main]
 //! # use panic_probe as _;
 //! # use core::default::Default;
-//! use serials::flash_array::{FlashArray, FlashArrayNotifier};
+//! use serials::flash_array::{FlashArray, FlashArrayStatic};
 //! use serials::wifi::Wifi;
 //! use serials::wifi_config::WifiCredentials;
 //!
 //! # async fn example(spawner: embassy_executor::Spawner, credentials: WifiCredentials) {
 //! let p = embassy_rp::init(Default::default());
 //!
-//! static WIFI_NOTIFIER: serials::wifi::WifiNotifier = Wifi::notifier();
-//! static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
-//! let [wifi_block] = FlashArray::new(&FLASH_NOTIFIER, p.FLASH).unwrap();
+//! static WIFI_STATIC: serials::wifi::WifiStatic = Wifi::new_static();
+//! static FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
+//! let [wifi_block] = FlashArray::new(&FLASH_STATIC, p.FLASH).unwrap();
 //!
 //! // Connect using credentials that were provisioned earlier (e.g., loaded from flash)
 //! let wifi = Wifi::new(
-//!     &WIFI_NOTIFIER,
+//!     &WIFI_STATIC,
 //!     p.PIN_23,
 //!     p.PIN_25,
 //!     p.PIO0,
@@ -207,7 +207,7 @@ impl StackStorage {
 pub type WifiEvents = Signal<CriticalSectionRawMutex, WifiEvent>;
 
 /// Resources needed by the WiFi device.
-pub struct WifiNotifier {
+pub struct WifiStatic {
     events: WifiEvents,
     stack: StackStorage,
     wifi_cell: StaticCell<Wifi>,
@@ -223,14 +223,14 @@ pub struct Wifi {
 }
 
 impl Wifi {
-    /// Create WiFi resources (notifier + storage).
+    /// Create WiFi resources (events + storage).
     ///
-    /// This must be called once to create a static `WifiNotifier` that will be passed to [`Wifi::new`].
+    /// This must be called once to create a static `WifiStatic` that will be passed to [`Wifi::new`].
     ///
     /// See the [module-level documentation](crate::wifi) for usage examples.
     #[must_use]
-    pub const fn notifier() -> WifiNotifier {
-        WifiNotifier {
+    pub const fn new_static() -> WifiStatic {
+        WifiStatic {
             events: Signal::new(),
             stack: StackStorage::new(),
             wifi_cell: StaticCell::new(),
@@ -267,7 +267,7 @@ impl Wifi {
     ///
     /// # Arguments
     ///
-    /// * `resources` - Static WiFi resources created with [`Wifi::notifier`]
+    /// * `resources` - Static WiFi resources created with [`Wifi::new_static`]
     /// * `pin_23` - WiFi chip power pin (GPIO 23)
     /// * `pin_25` - WiFi chip chip select pin (GPIO 25)
     /// * `pio0` - PIO peripheral for WiFi communication
@@ -279,7 +279,7 @@ impl Wifi {
     ///
     /// See the [module-level documentation](crate::wifi) for usage examples.
     pub fn new(
-        resources: &'static WifiNotifier,
+        resources: &'static WifiStatic,
         pin_23: Peri<'static, PIN_23>,
         pin_25: Peri<'static, PIN_25>,
         pio0: Peri<'static, PIO0>,
@@ -304,7 +304,7 @@ impl Wifi {
     }
 
     pub fn new_with_ap_ssid(
-        resources: &'static WifiNotifier,
+        resources: &'static WifiStatic,
         pin_23: Peri<'static, PIN_23>,
         pin_25: Peri<'static, PIN_25>,
         pio0: Peri<'static, PIO0>,

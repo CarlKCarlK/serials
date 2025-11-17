@@ -32,10 +32,10 @@ async fn main(spawner: Spawner) -> ! {
     // Initialize PIO1 bus
     let (pio_bus, sm0, _sm1, _sm2, _sm3) = pio1_split(peripherals.PIO1);
 
-    static LED_STRIP_NOTIFIER: led_strip2::Notifier = led_strip2::notifier();
+    static LED_STRIP_STATIC: led_strip2::Static = led_strip2::new_static();
     let mut led_strip = led_strip2::new(
         spawner,
-        &LED_STRIP_NOTIFIER,
+        &LED_STRIP_STATIC,
         pio_bus,
         sm0,
         peripherals.DMA_CH1.into(),

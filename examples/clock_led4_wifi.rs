@@ -21,11 +21,11 @@ use embassy_time::Timer;
 use panic_probe as _;
 use serials::button::Button;
 use serials::clock_led4::state::ClockLed4State;
-use serials::clock_led4::{ClockLed4 as Clock, ClockLed4Notifier as ClockNotifier};
+use serials::clock_led4::{ClockLed4 as Clock, ClockLed4Static as ClockStatic};
 use serials::dns_server::dns_server_task;
-use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
+use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
 use serials::led4::OutputArray;
-use serials::time_sync::{TimeSync, TimeSyncNotifier};
+use serials::time_sync::{TimeSync, TimeSyncStatic};
 use serials::wifi::Wifi;
 use serials::wifi_config::{
     MAX_NICKNAME_LEN, Nickname, NicknameFieldOptions, TimezoneFieldOptions, WifiConfigOptions,
@@ -44,12 +44,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize flash storage
-    static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<3>::notifier();
+    static FLASH_STATIC: FlashArrayStatic = FlashArray::<3>::new_static();
     let [
         wifi_credentials_flash,
         mut timezone_offset_minutes_flash,
         mut nickname_flash,
-    ] = FlashArray::new(&FLASH_NOTIFIER, p.FLASH)?;
+    ] = FlashArray::new(&FLASH_STATIC, p.FLASH)?;
 
     // Initialize LED (unused but kept for compatibility)
     let mut led = gpio::Output::new(p.PIN_0, Level::Low);
@@ -78,11 +78,11 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     // cmk consider passing in the timezone_flash_block to clock for direct saving
     // Initialize clock and button
-    static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
+    static CLOCK_STATIC: ClockStatic = Clock::new_static();
     let mut clock = Clock::new(
         cells,
         segments,
-        &CLOCK_NOTIFIER,
+        &CLOCK_STATIC,
         spawner,
         timezone_offset_minutes,
     )?;
@@ -90,9 +90,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     // Determine initial boot phase by executing start logic
     // Initialize time sync
-    static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
+    static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
     let time_sync = TimeSync::new(
-        &TIME_SYNC_NOTIFIER,
+        &TIME_SYNC_STATIC,
         p.PIN_23,               // WiFi chip data out
         p.PIN_25,               // WiFi chip data in
         p.PIO0,                 // PIO for WiFi chip communication

@@ -7,7 +7,7 @@ use embassy_rp::Peri;
 use embassy_rp::gpio::Pin;
 
 use crate::Result;
-use crate::ir_mapping::{IrMapping, IrMappingNotifier};
+use crate::ir_mapping::{IrMapping, IrMappingStatic};
 
 /// Button types for the SunFounder Kepler Kit remote control.
 #[derive(defmt::Format, Clone, Copy, PartialEq, Eq)]
@@ -26,12 +26,12 @@ pub enum KeplerButton {
     USd,
 }
 
-/// Notifier type for Kepler IR remote events.
+/// Static type for Kepler IR remote events.
 ///
-/// This is a type alias to [`IrMappingNotifier`] for convenience.
+/// This is a type alias to [`IrMappingStatic`] for convenience.
 ///
 /// See [`IrKepler`] for usage examples.
-pub type IrKeplerNotifier = IrMappingNotifier;
+pub type IrKeplerStatic = IrMappingStatic;
 
 /// Type alias for the Kepler button mapping.
 ///
@@ -81,10 +81,10 @@ const KEPLER_MAPPING: [(u16, u8, KeplerButton); 21] = [
 /// # use panic_probe as _;
 /// # use defmt::info;
 /// # use embassy_executor::Spawner;
-/// # use serials::ir_kepler::{IrKepler, IrKeplerNotifier};
+/// # use serials::ir_kepler::{IrKepler, IrKeplerStatic};
 /// # async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
-/// static IR_KEPLER_NOTIFIER: IrKeplerNotifier = IrKepler::notifier();
-/// let ir_kepler = IrKepler::new(p.PIN_15, &IR_KEPLER_NOTIFIER, spawner)?;
+/// static IR_KEPLER_STATIC: IrKeplerStatic = IrKepler::new_static();
+/// let ir_kepler = IrKepler::new(p.PIN_15, &IR_KEPLER_STATIC, spawner)?;
 ///
 /// loop {
 ///     let button = ir_kepler.wait().await;
@@ -97,19 +97,19 @@ pub struct IrKepler<'a> {
 }
 
 impl<'a> IrKepler<'a> {
-    /// Create a new notifier channel for IR events.
+    /// Create static channel resources for IR events.
     ///
     /// See [`IrKepler`] for usage examples.
     #[must_use]
-    pub const fn notifier() -> IrKeplerNotifier {
-        IrKeplerMapping::notifier()
+    pub const fn new_static() -> IrKeplerStatic {
+        IrKeplerMapping::new_static()
     }
 
     /// Create a new Kepler remote handler.
     ///
     /// # Parameters
     /// - `pin`: GPIO pin connected to the IR receiver
-    /// - `notifier`: Static reference to the notifier channel
+    /// - `ir_kepler_static`: Static reference to the channel resources
     /// - `spawner`: Embassy spawner for background task
     ///
     /// See [`IrKepler`] for usage examples.
@@ -118,10 +118,10 @@ impl<'a> IrKepler<'a> {
     /// Returns an error if the background task cannot be spawned.
     pub fn new<P: Pin>(
         pin: Peri<'static, P>,
-        notifier: &'static IrKeplerNotifier,
+        ir_kepler_static: &'static IrKeplerStatic,
         spawner: Spawner,
     ) -> Result<Self> {
-        let mapping = IrMapping::new(pin, &KEPLER_MAPPING, notifier, spawner)?;
+        let mapping = IrMapping::new(pin, &KEPLER_MAPPING, ir_kepler_static, spawner)?;
         Ok(Self { mapping })
     }
 

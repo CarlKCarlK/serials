@@ -30,7 +30,7 @@ use static_cell::StaticCell;
 use crate::button::Button;
 use crate::dns_server::dns_server_task;
 use crate::flash_array::FlashBlock;
-use crate::wifi::{Wifi, WifiEvent, WifiNotifier, WifiStartMode};
+use crate::wifi::{Wifi, WifiEvent, WifiStatic, WifiStartMode};
 use crate::wifi_config::WifiCredentials;
 use crate::{Error, Result};
 
@@ -63,10 +63,10 @@ pub type WifiAutoEvents = Signal<CriticalSectionRawMutex, WifiAutoEvent>;
 
 const MAX_WIFI_AUTO_FIELDS: usize = 8;
 
-/// Notifier for [`WifiAuto`]. See [`WifiAuto`] for usage example.
-pub struct WifiAutoNotifier {
+/// Static for [`WifiAuto`]. See [`WifiAuto`] for usage example.
+pub struct WifiAutoStatic {
     events: WifiAutoEvents,
-    wifi: WifiNotifier,
+    wifi: WifiStatic,
     wifi_auto_cell: StaticCell<WifiAuto>,
     force_ap: AtomicBool,
     defaults: Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>>,
@@ -89,9 +89,9 @@ pub struct WifiAutoNotifier {
 /// # Example
 ///
 /// ```no_run
-/// # use serials::flash_array::{FlashArray, FlashArrayNotifier};
-/// # use serials::wifi_auto::{WifiAuto, WifiAutoNotifier, WifiAutoEvent};
-/// # use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldNotifier};
+/// # use serials::flash_array::{FlashArray, FlashArrayStatic};
+/// # use serials::wifi_auto::{WifiAuto, WifiAutoStatic, WifiAutoEvent};
+/// # use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 /// # use embassy_executor::Spawner;
 /// # use embassy_rp::peripherals;
 /// # async fn example(
@@ -99,18 +99,18 @@ pub struct WifiAutoNotifier {
 /// #     peripherals: peripherals::Peripherals,
 /// # ) -> Result<(), serials::Error> {
 /// // Set up flash storage for WiFi credentials and timezone
-/// static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<2>::notifier();
+/// static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
 /// let [wifi_flash, timezone_flash] =
-///     FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
+///     FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
 ///
 /// // Create a timezone field to collect during provisioning
-/// static TIMEZONE_NOTIFIER: TimezoneFieldNotifier = TimezoneField::notifier();
-/// let timezone_field = TimezoneField::new(&TIMEZONE_NOTIFIER, timezone_flash);
+/// static TIMEZONE_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
+/// let timezone_field = TimezoneField::new(&TIMEZONE_STATIC, timezone_flash);
 ///
 /// // Initialize WifiAuto with the custom field
-/// static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
+/// static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
 /// let wifi_auto = WifiAuto::new(
-///     &WIFI_AUTO_NOTIFIER,
+///     &WIFI_AUTO_STATIC,
 ///     peripherals.PIN_23,     // CYW43 power
 ///     peripherals.PIN_25,     // CYW43 chip select
 ///     peripherals.PIO0,       // CYW43 PIO interface
@@ -156,12 +156,12 @@ pub struct WifiAuto {
     fields: &'static [&'static dyn WifiAutoField],
 }
 
-impl WifiAutoNotifier {
+impl WifiAutoStatic {
     #[must_use]
     pub const fn new() -> Self {
-        WifiAutoNotifier {
+        WifiAutoStatic {
             events: Signal::new(),
-            wifi: Wifi::notifier(),
+            wifi: Wifi::new_static(),
             wifi_auto_cell: StaticCell::new(),
             force_ap: AtomicBool::new(false),
             defaults: Mutex::new(RefCell::new(None)),
@@ -188,12 +188,12 @@ impl WifiAutoNotifier {
 }
 
 impl WifiAuto {
-    /// Create a new notifier for [`WifiAuto`].
+    /// Create static resources for [`WifiAuto`].
     ///
     /// See [`WifiAuto`] for a complete example.
     #[must_use]
-    pub const fn notifier() -> WifiAutoNotifier {
-        WifiAutoNotifier::new()
+    pub const fn new_static() -> WifiAutoStatic {
+        WifiAutoStatic::new()
     }
 
     /// Initialize WiFi auto-provisioning with custom configuration fields.
@@ -201,7 +201,7 @@ impl WifiAuto {
     /// See [`WifiAuto`] for a complete example.
     #[allow(clippy::too_many_arguments)]
     pub fn new<const N: usize>(
-        resources: &'static WifiAutoNotifier,
+        resources: &'static WifiAutoStatic,
         pin_23: Peri<'static, PIN_23>,
         pin_25: Peri<'static, PIN_25>,
         pio0: Peri<'static, PIO0>,

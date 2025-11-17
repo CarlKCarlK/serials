@@ -57,7 +57,7 @@ pub type ClockCommands = Channel<CriticalSectionRawMutex, ClockCommand, 4>;
 pub type ClockEvents = Signal<CriticalSectionRawMutex, ClockEvent>;
 
 /// Resources needed by Clock device
-pub struct ClockNotifier {
+pub struct ClockStatic {
     commands: ClockCommands,
     events: ClockEvents,
 }
@@ -71,20 +71,20 @@ pub struct Clock {
 impl Clock {
     /// Create Clock resources
     #[must_use]
-    pub const fn notifier() -> ClockNotifier {
-        ClockNotifier {
+    pub const fn new_static() -> ClockStatic {
+        ClockStatic {
             commands: Channel::new(),
             events: Signal::new(),
         }
     }
 
     /// Create a new Clock device and spawn its task
-    pub fn new(notifier: &'static ClockNotifier, spawner: Spawner) -> Self {
-        let token = unwrap!(clock_device_loop(notifier));
+    pub fn new(clock_static: &'static ClockStatic, spawner: Spawner) -> Self {
+        let token = unwrap!(clock_device_loop(clock_static));
         spawner.spawn(token);
         Self {
-            commands: &notifier.commands,
-            events: &notifier.events,
+            commands: &clock_static.commands,
+            events: &clock_static.events,
         }
     }
 
@@ -166,12 +166,12 @@ impl Clock {
 }
 
 #[embassy_executor::task]
-async fn clock_device_loop(resources: &'static ClockNotifier) -> ! {
+async fn clock_device_loop(resources: &'static ClockStatic) -> ! {
     let err = inner_clock_device_loop(resources).await.unwrap_err();
     core::panic!("{err}");
 }
 
-async fn inner_clock_device_loop(resources: &'static ClockNotifier) -> Result<Infallible> {
+async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infallible> {
     let mut offset_minutes: i32 = 0;
     let mut utc_offset = UtcOffset::UTC;
 

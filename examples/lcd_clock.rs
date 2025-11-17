@@ -12,10 +12,10 @@ use embassy_futures::select::{Either, select};
 use heapless::String;
 use panic_probe as _;
 use serials::Result;
-use serials::char_lcd::{CharLcd, CharLcdNotifier};
-use serials::clock::{Clock, ClockNotifier};
-use serials::flash_array::{FlashArray, FlashArrayNotifier};
-use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
+use serials::char_lcd::{CharLcd, CharLcdStatic};
+use serials::clock::{Clock, ClockStatic};
+use serials::flash_array::{FlashArray, FlashArrayStatic};
+use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 
 // ============================================================================
 // Main Orchestrator
@@ -35,23 +35,23 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize CharLcd
-    static CHAR_LCD_NOTIFIER: CharLcdNotifier = CharLcd::notifier();
-    let char_lcd = CharLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &CHAR_LCD_NOTIFIER, spawner)?;
+    static CHAR_LCD_STATIC: CharLcdStatic = CharLcd::new_static();
+    let char_lcd = CharLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &CHAR_LCD_STATIC, spawner)?;
 
     // Create Clock device (starts ticking immediately)
     const DEFAULT_UTC_OFFSET_MINUTES: i32 = 0;
-    static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
-    let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
+    static CLOCK_STATIC: ClockStatic = Clock::new_static();
+    let clock = Clock::new(&CLOCK_STATIC, spawner);
     clock
         .set_utc_offset_minutes(DEFAULT_UTC_OFFSET_MINUTES)
         .await;
 
     // Create TimeSync virtual device (creates WiFi internally)
-    static TIME_SYNC: TimeSyncNotifier = TimeSync::notifier();
+    static TIME_SYNC: TimeSyncStatic = TimeSync::new_static();
     #[cfg(feature = "wifi")]
     let time_sync = {
-        static WIFI_FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
-        let [wifi_block] = FlashArray::new(&WIFI_FLASH_NOTIFIER, p.FLASH)?;
+        static WIFI_FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
+        let [wifi_block] = FlashArray::new(&WIFI_FLASH_STATIC, p.FLASH)?;
         TimeSync::new(
             &TIME_SYNC,
             p.PIN_23,   // WiFi power enable

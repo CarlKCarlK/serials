@@ -18,7 +18,7 @@ mod wifi_impl {
     use crate::Result;
     use crate::flash_array::FlashBlock;
     use crate::unix_seconds::UnixSeconds;
-    use crate::wifi::{Wifi, WifiEvent, WifiNotifier};
+    use crate::wifi::{Wifi, WifiEvent, WifiStatic};
 
     // ============================================================================
     // Types
@@ -36,9 +36,9 @@ mod wifi_impl {
     pub type TimeSyncEvents = Signal<CriticalSectionRawMutex, TimeSyncEvent>;
 
     /// Resources needed by the `TimeSync` device.
-    pub struct TimeSyncNotifier {
+    pub struct TimeSyncStatic {
         events: TimeSyncEvents,
-        wifi: WifiNotifier,
+        wifi: WifiStatic,
         time_sync_cell: StaticCell<TimeSync>,
     }
 
@@ -56,10 +56,10 @@ mod wifi_impl {
     impl TimeSync {
         /// Create TimeSync resources (includes WiFi)
         #[must_use]
-        pub const fn notifier() -> TimeSyncNotifier {
-            TimeSyncNotifier {
+        pub const fn new_static() -> TimeSyncStatic {
+            TimeSyncStatic {
                 events: Signal::new(),
-                wifi: Wifi::notifier(),
+                wifi: Wifi::new_static(),
                 time_sync_cell: StaticCell::new(),
             }
         }
@@ -69,7 +69,7 @@ mod wifi_impl {
         /// # Arguments
         /// * `credential_store` - Flash block for persisted WiFi credentials
         pub fn new(
-            resources: &'static TimeSyncNotifier,
+            resources: &'static TimeSyncStatic,
             pin_23: Peri<'static, PIN_23>,
             pin_25: Peri<'static, PIN_25>,
             pio0: Peri<'static, PIO0>,
@@ -306,7 +306,7 @@ mod wifi_impl {
 
 // Export wifi_impl types when wifi feature is enabled
 #[cfg(feature = "wifi")]
-pub use wifi_impl::{TimeSync, TimeSyncEvent, TimeSyncEvents, TimeSyncNotifier};
+pub use wifi_impl::{TimeSync, TimeSyncEvent, TimeSyncEvents, TimeSyncStatic};
 
 // ============================================================================
 // No-WiFi Stub Implementation
@@ -330,8 +330,8 @@ mod stub {
 
     pub type TimeSyncEvents = Signal<CriticalSectionRawMutex, TimeSyncEvent>;
 
-    /// Notifier used to construct a [`TimeSync`] instance.
-    pub struct TimeSyncNotifier {
+    /// Static used to construct a [`TimeSync`] instance.
+    pub struct TimeSyncStatic {
         time_sync_cell: StaticCell<TimeSync>,
     }
 
@@ -341,14 +341,14 @@ mod stub {
     impl TimeSync {
         /// Create time sync resources.
         #[must_use]
-        pub const fn notifier() -> TimeSyncNotifier {
-            TimeSyncNotifier {
+        pub const fn new_static() -> TimeSyncStatic {
+            TimeSyncStatic {
                 time_sync_cell: StaticCell::new(),
             }
         }
 
         /// Construct the stub device.
-        pub fn new(resources: &'static TimeSyncNotifier, _spawner: Spawner) -> &'static Self {
+        pub fn new(resources: &'static TimeSyncStatic, _spawner: Spawner) -> &'static Self {
             resources.time_sync_cell.init(Self {})
         }
 
@@ -360,4 +360,4 @@ mod stub {
 }
 
 #[cfg(not(feature = "wifi"))]
-pub use stub::{TimeSync, TimeSyncEvent, TimeSyncEvents, TimeSyncNotifier};
+pub use stub::{TimeSync, TimeSyncEvent, TimeSyncEvents, TimeSyncStatic};

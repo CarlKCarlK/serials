@@ -21,18 +21,18 @@ pub enum CharLcdMessage {
     },
 }
 
-/// Notifier type for the `CharLcd` device abstraction.
-pub type CharLcdNotifier = Channel<CriticalSectionRawMutex, CharLcdMessage, 8>;
+/// Static type for the `CharLcd` device abstraction.
+pub type CharLcdStatic = Channel<CriticalSectionRawMutex, CharLcdMessage, 8>;
 
 /// A device abstraction for an HD44780-compatible character LCD.
 pub struct CharLcd {
-    notifier: &'static CharLcdNotifier,
+    char_lcd_static: &'static CharLcdStatic,
 }
 
 impl CharLcd {
     /// Create CharLcd resources
     #[must_use]
-    pub const fn notifier() -> CharLcdNotifier {
+    pub const fn new_static() -> CharLcdStatic {
         Channel::new()
     }
 
@@ -44,7 +44,7 @@ impl CharLcd {
         i2c_peripheral: Peri<'static, I2C0>,
         scl: Peri<'static, SCL>,
         sda: Peri<'static, SDA>,
-        char_lcd_notifier: &'static CharLcdNotifier,
+        char_lcd_static: &'static CharLcdStatic,
         spawner: Spawner,
     ) -> Result<Self>
     where
@@ -53,16 +53,16 @@ impl CharLcd {
     {
         // Create the I2C instance and pass it to the task
         let i2c = i2c::I2c::new_blocking(i2c_peripheral, scl, sda, I2cConfig::default());
-        let token = lcd_task(i2c, char_lcd_notifier).map_err(Error::TaskSpawn)?;
+        let token = lcd_task(i2c, char_lcd_static).map_err(Error::TaskSpawn)?;
         spawner.spawn(token);
         Ok(Self {
-            notifier: char_lcd_notifier,
+            char_lcd_static,
         })
     }
 
     /// Send a message to the LCD (async, waits until queued)
     pub async fn display(&self, text: String<64>, duration_ms: u32) {
-        self.notifier
+        self.char_lcd_static
             .send(CharLcdMessage::Display { text, duration_ms })
             .await;
     }
@@ -152,7 +152,7 @@ impl LcdDriver {
 #[embassy_executor::task]
 async fn lcd_task(
     i2c: i2c::I2c<'static, I2C0, i2c::Blocking>,
-    commands: &'static CharLcdNotifier,
+    commands: &'static CharLcdStatic,
 ) -> ! {
     let mut lcd = LcdDriver::new(i2c);
     lcd.init().await;

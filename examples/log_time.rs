@@ -33,10 +33,10 @@ use embassy_time::Timer;
 use panic_probe as _;
 use serials::Error;
 use serials::Result;
-use serials::clock::{Clock, ClockNotifier};
+use serials::clock::{Clock, ClockStatic};
 use serials::dns_server::dns_server_task;
-use serials::flash_array::{FlashArray, FlashArrayNotifier, FlashBlock};
-use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
+use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
+use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_config::{WifiConfigOptions, collect_wifi_credentials};
 
 struct TimezoneStore {
@@ -74,20 +74,20 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize flash storage for WiFi credentials and timezone offset
-    static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<2>::notifier();
-    let [wifi_block, timezone_block] = FlashArray::new(&FLASH_NOTIFIER, p.FLASH)?;
+    static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
+    let [wifi_block, timezone_block] = FlashArray::new(&FLASH_STATIC, p.FLASH)?;
     let mut timezone_store = TimezoneStore::new(timezone_block);
 
     let stored_offset: i32 = timezone_store.load()?;
     // Create Clock device (starts ticking immediately)
-    static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
-    let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
+    static CLOCK_STATIC: ClockStatic = Clock::new_static();
+    let clock = Clock::new(&CLOCK_STATIC, spawner);
     clock.set_utc_offset_minutes(stored_offset).await;
 
     // Create TimeSync virtual device with credentials if available
-    static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
+    static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
     let time_sync = TimeSync::new(
-        &TIME_SYNC_NOTIFIER,
+        &TIME_SYNC_STATIC,
         p.PIN_23,  // WiFi chip data out
         p.PIN_25,  // WiFi chip data in
         p.PIO0,    // PIO for WiFi chip communication

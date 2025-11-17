@@ -18,12 +18,12 @@ use embassy_net::{Stack, dns::DnsQueryType, udp};
 use embassy_time::Duration;
 use heapless::String;
 use panic_probe as _;
-use serials::flash_array::{FlashArray, FlashArrayNotifier};
+use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::unix_seconds::UnixSeconds;
 use serials::wifi_auto::fields::{
-    TextField, TextFieldNotifier, TimezoneField, TimezoneFieldNotifier,
+    TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic,
 };
-use serials::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoNotifier};
+use serials::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoStatic};
 use serials::Result;
 
 #[embassy_executor::main]
@@ -36,34 +36,34 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("Starting wifi_auto example");
     let peripherals = embassy_rp::init(Default::default());
 
-    static FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<4>::notifier();
+    static FLASH_STATIC: FlashArrayStatic = FlashArray::<4>::new_static();
     let [wifi_credentials_flash, timezone_flash, device_name_flash, location_flash] =
-        FlashArray::new(&FLASH_NOTIFIER, peripherals.FLASH)?;
+        FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
 
-    static TIMEZONE_FIELD_NOTIFIER: TimezoneFieldNotifier = TimezoneField::notifier();
-    let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_NOTIFIER, timezone_flash);
+    static TIMEZONE_FIELD_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
+    let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash);
 
-    static DEVICE_NAME_FIELD_NOTIFIER: TextFieldNotifier<32> = TextField::notifier();
+    static DEVICE_NAME_FIELD_STATIC: TextFieldStatic<32> = TextField::new_static();
     let device_name_field = TextField::new(
-        &DEVICE_NAME_FIELD_NOTIFIER,
+        &DEVICE_NAME_FIELD_STATIC,
         device_name_flash,
         "device_name",
         "Device Name",
         "PicoClock",
     );
 
-    static LOCATION_FIELD_NOTIFIER: TextFieldNotifier<64> = TextField::notifier();
+    static LOCATION_FIELD_STATIC: TextFieldStatic<64> = TextField::new_static();
     let location_field = TextField::new(
-        &LOCATION_FIELD_NOTIFIER,
+        &LOCATION_FIELD_STATIC,
         location_flash,
         "location",
         "Location",
         "Living Room",
     );
 
-    static WIFI_AUTO_NOTIFIER: WifiAutoNotifier = WifiAuto::notifier();
+    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
     let wifi_auto = WifiAuto::new(
-        &WIFI_AUTO_NOTIFIER,
+        &WIFI_AUTO_STATIC,
         peripherals.PIN_23,     // CYW43 power
         peripherals.PIN_25,     // CYW43 chip select
         peripherals.PIO0,       // CYW43 PIO interface
@@ -80,15 +80,15 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let (stack, mut button) = wifi_auto
         .ensure_connected_with_ui(spawner, |event| match event {
             WifiAutoEvent::CaptivePortalReady => {
-                info!("Captive portal ready - connect to WiFi network");
+                led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
             }
 
-            WifiAutoEvent::ClientConnecting { try_index, try_count } => {
-                info!("Connecting to WiFi (attempt {} of {})...", try_index + 1, try_count);
+            WifiAutoEvent::ClientConnecting { try_index, .. } => {
+                led4.animate_text(circular_outline_animation((try_index & 1) == 0));
             }
 
             WifiAutoEvent::Connected => {
-                info!("WiFi connected successfully!");
+                led4.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
             }
         })
         .await?;

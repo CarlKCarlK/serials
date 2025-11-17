@@ -7,7 +7,7 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use panic_probe as _;
-use serials::ir_kepler::{IrKepler, IrKeplerNotifier};
+use serials::ir_kepler::{IrKepler, IrKeplerStatic};
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
@@ -20,8 +20,8 @@ async fn inner_main(spawner: Spawner) -> serials::Result<!> {
 
     info!("Starting Kepler IR Remote Example");
 
-    static IR_KEPLER_NOTIFIER: IrKeplerNotifier = IrKepler::notifier();
-    let ir_kepler = IrKepler::new(p.PIN_15, &IR_KEPLER_NOTIFIER, spawner)?;
+    static IR_KEPLER_STATIC: IrKeplerStatic = IrKepler::new_static();
+    let ir_kepler = IrKepler::new(p.PIN_15, &IR_KEPLER_STATIC, spawner)?;
 
     info!("Kepler remote initialized on GPIO 15");
     info!("Press buttons on the remote control...");

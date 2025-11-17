@@ -59,20 +59,20 @@ impl<'d, PIO: Instance> PioBus<'d, PIO> {
 }
 
 // ============================================================================
-// LED Strip Command Channel and Notifier
+// LED Strip Command Channel and Static
 // ============================================================================
 
 pub type LedStripCommands<const N: usize> = EmbassyChannel<CriticalSectionRawMutex, [Rgb; N], 2>;
 
-/// Notifier used to construct LED strip instances.
-pub struct LedStripNotifier<const N: usize> {
+/// Static used to construct LED strip instances.
+pub struct LedStripStatic<const N: usize> {
     commands: LedStripCommands<N>,
 }
 
-impl<const N: usize> LedStripNotifier<N> {
-    /// Creates notifier resources.
+impl<const N: usize> LedStripStatic<N> {
+    /// Creates static resources.
     #[must_use]
-    pub const fn notifier() -> Self {
+    pub const fn new_static() -> Self {
         Self {
             commands: LedStripCommands::new(),
         }
@@ -94,14 +94,14 @@ impl<const N: usize> LedStripN<N> {
 
     /// Creates LED strip resources.
     #[must_use]
-    pub const fn notifier() -> LedStripNotifier<N> {
-        LedStripNotifier::notifier()
+    pub const fn new_static() -> LedStripStatic<N> {
+        LedStripStatic::new_static()
     }
 
-    /// Creates a new LED strip controller bound to the given notifier.
-    pub fn new(notifier: &'static LedStripNotifier<N>) -> Result<Self> {
+    /// Creates a new LED strip controller bound to the given static resources.
+    pub fn new(led_strip_static: &'static LedStripStatic<N>) -> Result<Self> {
         Ok(Self {
-            commands: notifier.commands(),
+            commands: led_strip_static.commands(),
         })
     }
 
@@ -235,7 +235,7 @@ macro_rules! define_led_strips {
 
                 pub const LEN: usize = $len;
                 pub type Strip = $crate::led_strip::LedStrip<LEN>;
-                pub type Notifier = $crate::led_strip::LedStripNotifier<LEN>;
+                pub type Static = $crate::led_strip::LedStripStatic<LEN>;
 
                 // Calculate max brightness from current budget
                 // Each WS2812B LED draws ~60mA at full brightness
@@ -272,22 +272,22 @@ macro_rules! define_led_strips {
                     }
                 }
 
-                pub const fn notifier() -> Notifier {
-                    Strip::notifier()
+                pub const fn new_static() -> Static {
+                    Strip::new_static()
                 }
 
                 paste::paste! {
                     pub fn new(
                         spawner: Spawner,
-                        notifier: &'static Notifier,
+                        strip_static: &'static Static,
                         bus: &'static $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>,
                         sm: ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, $sm_index>,
                         dma: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>,
                         pin: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>,
                     ) -> $crate::Result<Strip> {
-                        let token = [<$module _driver>](bus, sm, dma, pin, notifier.commands()).map_err($crate::Error::TaskSpawn)?;
+                        let token = [<$module _driver>](bus, sm, dma, pin, strip_static.commands()).map_err($crate::Error::TaskSpawn)?;
                         spawner.spawn(token);
-                        Strip::new(notifier)
+                        Strip::new(strip_static)
                     }
                 }
             }

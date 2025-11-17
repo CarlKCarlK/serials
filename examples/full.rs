@@ -18,18 +18,18 @@ use embassy_rp::gpio::Pull;
 use heapless::{FnvIndexMap, String};
 use panic_probe as _;
 use serials::Result;
-use serials::char_lcd::{CharLcd, CharLcdNotifier};
-use serials::clock::{Clock, ClockEvent, ClockNotifier, ClockState};
+use serials::char_lcd::{CharLcd, CharLcdStatic};
+use serials::clock::{Clock, ClockEvent, ClockStatic, ClockState};
 #[cfg(feature = "wifi")]
-use serials::flash_array::{FlashArray, FlashArrayNotifier};
-use serials::ir::{Ir, IrEvent, IrNotifier};
+use serials::flash_array::{FlashArray, FlashArrayStatic};
+use serials::ir::{Ir, IrEvent, IrStatic};
 use serials::led_strip::Rgb;
 use serials::led_strip::colors;
 use serials::led_strip::define_led_strips;
 use serials::led24x4::Led24x4;
-use serials::rfid::{Rfid, RfidEvent, RfidNotifier};
+use serials::rfid::{Rfid, RfidEvent, RfidStatic};
 use serials::servo::servo_a;
-use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncNotifier};
+use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 #[cfg(feature = "wifi")]
 use serials::wifi_config::collect_wifi_credentials;
 
@@ -74,10 +74,10 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     // Initialize PIO1 for LED strips (both strips share PIO1)
     let (pio_bus, sm0, sm1, _sm2, _sm3) = pio1_split(p.PIO1);
 
-    static LED_STRIP0_NOTIFIER: led_strip0::Notifier = led_strip0::notifier();
+    static LED_STRIP0_STATIC: led_strip0::Static = led_strip0::new_static();
     let mut led_strip0_device = led_strip0::new(
         spawner,
-        &LED_STRIP0_NOTIFIER,
+        &LED_STRIP0_STATIC,
         pio_bus,
         sm0,
         p.DMA_CH1.into(),
@@ -87,10 +87,10 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     initialize_led_strip(&mut led_strip0_device, &mut led_pixels).await?;
     let mut led_progress_index: usize = 0;
 
-    static LED_STRIP1_NOTIFIER: led_strip1::Notifier = led_strip1::notifier();
+    static LED_STRIP1_STATIC: led_strip1::Static = led_strip1::new_static();
     let led_strip1_device = led_strip1::new(
         spawner,
-        &LED_STRIP1_NOTIFIER,
+        &LED_STRIP1_STATIC,
         pio_bus,
         sm1,
         p.DMA_CH4.into(),
@@ -102,7 +102,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         .await?;
 
     // Initialize LCD (GP4=SDA, GP5=SCL)
-    static CHAR_LCD_CHANNEL: CharLcdNotifier = CharLcd::notifier();
+    static CHAR_LCD_CHANNEL: CharLcdStatic = CharLcd::new_static();
     let lcd = CharLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &CHAR_LCD_CHANNEL, spawner)?;
     lcd.display(String::<64>::try_from("Starting RFID...").unwrap(), 0)
         .await;
@@ -110,19 +110,19 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("LCD initialized");
 
     const DEFAULT_UTC_OFFSET_MINUTES: i32 = 0;
-    static CLOCK_NOTIFIER: ClockNotifier = Clock::notifier();
-    let clock = Clock::new(&CLOCK_NOTIFIER, spawner);
+    static CLOCK_STATIC: ClockStatic = Clock::new_static();
+    let clock = Clock::new(&CLOCK_STATIC, spawner);
     clock
         .set_utc_offset_minutes(DEFAULT_UTC_OFFSET_MINUTES)
         .await;
 
-    static TIME_SYNC_NOTIFIER: TimeSyncNotifier = TimeSync::notifier();
+    static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
     #[cfg(feature = "wifi")]
     let time_sync = {
-        static WIFI_FLASH_NOTIFIER: FlashArrayNotifier = FlashArray::<1>::notifier();
-        let [wifi_block] = FlashArray::new(&WIFI_FLASH_NOTIFIER, p.FLASH)?;
+        static WIFI_FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
+        let [wifi_block] = FlashArray::new(&WIFI_FLASH_STATIC, p.FLASH)?;
         TimeSync::new(
-            &TIME_SYNC_NOTIFIER,
+            &TIME_SYNC_STATIC,
             p.PIN_23, // WiFi power enable
             p.PIN_25, // WiFi chip select
             p.PIO0,   // WiFi PIO block
@@ -135,13 +135,13 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         )
     };
     #[cfg(not(feature = "wifi"))]
-    let time_sync = TimeSync::new(&TIME_SYNC_NOTIFIER, spawner);
+    let time_sync = TimeSync::new(&TIME_SYNC_STATIC, spawner);
 
-    static IR_NEC_NOTIFIER: IrNotifier = Ir::notifier();
-    let ir = Ir::new(p.PIN_28, &IR_NEC_NOTIFIER, spawner)?;
+    static IR_NEC_STATIC: IrStatic = Ir::new_static();
+    let ir = Ir::new(p.PIN_28, &IR_NEC_STATIC, spawner)?;
 
     // Initialize MFRC522 RFID reader device abstraction
-    static RFID_NOTIFIER: RfidNotifier = Rfid::notifier();
+    static RFID_STATIC: RfidStatic = Rfid::new_static();
     let rfid_reader = Rfid::new(
         p.SPI0,         // SPI peripheral
         p.PIN_18,       // SCK (serial clock)
@@ -151,7 +151,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         p.DMA_CH3,      // DMA channel 3
         p.PIN_15,       // CS (chip select)
         p.PIN_17,       // RST (reset)
-        &RFID_NOTIFIER, // Event notifier
+        &RFID_STATIC, // Event channel
         spawner,        // Task spawner
     )
     .await?;
