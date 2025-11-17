@@ -121,13 +121,6 @@ impl ClockLed4<'_> {
         self.utc_offset_mirror.load(Ordering::Relaxed)
     }
 
-    /// Display the completion message for flash-clearing workflows.
-    pub async fn show_clearing_done(&self) {
-        self.commands
-            .send(ClockLed4Command::SetState(ClockLed4State::ClearingDone))
-            .await;
-    }
-
     /// Display the access point setup prompt while waiting for credentials.
     pub async fn show_access_point_setup(&self) {
         self.commands

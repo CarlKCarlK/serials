@@ -17,29 +17,8 @@ pub enum ClockLed4State {
     HoursMinutes,
     Connecting,
     MinutesSeconds,
-    EditUtcOffset {
-        modified: bool,
-    },
-    ConfirmClear(ConfirmClearChoice),
-    ConfirmedClear,
-    ClearingDone,
+    EditUtcOffset,
     AccessPointSetup,
-}
-
-/// User's choice when confirming whether to clear stored credentials.
-#[derive(Debug, defmt::Format, Clone, Copy, Eq, PartialEq)]
-pub enum ConfirmClearChoice {
-    Keep,
-    Clear,
-}
-
-impl ConfirmClearChoice {
-    const fn toggle(self) -> Self {
-        match self {
-            Self::Keep => Self::Clear,
-            Self::Clear => Self::Keep,
-        }
-    }
 }
 
 impl ClockLed4State {
@@ -54,14 +33,7 @@ impl ClockLed4State {
             Self::HoursMinutes => self.execute_hours_minutes(clock, button, time_sync).await,
             Self::Connecting => self.execute_connecting(clock, time_sync).await,
             Self::MinutesSeconds => self.execute_minutes_seconds(clock, button, time_sync).await,
-            Self::EditUtcOffset { modified } => {
-                self.execute_edit_utc_offset(clock, button, modified).await
-            }
-            Self::ConfirmClear(selection) => {
-                self.execute_confirm_clear(clock, button, selection).await
-            }
-            Self::ConfirmedClear => self.execute_confirmed_clear(clock).await,
-            Self::ClearingDone => self.execute_clearing_done(clock).await,
+            Self::EditUtcOffset => self.execute_edit_utc_offset(clock, button).await,
             Self::AccessPointSetup => self.execute_access_point_setup(clock, time_sync).await,
         }
     }
@@ -72,10 +44,7 @@ impl ClockLed4State {
             Self::HoursMinutes => Self::render_hours_minutes(clock_time),
             Self::Connecting => Self::render_connecting(clock_time),
             Self::MinutesSeconds => Self::render_minutes_seconds(clock_time),
-            Self::EditUtcOffset { .. } => Self::render_edit_utc_offset(clock_time),
-            Self::ConfirmClear(selection) => Self::render_confirm_clear(selection),
-            Self::ConfirmedClear => Self::render_confirmed_clear(),
-            Self::ClearingDone => Self::render_clearing_done(),
+            Self::EditUtcOffset => Self::render_edit_utc_offset(clock_time),
             Self::AccessPointSetup => Self::render_access_point_setup(),
         }
     }
@@ -122,7 +91,7 @@ impl ClockLed4State {
         clock.set_state(self).await;
         match select(button.press_duration(), time_sync.wait()).await {
             Either::First(PressDuration::Short) => Self::MinutesSeconds,
-            Either::First(PressDuration::Long) => Self::EditUtcOffset { modified: false },
+            Either::First(PressDuration::Long) => Self::EditUtcOffset,
             Either::Second(event) => {
                 Self::handle_time_sync_event(clock, event).await;
                 self
@@ -139,7 +108,7 @@ impl ClockLed4State {
         clock.set_state(self).await;
         match select(button.press_duration(), time_sync.wait()).await {
             Either::First(PressDuration::Short) => Self::HoursMinutes,
-            Either::First(PressDuration::Long) => Self::EditUtcOffset { modified: false },
+            Either::First(PressDuration::Long) => Self::EditUtcOffset,
             Either::Second(event) => {
                 Self::handle_time_sync_event(clock, event).await;
                 self
@@ -147,54 +116,16 @@ impl ClockLed4State {
         }
     }
 
-    async fn execute_edit_utc_offset(
-        self,
-        clock: &Clock<'_>,
-        button: &mut Button<'_>,
-        modified: bool,
-    ) -> Self {
+    async fn execute_edit_utc_offset(self, clock: &Clock<'_>, button: &mut Button<'_>) -> Self {
         clock.set_state(self).await;
         match button.press_duration().await {
             PressDuration::Short => {
                 clock.adjust_utc_offset_hours(1).await;
-                let next_state = Self::EditUtcOffset { modified: true };
-                clock.set_state(next_state).await;
-                next_state
+                clock.set_state(Self::EditUtcOffset).await;
+                Self::EditUtcOffset
             }
-            PressDuration::Long => {
-                if modified {
-                    Self::HoursMinutes
-                } else {
-                    Self::ConfirmClear(ConfirmClearChoice::Keep)
-                }
-            }
+            PressDuration::Long => Self::HoursMinutes,
         }
-    }
-
-    async fn execute_confirm_clear(
-        self,
-        clock: &Clock<'_>,
-        button: &mut Button<'_>,
-        selection: ConfirmClearChoice,
-    ) -> Self {
-        clock.set_state(self).await;
-        match button.press_duration().await {
-            PressDuration::Short => Self::ConfirmClear(selection.toggle()),
-            PressDuration::Long => match selection {
-                ConfirmClearChoice::Keep => Self::HoursMinutes,
-                ConfirmClearChoice::Clear => Self::ConfirmedClear,
-            },
-        }
-    }
-
-    async fn execute_confirmed_clear(self, clock: &Clock<'_>) -> Self {
-        clock.set_state(self).await;
-        self
-    }
-
-    async fn execute_clearing_done(self, clock: &Clock<'_>) -> Self {
-        clock.set_state(self).await;
-        self
     }
 
     async fn execute_access_point_setup(self, clock: &Clock<'_>, time_sync: &TimeSync) -> Self {
@@ -298,37 +229,6 @@ impl ClockLed4State {
                 ones_digit(minutes),
             ],
             Duration::from_millis(500),
-        )
-    }
-
-    fn render_confirm_clear(selection: ConfirmClearChoice) -> (BlinkState, [char; 4], Duration) {
-        match selection {
-            ConfirmClearChoice::Keep => (
-                BlinkState::Solid,
-                ['-', '-', '-', '-'],
-                Duration::from_millis(400),
-            ),
-            ConfirmClearChoice::Clear => (
-                BlinkState::BlinkingAndOn,
-                ['C', 'L', 'r', ' '],
-                Duration::from_millis(400),
-            ),
-        }
-    }
-
-    fn render_confirmed_clear() -> (BlinkState, [char; 4], Duration) {
-        (
-            BlinkState::BlinkingAndOn,
-            ['C', 'L', 'r', ' '],
-            Duration::from_millis(400),
-        )
-    }
-
-    fn render_clearing_done() -> (BlinkState, [char; 4], Duration) {
-        (
-            BlinkState::Solid,
-            ['D', 'O', 'N', 'E'],
-            Duration::from_millis(600),
         )
     }
 
