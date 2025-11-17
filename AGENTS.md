@@ -95,3 +95,11 @@ Spelling:
 Use American over British spelling
 
 When making up variable notes for examples and elsewhere, never use the prefix "My". I hate that.
+
+
+Yes, in Rust the get_ prefix is generally discouraged for getters. The Rust API guidelines specifically recommend against it.
+
+Rust convention:
+
+Getters: offset_minutes(), text() (no prefix)
+Setters: set_offset_minutes(), set_text() (with set_ prefix)

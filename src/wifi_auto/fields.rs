@@ -6,9 +6,13 @@
 //!
 //! See [`TimezoneField`] and [`TextField`] for complete examples of implementing custom fields.
 
+#![allow(
+    unsafe_code,
+    reason = "unsafe impl Sync is sound: single-threaded Embassy executor, no concurrent access"
+)]
+
 use core::{cell::RefCell, fmt::Write as FmtWrite};
 use defmt::info;
-use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
 use heapless::String;
 use static_cell::StaticCell;
 
@@ -66,8 +70,14 @@ use crate::{Error, Result};
 /// # }
 /// ```
 pub struct TimezoneField {
-    flash: Mutex<CriticalSectionRawMutex, RefCell<FlashBlock>>,
+    flash: RefCell<FlashBlock>,
 }
+
+// SAFETY: TimezoneField is used in a single-threaded Embassy executor on RP2040/RP2350.
+// There are no interrupts that access this data, and all async operations are cooperative
+// (non-preemptive). The Sync bound is required only because WifiAutoField trait objects
+// are stored in static storage, not because of actual concurrent access.
+unsafe impl Sync for TimezoneField {}
 
 /// Notifier for [`TimezoneField`]. See [`TimezoneField`] for usage example.
 pub struct TimezoneFieldNotifier {
@@ -99,7 +109,7 @@ impl TimezoneField {
 
     fn from_flash(flash: FlashBlock) -> Self {
         Self {
-            flash: Mutex::new(RefCell::new(flash)),
+            flash: RefCell::new(flash),
         }
     }
 
@@ -109,11 +119,18 @@ impl TimezoneField {
     ///
     /// See [`TimezoneField`] for a complete example.
     pub fn offset_minutes(&self) -> Result<Option<i32>> {
-        self.flash.lock(|cell| cell.borrow_mut().load::<i32>())
+        self.flash.borrow_mut().load::<i32>()
     }
 
-    fn save_offset(&self, offset: i32) -> Result<()> {
-        self.flash.lock(|cell| cell.borrow_mut().save(&offset))
+    /// Save a new timezone offset in minutes from UTC to flash.
+    ///
+    /// This method allows programmatic updates to the timezone, such as when
+    /// the user adjusts the timezone via button presses or other UI interactions.
+    ///
+    /// Alternatively, you can access the underlying flash block directly for
+    /// more control over flash operations.
+    pub fn set_offset_minutes(&self, offset: i32) -> Result<()> {
+        self.flash.borrow_mut().save(&offset)
     }
 }
 
@@ -147,7 +164,7 @@ impl WifiAutoField for TimezoneField {
     fn parse(&self, form: &FormData<'_>) -> Result<()> {
         let value = form.get("timezone").ok_or(Error::FormatError)?;
         let offset = value.parse::<i32>().map_err(|_| Error::FormatError)?;
-        self.save_offset(offset)
+        self.set_offset_minutes(offset)
     }
 
     fn is_satisfied(&self) -> Result<bool> {
@@ -394,11 +411,17 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 /// # }
 /// ```
 pub struct TextField<const N: usize> {
-    flash: Mutex<CriticalSectionRawMutex, RefCell<FlashBlock>>,
+    flash: RefCell<FlashBlock>,
     field_name: &'static str,
     label: &'static str,
     default_value: &'static str,
 }
+
+// SAFETY: TextField is used in a single-threaded Embassy executor on RP2040/RP2350.
+// There are no interrupts that access this data, and all async operations are cooperative
+// (non-preemptive). The Sync bound is required only because WifiAutoField trait objects
+// are stored in static storage, not because of actual concurrent access.
+unsafe impl<const N: usize> Sync for TextField<N> {}
 
 /// Notifier for [`TextField`]. See [`TextField`] for usage example.
 pub struct TextFieldNotifier<const N: usize> {
@@ -455,7 +478,7 @@ impl<const N: usize> TextField<N> {
         default_value: &'static str,
     ) -> Self {
         Self {
-            flash: Mutex::new(RefCell::new(flash)),
+            flash: RefCell::new(flash),
             field_name,
             label,
             default_value,
@@ -468,11 +491,20 @@ impl<const N: usize> TextField<N> {
     ///
     /// See [`TextField`] for a complete example.
     pub fn text(&self) -> Result<Option<String<N>>> {
-        self.flash.lock(|cell| cell.borrow_mut().load::<String<N>>())
+        self.flash.borrow_mut().load::<String<N>>()
     }
 
-    fn save_text(&self, text: &String<N>) -> Result<()> {
-        self.flash.lock(|cell| cell.borrow_mut().save(text))
+    /// Save new text to flash.
+    ///
+    /// This method allows programmatic updates to the field value, such as when
+    /// the user modifies configuration via button presses or other UI interactions.
+    ///
+    /// The text must not exceed the maximum length `N` specified in the type parameter.
+    ///
+    /// Alternatively, you can access the underlying flash block directly for
+    /// more control over flash operations.
+    pub fn set_text(&self, text: &String<N>) -> Result<()> {
+        self.flash.borrow_mut().save(text)
     }
 }
 
@@ -517,7 +549,7 @@ impl<const N: usize> WifiAutoField for TextField<N> {
         }
         let mut text = String::<N>::new();
         text.push_str(trimmed).map_err(|_| Error::FormatError)?;
-        self.save_text(&text)
+        self.set_text(&text)
     }
 
     fn is_satisfied(&self) -> Result<bool> {
