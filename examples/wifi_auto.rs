@@ -15,10 +15,12 @@ use defmt::{info, warn};
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_net::{Stack, dns::DnsQueryType, udp};
+use embassy_rp::gpio::{self, Level};
 use embassy_time::Duration;
 use heapless::String;
 use panic_probe as _;
 use serials::flash_array::{FlashArray, FlashArrayStatic};
+use serials::led4::{AnimationFrame, BlinkState, Led4, Led4Animation, Led4Static, OutputArray};
 use serials::unix_seconds::UnixSeconds;
 use serials::wifi_auto::fields::{
     TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic,
@@ -35,6 +37,28 @@ pub async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("Starting wifi_auto example");
     let peripherals = embassy_rp::init(Default::default());
+
+    // Initialize LED4 display
+    let cells = OutputArray::new([
+        gpio::Output::new(peripherals.PIN_1, Level::High),
+        gpio::Output::new(peripherals.PIN_2, Level::High),
+        gpio::Output::new(peripherals.PIN_3, Level::High),
+        gpio::Output::new(peripherals.PIN_4, Level::High),
+    ]);
+
+    let segments = OutputArray::new([
+        gpio::Output::new(peripherals.PIN_5, Level::Low),
+        gpio::Output::new(peripherals.PIN_6, Level::Low),
+        gpio::Output::new(peripherals.PIN_7, Level::Low),
+        gpio::Output::new(peripherals.PIN_8, Level::Low),
+        gpio::Output::new(peripherals.PIN_9, Level::Low),
+        gpio::Output::new(peripherals.PIN_10, Level::Low),
+        gpio::Output::new(peripherals.PIN_11, Level::Low),
+        gpio::Output::new(peripherals.PIN_12, Level::Low),
+    ]);
+
+    static LED4_STATIC: Led4Static = Led4::new_static();
+    let led4 = Led4::new(cells, segments, &LED4_STATIC, spawner)?;
 
     static FLASH_STATIC: FlashArrayStatic = FlashArray::<4>::new_static();
     let [wifi_credentials_flash, timezone_flash, device_name_flash, location_flash] =
@@ -186,4 +210,35 @@ async fn fetch_ntp_time(stack: &'static Stack<'static>) -> Result<UnixSeconds, &
 
     let ntp_seconds = u32::from_be_bytes([response[40], response[41], response[42], response[43]]);
     UnixSeconds::from_ntp_seconds(ntp_seconds).ok_or("Invalid NTP timestamp")
+}
+
+fn circular_outline_animation(clockwise: bool) -> Led4Animation {
+    const FRAME_DURATION: Duration = Duration::from_millis(120);
+    const CLOCKWISE: [[char; 4]; 8] = [
+        ['\u{0027}', '\u{0027}', '\u{0027}', '\u{0027}'],
+        ['\u{0027}', '\u{0027}', '\u{0027}', '"'],
+        [' ', ' ', ' ', '>'],
+        [' ', ' ', ' ', ')'],
+        ['_', '_', '_', '_'],
+        ['*', '_', '_', '_'],
+        ['<', ' ', ' ', ' '],
+        ['(', '\u{0027}', '\u{0027}', '\u{0027}'],
+    ];
+    const COUNTER: [[char; 4]; 8] = [
+        ['(', '\u{0027}', '\u{0027}', '\u{0027}'],
+        ['<', ' ', ' ', ' '],
+        ['*', '_', '_', '_'],
+        ['_', '_', '_', '_'],
+        [' ', ' ', ' ', ')'],
+        [' ', ' ', ' ', '>'],
+        ['\u{0027}', '\u{0027}', '\u{0027}', '"'],
+        ['\u{0027}', '\u{0027}', '\u{0027}', '\u{0027}'],
+    ];
+
+    let mut animation = Led4Animation::new();
+    let frames = if clockwise { &CLOCKWISE } else { &COUNTER };
+    for text in frames {
+        let _ = animation.push(AnimationFrame::new(*text, FRAME_DURATION));
+    }
+    animation
 }
