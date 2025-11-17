@@ -65,7 +65,8 @@ impl ClockLed4<'_> {
         spawner: Spawner,
         initial_utc_offset_minutes: i32,
     ) -> crate::Result<Self> {
-        let blinkable_display = Led4::new(cell_pins, segment_pins, clock_led4_static.led(), spawner)?;
+        let blinkable_display =
+            Led4::new(cell_pins, segment_pins, clock_led4_static.led(), spawner)?;
         let token = clock_led4_device_loop(
             clock_led4_static.commands(),
             blinkable_display,

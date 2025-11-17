@@ -8,7 +8,11 @@
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
-use core::{cell::RefCell, convert::Infallible};
+use core::{
+    cell::RefCell,
+    convert::Infallible,
+    future::{Future, ready},
+};
 use cortex_m::peripheral::SCB;
 use defmt::{info, unwrap, warn};
 use embassy_executor::Spawner;
@@ -30,12 +34,12 @@ use static_cell::StaticCell;
 use crate::button::Button;
 use crate::dns_server::dns_server_task;
 use crate::flash_array::FlashBlock;
-use crate::wifi::{Wifi, WifiEvent, WifiStatic, WifiStartMode};
+use crate::wifi::{Wifi, WifiEvent, WifiStartMode, WifiStatic};
 use crate::wifi_config::WifiCredentials;
 use crate::{Error, Result};
 
-mod portal;
 pub mod fields;
+mod portal;
 
 pub use portal::WifiAutoField;
 
@@ -85,6 +89,7 @@ pub struct WifiAutoStatic {
 /// - Customizable configuration fields beyond WiFi credentials
 /// - Button-triggered reconfiguration
 /// - Event-driven UI updates via [`ensure_connected_with_ui`](Self::ensure_connected_with_ui)
+///   and [`ensure_connected_with_async_ui`](Self::ensure_connected_with_async_ui)
 ///
 /// # Example
 ///
@@ -290,6 +295,13 @@ impl WifiAuto {
         self.force_ap.store(true, Ordering::Relaxed);
     }
 
+    /// Return the underlying [`Wifi`] handle for advanced operations such as clearing
+    /// credentials. Avoid waiting on WiFi events while [`WifiAuto`] is running, as it
+    /// already owns the event stream.
+    pub fn wifi(&self) -> &'static Wifi {
+        self.wifi
+    }
+
     fn take_button(&self) -> Option<Button<'static>> {
         self.button.lock(|cell| cell.borrow_mut().take())
     }
@@ -307,34 +319,11 @@ impl WifiAuto {
         self.events.wait().await
     }
 
-    /// Ensures WiFi connection with UI callback for event-driven status updates.
+    /// Ensures WiFi connection with a synchronous UI callback for event-driven status updates.
     ///
-    /// Automatically monitors connection events and invokes a callback for each event,
-    /// eliminating the need for manual event loop boilerplate.
-    ///
-    /// # Parameters
-    /// - `spawner`: Embassy task spawner for background WiFi tasks
-    /// - `on_event`: Callback invoked for each [`WifiAutoEvent`] during connection
-    ///
-    /// # Returns
-    /// - `Ok(())` when successfully connected to WiFi
-    /// - `Err(_)` if flash operations fail or other unrecoverable errors occur
-    ///
-    /// # Example
-    /// ```no_run
-    /// let (stack, button) =
-    ///     wifi_auto.ensure_connected_with_ui(spawner, |event| match event {
-    ///         WifiAutoEvent::CaptivePortalReady => {
-    ///             led4.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
-    ///         }
-    ///         WifiAutoEvent::ClientConnecting { try_index, .. } => {
-    ///             led4.animate_text(animation(try_index));
-    ///         }
-    ///         WifiAutoEvent::Connected => {
-    ///             led4.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
-    ///         }
-    ///     }).await?;
-    /// ```
+    /// This helper is identical to [`ensure_connected_with_async_ui`](Self::ensure_connected_with_async_ui)
+    /// but accepts a plain closure for simple use cases that only log or mutate
+    /// synchronous state.
     pub async fn ensure_connected_with_ui<F>(
         &self,
         spawner: Spawner,
@@ -343,10 +332,33 @@ impl WifiAuto {
     where
         F: FnMut(WifiAutoEvent),
     {
+        self.ensure_connected_with_async_ui(spawner, move |event| {
+            on_event(event);
+            ready(())
+        })
+        .await
+    }
+
+    /// Ensures WiFi connection with an async UI callback for event-driven status updates.
+    ///
+    /// Automatically monitors connection events and awaits the provided callback for
+    /// each event, allowing callers to interact with async devices (displays, LEDs, etc.).
+    ///
+    /// The future resolves once WiFi connectivity is established and returns access to
+    /// the network stack plus the reconfiguration button.
+    pub async fn ensure_connected_with_async_ui<Fut, F>(
+        &self,
+        spawner: Spawner,
+        mut on_event: F,
+    ) -> Result<(&'static Stack<'static>, Button<'static>)>
+    where
+        F: FnMut(WifiAutoEvent) -> Fut,
+        Fut: Future<Output = ()>,
+    {
         let ui = async {
             loop {
                 let event = self.wait_event().await;
-                on_event(event);
+                on_event(event).await;
 
                 if matches!(event, WifiAutoEvent::Connected) {
                     break;
@@ -449,13 +461,9 @@ impl WifiAuto {
             .defaults
             .lock(|cell| cell.borrow_mut().take())
             .or_else(|| self.wifi.load_persisted_credentials());
-        let submission = portal::collect_credentials(
-            stack,
-            spawner,
-            defaults_owned.as_ref(),
-            self.fields,
-        )
-        .await?;
+        let submission =
+            portal::collect_credentials(stack, spawner, defaults_owned.as_ref(), self.fields)
+                .await?;
         self.wifi.persist_credentials(&submission).map_err(|err| {
             warn!("{}", err);
             Error::StorageCorrupted

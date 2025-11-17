@@ -223,10 +223,7 @@ impl Led4<'_> {
 }
 
 #[embassy_executor::task]
-async fn device_loop(
-    outer_static: &'static Led4OuterStatic,
-    display: Led4Simple<'static>,
-) -> ! {
+async fn device_loop(outer_static: &'static Led4OuterStatic, display: Led4Simple<'static>) -> ! {
     let mut command = Led4Command::Text {
         blink_state: BlinkState::default(),
         text: [' '; CELL_COUNT],

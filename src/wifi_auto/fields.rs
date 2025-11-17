@@ -132,6 +132,11 @@ impl TimezoneField {
     pub fn set_offset_minutes(&self, offset: i32) -> Result<()> {
         self.flash.borrow_mut().save(&offset)
     }
+
+    /// Clear the stored timezone offset, returning the field to an unconfigured state.
+    pub fn clear(&self) -> Result<()> {
+        self.flash.borrow_mut().clear()
+    }
 }
 
 impl WifiAutoField for TimezoneField {
@@ -463,12 +468,9 @@ impl<const N: usize> TextField<N> {
         label: &'static str,
         default_value: &'static str,
     ) -> &'static Self {
-        text_field_static.cell.init(Self::from_flash(
-            flash,
-            field_name,
-            label,
-            default_value,
-        ))
+        text_field_static
+            .cell
+            .init(Self::from_flash(flash, field_name, label, default_value))
     }
 
     fn from_flash(
@@ -526,12 +528,7 @@ impl<const N: usize> WifiAutoField for TextField<N> {
                 "<label for=\"{}\">{}:</label>\
                  <input type=\"text\" id=\"{}\" name=\"{}\" value=\"{}\" \
                  maxlength=\"{}\" required>",
-                self.field_name,
-                self.label,
-                self.field_name,
-                self.field_name,
-                escaped,
-                N
+                self.field_name, self.label, self.field_name, self.field_name, escaped, N
             ),
         )
         .map_err(|_| Error::FormatError)?;

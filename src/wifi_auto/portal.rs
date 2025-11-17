@@ -39,7 +39,7 @@ pub trait WifiAutoField: Sync {
     /// See [`TimezoneField`](super::fields::TimezoneField) and
     /// [`TextField`](super::fields::TextField) for examples.
     fn render(&self, page: &mut HtmlBuffer) -> Result<()>;
-    
+
     /// Parse and save form data submitted by the user.
     ///
     /// Extract values from the `form` data and persist them (typically to flash).
@@ -48,7 +48,7 @@ pub trait WifiAutoField: Sync {
     /// See [`TimezoneField`](super::fields::TimezoneField) and
     /// [`TextField`](super::fields::TextField) for examples.
     fn parse(&self, form: &FormData<'_>) -> Result<()>;
-    
+
     /// Check if this field has valid configuration.
     ///
     /// Returns `true` if the field has been configured (default implementation always

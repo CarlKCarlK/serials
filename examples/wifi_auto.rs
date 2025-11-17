@@ -19,14 +19,12 @@ use embassy_rp::gpio::{self, Level};
 use embassy_time::Duration;
 use heapless::String;
 use panic_probe as _;
+use serials::Result;
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led4::{AnimationFrame, BlinkState, Led4, Led4Animation, Led4Static, OutputArray};
 use serials::unix_seconds::UnixSeconds;
-use serials::wifi_auto::fields::{
-    TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic,
-};
+use serials::wifi_auto::fields::{TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic};
 use serials::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoStatic};
-use serials::Result;
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -61,8 +59,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let led4 = Led4::new(cells, segments, &LED4_STATIC, spawner)?;
 
     static FLASH_STATIC: FlashArrayStatic = FlashArray::<4>::new_static();
-    let [wifi_credentials_flash, timezone_flash, device_name_flash, location_flash] =
-        FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
+    let [
+        wifi_credentials_flash,
+        timezone_flash,
+        device_name_flash,
+        location_flash,
+    ] = FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
 
     static TIMEZONE_FIELD_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash);
@@ -144,7 +146,6 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         }
     }
 }
-
 
 async fn fetch_ntp_time(stack: &'static Stack<'static>) -> Result<UnixSeconds, &'static str> {
     use udp::UdpSocket;

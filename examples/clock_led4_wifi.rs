@@ -1,9 +1,8 @@
-//! Port of the `clock-wifi` example that now reuses the shared Wi-Fi onboarding and
-//! NTP synchronization flow from `examples/log_time.rs`.
+//! Wi-Fi enabled 4-digit clock that provisions credentials through `WifiAuto`.
 //!
-//! The clock starts at `12:00`, launches the captive-portal workflow if credentials
-//! are missing, then keeps the display updated with hourly NTP refreshes. Buttons
-//! continue to toggle between `HH:MM` and `MM:SS` once synchronized.
+//! This example demonstrates how to pair the shared captive-portal workflow with the
+//! `ClockLed4` state machine. The `WifiAuto` helper owns Wi-Fi onboarding while the
+//! clock display reflects progress and, once connected, continues handling user input.
 
 #![cfg(feature = "wifi")]
 #![no_std]
@@ -11,27 +10,23 @@
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
 use core::convert::Infallible;
-use cortex_m::peripheral::SCB;
-use defmt::{info, unwrap, warn};
+use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_net::Ipv4Address;
 use embassy_rp::gpio::{self, Level};
-use embassy_time::Timer;
 use panic_probe as _;
-use serials::button::Button;
+use serials::Result;
 use serials::clock_led4::state::ClockLed4State;
 use serials::clock_led4::{ClockLed4 as Clock, ClockLed4Static as ClockStatic};
-use serials::dns_server::dns_server_task;
-use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
+use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led4::OutputArray;
 use serials::time_sync::{TimeSync, TimeSyncStatic};
-use serials::wifi::Wifi;
-use serials::wifi_config::{
-    MAX_NICKNAME_LEN, Nickname, NicknameFieldOptions, TimezoneFieldOptions, WifiConfigOptions,
-    collect_wifi_credentials,
-};
-use serials::{Error, Result};
+use serials::wifi::DEFAULT_AP_SSID;
+use serials::wifi_auto::fields::{TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic};
+use serials::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoStatic};
+
+const NICKNAME_MAX_LEN: usize = 32;
+const DEFAULT_NICKNAME: &str = "PicoClock";
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -40,44 +35,50 @@ pub async fn main(spawner: Spawner) -> ! {
 }
 
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
-    info!("Starting Wi-Fi 4-digit clock");
-    let p = embassy_rp::init(Default::default());
+    info!("Starting Wi-Fi 4-digit clock (WifiAuto)");
+    let peripherals = embassy_rp::init(Default::default());
 
-    // Initialize flash storage
+    // Initialize flash storage: Wi-Fi credentials + timezone + nickname.
     static FLASH_STATIC: FlashArrayStatic = FlashArray::<3>::new_static();
-    let [
-        wifi_credentials_flash,
-        mut timezone_offset_minutes_flash,
-        mut nickname_flash,
-    ] = FlashArray::new(&FLASH_STATIC, p.FLASH)?;
+    let [wifi_credentials_flash, timezone_flash, nickname_flash] =
+        FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
 
-    // Initialize LED (unused but kept for compatibility)
-    let mut led = gpio::Output::new(p.PIN_0, Level::Low);
+    static TIMEZONE_FIELD_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
+    let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash);
+    let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
+
+    static NICKNAME_FIELD_STATIC: TextFieldStatic<NICKNAME_MAX_LEN> = TextField::new_static();
+    let nickname_field = TextField::new(
+        &NICKNAME_FIELD_STATIC,
+        nickname_flash,
+        "nickname",
+        "Nickname",
+        DEFAULT_NICKNAME,
+    );
+
+    // Initialize LED (unused but kept for board compatibility).
+    let mut led = gpio::Output::new(peripherals.PIN_0, Level::Low);
     led.set_low();
 
-    // Initialize display pins
+    // Initialize display pins.
     let cells = OutputArray::new([
-        gpio::Output::new(p.PIN_1, Level::High),
-        gpio::Output::new(p.PIN_2, Level::High),
-        gpio::Output::new(p.PIN_3, Level::High),
-        gpio::Output::new(p.PIN_4, Level::High),
+        gpio::Output::new(peripherals.PIN_1, Level::High),
+        gpio::Output::new(peripherals.PIN_2, Level::High),
+        gpio::Output::new(peripherals.PIN_3, Level::High),
+        gpio::Output::new(peripherals.PIN_4, Level::High),
     ]);
 
     let segments = OutputArray::new([
-        gpio::Output::new(p.PIN_5, Level::Low),
-        gpio::Output::new(p.PIN_6, Level::Low),
-        gpio::Output::new(p.PIN_7, Level::Low),
-        gpio::Output::new(p.PIN_8, Level::Low),
-        gpio::Output::new(p.PIN_9, Level::Low),
-        gpio::Output::new(p.PIN_10, Level::Low),
-        gpio::Output::new(p.PIN_11, Level::Low),
-        gpio::Output::new(p.PIN_12, Level::Low),
+        gpio::Output::new(peripherals.PIN_5, Level::Low),
+        gpio::Output::new(peripherals.PIN_6, Level::Low),
+        gpio::Output::new(peripherals.PIN_7, Level::Low),
+        gpio::Output::new(peripherals.PIN_8, Level::Low),
+        gpio::Output::new(peripherals.PIN_9, Level::Low),
+        gpio::Output::new(peripherals.PIN_10, Level::Low),
+        gpio::Output::new(peripherals.PIN_11, Level::Low),
+        gpio::Output::new(peripherals.PIN_12, Level::Low),
     ]);
 
-    let timezone_offset_minutes = timezone_offset_minutes_flash.load::<i32>()?.unwrap_or(0);
-
-    // cmk consider passing in the timezone_flash_block to clock for direct saving
-    // Initialize clock and button
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
     let mut clock = Clock::new(
         cells,
@@ -86,227 +87,62 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         spawner,
         timezone_offset_minutes,
     )?;
-    let mut button = Button::new(p.PIN_13);
 
-    // Determine initial boot phase by executing start logic
-    // Initialize time sync
-    static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
-    let time_sync = TimeSync::new(
-        &TIME_SYNC_STATIC,
-        p.PIN_23,               // WiFi chip data out
-        p.PIN_25,               // WiFi chip data in
-        p.PIO0,                 // PIO for WiFi chip communication
-        p.PIN_24,               // WiFi chip clock
-        p.PIN_29,               // WiFi chip select
-        p.DMA_CH0,              // DMA channel for WiFi
-        wifi_credentials_flash, // Flash partition containing WiFi credentials
-        spawner,                // Embassy spawner for background tasks
-    );
+    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
+    let wifi_auto = WifiAuto::new(
+        &WIFI_AUTO_STATIC,
+        peripherals.PIN_23,     // CYW43 power
+        peripherals.PIN_25,     // CYW43 chip select
+        peripherals.PIO0,       // CYW43 PIO interface
+        peripherals.PIN_24,     // CYW43 clock
+        peripherals.PIN_29,     // CYW43 data pin
+        peripherals.DMA_CH0,    // CYW43 DMA channel
+        wifi_credentials_flash, // Flash block storing Wi-Fi creds
+        peripherals.PIN_13,     // Reset button pin
+        DEFAULT_AP_SSID,        // Captive-portal SSID
+        [timezone_field, nickname_field],
+        spawner,
+    )?;
 
-    let mut wifi_setup_state = WifiSetupState::execute_start(time_sync.wifi()).await?;
-
-    // State machine loop
-    loop {
-        wifi_setup_state = wifi_setup_state
-            .execute(
-                &mut timezone_offset_minutes_flash,
-                &mut nickname_flash,
-                &mut clock,
-                &mut button,
-                &time_sync,
-                spawner,
-            )
-            .await?;
-    }
-}
-
-fn default_nickname() -> Nickname {
-    let mut nickname = Nickname::new();
-    let _ = nickname.push_str("PicoClock");
-    nickname
-}
-
-#[derive(Debug, Clone)]
-enum WifiSetupState {
-    CaptivePortal,
-    AttemptConnection,
-    Running,
-}
-
-impl WifiSetupState {
-    /// Execute start-up logic to determine initial boot phase
-    async fn execute_start(wifi: &Wifi) -> Result<Self> {
-        Ok(if wifi.has_persisted_credentials() {
-            info!("Stored credentials found - will attempt connection");
-            Self::AttemptConnection
-        } else {
-            info!("No stored credentials - starting captive portal");
-            Self::CaptivePortal
+    // Drive the display with WifiAuto events while onboarding runs.
+    let clock_ref = &clock;
+    let (stack, mut button) = wifi_auto
+        .ensure_connected_with_async_ui(spawner, move |event| {
+            let clock_ref = clock_ref;
+            async move {
+                match event {
+                    WifiAutoEvent::CaptivePortalReady => {
+                        clock_ref.show_access_point_setup().await;
+                    }
+                    WifiAutoEvent::ClientConnecting { .. } => {
+                        clock_ref.set_state(ClockLed4State::Connecting).await;
+                    }
+                    WifiAutoEvent::Connected => {
+                        clock_ref.set_state(ClockLed4State::HoursMinutes).await;
+                    }
+                }
+            }
         })
-    }
-
-    async fn execute(
-        self,
-        timezone_offset_minutes_flash: &mut FlashBlock,
-        nickname_flash: &mut FlashBlock,
-        clock: &mut Clock<'_>,
-        button: &mut Button<'_>,
-        time_sync: &TimeSync,
-        spawner: Spawner,
-    ) -> Result<Self> {
-        match self {
-            Self::CaptivePortal => {
-                Self::execute_captive_portal(
-                    timezone_offset_minutes_flash,
-                    nickname_flash,
-                    clock,
-                    time_sync,
-                    spawner,
-                )
-                .await
-            }
-            Self::AttemptConnection => {
-                Self::execute_attempt_connection(clock, button, time_sync).await
-            }
-            Self::Running => {
-                Self::execute_running(clock, button, time_sync, timezone_offset_minutes_flash).await
-            }
-        }
-    }
-
-    async fn execute_captive_portal(
-        timezone_offset_minutes_flash: &mut FlashBlock,
-        nickname_flash: &mut FlashBlock,
-        clock: &mut Clock<'_>,
-        time_sync: &TimeSync,
-        spawner: Spawner,
-    ) -> Result<Self> {
-        info!("WifiSetupState: CaptivePortal - starting captive portal");
-        clock.show_access_point_setup().await;
-
-        // Wait for AP to be fully initialized before getting stack
-        time_sync.wifi().wait().await;
-        let stack = time_sync.wifi().stack().await;
-        info!("Network stack ready in AP mode");
-
-        let ap_ip = Ipv4Address::new(192, 168, 4, 1);
-        let dns_token = unwrap!(dns_server_task(stack, ap_ip));
-        spawner.spawn(dns_token);
-
-        info!("Captive portal running - connect to PicoClock and browse to http://192.168.4.1");
-        let timezone_default = timezone_offset_minutes_flash.load::<i32>()?.unwrap_or(0);
-        let nickname_default = nickname_flash
-            .load::<Nickname>()?
-            .unwrap_or_else(default_nickname);
-        let submission = collect_wifi_credentials(
-            stack,
-            spawner,
-            WifiConfigOptions::default()
-                .with_timezone(TimezoneFieldOptions {
-                    default_offset_minutes: timezone_default,
-                })
-                .with_nickname(NicknameFieldOptions {
-                    default_value: Some(nickname_default.clone()),
-                    max_len: MAX_NICKNAME_LEN,
-                }),
-        )
         .await?;
-        info!(
-            "Credentials received for SSID: {} (offset {} minutes)",
-            submission.credentials.ssid, submission.timezone_offset_minutes
-        );
 
-        time_sync
-            .wifi()
-            .persist_credentials(&submission.credentials)
-            .map_err(|e| {
-                warn!("{}", e);
-                Error::StorageCorrupted
-            })?;
-        timezone_offset_minutes_flash.save(&submission.timezone_offset_minutes)?;
-        let nickname = submission
-            .nickname
-            .unwrap_or_else(|| nickname_default.clone());
-        nickname_flash.save(&nickname)?;
-        clock
-            .set_utc_offset_minutes(submission.timezone_offset_minutes)
+    let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
+    clock.set_utc_offset_minutes(timezone_offset_minutes).await;
+
+    static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
+    let time_sync = TimeSync::new_from_stack(&TIME_SYNC_STATIC, stack, spawner);
+
+    let mut clock_state = ClockLed4State::HoursMinutes;
+    let mut persisted_offset = clock.utc_offset_minutes();
+
+    loop {
+        clock_state = clock_state
+            .execute(&mut clock, &mut button, time_sync)
             .await;
 
-        info!("Credentials saved; rebooting to Start state");
-        Timer::after_millis(750).await;
-        SCB::sys_reset();
-    }
-
-    async fn execute_attempt_connection(
-        clock: &mut Clock<'_>,
-        button: &mut Button<'_>,
-        time_sync: &TimeSync,
-    ) -> Result<Self> {
-        info!("WifiSetupState: AttemptConnection - attempting to connect and sync time");
-        let mut clock_state = ClockLed4State::Connecting;
-
-        // Keep trying to connect, checking for timeout
-        loop {
-            clock_state = clock_state.execute(clock, button, time_sync).await;
-
-            // If we timeout, clear credentials and go back to AP mode
-            if matches!(clock_state, ClockLed4State::AccessPointSetup) {
-                info!("Connection timeout - clearing credentials and switching to AccessPoint");
-                time_sync
-                    .wifi()
-                    .clear_persisted_credentials()
-                    .map_err(|e| {
-                        warn!("{}", e);
-                        Error::StorageCorrupted
-                    })?;
-                Timer::after_millis(500).await;
-                SCB::sys_reset();
-            }
-
-            // If we successfully synced time, move to ready state
-            if matches!(clock_state, ClockLed4State::HoursMinutes) {
-                info!("Time synced - moving to Running state");
-                return Ok(Self::Running);
-            }
-        }
-    }
-
-    async fn execute_running(
-        clock: &mut Clock<'_>,
-        button: &mut Button<'_>,
-        time_sync: &TimeSync,
-        timezone_offset_minutes_flash: &mut FlashBlock,
-    ) -> Result<Self> {
-        info!("WifiSetupState: Running - clock operational");
-        let mut clock_state = ClockLed4State::HoursMinutes;
-        let mut persisted_offset = clock.utc_offset_minutes();
-
-        loop {
-            clock_state = clock_state.execute(clock, button, time_sync).await;
-
-            // Handle user confirming credential clear
-            if let ClockLed4State::ConfirmedClear = clock_state {
-                info!("Confirmed clear - erasing credentials and rebooting to Start");
-                time_sync
-                    .wifi()
-                    .clear_persisted_credentials()
-                    .map_err(|e| {
-                        warn!("{}", e);
-                        Error::StorageCorrupted
-                    })?;
-                timezone_offset_minutes_flash.clear()?;
-                clock.set_utc_offset_minutes(0).await;
-                clock.show_clearing_done().await;
-                Timer::after_millis(750).await;
-                SCB::sys_reset();
-            }
-
-            // Persist timezone offset changes
-            let current_offset = clock.utc_offset_minutes();
-            if current_offset != persisted_offset {
-                timezone_offset_minutes_flash.save(&current_offset)?;
-                persisted_offset = current_offset;
-            }
+        let current_offset = clock.utc_offset_minutes();
+        if current_offset != persisted_offset {
+            timezone_field.set_offset_minutes(current_offset)?;
+            persisted_offset = current_offset;
         }
     }
 }

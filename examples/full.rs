@@ -19,7 +19,7 @@ use heapless::{FnvIndexMap, String};
 use panic_probe as _;
 use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdStatic};
-use serials::clock::{Clock, ClockEvent, ClockStatic, ClockState};
+use serials::clock::{Clock, ClockEvent, ClockState, ClockStatic};
 #[cfg(feature = "wifi")]
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::ir::{Ir, IrEvent, IrStatic};
@@ -143,16 +143,16 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     // Initialize MFRC522 RFID reader device abstraction
     static RFID_STATIC: RfidStatic = Rfid::new_static();
     let rfid_reader = Rfid::new(
-        p.SPI0,         // SPI peripheral
-        p.PIN_18,       // SCK (serial clock)
-        p.PIN_19,       // MOSI
-        p.PIN_16,       // MISO
-        p.DMA_CH2,      // DMA channel 2 (leave CH0 for WiFi)
-        p.DMA_CH3,      // DMA channel 3
-        p.PIN_15,       // CS (chip select)
-        p.PIN_17,       // RST (reset)
+        p.SPI0,       // SPI peripheral
+        p.PIN_18,     // SCK (serial clock)
+        p.PIN_19,     // MOSI
+        p.PIN_16,     // MISO
+        p.DMA_CH2,    // DMA channel 2 (leave CH0 for WiFi)
+        p.DMA_CH3,    // DMA channel 3
+        p.PIN_15,     // CS (chip select)
+        p.PIN_17,     // RST (reset)
         &RFID_STATIC, // Event channel
-        spawner,        // Task spawner
+        spawner,      // Task spawner
     )
     .await?;
 

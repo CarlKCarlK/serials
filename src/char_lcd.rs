@@ -55,9 +55,7 @@ impl CharLcd {
         let i2c = i2c::I2c::new_blocking(i2c_peripheral, scl, sda, I2cConfig::default());
         let token = lcd_task(i2c, char_lcd_static).map_err(Error::TaskSpawn)?;
         spawner.spawn(token);
-        Ok(Self {
-            char_lcd_static,
-        })
+        Ok(Self { char_lcd_static })
     }
 
     /// Send a message to the LCD (async, waits until queued)

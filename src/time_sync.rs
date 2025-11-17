@@ -49,8 +49,8 @@ mod wifi_impl {
     /// A device abstraction that manages NTP-based time synchronization over WiFi.
     pub struct TimeSync {
         events: &'static TimeSyncEvents,
-        #[allow(dead_code, reason = "Keeps WiFi alive")]
-        wifi: &'static Wifi,
+        #[allow(dead_code, reason = "Keeps WiFi alive or holds stack provider")]
+        wifi: Option<&'static Wifi>,
     }
 
     impl TimeSync {
@@ -98,13 +98,33 @@ mod wifi_impl {
 
             resources.time_sync_cell.init(Self {
                 events: &resources.events,
-                wifi,
+                wifi: Some(wifi),
+            })
+        }
+
+        /// Create a new TimeSync device that uses an existing Embassy stack instead of
+        /// provisioning WiFi hardware.
+        ///
+        /// This is useful when WiFi is managed elsewhere (e.g. via [`WifiAuto`](crate::wifi_auto::WifiAuto))
+        /// and the networking stack is already initialized in client mode.
+        pub fn new_from_stack(
+            resources: &'static TimeSyncStatic,
+            stack: &'static Stack<'static>,
+            spawner: Spawner,
+        ) -> &'static Self {
+            let token = unwrap!(time_sync_stack_loop(stack, &resources.events));
+            spawner.spawn(token);
+
+            resources.time_sync_cell.init(Self {
+                events: &resources.events,
+                wifi: None,
             })
         }
 
         /// Get reference to WiFi device (useful for AP mode configuration)
         pub fn wifi(&self) -> &'static Wifi {
             self.wifi
+                .expect("TimeSync WiFi handle unavailable (stack-based mode)")
         }
 
         /// Wait for and return the next TimeSync event
@@ -118,6 +138,15 @@ mod wifi_impl {
         let err = inner_time_sync_device_loop(wifi, sync_events)
             .await
             .unwrap_err();
+        core::panic!("{err}");
+    }
+
+    #[embassy_executor::task]
+    async fn time_sync_stack_loop(
+        stack: &'static Stack<'static>,
+        sync_events: &'static TimeSyncEvents,
+    ) -> ! {
+        let err = run_time_sync_loop(stack, sync_events).await.unwrap_err();
         core::panic!("{err}");
     }
 
@@ -146,8 +175,14 @@ mod wifi_impl {
             }
         }
 
-        info!("TimeSync received network stack");
+        run_time_sync_loop(stack, sync_events).await
+    }
 
+    async fn run_time_sync_loop(
+        stack: &'static Stack<'static>,
+        sync_events: &'static TimeSyncEvents,
+    ) -> Result<Infallible> {
+        info!("TimeSync received network stack");
         info!("TimeSync device started");
 
         // Initial sync with retry (exponential backoff: 10s, 30s, 60s, then 5min intervals)
