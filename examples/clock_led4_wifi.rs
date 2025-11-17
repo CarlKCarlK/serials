@@ -7,9 +7,8 @@
 #![cfg(feature = "wifi")]
 #![no_std]
 #![no_main]
+#![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
-
-use core::convert::Infallible;
 
 use defmt::info;
 use defmt_rtt as _;
@@ -32,8 +31,7 @@ pub async fn main(spawner: Spawner) -> ! {
     core::panic!("{err}");
 }
 
-// cmk0 why Infallible instead of !?
-async fn inner_main(spawner: Spawner) -> Result<Infallible> {
+async fn inner_main(spawner: Spawner) -> Result<!> {
     info!("Starting Wi-Fi 4-digit clock (WifiAuto)");
     let peripherals = embassy_rp::init(Default::default());
 
