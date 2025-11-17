@@ -124,7 +124,7 @@ impl ClockLed4<'_> {
     /// Display the access point setup prompt while waiting for credentials.
     pub async fn show_access_point_setup(&self) {
         self.commands
-            .send(ClockLed4Command::SetState(ClockLed4State::AccessPointSetup))
+            .send(ClockLed4Command::SetState(ClockLed4State::CaptivePortalReady))
             .await;
     }
 }

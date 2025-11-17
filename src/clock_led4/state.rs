@@ -15,10 +15,10 @@ use embassy_time::{Duration, Instant};
 pub enum ClockLed4State {
     #[default]
     HoursMinutes,
-    Connecting,
+    ClientConnecting,
     MinutesSeconds,
     EditUtcOffset,
-    AccessPointSetup,
+    CaptivePortalReady,
 }
 
 impl ClockLed4State {
@@ -31,10 +31,10 @@ impl ClockLed4State {
     ) -> Self {
         match self {
             Self::HoursMinutes => self.execute_hours_minutes(clock, button, time_sync).await,
-            Self::Connecting => self.execute_connecting(clock, time_sync).await,
+            Self::ClientConnecting => self.execute_connecting(clock, time_sync).await,
             Self::MinutesSeconds => self.execute_minutes_seconds(clock, button, time_sync).await,
             Self::EditUtcOffset => self.execute_edit_utc_offset(clock, button).await,
-            Self::AccessPointSetup => self.execute_access_point_setup(clock, time_sync).await,
+            Self::CaptivePortalReady => self.execute_access_point_setup(clock, time_sync).await,
         }
     }
 
@@ -42,10 +42,10 @@ impl ClockLed4State {
     pub fn render(self, clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         match self {
             Self::HoursMinutes => Self::render_hours_minutes(clock_time),
-            Self::Connecting => Self::render_connecting(clock_time),
+            Self::ClientConnecting => Self::render_connecting(clock_time),
             Self::MinutesSeconds => Self::render_minutes_seconds(clock_time),
             Self::EditUtcOffset => Self::render_edit_utc_offset(clock_time),
-            Self::AccessPointSetup => Self::render_access_point_setup(),
+            Self::CaptivePortalReady => Self::render_access_point_setup(),
         }
     }
 
@@ -58,12 +58,12 @@ impl ClockLed4State {
         loop {
             let now_ticks = Instant::now().as_ticks();
             if now_ticks >= deadline_ticks {
-                return Self::AccessPointSetup;
+                return Self::CaptivePortalReady;
             }
 
             let remaining_ticks = deadline_ticks - now_ticks;
             if remaining_ticks == 0 {
-                return Self::AccessPointSetup;
+                return Self::CaptivePortalReady;
             }
 
             let timeout = Duration::from_ticks(remaining_ticks);
@@ -77,7 +77,7 @@ impl ClockLed4State {
                         Self::handle_time_sync_event(clock, failure).await;
                     }
                 },
-                Err(_) => return Self::AccessPointSetup,
+                Err(_) => return Self::CaptivePortalReady,
             }
         }
     }

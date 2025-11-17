@@ -21,7 +21,6 @@ use serials::clock_led4::{ClockLed4 as Clock, ClockLed4Static as ClockStatic};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led4::OutputArray;
 use serials::time_sync::{TimeSync, TimeSyncStatic};
-use serials::wifi::DEFAULT_AP_SSID;
 use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoStatic};
 
@@ -36,7 +35,6 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     let peripherals = embassy_rp::init(Default::default());
 
     // Initialize flash storage: Wi-Fi credentials + timezone
-    // cmk0 must give 2 here when can see two output items?
     static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
     let [wifi_credentials_flash, timezone_flash] =
         FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
@@ -89,7 +87,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         peripherals.DMA_CH0,    // CYW43 DMA channel
         wifi_credentials_flash, // Flash block storing Wi-Fi creds
         peripherals.PIN_13,     // Reset button pin
-        DEFAULT_AP_SSID,        // Captive-portal SSID
+        "PicoClock",        // Captive-portal SSID
         [timezone_field],
         spawner,
     )?;
@@ -97,25 +95,19 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     // cmk0 'ensure_connected_with_async_ui' is too long
     // cmk0 do we want both ensure_connected_with_async_ui and ensure_connected_with_ui and ensure_connected>
     // Drive the display with WifiAuto events while onboarding runs.
-    // cmk0 do we need clock_ref?
     let clock_ref = &clock;
-    // cmk0 is "stack" the right word here?
     // cmk0 do we even need src/wifi.rs to be public? rename WifiAuto?
     let (stack, mut button) = wifi_auto
         .ensure_connected_with_async_ui(spawner, move |event| {
-            let clock_ref = clock_ref;
             async move {
                 match event {
-                    // cmk0 why isn't this a set_state call?
-                    // cmk0 is it CaptivePortalReady or ShowAccessPointSetup?
                     WifiAutoEvent::CaptivePortalReady => {
-                        clock_ref.show_access_point_setup().await;
+                        clock_ref.set_state(ClockLed4State::CaptivePortalReady).await;
                     }
-                    // cmk0 is it ClientConnecting or Connecting?
                     // cmk0 the Connecting does the animation itself. Shouldn't it just use led4's animation_text method?
                     // cmk0 can/should we move the circular animations into led4?
                     WifiAutoEvent::ClientConnecting { .. } => {
-                        clock_ref.set_state(ClockLed4State::Connecting).await;
+                        clock_ref.set_state(ClockLed4State::ClientConnecting).await;
                     }
                     WifiAutoEvent::Connected => {
                         clock_ref.set_state(ClockLed4State::HoursMinutes).await;
