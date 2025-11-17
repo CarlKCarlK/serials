@@ -10,6 +10,7 @@
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
 use core::convert::Infallible;
+
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
@@ -22,11 +23,8 @@ use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led4::OutputArray;
 use serials::time_sync::{TimeSync, TimeSyncStatic};
 use serials::wifi::DEFAULT_AP_SSID;
-use serials::wifi_auto::fields::{TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic};
+use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoStatic};
-
-const NICKNAME_MAX_LEN: usize = 32;
-const DEFAULT_NICKNAME: &str = "PicoClock";
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -34,33 +32,21 @@ pub async fn main(spawner: Spawner) -> ! {
     core::panic!("{err}");
 }
 
+// cmk0 why Infallible instead of !?
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("Starting Wi-Fi 4-digit clock (WifiAuto)");
     let peripherals = embassy_rp::init(Default::default());
 
-    // Initialize flash storage: Wi-Fi credentials + timezone + nickname.
-    static FLASH_STATIC: FlashArrayStatic = FlashArray::<3>::new_static();
-    let [wifi_credentials_flash, timezone_flash, nickname_flash] =
+    // Initialize flash storage: Wi-Fi credentials + timezone
+    // cmk0 must give 2 here when can see two output items?
+    static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
+    let [wifi_credentials_flash, timezone_flash] =
         FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
 
     static TIMEZONE_FIELD_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash);
-    let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
 
-    static NICKNAME_FIELD_STATIC: TextFieldStatic<NICKNAME_MAX_LEN> = TextField::new_static();
-    let nickname_field = TextField::new(
-        &NICKNAME_FIELD_STATIC,
-        nickname_flash,
-        "nickname",
-        "Nickname",
-        DEFAULT_NICKNAME,
-    );
-
-    // Initialize LED (unused but kept for board compatibility).
-    let mut led = gpio::Output::new(peripherals.PIN_0, Level::Low);
-    led.set_low();
-
-    // Initialize display pins.
+    // Initialize LED4 display pins.
     let cells = OutputArray::new([
         gpio::Output::new(peripherals.PIN_1, Level::High),
         gpio::Output::new(peripherals.PIN_2, Level::High),
@@ -79,15 +65,21 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         gpio::Output::new(peripherals.PIN_12, Level::Low),
     ]);
 
+    // cmk0 look at order of inputs
+    // cmk0 kill "initial_utc". Do we even want this input?
+    // cmk0 look at the clock docs
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
     let mut clock = Clock::new(
-        cells,
-        segments,
+        cells,                  // cell pins
+        segments,            // segment pins
         &CLOCK_STATIC,
         spawner,
-        timezone_offset_minutes,
+        0,     // initial UTC offset minutes
     )?;
 
+    // cmk0 think about the WifiAuto name
+    // cmk0 is it "credential_store" or "wifi_credentials_flash"?
+    // cmk0 so should the static always be first or last?
     static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
     let wifi_auto = WifiAuto::new(
         &WIFI_AUTO_STATIC,
@@ -100,20 +92,30 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         wifi_credentials_flash, // Flash block storing Wi-Fi creds
         peripherals.PIN_13,     // Reset button pin
         DEFAULT_AP_SSID,        // Captive-portal SSID
-        [timezone_field, nickname_field],
+        [timezone_field],
         spawner,
     )?;
 
+    // cmk0 'ensure_connected_with_async_ui' is too long
+    // cmk0 do we want both ensure_connected_with_async_ui and ensure_connected_with_ui and ensure_connected>
     // Drive the display with WifiAuto events while onboarding runs.
+    // cmk0 do we need clock_ref?
     let clock_ref = &clock;
+    // cmk0 is "stack" the right word here?
+    // cmk0 do we even need src/wifi.rs to be public? rename WifiAuto?
     let (stack, mut button) = wifi_auto
         .ensure_connected_with_async_ui(spawner, move |event| {
             let clock_ref = clock_ref;
             async move {
                 match event {
+                    // cmk0 why isn't this a set_state call?
+                    // cmk0 is it CaptivePortalReady or ShowAccessPointSetup?
                     WifiAutoEvent::CaptivePortalReady => {
                         clock_ref.show_access_point_setup().await;
                     }
+                    // cmk0 is it ClientConnecting or Connecting?
+                    // cmk0 the Connecting does the animation itself. Shouldn't it just use led4's animation_text method?
+                    // cmk0 can/should we move the circular animations into led4?
                     WifiAutoEvent::ClientConnecting { .. } => {
                         clock_ref.set_state(ClockLed4State::Connecting).await;
                     }
@@ -131,6 +133,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
     let time_sync = TimeSync::new_from_stack(&TIME_SYNC_STATIC, stack, spawner);
 
+    // cmk0 why are we ignoring the state inside clock?
     let mut clock_state = ClockLed4State::HoursMinutes;
     let mut persisted_offset = clock.utc_offset_minutes();
 
@@ -139,6 +142,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
             .execute(&mut clock, &mut button, time_sync)
             .await;
 
+        // cmk0 is this the nicest way to save the timezone offset to flash when it changes.
         let current_offset = clock.utc_offset_minutes();
         if current_offset != persisted_offset {
             timezone_field.set_offset_minutes(current_offset)?;

@@ -112,7 +112,7 @@ use crate::dhcp_server::dhcp_server_task;
 use crate::flash_array::FlashBlock;
 use crate::wifi_config::WifiCredentials;
 
-pub const DEFAULT_AP_SSID: &str = "PicoClock";
+pub const DEFAULT_AP_SSID: &str = "Pico";
 
 // ============================================================================
 // Types
