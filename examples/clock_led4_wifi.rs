@@ -61,16 +61,6 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         gpio::Output::new(peripherals.PIN_12, Level::Low),
     ]);
 
-    // cmk0 look at the clock docs
-    static CLOCK_LED4_STATIC: ClockLed4Static = ClockLed4::new_static();
-    let mut clock_led4 = ClockLed4::new(
-        &CLOCK_LED4_STATIC,
-        cell_pins,
-        segment_pins,
-        0,         // initial UTC offset minutes
-        spawner,
-    )?;
-
     // cmk0 think about the WifiAuto name
     static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
     let wifi_auto = WifiAuto::new(
@@ -85,6 +75,16 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         peripherals.PIN_13,     // Reset button pin
         "PicoClock",   // Captive-portal SSID
         [timezone_field],    // Custom fields to ask for
+        spawner,
+    )?;
+
+    // cmk0 look at the clock docs
+    static CLOCK_LED4_STATIC: ClockLed4Static = ClockLed4::new_static();
+    let mut clock_led4 = ClockLed4::new(
+        &CLOCK_LED4_STATIC,
+        cell_pins,
+        segment_pins,
+        timezone_field,
         spawner,
     )?;
 
@@ -111,26 +111,10 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         })
         .await?;
 
-    let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
-    clock_led4.set_offset_minutes(offset_minutes).await;
-
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
     let time_sync = TimeSync::new_from_stack(&TIME_SYNC_STATIC, stack, spawner);
 
     // cmk0 why are we ignoring the state inside clock?
-    let mut clock_lcd4_state = ClockLed4State::HoursMinutes;
-    let mut persisted_offset_minutes = clock_led4.offset_minutes();
-
-    loop {
-        clock_lcd4_state = clock_lcd4_state
-            .execute(&mut clock_led4, &mut button, time_sync)
-            .await;
-
-        // cmk0 is this the nicest way to save the timezone offset to flash when it changes.
-        let current_offset_minutes = clock_led4.offset_minutes();
-        if current_offset_minutes != persisted_offset_minutes {
-            timezone_field.set_offset_minutes(current_offset_minutes)?;
-            persisted_offset_minutes = current_offset_minutes;
-        }
-    }
+    // cmk0 is this the nicest way to save the timezone offset to flash when it changes. (may no longer apply)
+    clock_led4.run(&mut button, time_sync).await
 }

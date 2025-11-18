@@ -62,7 +62,8 @@ impl ClockLed4<'_> {
         clock_led4_static: &'static ClockLed4Static,
         cell_pins: OutputArray<'static, CELL_COUNT>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-        offset_minutes: i32,
+        #[cfg(all(feature = "wifi", not(feature = "host")))]
+        timezone_field: &'static crate::wifi_auto::fields::TimezoneField,
         spawner: Spawner,
     ) -> crate::Result<Self> {
         let led4 = Led4::new(
@@ -71,11 +72,17 @@ impl ClockLed4<'_> {
             segment_pins,
             spawner,
         )?;
+        #[cfg(all(feature = "wifi", not(feature = "host")))]
+        let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
+        #[cfg(not(all(feature = "wifi", not(feature = "host"))))]
+        let offset_minutes = 0;
         let token = clock_led4_device_loop(
             clock_led4_static.commands(),
             led4,
             offset_minutes,
             clock_led4_static.utc_offset_mirror(),
+            #[cfg(all(feature = "wifi", not(feature = "host")))]
+            timezone_field,
         )?;
         spawner.spawn(token);
         Ok(Self {
@@ -95,6 +102,22 @@ impl ClockLed4<'_> {
         self.commands
             .send(ClockLed4Command::SetState(clock_state))
             .await;
+    }
+
+    /// Run the clock state machine loop.
+    ///
+    /// This method runs indefinitely, executing the state machine and handling
+    /// button presses and time sync events. It should be called after WiFi
+    /// connection is established and time sync is available.
+    pub async fn run(
+        &mut self,
+        button: &mut crate::button::Button<'_>,
+        time_sync: &crate::time_sync::TimeSync,
+    ) -> ! {
+        let mut clock_state = ClockLed4State::HoursMinutes;
+        loop {
+            clock_state = clock_state.execute(self, button, time_sync).await;
+        }
     }
 
     /// Set the time from Unix seconds.
@@ -179,9 +202,13 @@ async fn clock_led4_device_loop(
     blinker: Led4<'static>,
     initial_utc_offset_minutes: i32,
     utc_offset_mirror: &'static AtomicI32,
+    #[cfg(all(feature = "wifi", not(feature = "host")))]
+    timezone_field: &'static crate::wifi_auto::fields::TimezoneField,
 ) -> ! {
     let mut clock_time = ClockTime::new(initial_utc_offset_minutes, utc_offset_mirror);
     let mut clock_state = ClockLed4State::default();
+    #[cfg(all(feature = "wifi", not(feature = "host")))]
+    let mut persisted_offset_minutes = initial_utc_offset_minutes;
 
     loop {
         let (blink_mode, text, sleep_duration) = clock_state.render(&clock_time);
@@ -193,6 +220,16 @@ async fn clock_led4_device_loop(
             select(clock_commands.receive(), Timer::after(sleep_duration)).await
         {
             notification.apply(&mut clock_time, &mut clock_state);
+        }
+
+        // Save timezone offset to flash when it changes.
+        #[cfg(all(feature = "wifi", not(feature = "host")))]
+        {
+            let current_offset_minutes = utc_offset_mirror.load(Ordering::Relaxed);
+            if current_offset_minutes != persisted_offset_minutes {
+                let _ = timezone_field.set_offset_minutes(current_offset_minutes);
+                persisted_offset_minutes = current_offset_minutes;
+            }
         }
     }
 }
