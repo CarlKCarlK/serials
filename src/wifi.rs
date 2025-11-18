@@ -279,7 +279,7 @@ impl Wifi {
     ///
     /// See the [module-level documentation](crate::wifi) for usage examples.
     pub fn new(
-        resources: &'static WifiStatic,
+        wifi_static: &'static WifiStatic,
         pin_23: Peri<'static, PIN_23>,
         pin_25: Peri<'static, PIN_25>,
         pio0: Peri<'static, PIO0>,
@@ -290,7 +290,7 @@ impl Wifi {
         spawner: Spawner,
     ) -> &'static Self {
         Self::new_with_ap_ssid(
-            resources,
+            wifi_static,
             pin_23,
             pin_25,
             pio0,
@@ -304,7 +304,7 @@ impl Wifi {
     }
 
     pub fn new_with_ap_ssid(
-        resources: &'static WifiStatic,
+        wifi_static: &'static WifiStatic,
         pin_23: Peri<'static, PIN_23>,
         pin_25: Peri<'static, PIN_25>,
         pio0: Peri<'static, PIO0>,
@@ -336,14 +336,14 @@ impl Wifi {
             dma_ch0,
             mode,
             ap_ssid,
-            &resources.events,
-            &resources.stack,
+            &wifi_static.events,
+            &wifi_static.stack,
             spawner,
         ));
         spawner.spawn(token);
-        resources.wifi_cell.init(Self {
-            events: &resources.events,
-            stack: &resources.stack,
+        wifi_static.wifi_cell.init(Self {
+            events: &wifi_static.events,
+            stack: &wifi_static.stack,
             credential_store: Mutex::new(RefCell::new(store_block)),
         })
     }

@@ -69,7 +69,7 @@ mod wifi_impl {
         /// # Arguments
         /// * `credential_store` - Flash block for persisted WiFi credentials
         pub fn new(
-            resources: &'static TimeSyncStatic,
+            time_sync_static: &'static TimeSyncStatic,
             pin_23: Peri<'static, PIN_23>,
             pin_25: Peri<'static, PIN_25>,
             pio0: Peri<'static, PIO0>,
@@ -81,7 +81,7 @@ mod wifi_impl {
         ) -> &'static Self {
             // Create WiFi device
             let wifi = Wifi::new(
-                &resources.wifi,
+                &time_sync_static.wifi,
                 pin_23,
                 pin_25,
                 pio0,
@@ -93,11 +93,11 @@ mod wifi_impl {
             );
 
             // Spawn TimeSync task
-            let token = unwrap!(time_sync_device_loop(wifi, &resources.events));
+            let token = unwrap!(time_sync_device_loop(wifi, &time_sync_static.events));
             spawner.spawn(token);
 
-            resources.time_sync_cell.init(Self {
-                events: &resources.events,
+            time_sync_static.time_sync_cell.init(Self {
+                events: &time_sync_static.events,
                 wifi: Some(wifi),
             })
         }
@@ -108,15 +108,15 @@ mod wifi_impl {
         /// This is useful when WiFi is managed elsewhere (e.g. via [`WifiAuto`](crate::wifi_auto::WifiAuto))
         /// and the networking stack is already initialized in client mode.
         pub fn new_from_stack(
-            resources: &'static TimeSyncStatic,
+            time_sync_static: &'static TimeSyncStatic,
             stack: &'static Stack<'static>,
             spawner: Spawner,
         ) -> &'static Self {
-            let token = unwrap!(time_sync_stack_loop(stack, &resources.events));
+            let token = unwrap!(time_sync_stack_loop(stack, &time_sync_static.events));
             spawner.spawn(token);
 
-            resources.time_sync_cell.init(Self {
-                events: &resources.events,
+            time_sync_static.time_sync_cell.init(Self {
+                events: &time_sync_static.events,
                 wifi: None,
             })
         }
@@ -383,8 +383,8 @@ mod stub {
         }
 
         /// Construct the stub device.
-        pub fn new(resources: &'static TimeSyncStatic, _spawner: Spawner) -> &'static Self {
-            resources.time_sync_cell.init(Self {})
+        pub fn new(time_sync_static: &'static TimeSyncStatic, _spawner: Spawner) -> &'static Self {
+            time_sync_static.time_sync_cell.init(Self {})
         }
 
         /// Wait for the next time sync event. This stub never resolves, effectively disabling sync.

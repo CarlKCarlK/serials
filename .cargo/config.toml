@@ -8,52 +8,86 @@ TEMP = { value = "target/tmp", relative = true }
 [alias]
 # xtask command runner - note: must be run from workspace root
 xtask = "run --manifest-path xtask/Cargo.toml --"
+xtask-check = "check --manifest-path xtask/Cargo.toml"
 # Comprehensive checks - runs all builds, tests, and doc generation
 check-all = "xtask check-all"
+check-all-check = "check --manifest-path xtask/Cargo.toml"
 
 # Pico 1 WiFi aliases
 full-w = "run --example full --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
+full-w-check = "check --example full --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 wireless-w = "run --example wireless --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
+wireless-w-check = "check --example wireless --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 lcd-clock-w = "run --example lcd_clock --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
+lcd-clock-w-check = "check --example lcd_clock --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 clock-led4-wifi-w = "run --example clock_led4_wifi --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
+clock-led4-wifi-w-check = "check --example clock_led4_wifi --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 log-time-w = "run --example log_time --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
+log-time-w-check = "check --example log_time --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 wifi-web-w = "run --example wifi_web --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
+wifi-web-w-check = "check --example wifi_web --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 wifi-auto-w = "run --example wifi_auto --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
+wifi-auto-w-check = "check --example wifi_auto --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 
 # Pico 2 ARM aliases
 flash-2 = "run --example flash --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+flash-2-check = "check --example flash --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 full-2 = "run --example full --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+full-2-check = "check --example full --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 ir-2 = "run --example ir --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+ir-2-check = "check --example ir --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 ir-kepler-2 = "run --example ir_kepler --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+ir-kepler-2-check = "check --example ir_kepler --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 wireless-2 = "run --example wireless --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+wireless-2-check = "check --example wireless --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 lcd-clock-2 = "run --example lcd_clock --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+lcd-clock-2-check = "check --example lcd_clock --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 led-strip-2 = "run --example led_strip --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+led-strip-2-check = "check --example led_strip --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 led-strip2-2 = "run --example led_strip2 --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+led-strip2-2-check = "check --example led_strip2 --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 led24x4-2 = "run --example led24x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+led24x4-2-check = "check --example led24x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 led24x4-clock-2 = "run --example led24x4_clock --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+led24x4-clock-2-check = "check --example led24x4_clock --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 led-strip-snake-2 = "run --example led_strip_snake --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+led-strip-snake-2-check = "check --example led_strip_snake --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 blinky-2 = "run --example blinky --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+blinky-2-check = "check --example blinky --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 servos-2 = "run --example servos --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+servos-2-check = "check --example servos --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 log-time-2w = "run --example log_time --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
+log-time-2w-check = "check --example log_time --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
 wifi-web-2w = "run --example wifi_web --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
+wifi-web-2w-check = "check --example wifi_web --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
 
 # Pico 2 RISC-V alias (experimental - not fully working yet)
 blinky-2r = "run --example blinky --release --target riscv32imac-unknown-none-elf --features pico2,riscv --no-default-features"
+blinky-2r-check = "check --example blinky --release --target riscv32imac-unknown-none-elf --features pico2,riscv --no-default-features"
 
 # Default aliases (Pico 1 ARM, no WiFi)
 full = "run --example full --release --target thumbv6m-none-eabi --features pico1,arm"
+full-check = "check --example full --release --target thumbv6m-none-eabi --features pico1,arm"
 ir = "run --example ir --release --target thumbv6m-none-eabi --features pico1,arm"
+ir-check = "check --example ir --release --target thumbv6m-none-eabi --features pico1,arm"
 ir-kepler = "run --example ir_kepler --release --target thumbv6m-none-eabi --features pico1,arm"
+ir-kepler-check = "check --example ir_kepler --release --target thumbv6m-none-eabi --features pico1,arm"
 ir-remote = "run --example ir_remote --release --target thumbv6m-none-eabi --features pico1,arm"
+ir-remote-check = "check --example ir_remote --release --target thumbv6m-none-eabi --features pico1,arm"
 led-strip = "run --example led_strip --release --target thumbv6m-none-eabi --features pico1,arm"
+led-strip-check = "check --example led_strip --release --target thumbv6m-none-eabi --features pico1,arm"
 flash = "run --example flash --release --target thumbv6m-none-eabi --features pico1,arm"
+flash-check = "check --example flash --release --target thumbv6m-none-eabi --features pico1,arm"
 blinky = "run --example blinky --release --target thumbv6m-none-eabi --features pico1,arm"
+blinky-check = "check --example blinky --release --target thumbv6m-none-eabi --features pico1,arm"
 servos = "run --example servos --release --target thumbv6m-none-eabi --features pico1,arm"
+servos-check = "check --example servos --release --target thumbv6m-none-eabi --features pico1,arm"
 
 # Documentation alias
 # Note: Using pico2,arm,wifi instead of pico1,arm,wifi because embassy-rp from git main
 # currently has a regression with Cortex-M0+ (tries to access MPU.rasr field that doesn't exist).
 docdoc = "doc --target thumbv8m.main-none-eabihf --no-deps --features pico2,arm,wifi --no-default-features --open"
+docdoc-check = "check --target thumbv8m.main-none-eabihf --no-deps --features pico2,arm,wifi --no-default-features"
 
 [target.thumbv6m-none-eabi]
 runner = "probe-rs run --chip=RP2040"

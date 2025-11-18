@@ -36,6 +36,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
     // Initialize flash storage: Wi-Fi credentials + timezone
     static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
+    // cmk0 should this be *_flash_block?
     let [wifi_credentials_flash, timezone_flash] =
         FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
 
@@ -75,7 +76,6 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
     // cmk0 think about the WifiAuto name
     // cmk0 is it "credential_store" or "wifi_credentials_flash"?
-    // cmk0 so should the static always be first or last?
     static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
     let wifi_auto = WifiAuto::new(
         &WIFI_AUTO_STATIC,

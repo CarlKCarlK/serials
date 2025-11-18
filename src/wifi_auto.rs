@@ -206,7 +206,7 @@ impl WifiAuto {
     /// See [`WifiAuto`] for a complete example.
     #[allow(clippy::too_many_arguments)]
     pub fn new<const N: usize>(
-        resources: &'static WifiAutoStatic,
+        wifi_auto_static: &'static WifiAutoStatic,
         pin_23: Peri<'static, PIN_23>,
         pin_25: Peri<'static, PIN_25>,
         pio0: Peri<'static, PIO0>,
@@ -223,7 +223,7 @@ impl WifiAuto {
         let stored_start_mode = Wifi::peek_start_mode(&mut credential_store);
         if matches!(stored_start_mode, WifiStartMode::AccessPoint) {
             if let Some(creds) = stored_credentials.clone() {
-                resources.defaults.lock(|cell| {
+                wifi_auto_static.defaults.lock(|cell| {
                     *cell.borrow_mut() = Some(creds);
                 });
             }
@@ -233,7 +233,7 @@ impl WifiAuto {
         let force_ap = button.is_pressed();
         if force_ap {
             if let Some(creds) = stored_credentials.clone() {
-                resources.defaults.lock(|cell| {
+                wifi_auto_static.defaults.lock(|cell| {
                     *cell.borrow_mut() = Some(creds);
                 });
             }
@@ -242,7 +242,7 @@ impl WifiAuto {
         }
 
         let wifi = Wifi::new_with_ap_ssid(
-            &resources.wifi,
+            &wifi_auto_static.wifi,
             pin_23,
             pin_25,
             pio0,
@@ -254,7 +254,7 @@ impl WifiAuto {
             spawner,
         );
 
-        resources.button.lock(|cell| {
+        wifi_auto_static.button.lock(|cell| {
             *cell.borrow_mut() = Some(button);
         });
 
@@ -269,18 +269,18 @@ impl WifiAuto {
             for field in fields {
                 storage.push(field).unwrap_or_else(|_| unreachable!());
             }
-            let stored_vec = resources.fields_storage.init(storage);
+            let stored_vec = wifi_auto_static.fields_storage.init(storage);
             stored_vec.as_slice()
         } else {
             &[]
         };
 
-        let instance = resources.wifi_auto_cell.init(Self {
-            events: &resources.events,
+        let instance = wifi_auto_static.wifi_auto_cell.init(Self {
+            events: &wifi_auto_static.events,
             wifi,
-            force_ap: resources.force_ap_flag(),
-            defaults: resources.defaults(),
-            button: resources.button(),
+            force_ap: wifi_auto_static.force_ap_flag(),
+            defaults: wifi_auto_static.defaults(),
+            button: wifi_auto_static.button(),
             fields: fields_ref,
         });
 
