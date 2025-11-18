@@ -90,15 +90,17 @@ pub struct WifiAutoStatic {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
 /// # use serials::flash_array::{FlashArray, FlashArrayStatic};
 /// # use serials::wifi_auto::{WifiAuto, WifiAutoStatic, WifiAutoEvent};
 /// # use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 /// # use embassy_executor::Spawner;
-/// # use embassy_rp::peripherals;
 /// # async fn example(
 /// #     spawner: Spawner,
-/// #     peripherals: peripherals::Peripherals,
+/// #     peripherals: embassy_rp::Peripherals,
 /// # ) -> Result<(), serials::Error> {
 /// // Set up flash storage for WiFi credentials and timezone
 /// static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
@@ -121,7 +123,7 @@ pub struct WifiAutoStatic {
 ///     peripherals.DMA_CH0,    // CYW43 DMA
 ///     wifi_flash,             // Flash for WiFi credentials
 ///     peripherals.PIN_13,     // Button for forced reconfiguration
-///     "Pico",                 // Captive-portal SSID for provisioning
+///     "PicoAccess",           // Captive-portal SSID for provisioning
 ///     [timezone_field],       // Array of custom fields
 ///     spawner,
 /// )?;
@@ -147,7 +149,7 @@ pub struct WifiAutoStatic {
 ///     .await?;
 ///
 /// // Now connected - retrieve timezone configuration
-/// let offset = timezone_field.offset_minutes()?.unwrap_or(0);
+/// let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
 ///
 /// // Use stack for internet access and button for user interactions
 /// // Example: fetch NTP time, make HTTP requests, etc.
@@ -336,17 +338,45 @@ impl WifiAuto {
     /// # Examples
     ///
     /// Synchronous callback (no `.await` calls):
-    /// ```ignore
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
+    /// # use panic_probe as _;
+    /// # use embassy_executor::Spawner;
+    /// # use serials::wifi_auto::WifiAuto;
+    /// # use serials::wifi_auto::WifiAutoEvent;
+    /// # use serials::Result;
+    /// # async fn connect_sync(wifi_auto: &WifiAuto, spawner: Spawner) -> Result<()> {
     /// wifi_auto.connect(spawner, |event| async move {
-    ///     info!("Event: {:?}", event);
+    ///     defmt::info!("Event: {:?}", event);
     /// }).await?;
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// Asynchronous callback (with `.await` calls):
-    /// ```ignore
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
+    /// # use panic_probe as _;
+    /// # use embassy_executor::Spawner;
+    /// # use serials::wifi_auto::{WifiAuto, WifiAutoEvent};
+    /// # use serials::Result;
+    /// async fn update_display(event: WifiAutoEvent) {
+    ///     // Update UI asynchronously (placeholder)
+    ///     core::future::ready(()).await;
+    ///     defmt::info!("Updated display: {:?}", event);
+    /// }
+    ///
+    /// # async fn connect_async(
+    /// #     wifi_auto: &WifiAuto,
+    /// #     spawner: Spawner,
+    /// # ) -> Result<()> {
     /// wifi_auto.connect(spawner, |event| async move {
-    ///     display.set_state(event_to_state(event)).await;
+    ///     update_display(event).await;
     /// }).await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn connect<Fut, F>(
         &self,

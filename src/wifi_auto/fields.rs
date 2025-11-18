@@ -28,15 +28,17 @@ use crate::{Error, Result};
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
 /// # use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
 /// # use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
 /// # use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 /// # use embassy_executor::Spawner;
-/// # use embassy_rp::peripherals;
 /// # async fn example(
 /// #     spawner: Spawner,
-/// #     peripherals: peripherals::Peripherals,
+/// #     peripherals: embassy_rp::Peripherals,
 /// # ) -> Result<(), serials::Error> {
 /// // Set up flash storage
 /// static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
@@ -59,7 +61,7 @@ use crate::{Error, Result};
 ///     peripherals.DMA_CH0,
 ///     wifi_flash,
 ///     peripherals.PIN_13,
-///     "MyDevice",
+///     "ClockStation",
 ///     [timezone_field],  // Custom fields array
 ///     spawner,
 /// )?;
@@ -368,15 +370,17 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
 /// # use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
 /// # use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
 /// # use serials::wifi_auto::fields::{TextField, TextFieldStatic};
 /// # use embassy_executor::Spawner;
-/// # use embassy_rp::peripherals;
 /// # async fn example(
 /// #     spawner: Spawner,
-/// #     peripherals: peripherals::Peripherals,
+/// #     peripherals: embassy_rp::Peripherals,
 /// # ) -> Result<(), serials::Error> {
 /// // Set up flash storage
 /// static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();

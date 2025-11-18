@@ -60,19 +60,23 @@ mod wifi_impl {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// # use serials::time_sync_old::{TimeSync, TimeSyncEvent};
-    /// # let log_next_time_sync = |time_sync: &'static TimeSync| async move {
-    /// match time_sync.wait().await {
-    ///     TimeSyncEvent::Success { unix_seconds } => {
-    ///         let _seconds = unix_seconds.as_i64();
-    ///     }
-    ///     TimeSyncEvent::Failed(message) => {
-    ///         info!("time sync failed: {message}. Will continue trying");
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
+    /// # use panic_probe as _;
+    /// use serials::time_sync_old::{TimeSync, TimeSyncEvent};
+    ///
+    /// # #[allow(dead_code)]
+    /// async fn log_next_time_sync(time_sync: &'static TimeSync) {
+    ///     match time_sync.wait().await {
+    ///         TimeSyncEvent::Success { unix_seconds } => {
+    ///             let _seconds = unix_seconds.as_i64();
+    ///         }
+    ///         TimeSyncEvent::Failed(message) => {
+    ///             defmt::info!("time sync failed: {}. Will continue trying", message);
+    ///         }
     ///     }
     /// }
-    /// # };
-    /// # let _ = log_next_time_sync;
     /// ```
     pub struct TimeSync {
         events: &'static TimeSyncEvents,

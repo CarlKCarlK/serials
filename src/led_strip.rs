@@ -164,8 +164,12 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
 /// per-strip brightness limiting based on current budget.
 ///
 /// # Example
-/// ```ignore
-/// define_led_strips! {
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// # use embassy_rp::peripherals::{DMA_CH0, PIN_16, PIO0};
+/// serials::define_led_strips! {
 ///     pio: PIO0,
 ///     strips: [
 ///         strip_main {

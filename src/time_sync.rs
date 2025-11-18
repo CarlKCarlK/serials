@@ -57,26 +57,35 @@ mod wifi_impl {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// # use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-    /// # let example = |stack: &'static embassy_net::Stack<'static>, spawner: embassy_executor::Spawner| async move {
-    /// // Create TimeSync with an existing network stack (often from WifiAuto)
-    /// static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
-    /// let time_sync = TimeSync::new(&TIME_SYNC_STATIC, stack, spawner);
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
+    /// # use panic_probe as _;
+    /// use embassy_executor::Spawner;
+    /// use embassy_net::Stack;
+    /// use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
     ///
-    /// // Wait for sync events
-    /// loop {
-    ///     match time_sync.wait().await {
-    ///         TimeSyncEvent::Success { unix_seconds } => {
-    ///             info!("Time synced: {} seconds", unix_seconds.as_i64());
-    ///         }
-    ///         TimeSyncEvent::Failed(message) => {
-    ///             info!("time sync failed: {message}. Will continue trying");
+    /// # #[allow(dead_code)]
+    /// async fn run_time_sync(
+    ///     stack: &'static Stack<'static>,
+    ///     spawner: Spawner,
+    /// ) {
+    ///     // Create TimeSync with an existing network stack (often from WifiAuto)
+    ///     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
+    ///     let time_sync = TimeSync::new(&TIME_SYNC_STATIC, stack, spawner);
+    ///
+    ///     // Wait for sync events
+    ///     loop {
+    ///         match time_sync.wait().await {
+    ///             TimeSyncEvent::Success { unix_seconds } => {
+    ///                 defmt::info!("Time synced: {} seconds", unix_seconds.as_i64());
+    ///             }
+    ///             TimeSyncEvent::Failed(message) => {
+    ///                 defmt::info!("time sync failed: {}. Will continue trying", message);
+    ///             }
     ///         }
     ///     }
     /// }
-    /// # };
-    /// # let _ = example;
     /// ```
     pub struct TimeSync {
         events: &'static TimeSyncEvents,

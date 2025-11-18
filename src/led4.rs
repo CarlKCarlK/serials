@@ -188,26 +188,29 @@ impl Led4<'_> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
+    /// # use panic_probe as _;
     /// # use embassy_rp::gpio::{Level, Output};
     /// # use embassy_executor::Spawner;
     /// # use serials::led4::{Led4, Led4Static, OutputArray, AnimationFrame, Led4Animation};
-    /// # async fn demo(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
+    /// # async fn demo(peripherals: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
     /// let cells = OutputArray::new([
-    ///     Output::new(p.PIN_1, Level::High),
-    ///     Output::new(p.PIN_2, Level::High),
-    ///     Output::new(p.PIN_3, Level::High),
-    ///     Output::new(p.PIN_4, Level::High),
+    ///     Output::new(peripherals.PIN_1, Level::High),
+    ///     Output::new(peripherals.PIN_2, Level::High),
+    ///     Output::new(peripherals.PIN_3, Level::High),
+    ///     Output::new(peripherals.PIN_4, Level::High),
     /// ]);
     /// let segments = OutputArray::new([
-    ///     Output::new(p.PIN_5, Level::Low),
-    ///     Output::new(p.PIN_6, Level::Low),
-    ///     Output::new(p.PIN_7, Level::Low),
-    ///     Output::new(p.PIN_8, Level::Low),
-    ///     Output::new(p.PIN_9, Level::Low),
-    ///     Output::new(p.PIN_10, Level::Low),
-    ///     Output::new(p.PIN_11, Level::Low),
-    ///     Output::new(p.PIN_12, Level::Low),
+    ///     Output::new(peripherals.PIN_5, Level::Low),
+    ///     Output::new(peripherals.PIN_6, Level::Low),
+    ///     Output::new(peripherals.PIN_7, Level::Low),
+    ///     Output::new(peripherals.PIN_8, Level::Low),
+    ///     Output::new(peripherals.PIN_9, Level::Low),
+    ///     Output::new(peripherals.PIN_10, Level::Low),
+    ///     Output::new(peripherals.PIN_11, Level::Low),
+    ///     Output::new(peripherals.PIN_12, Level::Low),
     /// ]);
     /// static LED4_STATIC: Led4Static = Led4::new_static();
     /// let display = Led4::new(&LED4_STATIC, cells, segments, spawner)?;
