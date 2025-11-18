@@ -132,7 +132,7 @@ pub type Led4Animation = Vec<AnimationFrame, ANIMATION_MAX_FRAMES>;
 ///
 ///     // Create the display
 ///     static LED4_STATIC: Led4Static = Led4::new_static();
-///     let display = Led4::new(cells, segments, &LED4_STATIC, spawner)?;
+///     let display = Led4::new(&LED4_STATIC, cells, segments, spawner)?;
 ///
 ///     // Display "1234" (solid)
 ///     display.write_text(BlinkState::Solid, ['1', '2', '3', '4']);
@@ -159,13 +159,13 @@ impl Led4<'_> {
     /// Creates the display device and spawns its background task; see [`Led4`] docs.
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
+        led4_static: &'static Led4Static,
         cell_pins: OutputArray<'static, CELL_COUNT>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-        led4_static: &'static Led4Static,
         spawner: Spawner,
     ) -> Result<Self> {
         let (outer_static, display_static) = led4_static;
-        let display = Led4Simple::new(cell_pins, segment_pins, display_static, spawner)?;
+        let display = Led4Simple::new(display_static, cell_pins, segment_pins, spawner)?;
         let token = device_loop(outer_static, display)?;
         spawner.spawn(token);
         Ok(Self(outer_static))
@@ -210,7 +210,7 @@ impl Led4<'_> {
     ///     Output::new(p.PIN_12, Level::Low),
     /// ]);
     /// static LED4_STATIC: Led4Static = Led4::new_static();
-    /// let display = Led4::new(cells, segments, &LED4_STATIC, spawner)?;
+    /// let display = Led4::new(&LED4_STATIC, cells, segments, spawner)?;
     /// let mut animation = Led4Animation::new();
     /// animation.push(AnimationFrame::new(['-', '-', '-', '-'], embassy_time::Duration::from_millis(100))).ok();
     /// animation.push(AnimationFrame::new([' ', ' ', ' ', ' '], embassy_time::Duration::from_millis(100))).ok();

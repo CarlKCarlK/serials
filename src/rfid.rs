@@ -50,6 +50,7 @@ impl Rfid<'_> {
     ///
     /// Note: Currently hardcoded to SPI0. All peripherals must have 'static lifetime.
     pub async fn new<Sck, Mosi, Miso, Dma0, Dma1, Cs, Rst>(
+        rfid_static: &'static RfidStatic,
         spi: Peri<'static, SPI0>,
         sck: Peri<'static, Sck>,
         mosi: Peri<'static, Mosi>,
@@ -58,7 +59,6 @@ impl Rfid<'_> {
         dma_ch1: Peri<'static, Dma1>,
         cs: Peri<'static, Cs>,
         rst: Peri<'static, Rst>,
-        rfid_static: &'static RfidStatic,
         spawner: Spawner,
     ) -> Result<Self>
     where

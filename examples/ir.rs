@@ -14,7 +14,7 @@ async fn main(spawner: Spawner) -> ! {
     info!("IR NEC decoder example starting...");
 
     static IR_STATIC: IrStatic = Ir::new_static();
-    let ir = Ir::new(p.PIN_15, &IR_STATIC, spawner)
+    let ir = Ir::new(&IR_STATIC, p.PIN_15, spawner)
         .unwrap_or_else(|e| panic!("Failed to initialize IR receiver: {:?}", e));
 
     info!("IR receiver initialized on GP15");

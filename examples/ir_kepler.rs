@@ -21,7 +21,7 @@ async fn inner_main(spawner: Spawner) -> serials::Result<!> {
     info!("Starting Kepler IR Remote Example");
 
     static IR_KEPLER_STATIC: IrKeplerStatic = IrKepler::new_static();
-    let ir_kepler = IrKepler::new(p.PIN_15, &IR_KEPLER_STATIC, spawner)?;
+    let ir_kepler = IrKepler::new(&IR_KEPLER_STATIC, p.PIN_15, spawner)?;
 
     info!("Kepler remote initialized on GPIO 15");
     info!("Press buttons on the remote control...");

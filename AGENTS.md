@@ -103,3 +103,18 @@ Rust convention:
 
 Getters: offset_minutes(), text() (no prefix)
 Setters: set_offset_minutes(), set_text() (with set_ prefix)
+
+## Static Device Pattern
+
+Many drivers expose a `new_static` constructor for resources plus a `new` constructor for the runtime handle. We call this the **Static Device Pattern** and use it consistently across the repo.
+
+- Always declare the static resources with `Type::new_static()` and name them `FOO_STATIC` when global.
+- When implementing or calling `Type::new`, pass `&TypeStatic` (or equivalent) as the **first** argument.
+- If `Spawner` is needed, place it as the **final** argument so everything else reads naturally between those bookends.
+
+Example:
+
+```rust
+static LED4_STATIC: Led4Static = Led4::new_static();
+let led4 = Led4::new(&LED4_STATIC, cells, segments, spawner)?;
+```

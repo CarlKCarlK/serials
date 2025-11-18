@@ -55,7 +55,7 @@ pub type Led4SimpleStatic = Signal<CriticalSectionRawMutex, BitMatrixLed4>;
 ///     ]);
 ///     
 ///     static LED4_SIMPLE_STATIC: Led4SimpleStatic = Led4Simple::new_static();
-///     let display = Led4Simple::new(cells, segments, &LED4_SIMPLE_STATIC, spawner)?;
+///     let display = Led4Simple::new(&LED4_SIMPLE_STATIC, cells, segments, spawner)?;
 ///     
 ///     // Display "1234"
 ///     display.write_text(['1', '2', '3', '4']);
@@ -82,9 +82,9 @@ impl Led4Simple<'_> {
     /// Returns an error if the task cannot be spawned.
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
+        led4_simple_static: &'static Led4SimpleStatic,
         cell_pins: OutputArray<'static, CELL_COUNT>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-        led4_simple_static: &'static Led4SimpleStatic,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
         let token = device_loop(cell_pins, segment_pins, led4_simple_static)?;

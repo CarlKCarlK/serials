@@ -41,10 +41,10 @@ impl CharLcd {
     /// Note: Hardcoded to I2C0 peripheral (like WiFi's internal pins).
     /// However, SCL and SDA can be any pins compatible with I2C0.
     pub fn new<SCL, SDA>(
+        char_lcd_static: &'static CharLcdStatic,
         i2c_peripheral: Peri<'static, I2C0>,
         scl: Peri<'static, SCL>,
         sda: Peri<'static, SDA>,
-        char_lcd_static: &'static CharLcdStatic,
         spawner: Spawner,
     ) -> Result<Self>
     where

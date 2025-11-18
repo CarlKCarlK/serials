@@ -59,14 +59,18 @@ impl ClockLed4<'_> {
     /// Create a new `ClockLed4` instance, which entails starting an Embassy task.
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
+        clock_led4_static: &'static ClockLed4Static,
         cell_pins: OutputArray<'static, CELL_COUNT>,
         segment_pins: OutputArray<'static, SEGMENT_COUNT>,
-        clock_led4_static: &'static ClockLed4Static,
-        spawner: Spawner,
         initial_utc_offset_minutes: i32,
+        spawner: Spawner,
     ) -> crate::Result<Self> {
-        let blinkable_display =
-            Led4::new(cell_pins, segment_pins, clock_led4_static.led(), spawner)?;
+        let blinkable_display = Led4::new(
+            clock_led4_static.led(),
+            cell_pins,
+            segment_pins,
+            spawner,
+        )?;
         let token = clock_led4_device_loop(
             clock_led4_static.commands(),
             blinkable_display,

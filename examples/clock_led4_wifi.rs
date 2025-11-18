@@ -66,11 +66,11 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     // cmk0 look at the clock docs
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
     let mut clock = Clock::new(
-        cells,                  // cell pins
-        segments,            // segment pins
         &CLOCK_STATIC,
+        cells,     // cell pins
+        segments,  // segment pins
+        0,         // initial UTC offset minutes
         spawner,
-        0,     // initial UTC offset minutes
     )?;
 
     // cmk0 think about the WifiAuto name

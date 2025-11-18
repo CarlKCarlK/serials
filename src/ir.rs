@@ -42,7 +42,7 @@ pub type IrStatic = EmbassyChannel<CriticalSectionRawMutex, IrEvent, 8>;
 /// # use serials::ir::{Ir, IrEvent};
 /// # async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
 /// static IR_STATIC: serials::ir::IrStatic = Ir::new_static();
-/// let ir = Ir::new(p.PIN_15, &IR_STATIC, spawner)?;
+/// let ir = Ir::new(&IR_STATIC, p.PIN_15, spawner)?;
 ///
 /// loop {
 ///     let event = ir.wait().await;
@@ -74,8 +74,8 @@ impl Ir<'_> {
     /// # Errors
     /// Returns an error if the background task cannot be spawned.
     pub fn new<P: Pin>(
-        pin: Peri<'static, P>,
         ir_static: &'static IrStatic,
+        pin: Peri<'static, P>,
         spawner: Spawner,
     ) -> Result<Self> {
         // Type erase to Peri<'static, AnyPin> (keep the Peri wrapper!)

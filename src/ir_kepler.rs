@@ -84,7 +84,7 @@ const KEPLER_MAPPING: [(u16, u8, KeplerButton); 21] = [
 /// # use serials::ir_kepler::{IrKepler, IrKeplerStatic};
 /// # async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
 /// static IR_KEPLER_STATIC: IrKeplerStatic = IrKepler::new_static();
-/// let ir_kepler = IrKepler::new(p.PIN_15, &IR_KEPLER_STATIC, spawner)?;
+/// let ir_kepler = IrKepler::new(&IR_KEPLER_STATIC, p.PIN_15, spawner)?;
 ///
 /// loop {
 ///     let button = ir_kepler.wait().await;
@@ -108,8 +108,8 @@ impl<'a> IrKepler<'a> {
     /// Create a new Kepler remote handler.
     ///
     /// # Parameters
-    /// - `pin`: GPIO pin connected to the IR receiver
     /// - `ir_kepler_static`: Static reference to the channel resources
+    /// - `pin`: GPIO pin connected to the IR receiver
     /// - `spawner`: Embassy spawner for background task
     ///
     /// See [`IrKepler`] for usage examples.
@@ -117,11 +117,11 @@ impl<'a> IrKepler<'a> {
     /// # Errors
     /// Returns an error if the background task cannot be spawned.
     pub fn new<P: Pin>(
-        pin: Peri<'static, P>,
         ir_kepler_static: &'static IrKeplerStatic,
+        pin: Peri<'static, P>,
         spawner: Spawner,
     ) -> Result<Self> {
-        let mapping = IrMapping::new(pin, &KEPLER_MAPPING, ir_kepler_static, spawner)?;
+        let mapping = IrMapping::new(ir_kepler_static, pin, &KEPLER_MAPPING, spawner)?;
         Ok(Self { mapping })
     }
 

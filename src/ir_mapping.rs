@@ -50,7 +50,7 @@ impl IrMappingStatic {
 /// ];
 ///
 /// static IR_MAPPING_STATIC: IrMappingStatic = IrMapping::<RemoteButton, 3>::new_static();
-/// let ir_mapping: IrMapping<RemoteButton, 3> = IrMapping::new(p.PIN_15, &button_map, &IR_MAPPING_STATIC, spawner)?;
+/// let ir_mapping: IrMapping<RemoteButton, 3> = IrMapping::new(&IR_MAPPING_STATIC, p.PIN_15, &button_map, spawner)?;
 ///
 /// loop {
 ///     let button = ir_mapping.wait().await;
@@ -78,9 +78,9 @@ where
     /// Create a new IR remote button mapper.
     ///
     /// # Parameters
+    /// - `ir_mapping_static`: Static reference to the channel resources
     /// - `pin`: GPIO pin connected to the IR receiver
     /// - `button_map`: Array mapping (address, command) pairs to button types
-    /// - `ir_mapping_static`: Static reference to the channel resources
     /// - `spawner`: Embassy spawner for background task
     ///
     /// See [`IrMapping`] for usage examples.
@@ -88,12 +88,12 @@ where
     /// # Errors
     /// Returns an error if the background task cannot be spawned.
     pub fn new<P: Pin>(
+        ir_mapping_static: &'static IrMappingStatic,
         pin: Peri<'static, P>,
         button_map: &[(u16, u8, B)],
-        ir_mapping_static: &'static IrMappingStatic,
         spawner: Spawner,
     ) -> Result<Self> {
-        let ir = Ir::new(pin, ir_mapping_static.inner(), spawner)?;
+        let ir = Ir::new(ir_mapping_static.inner(), pin, spawner)?;
 
         // Convert the flat array to a LinearMap
         let mut map = LinearMap::new();

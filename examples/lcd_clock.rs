@@ -36,7 +36,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     // Initialize CharLcd
     static CHAR_LCD_STATIC: CharLcdStatic = CharLcd::new_static();
-    let char_lcd = CharLcd::new(p.I2C0, p.PIN_5, p.PIN_4, &CHAR_LCD_STATIC, spawner)?;
+    let char_lcd = CharLcd::new(&CHAR_LCD_STATIC, p.I2C0, p.PIN_5, p.PIN_4, spawner)?;
 
     // Create Clock device (starts ticking immediately)
     const DEFAULT_UTC_OFFSET_MINUTES: i32 = 0;

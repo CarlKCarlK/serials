@@ -56,7 +56,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     ]);
 
     static LED4_STATIC: Led4Static = Led4::new_static();
-    let led4 = Led4::new(cells, segments, &LED4_STATIC, spawner)?;
+    let led4 = Led4::new(&LED4_STATIC, cells, segments, spawner)?;
 
     static FLASH_STATIC: FlashArrayStatic = FlashArray::<4>::new_static();
     let [
