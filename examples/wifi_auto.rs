@@ -111,7 +111,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                     led4_ref.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
                 }
 
-                WifiAutoEvent::ClientConnecting { try_index, .. } => {
+                WifiAutoEvent::Connecting { try_index, .. } => {
                     led4_ref.animate_text(circular_outline_animation((try_index & 1) == 0));
                 }
 

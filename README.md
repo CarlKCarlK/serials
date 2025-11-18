@@ -27,7 +27,7 @@ Complete demonstration integrating all peripherals:
 cargo full
 ```
 
-### LCD Clock (`examples/lcd_clock.rs`)
+### Clock LCD (`examples/clock_lcd.rs`)
 
 Pico W WiFi clock with automatic time sync:
 
@@ -37,7 +37,7 @@ Pico W WiFi clock with automatic time sync:
 - Keeps local time, syncs with internet hourly
 
 ```bash
-cargo lcd_clock
+cargo clock-lcd-w
 ```
 
 ### Wireless/NTP (`examples/wireless.rs`)
@@ -70,7 +70,7 @@ cargo ir
 - **GP15-19**: RFID MFRC522 (SPI0: CS, MISO, SCK, MOSI, RST)
 - **GP28**: IR receiver signal (pulled high, edge detection)
 
-### Pico W Additional (examples/wireless.rs, examples/lcd_clock.rs)
+### Pico W Additional (examples/wireless.rs, examples/clock_lcd.rs)
 
 - **GP23**: CYW43 power enable
 - **GP24**: CYW43 SPI data (via PIO)
@@ -109,15 +109,15 @@ cargo ir         # Run IR reader (--release)
 cargo flash      # Run flash example (--release)
 
 # Pico 1 with WiFi
-cargo full_w     # Run full demo with WiFi (--release)
-cargo lcd_clock_w # Run LCD clock (--release)
+cargo full-w        # Run full demo with WiFi (--release)
+cargo clock-lcd-w   # Run LCD clock (--release)
 
 # Pico 2 ARM
-cargo full_2     # Run full demo on Pico 2 (--release)
-cargo blinky_2   # Run blinky on Pico 2 (--release)
+cargo full-2        # Run full demo on Pico 2 (--release)
+cargo blinky-2      # Run blinky on Pico 2 (--release)
 
 # Pico 2 RISC-V (experimental)
-cargo blinky_2r  # Run blinky on Pico 2 RISC-V (--release)
+cargo blinky-2r     # Run blinky on Pico 2 RISC-V (--release)
 ```
 
 See `ARCHITECTURE.md` for detailed information about board and architecture features.

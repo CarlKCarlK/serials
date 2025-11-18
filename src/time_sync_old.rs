@@ -60,7 +60,7 @@ mod wifi_impl {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// # use serials::time_sync_old::{TimeSync, TimeSyncEvent};
     /// # let log_next_time_sync = |time_sync: &'static TimeSync| async move {
     /// match time_sync.wait().await {

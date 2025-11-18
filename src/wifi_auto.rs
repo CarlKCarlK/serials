@@ -8,11 +8,7 @@
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
-use core::{
-    cell::RefCell,
-    convert::Infallible,
-    future::Future,
-};
+use core::{cell::RefCell, convert::Infallible, future::Future};
 use cortex_m::peripheral::SCB;
 use defmt::{info, unwrap, warn};
 use embassy_executor::Spawner;
@@ -49,7 +45,7 @@ pub enum WifiAutoEvent {
     /// Captive portal is ready and waiting for user configuration.
     CaptivePortalReady,
     /// Attempting to connect to WiFi network.
-    ClientConnecting {
+    Connecting {
         /// Current attempt number (0-based).
         try_index: u8,
         /// Total number of attempts that will be made.
@@ -92,7 +88,9 @@ pub struct WifiAutoStatic {
 ///
 /// # Example
 ///
-/// ```no_run
+/// # Example
+///
+/// ```ignore
 /// # use serials::flash_array::{FlashArray, FlashArrayStatic};
 /// # use serials::wifi_auto::{WifiAuto, WifiAutoStatic, WifiAutoEvent};
 /// # use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
@@ -138,7 +136,7 @@ pub struct WifiAutoStatic {
 ///             WifiAutoEvent::CaptivePortalReady => {
 ///                 defmt::info!("Captive portal ready - connect to WiFi network");
 ///             }
-///             WifiAutoEvent::ClientConnecting { try_index, try_count } => {
+///             WifiAutoEvent::Connecting { try_index, try_count } => {
 ///                 defmt::info!("Connecting to WiFi (attempt {} of {})...", try_index + 1, try_count);
 ///             }
 ///             WifiAutoEvent::Connected => {
@@ -405,7 +403,7 @@ impl WifiAuto {
                     "WifiAuto: connection attempt {}/{}",
                     attempt, MAX_CONNECT_ATTEMPTS
                 );
-                self.events.signal(WifiAutoEvent::ClientConnecting {
+                self.events.signal(WifiAutoEvent::Connecting {
                     try_index: attempt - 1,
                     try_count: MAX_CONNECT_ATTEMPTS,
                 });

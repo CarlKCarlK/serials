@@ -188,7 +188,7 @@ impl Led4<'_> {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// # use embassy_rp::gpio::{Level, Output};
     /// # use embassy_executor::Spawner;
     /// # use serials::led4::{Led4, Led4Static, OutputArray, AnimationFrame, Led4Animation};

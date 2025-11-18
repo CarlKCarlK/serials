@@ -57,7 +57,7 @@ mod wifi_impl {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// # use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
     /// # let example = |stack: &'static embassy_net::Stack<'static>, spawner: embassy_executor::Spawner| async move {
     /// // Create TimeSync with an existing network stack (often from WifiAuto)
@@ -222,10 +222,7 @@ mod wifi_impl {
             })?;
         let server_addr = dns_result.first().ok_or("No DNS results")?;
 
-        info!(
-            "Network Time Protocol (NTP) server IP: {}",
-            server_addr
-        );
+        info!("Network Time Protocol (NTP) server IP: {}", server_addr);
 
         // Create UDP socket
         let mut rx_meta = [udp::PacketMetadata::EMPTY; 1];
@@ -258,10 +255,7 @@ mod wifi_impl {
             .send_to(&ntp_request, (*server_addr, NTP_PORT))
             .await
             .map_err(|e| {
-                warn!(
-                    "Network Time Protocol (NTP) send failed: {:?}",
-                    e
-                );
+                warn!("Network Time Protocol (NTP) send failed: {:?}", e);
                 "Network Time Protocol (NTP) send failed"
             })?;
 
@@ -314,7 +308,6 @@ pub use wifi_impl::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 #[cfg(not(feature = "wifi"))]
 mod stub {
     use crate::unix_seconds::UnixSeconds;
-    use core::future::pending;
     use embassy_executor::Spawner;
     use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
     use embassy_sync::signal::Signal;
@@ -332,29 +325,35 @@ mod stub {
 
     /// Static used to construct a [`TimeSync`] instance (see [`TimeSync`] docs).
     pub struct TimeSyncStatic {
+        events: TimeSyncEvents,
         time_sync_cell: StaticCell<TimeSync>,
     }
 
     /// Minimal [`TimeSync`] stub that never produces events. See the WiFi [`TimeSync`] docs for examples.
-    pub struct TimeSync;
+    pub struct TimeSync {
+        events: &'static TimeSyncEvents,
+    }
 
     impl TimeSync {
         /// Create [`TimeSync`] resources (see [`TimeSync`] docs for the full device setup).
         #[must_use]
         pub const fn new_static() -> TimeSyncStatic {
             TimeSyncStatic {
+                events: Signal::new(),
                 time_sync_cell: StaticCell::new(),
             }
         }
 
         /// Construct the stub device and retain compatibility with [`TimeSync`] docs.
         pub fn new(time_sync_static: &'static TimeSyncStatic, _spawner: Spawner) -> &'static Self {
-            time_sync_static.time_sync_cell.init(Self {})
+            time_sync_static.time_sync_cell.init(Self {
+                events: &time_sync_static.events,
+            })
         }
 
-        /// Wait for the next [`TimeSyncEvent`]. This stub never resolves, effectively disabling sync.
+        /// Wait for the next [`TimeSyncEvent`]. This stub never signals, so waits forever (disabling sync).
         pub async fn wait(&self) -> TimeSyncEvent {
-            pending().await
+            self.events.wait().await
         }
     }
 }

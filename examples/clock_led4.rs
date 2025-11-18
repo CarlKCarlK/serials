@@ -20,13 +20,13 @@ use serials::led4::{Led4, Led4Static};
 pub struct ClockLed4<'a> {
     commands: &'a ClockLed4OuterStatic,
     #[allow(dead_code)] // Used for atomic sharing with device loop
-    utc_offset_mirror: &'a AtomicI32,
+    offset_mirror: &'a AtomicI32,
 }
 /// Static type for the `ClockLed4` device abstraction.
 pub struct ClockLed4Static {
     commands: ClockLed4OuterStatic,
     led: Led4Static,
-    utc_offset_minutes: AtomicI32,
+    offset_minutes: AtomicI32,
 }
 /// Channel type for sending commands to the `ClockLed4` device.
 pub type ClockLed4OuterStatic = Channel<CriticalSectionRawMutex, ClockLed4Command, 4>;
@@ -37,7 +37,7 @@ impl ClockLed4Static {
         Self {
             commands: Channel::new(),
             led: Led4::new_static(),
-            utc_offset_minutes: AtomicI32::new(0),
+            offset_minutes: AtomicI32::new(0),
         }
     }
 
@@ -49,8 +49,8 @@ impl ClockLed4Static {
         &self.led
     }
 
-    fn utc_offset_mirror(&'static self) -> &'static AtomicI32 {
-        &self.utc_offset_minutes
+    fn offset_mirror(&'static self) -> &'static AtomicI32 {
+        &self.offset_minutes
     }
 }
 
@@ -65,12 +65,7 @@ impl ClockLed4<'_> {
         timezone_field: &'static serials::wifi_auto::fields::TimezoneField,
         spawner: Spawner,
     ) -> serials::Result<Self> {
-        let led4 = Led4::new(
-            clock_led4_static.led(),
-            cell_pins,
-            segment_pins,
-            spawner,
-        )?;
+        let led4 = Led4::new(clock_led4_static.led(), cell_pins, segment_pins, spawner)?;
         #[cfg(all(feature = "wifi", not(feature = "host")))]
         let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
         #[cfg(not(all(feature = "wifi", not(feature = "host"))))]
@@ -79,14 +74,14 @@ impl ClockLed4<'_> {
             clock_led4_static.commands(),
             led4,
             offset_minutes,
-            clock_led4_static.utc_offset_mirror(),
+            clock_led4_static.offset_mirror(),
             #[cfg(all(feature = "wifi", not(feature = "host")))]
             timezone_field,
         )?;
         spawner.spawn(token);
         Ok(Self {
             commands: clock_led4_static.commands(),
-            utc_offset_mirror: clock_led4_static.utc_offset_mirror(),
+            offset_mirror: clock_led4_static.offset_mirror(),
         })
     }
 
@@ -127,9 +122,9 @@ impl ClockLed4<'_> {
     }
 
     /// Adjust the UTC offset by the given number of hours.
-    pub async fn adjust_utc_offset_hours(&self, hours: i32) {
+    pub async fn adjust_offset_hours(&self, hours: i32) {
         self.commands
-            .send(ClockLed4Command::AdjustUtcOffsetHours(hours))
+            .send(ClockLed4Command::AdjustOffsetHours(hours))
             .await;
     }
 }
@@ -138,7 +133,7 @@ impl ClockLed4<'_> {
 pub enum ClockLed4Command {
     SetState(ClockLed4State),
     SetTimeFromUnix(serials::unix_seconds::UnixSeconds),
-    AdjustUtcOffsetHours(i32),
+    AdjustOffsetHours(i32),
 }
 
 impl ClockLed4Command {
@@ -154,8 +149,8 @@ impl ClockLed4Command {
             Self::SetState(new_clock_mode) => {
                 *clock_state = new_clock_mode;
             }
-            Self::AdjustUtcOffsetHours(hours) => {
-                clock_time.adjust_utc_offset_hours(hours);
+            Self::AdjustOffsetHours(hours) => {
+                clock_time.adjust_offset_hours(hours);
             }
         }
     }
@@ -165,15 +160,15 @@ impl ClockLed4Command {
 async fn clock_led4_device_loop(
     clock_commands: &'static ClockLed4OuterStatic,
     blinker: Led4<'static>,
-    initial_utc_offset_minutes: i32,
-    utc_offset_mirror: &'static AtomicI32,
+    initial_offset_minutes: i32,
+    offset_mirror: &'static AtomicI32,
     #[cfg(all(feature = "wifi", not(feature = "host")))]
     timezone_field: &'static serials::wifi_auto::fields::TimezoneField,
 ) -> ! {
-    let mut clock_time = ClockTime::new(initial_utc_offset_minutes, utc_offset_mirror);
+    let mut clock_time = ClockTime::new(initial_offset_minutes, offset_mirror);
     let mut clock_state = ClockLed4State::default();
     #[cfg(all(feature = "wifi", not(feature = "host")))]
-    let mut persisted_offset_minutes = initial_utc_offset_minutes;
+    let mut persisted_offset_minutes = initial_offset_minutes;
 
     loop {
         let (blink_mode, text, sleep_duration) = clock_state.render(&clock_time);
@@ -190,7 +185,7 @@ async fn clock_led4_device_loop(
         // Save timezone offset to flash when it changes.
         #[cfg(all(feature = "wifi", not(feature = "host")))]
         {
-            let current_offset_minutes = utc_offset_mirror.load(Ordering::Relaxed);
+            let current_offset_minutes = offset_mirror.load(Ordering::Relaxed);
             if current_offset_minutes != persisted_offset_minutes {
                 let _ = timezone_field.set_offset_minutes(current_offset_minutes);
                 persisted_offset_minutes = current_offset_minutes;

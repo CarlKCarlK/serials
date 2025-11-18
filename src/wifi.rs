@@ -35,7 +35,6 @@
 //!     p.PIN_29,
 //!     p.DMA_CH0,
 //!     wifi_block,
-//!     serials::wifi::DEFAULT_CAPTIVE_PORTAL_SSID,
 //!     spawner,
 //! );
 //!
@@ -76,7 +75,6 @@
 //!     p.PIN_29,
 //!     p.DMA_CH0,
 //!     wifi_block,
-//!     serials::wifi::DEFAULT_CAPTIVE_PORTAL_SSID,
 //!     spawner,
 //! );
 //!

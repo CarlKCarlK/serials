@@ -109,12 +109,10 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     info!("LCD initialized");
 
-    const DEFAULT_UTC_OFFSET_MINUTES: i32 = 0;
+    const DEFAULT_offset_MINUTES: i32 = 0;
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
     let clock = Clock::new(&CLOCK_STATIC, spawner);
-    clock
-        .set_utc_offset_minutes(DEFAULT_UTC_OFFSET_MINUTES)
-        .await;
+    clock.set_offset_minutes(DEFAULT_offset_MINUTES).await;
 
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
     #[cfg(feature = "wifi")]

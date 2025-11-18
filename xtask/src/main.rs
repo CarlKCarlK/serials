@@ -29,7 +29,7 @@ enum Commands {
     },
     /// Build an example
     Example {
-        /// Example name (e.g., blinky, lcd_clock)
+        /// Example name (e.g., blinky, clock_lcd)
         name: String,
         #[arg(long, default_value = "pico1")]
         board: Board,
@@ -40,7 +40,7 @@ enum Commands {
     },
     /// Build UF2 firmware file for flashing to Pico
     Uf2 {
-        /// Example name (e.g., blinky, lcd_clock)
+        /// Example name (e.g., blinky, clock_lcd)
         name: String,
         #[arg(long, default_value = "pico1")]
         board: Board,
@@ -141,13 +141,7 @@ fn check_all() -> ExitCode {
         "\n{}",
         "==> Building examples (pico2, arm, no wifi)...".cyan()
     );
-    let examples_no_wifi = [
-        "blinky",
-        "ir",
-        "led_strip",
-        "led_strip_snake",
-        "led24x4_clock",
-    ];
+    let examples_no_wifi = ["blinky", "ir", "led_strip", "led_strip_snake", "clock_led24x4"];
     for example in &examples_no_wifi {
         println!("  {}", format!("- {example}").bright_black());
         if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
@@ -168,7 +162,7 @@ fn check_all() -> ExitCode {
         "\n{}",
         "==> Building examples (pico2, arm, with wifi)...".cyan()
     );
-    let examples_wifi = ["clock_led4_wifi", "lcd_clock", "log_time"];
+    let examples_wifi = ["clock_led4_wifi", "clock_lcd", "clock_console"];
     for example in &examples_wifi {
         println!("  {}", format!("- {example}").bright_black());
         if !run_command(Command::new("cargo").current_dir(&workspace_root).args([

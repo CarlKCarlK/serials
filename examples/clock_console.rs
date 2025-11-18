@@ -9,7 +9,6 @@
 #![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
-use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
@@ -19,6 +18,7 @@ use serials::Result;
 use serials::clock::{Clock, ClockStatic};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+use serials::wifi_auto::WifiAutoEvent;
 use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
 
@@ -54,7 +54,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         p.PIN_29,  // CYW43 data pin
         p.DMA_CH0, // CYW43 DMA channel
         wifi_credentials_flash_block,
-        p.PIN_13,  // Reset button pin
+        p.PIN_13, // Reset button pin
         "PicoClock",
         [timezone_field],
         spawner,
@@ -62,18 +62,37 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
     // Connect to WiFi
     let (stack, _button) = wifi_auto
-        .connect(spawner, |_event| async move {})
+        .connect(spawner, |event| async move {
+            match event {
+                WifiAutoEvent::CaptivePortalReady => {
+                    info!("Captive portal ready - connect to WiFi network");
+                }
+                WifiAutoEvent::Connecting {
+                    try_index,
+                    try_count,
+                } => {
+                    info!(
+                        "Connecting to WiFi (attempt {} of {})...",
+                        try_index + 1,
+                        try_count
+                    );
+                }
+                WifiAutoEvent::Connected => {
+                    info!("WiFi connected successfully!");
+                }
+            }
+        })
         .await?;
+
+    // Create TimeSync with network stack
+    static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
+    let time_sync = TimeSync::new(&TIME_SYNC_STATIC, stack, spawner);
 
     // Create Clock device with timezone from WiFi portal
     let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
     let clock = Clock::new(&CLOCK_STATIC, spawner);
-    clock.set_utc_offset_minutes(timezone_offset_minutes).await;
-
-    // Create TimeSync with network stack
-    static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
-    let time_sync = TimeSync::new(&TIME_SYNC_STATIC, stack, spawner);
+    clock.set_offset_minutes(timezone_offset_minutes).await;
 
     info!("WiFi connected, entering event loop");
 

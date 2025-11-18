@@ -6,7 +6,6 @@
 #![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
-use core::convert::Infallible;
 use defmt::*;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
@@ -62,22 +61,20 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         p.PIN_29,  // CYW43 data pin
         p.DMA_CH0, // CYW43 DMA channel
         wifi_credentials_flash_block,
-        p.PIN_13,  // Reset button pin
+        p.PIN_13, // Reset button pin
         "PicoClock",
         [timezone_field],
         spawner,
     )?;
 
     // Connect to WiFi
-    let (stack, _button) = wifi_auto
-        .connect(spawner, |_event| async move {})
-        .await?;
+    let (stack, _button) = wifi_auto.connect(spawner, |_event| async move {}).await?;
 
     // Create Clock device with timezone from WiFi portal
     let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
     let clock = Clock::new(&CLOCK_STATIC, spawner);
-    clock.set_utc_offset_minutes(timezone_offset_minutes).await;
+    clock.set_offset_minutes(timezone_offset_minutes).await;
 
     // Create TimeSync with network stack
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();

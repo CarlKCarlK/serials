@@ -15,9 +15,9 @@ use embassy_time::{Duration, Instant};
 pub enum ClockLed4State {
     #[default]
     HoursMinutes,
-    ClientConnecting,
+    Connecting,
     MinutesSeconds,
-    EditUtcOffset,
+    EditOffset,
     CaptivePortalReady,
 }
 
@@ -31,9 +31,9 @@ impl ClockLed4State {
     ) -> Self {
         match self {
             Self::HoursMinutes => self.execute_hours_minutes(clock, button, time_sync).await,
-            Self::ClientConnecting => self.execute_connecting(clock, time_sync).await,
+            Self::Connecting => self.execute_connecting(clock, time_sync).await,
             Self::MinutesSeconds => self.execute_minutes_seconds(clock, button, time_sync).await,
-            Self::EditUtcOffset => self.execute_edit_utc_offset(clock, button).await,
+            Self::EditOffset => self.execute_edit_offset(clock, button).await,
             Self::CaptivePortalReady => self.execute_captive_portal_setup(clock, time_sync).await,
         }
     }
@@ -42,9 +42,9 @@ impl ClockLed4State {
     pub fn render(self, clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         match self {
             Self::HoursMinutes => Self::render_hours_minutes(clock_time),
-            Self::ClientConnecting => Self::render_connecting(clock_time),
+            Self::Connecting => Self::render_connecting(clock_time),
             Self::MinutesSeconds => Self::render_minutes_seconds(clock_time),
-            Self::EditUtcOffset => Self::render_edit_utc_offset(clock_time),
+            Self::EditOffset => Self::render_edit_offset(clock_time),
             Self::CaptivePortalReady => Self::render_captive_portal_setup(),
         }
     }
@@ -91,7 +91,7 @@ impl ClockLed4State {
         clock.set_state(self).await;
         match select(button.press_duration(), time_sync.wait()).await {
             Either::First(PressDuration::Short) => Self::MinutesSeconds,
-            Either::First(PressDuration::Long) => Self::EditUtcOffset,
+            Either::First(PressDuration::Long) => Self::EditOffset,
             Either::Second(event) => {
                 Self::handle_time_sync_event(clock, event).await;
                 self
@@ -108,7 +108,7 @@ impl ClockLed4State {
         clock.set_state(self).await;
         match select(button.press_duration(), time_sync.wait()).await {
             Either::First(PressDuration::Short) => Self::HoursMinutes,
-            Either::First(PressDuration::Long) => Self::EditUtcOffset,
+            Either::First(PressDuration::Long) => Self::EditOffset,
             Either::Second(event) => {
                 Self::handle_time_sync_event(clock, event).await;
                 self
@@ -116,13 +116,13 @@ impl ClockLed4State {
         }
     }
 
-    async fn execute_edit_utc_offset(self, clock: &Clock<'_>, button: &mut Button<'_>) -> Self {
+    async fn execute_edit_offset(self, clock: &Clock<'_>, button: &mut Button<'_>) -> Self {
         clock.set_state(self).await;
         match button.press_duration().await {
             PressDuration::Short => {
-                clock.adjust_utc_offset_hours(1).await;
-                clock.set_state(Self::EditUtcOffset).await;
-                Self::EditUtcOffset
+                clock.adjust_offset_hours(1).await;
+                clock.set_state(Self::EditOffset).await;
+                Self::EditOffset
             }
             PressDuration::Long => Self::HoursMinutes,
         }
@@ -222,7 +222,7 @@ impl ClockLed4State {
         )
     }
 
-    fn render_edit_utc_offset(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
+    fn render_edit_offset(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         let (hours, minutes, _, _) = clock_time.h_m_s_sleep_duration(ONE_MINUTE);
         (
             BlinkState::BlinkingAndOn,

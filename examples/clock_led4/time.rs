@@ -30,21 +30,21 @@ pub const TICKS_IN_ONE_DAY: u64 = ONE_DAY.as_ticks();
 
 pub struct ClockTime {
     offset: Duration,
-    utc_offset_minutes: i32,
-    utc_offset_mirror: &'static AtomicI32,
+    offset_minutes: i32,
+    offset_mirror: &'static AtomicI32,
 }
 
 impl ClockTime {
     pub(crate) fn new(
-        initial_utc_offset_minutes: i32,
-        utc_offset_mirror: &'static AtomicI32,
+        initial_offset_minutes: i32,
+        offset_mirror: &'static AtomicI32,
     ) -> Self {
         info!("Now: {:?}", Instant::now());
-        utc_offset_mirror.store(initial_utc_offset_minutes, Ordering::Relaxed);
+        offset_mirror.store(initial_offset_minutes, Ordering::Relaxed);
         Self {
             offset: Duration::from_millis(12 * 3600 * 1000),
-            utc_offset_minutes: initial_utc_offset_minutes,
-            utc_offset_mirror,
+            offset_minutes: initial_offset_minutes,
+            offset_mirror,
         }
     }
 
@@ -54,7 +54,7 @@ impl ClockTime {
         reason = "Modulo operations prevent overflow"
     )]
     pub fn set_from_unix(&mut self, unix_seconds: UnixSeconds) {
-        let local_seconds = unix_seconds.as_i64() + i64::from(self.utc_offset_minutes) * 60;
+        let local_seconds = unix_seconds.as_i64() + i64::from(self.offset_minutes) * 60;
         let seconds_since_midnight = (local_seconds % 86400) as u64;
         let millis_since_midnight = seconds_since_midnight * 1000;
 
@@ -124,16 +124,16 @@ impl ClockTime {
         reason = "Division converts minutes to hours"
     )]
     #[must_use]
-    pub fn utc_offset_hours(&self) -> i32 {
-        if self.utc_offset_minutes >= 0 {
-            (self.utc_offset_minutes + 30) / 60
+    pub fn offset_hours(&self) -> i32 {
+        if self.offset_minutes >= 0 {
+            (self.offset_minutes + 30) / 60
         } else {
-            (self.utc_offset_minutes - 30) / 60
+            (self.offset_minutes - 30) / 60
         }
     }
 
-    pub fn adjust_utc_offset_hours(&mut self, hours: i32) {
-        let current_offset_hours = self.utc_offset_hours();
+    pub fn adjust_offset_hours(&mut self, hours: i32) {
+        let current_offset_hours = self.offset_hours();
         let new_offset_hours = current_offset_hours + hours;
         let wrapped = ((new_offset_hours + 12) % 27 + 27) % 27 - 12;
         let delta_hours = wrapped - current_offset_hours;
@@ -144,9 +144,9 @@ impl ClockTime {
             self.offset -= Duration::from_secs(((-delta_hours) * 3600) as u64);
         }
 
-        self.utc_offset_minutes = wrapped * 60;
-        self.utc_offset_mirror
-            .store(self.utc_offset_minutes, Ordering::Relaxed);
+        self.offset_minutes = wrapped * 60;
+        self.offset_mirror
+            .store(self.offset_minutes, Ordering::Relaxed);
         info!(
             "Adjusted UTC offset from {} to {} hours (delta: {} hours)",
             current_offset_hours, wrapped, delta_hours

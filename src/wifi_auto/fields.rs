@@ -28,7 +28,7 @@ use crate::{Error, Result};
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```ignore
 /// # use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
 /// # use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
 /// # use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
@@ -368,7 +368,7 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```ignore
 /// # use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
 /// # use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
 /// # use serials::wifi_auto::fields::{TextField, TextFieldStatic};

@@ -107,9 +107,9 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
                     }
                     // cmk0 the Connecting does the animation itself. Shouldn't it just use led4's animation_text method?
                     // cmk0 can/should we move the circular animations into led4?
-                    WifiAutoEvent::ClientConnecting { .. } => {
+                    WifiAutoEvent::Connecting { .. } => {
                         clock_led4_ref
-                            .set_state(ClockLed4State::ClientConnecting)
+                            .set_state(ClockLed4State::Connecting)
                             .await;
                     }
                     WifiAutoEvent::Connected => {

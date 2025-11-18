@@ -44,7 +44,7 @@ pub enum ClockCommand {
     /// Set the current time from Unix timestamp.
     SetTime { unix_seconds: UnixSeconds },
     /// Update the UTC offset (in minutes).
-    SetUtcOffset { minutes: i32 },
+    SetOffset { minutes: i32 },
 }
 
 // ============================================================================
@@ -101,9 +101,9 @@ impl Clock {
     }
 
     /// Update the UTC offset used for subsequent ticks.
-    pub async fn set_utc_offset_minutes(&self, minutes: i32) {
+    pub async fn set_offset_minutes(&self, minutes: i32) {
         self.commands
-            .send(ClockCommand::SetUtcOffset { minutes })
+            .send(ClockCommand::SetOffset { minutes })
             .await;
     }
 
@@ -173,7 +173,7 @@ async fn clock_device_loop(resources: &'static ClockStatic) -> ! {
 
 async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infallible> {
     let mut offset_minutes: i32 = 0;
-    let mut utc_offset = UtcOffset::UTC;
+    let mut offset = UtcOffset::UTC;
 
     info!(
         "Clock device started (UTC offset: {} minutes)",
@@ -208,7 +208,7 @@ async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infa
                     let unix_seconds =
                         UnixSeconds(base_unix_seconds.as_i64().saturating_add(elapsed as i64));
                     current_time = unix_seconds
-                        .to_offset_datetime(utc_offset)
+                        .to_offset_datetime(offset)
                         .expect("valid offset datetime");
                 } else {
                     // Fallback for "Time not set" - simple increment
@@ -228,7 +228,7 @@ async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infa
 
                         // Update current time
                         current_time = unix_seconds
-                            .to_offset_datetime(utc_offset)
+                            .to_offset_datetime(offset)
                             .expect("valid offset datetime");
 
                         info!(
@@ -244,17 +244,17 @@ async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infa
                         };
                         resources.events.signal(time_info);
                     }
-                    ClockCommand::SetUtcOffset { minutes } => {
+                    ClockCommand::SetOffset { minutes } => {
                         offset_minutes = minutes;
                         #[expect(clippy::arithmetic_side_effects, reason = "offset bounds checked")]
                         {
-                            utc_offset = UtcOffset::from_whole_seconds(offset_minutes * 60)
+                            offset = UtcOffset::from_whole_seconds(offset_minutes * 60)
                                 .unwrap_or(UtcOffset::UTC);
                         }
 
                         if let Some(anchor) = base_unix_seconds {
                             current_time = anchor
-                                .to_offset_datetime(utc_offset)
+                                .to_offset_datetime(offset)
                                 .expect("valid offset datetime");
                         }
 
