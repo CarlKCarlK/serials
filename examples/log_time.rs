@@ -1,12 +1,12 @@
 //! Log Time - WiFi Configuration and NTP Time Synchronization
 //!
 //! This example demonstrates a complete WiFi configuration workflow:
-//! 1. Starts in AP mode for WiFi credential collection
-//! 2. User connects to "PicoClock" AP and enters their WiFi credentials via web interface
+//! 1. Starts in captive portal mode for WiFi credential collection
+//! 2. User connects to the "PicoClock" captive portal and enters their WiFi credentials via web interface
 //! 3. Switches to client mode and connects to the configured network
 //! 4. Syncs time with NTP server and logs time events
 //!
-//! NOTE: This example requires device restart to switch from AP to client mode.
+//! NOTE: This example requires device restart to switch from captive portal to client mode.
 //! A future version may support runtime mode switching.
 //!
 //! Run with:
@@ -100,19 +100,19 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     // Determine if we need to run captive portal or connect directly
     if !time_sync.wifi().has_persisted_credentials() {
-        info!("No stored WiFi credentials - starting configuration access point");
-        info!("Starting WiFi in AP mode for configuration...");
-        info!("WiFi AP mode - starting HTTP configuration server...");
+        info!("No stored WiFi credentials - starting captive portal configuration");
+        info!("Starting WiFi in captive portal mode for configuration...");
+        info!("WiFi captive portal mode - starting HTTP configuration server...");
 
         // Wait for WiFi stack to be ready
         time_sync.wifi().wait().await;
         let stack = time_sync.wifi().stack().await;
-        info!("Network stack available for AP mode");
+        info!("Network stack available for captive portal mode");
 
         // Spawn DNS server for captive portal detection
         // This makes Android/iOS show "Sign in to network" notification
-        let ap_ip = Ipv4Address::new(192, 168, 4, 1);
-        let dns_token = unwrap!(dns_server_task(stack, ap_ip));
+        let captive_portal_ip = Ipv4Address::new(192, 168, 4, 1);
+        let dns_token = unwrap!(dns_server_task(stack, captive_portal_ip));
         spawner.spawn(dns_token);
         info!("DNS server started - captive portal detection enabled");
 

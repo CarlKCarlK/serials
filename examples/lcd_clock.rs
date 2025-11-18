@@ -61,7 +61,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
             p.PIN_29,   // WiFi SPI CLK
             p.DMA_CH0,  // WiFi DMA channel for SPI
             wifi_block, // Flash partition for WiFi credentials
-            serials::wifi::DEFAULT_AP_SSID,
+            serials::wifi::DEFAULT_CAPTIVE_PORTAL_SSID,
             spawner,
         )
     };

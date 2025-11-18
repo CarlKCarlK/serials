@@ -36,12 +36,11 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
     // Initialize flash storage: Wi-Fi credentials + timezone
     static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
-    // cmk0 should this be *_flash_block?
-    let [wifi_credentials_flash, timezone_flash] =
+    let [wifi_credentials_flash_block, timezone_flash_block] =
         FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
 
     static TIMEZONE_FIELD_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
-    let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash);
+    let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
 
     // Initialize LED4 display pins.
     let cells = OutputArray::new([
@@ -62,6 +61,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         gpio::Output::new(peripherals.PIN_12, Level::Low),
     ]);
 
+    // cmk0 How come clock returns clockLed4????
     // cmk0 look at order of inputs
     // cmk0 kill "initial_utc". Do we even want this input?
     // cmk0 look at the clock docs
@@ -75,7 +75,6 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     )?;
 
     // cmk0 think about the WifiAuto name
-    // cmk0 is it "credential_store" or "wifi_credentials_flash"?
     static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
     let wifi_auto = WifiAuto::new(
         &WIFI_AUTO_STATIC,
@@ -85,10 +84,10 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         peripherals.PIN_24,     // CYW43 clock
         peripherals.PIN_29,     // CYW43 data pin
         peripherals.DMA_CH0,    // CYW43 DMA channel
-        wifi_credentials_flash, // Flash block storing Wi-Fi creds
+        wifi_credentials_flash_block,
         peripherals.PIN_13,     // Reset button pin
-        "PicoClock",        // Captive-portal SSID
-        [timezone_field],
+        "PicoClock",   // Captive-portal SSID
+        [timezone_field],    // Custom fields to ask for
         spawner,
     )?;
 

@@ -143,7 +143,7 @@ have multiple USB entries, set `PROBEUSB_PATTERN` to part of the device name.
 ## Configuration
 
 WiFi credentials and timezone offset are provisioned on-device. When the Pico W
-boots without stored settings it automatically starts in access-point mode
+boots without stored settings it automatically starts in captive-portal mode
 (`PicoClock`) and hosts a captive portal at `http://192.168.4.1`. Use that page
 to enter your SSID, password, and UTC offset in minutes. The submission is saved
 to flash (blocks 0/1) and the device reboots into client mode. Clear those flash

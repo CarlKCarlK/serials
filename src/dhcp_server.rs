@@ -1,6 +1,6 @@
-//! Simple DHCP server for AP mode
+//! Simple DHCP server for captive portal mode
 //!
-//! Provides IP address leases to clients connecting to the WiFi Access Point.
+//! Provides IP address leases to clients connecting to the WiFi captive portal.
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 

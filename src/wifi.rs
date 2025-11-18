@@ -1,9 +1,9 @@
-//! WiFi device abstraction supporting both access point and client modes.
+//! WiFi device abstraction supporting both captive portal and client modes.
 //!
 //! This module provides a high-level interface for managing WiFi connectivity on the
 //! Raspberry Pi Pico W. It supports two main operating modes:
 //!
-//! - **Access Point (AP) mode**: Creates a WiFi hotspot for device configuration
+//! - **Captive portal mode**: Creates a WiFi hotspot for device configuration
 //! - **Client mode**: Connects to an existing WiFi network
 //!
 //! # Examples
@@ -25,7 +25,7 @@
 //! static FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
 //! let [wifi_block] = FlashArray::new(&FLASH_STATIC, p.FLASH).unwrap();
 //!
-//! // Start in AP mode for user configuration
+//! // Start in captive portal mode for user configuration
 //! let wifi = Wifi::new(
 //!     &WIFI_STATIC,
 //!     p.PIN_23,
@@ -35,11 +35,11 @@
 //!     p.PIN_29,
 //!     p.DMA_CH0,
 //!     wifi_block,
-//!     serials::wifi::DEFAULT_AP_SSID,
+//!     serials::wifi::DEFAULT_CAPTIVE_PORTAL_SSID,
 //!     spawner,
 //! );
 //!
-//! // Wait for AP to be ready
+//! // Wait for the captive portal to be ready
 //! wifi.wait().await;
 //!
 //! // Get network stack for serving configuration interface
@@ -76,7 +76,7 @@
 //!     p.PIN_29,
 //!     p.DMA_CH0,
 //!     wifi_block,
-//!     serials::wifi::DEFAULT_AP_SSID,
+//!     serials::wifi::DEFAULT_CAPTIVE_PORTAL_SSID,
 //!     spawner,
 //! );
 //!
@@ -112,7 +112,7 @@ use crate::dhcp_server::dhcp_server_task;
 use crate::flash_array::FlashBlock;
 use crate::wifi_config::WifiCredentials;
 
-pub const DEFAULT_AP_SSID: &str = "Pico";
+pub const DEFAULT_CAPTIVE_PORTAL_SSID: &str = "Pico";
 
 // ============================================================================
 // Types
@@ -120,15 +120,15 @@ pub const DEFAULT_AP_SSID: &str = "Pico";
 
 /// Events emitted by the WiFi device.
 pub enum WifiEvent {
-    /// Network stack is initialized in AP mode, ready for configuration
-    ApReady,
+    /// Network stack is initialized in captive portal mode, ready for configuration
+    CaptivePortalReady,
     /// Network stack is initialized in client mode and DHCP is configured
     ClientReady,
 }
 
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub enum WifiStartMode {
-    AccessPoint,
+    CaptivePortal,
     Client,
 }
 
@@ -142,7 +142,7 @@ impl Default for WifiStoredState {
     fn default() -> Self {
         Self {
             credentials: None,
-            start_mode: WifiStartMode::AccessPoint,
+            start_mode: WifiStartMode::CaptivePortal,
         }
     }
 }
@@ -150,8 +150,8 @@ impl Default for WifiStoredState {
 /// Internal WiFi operating mode used during startup.
 #[derive(Clone, PartialEq, Eq)]
 enum WifiMode {
-    /// Start in AP mode for configuration (no credentials needed)
-    AccessPoint,
+    /// Start in captive portal mode for configuration (no credentials needed)
+    CaptivePortal,
     /// Connect to WiFi network using provisioned credentials
     ClientConfigured(WifiCredentials),
 }
@@ -213,7 +213,7 @@ pub struct WifiStatic {
     wifi_cell: StaticCell<Wifi>,
 }
 
-/// A device abstraction that manages WiFi connectivity and network stack in both AP and client modes.
+/// A device abstraction that manages WiFi connectivity and network stack in both captive portal and client modes.
 ///
 /// See the [module-level documentation](crate::wifi) for usage examples.
 pub struct Wifi {
@@ -241,7 +241,7 @@ impl Wifi {
     ///
     /// This provides access to the Embassy network stack for TCP/UDP operations.
     /// The stack will be configured differently depending on the WiFi mode:
-    /// - In AP mode: static IP 192.168.4.1
+    /// - In captive portal mode: static IP 192.168.4.1
     /// - In client mode: DHCP-assigned IP
     ///
     /// See the [module-level documentation](crate::wifi) for usage examples.
@@ -252,7 +252,7 @@ impl Wifi {
     /// Wait for and return the next WiFi event.
     ///
     /// This will block until the next [`WifiEvent`] occurs, such as:
-    /// - [`WifiEvent::ApReady`] when access point mode is initialized
+    /// - [`WifiEvent::CaptivePortalReady`] when captive portal mode is initialized
     /// - [`WifiEvent::ClientReady`] when connected to WiFi and DHCP is configured
     ///
     /// See the [module-level documentation](crate::wifi) for usage examples.
@@ -289,7 +289,7 @@ impl Wifi {
         credential_store: FlashBlock,
         spawner: Spawner,
     ) -> &'static Self {
-        Self::new_with_ap_ssid(
+        Self::new_with_captive_portal_ssid(
             wifi_static,
             pin_23,
             pin_25,
@@ -298,12 +298,12 @@ impl Wifi {
             pin_29,
             dma_ch0,
             credential_store,
-            DEFAULT_AP_SSID,
+            DEFAULT_CAPTIVE_PORTAL_SSID,
             spawner,
         )
     }
 
-    pub fn new_with_ap_ssid(
+    pub fn new_with_captive_portal_ssid(
         wifi_static: &'static WifiStatic,
         pin_23: Peri<'static, PIN_23>,
         pin_25: Peri<'static, PIN_25>,
@@ -312,18 +312,18 @@ impl Wifi {
         pin_29: Peri<'static, PIN_29>,
         dma_ch0: Peri<'static, DMA_CH0>,
         credential_store: FlashBlock,
-        ap_ssid: &'static str,
+        captive_portal_ssid: &'static str,
         spawner: Spawner,
     ) -> &'static Self {
         let mut store_block = credential_store;
         let stored_state = load_state_from_block(&mut store_block);
         let mode = match stored_state.start_mode {
-            WifiStartMode::AccessPoint => WifiMode::AccessPoint,
+            WifiStartMode::CaptivePortal => WifiMode::CaptivePortal,
             WifiStartMode::Client => {
                 if let Some(creds) = stored_state.credentials.clone() {
                     WifiMode::ClientConfigured(creds)
                 } else {
-                    WifiMode::AccessPoint
+                    WifiMode::CaptivePortal
                 }
             }
         };
@@ -335,7 +335,7 @@ impl Wifi {
             pin_29,
             dma_ch0,
             mode,
-            ap_ssid,
+            captive_portal_ssid,
             &wifi_static.events,
             &wifi_static.stack,
             spawner,
@@ -349,7 +349,7 @@ impl Wifi {
     }
 
     /// Reconfigure WiFi to client mode with provided credentials
-    /// This is called after collecting credentials in AP mode
+    /// This is called after collecting credentials in captive portal mode
     pub async fn switch_to_client_mode(
         &self,
         credentials: WifiCredentials,
@@ -393,7 +393,7 @@ impl Wifi {
     pub fn clear_persisted_credentials(&self) -> Result<(), &'static str> {
         self.update_state(|state| {
             state.credentials = None;
-            state.start_mode = WifiStartMode::AccessPoint;
+            state.start_mode = WifiStartMode::CaptivePortal;
         })
     }
 
@@ -476,21 +476,21 @@ async fn wifi_device_loop(
     pin_29: Peri<'static, PIN_29>,
     dma_ch0: Peri<'static, DMA_CH0>,
     mode: WifiMode,
-    ap_ssid: &'static str,
+    captive_portal_ssid: &'static str,
     wifi_events: &'static WifiEvents,
     stack_storage: &'static StackStorage,
     spawner: Spawner,
 ) -> ! {
     match mode {
-        WifiMode::AccessPoint => {
-            wifi_device_loop_ap(
+        WifiMode::CaptivePortal => {
+            wifi_device_loop_captive_portal(
                 pin_23,
                 pin_25,
                 pio0,
                 pin_24,
                 pin_29,
                 dma_ch0,
-                ap_ssid,
+                captive_portal_ssid,
                 wifi_events,
                 stack_storage,
                 spawner,
@@ -515,20 +515,23 @@ async fn wifi_device_loop(
     }
 }
 
-/// WiFi device loop for AP mode
-async fn wifi_device_loop_ap(
+/// WiFi device loop for captive portal mode
+async fn wifi_device_loop_captive_portal(
     pin_23: Peri<'static, PIN_23>,
     pin_25: Peri<'static, PIN_25>,
     pio0: Peri<'static, PIO0>,
     pin_24: Peri<'static, PIN_24>,
     pin_29: Peri<'static, PIN_29>,
     dma_ch0: Peri<'static, DMA_CH0>,
-    ap_ssid: &'static str,
+    captive_portal_ssid: &'static str,
     wifi_events: &'static WifiEvents,
     stack_storage: &'static StackStorage,
     spawner: Spawner,
 ) -> ! {
-    info!("WiFi device initializing in AP mode ({})", ap_ssid);
+    info!(
+        "WiFi device initializing in captive portal mode ({})",
+        captive_portal_ssid
+    );
 
     // Initialize WiFi hardware
     let fw = cyw43_firmware::CYW43_43439A0;
@@ -559,12 +562,12 @@ async fn wifi_device_loop_ap(
         .set_power_management(cyw43::PowerManagementMode::PowerSave)
         .await;
 
-    // Start AP mode
-    const AP_PASSWORD: &str = ""; // Open network
+    // Start captive portal mode
+    const CAPTIVE_PORTAL_PASSWORD: &str = ""; // Open network
 
-    info!("Starting AP mode: {}", ap_ssid);
+    info!("Starting captive portal mode: {}", captive_portal_ssid);
 
-    // Configure static IP for AP mode (we are the gateway)
+    // Configure static IP for captive portal mode (we are the gateway)
     let config = Config::ipv4_static(embassy_net::StaticConfigV4 {
         address: embassy_net::Ipv4Cidr::new(embassy_net::Ipv4Address::new(192, 168, 4, 1), 24),
         gateway: Some(embassy_net::Ipv4Address::new(192, 168, 4, 1)),
@@ -587,22 +590,24 @@ async fn wifi_device_loop_ap(
     let net_token = unwrap!(net_task(runner));
     spawner.spawn(net_token);
 
-    // Start AP
-    if AP_PASSWORD.is_empty() {
-        control.start_ap_open(ap_ssid, 1).await;
+    // Start captive portal network
+    if CAPTIVE_PORTAL_PASSWORD.is_empty() {
+        control.start_ap_open(captive_portal_ssid, 1).await;
     } else {
-        control.start_ap_wpa2(ap_ssid, AP_PASSWORD, 1).await;
+        control
+            .start_ap_wpa2(captive_portal_ssid, CAPTIVE_PORTAL_PASSWORD, 1)
+            .await;
     }
 
-    info!("AP mode started! SSID: {}", ap_ssid);
+    info!("Captive portal mode started! SSID: {}", captive_portal_ssid);
 
     stack.wait_config_up().await;
 
     if let Some(config) = stack.config_v4() {
-        info!("AP IP Address: {}", config.address);
+        info!("Captive portal IP Address: {}", config.address);
     }
 
-    // Start DHCP server for AP mode
+    // Start DHCP server for captive portal mode
     let server_ip = embassy_net::Ipv4Address::new(192, 168, 4, 1);
     let netmask = embassy_net::Ipv4Address::new(255, 255, 255, 0);
     let pool_start = embassy_net::Ipv4Address::new(192, 168, 4, 2);
@@ -614,11 +619,11 @@ async fn wifi_device_loop_ap(
     spawner.spawn(dhcp_token);
 
     info!("DHCP server started (pool: 192.168.4.2-254)");
-    info!("WiFi AP ready - connect to '{}'", ap_ssid);
+    info!("WiFi captive portal ready - connect to '{}'", captive_portal_ssid);
 
-    // Store stack reference and emit ApReady event
+    // Store stack reference and emit CaptivePortalReady event
     stack_storage.init(stack);
-    wifi_events.signal(WifiEvent::ApReady);
+    wifi_events.signal(WifiEvent::CaptivePortalReady);
 
     // Keep task alive
     loop {

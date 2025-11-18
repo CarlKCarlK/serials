@@ -121,7 +121,7 @@ mod wifi_impl {
             })
         }
 
-        /// Get reference to WiFi device (useful for AP mode configuration)
+        /// Get reference to WiFi device (useful for captive portal configuration)
         pub fn wifi(&self) -> &'static Wifi {
             self.wifi
                 .expect("TimeSync WiFi handle unavailable (stack-based mode)")
@@ -162,10 +162,10 @@ mod wifi_impl {
         // Check what kind of WiFi event we got
         let wifi_event = wifi.wait().await;
         match wifi_event {
-            WifiEvent::ApReady => {
-                info!("TimeSync: WiFi in AP mode - waiting for client connection");
+            WifiEvent::CaptivePortalReady => {
+                info!("TimeSync: WiFi in captive portal mode - waiting for client connection");
                 info!("TimeSync: NTP sync will not start until switched to client mode");
-                // In AP mode, we don't sync time - just wait indefinitely
+                // In captive portal mode, we don't sync time - just wait indefinitely
                 loop {
                     Timer::after_secs(3600).await;
                 }

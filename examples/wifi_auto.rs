@@ -60,19 +60,19 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     static FLASH_STATIC: FlashArrayStatic = FlashArray::<4>::new_static();
     let [
-        wifi_credentials_flash,
-        timezone_flash,
-        device_name_flash,
-        location_flash,
+        wifi_credentials_flash_block,
+        timezone_flash_block,
+        device_name_flash_block,
+        location_flash_block,
     ] = FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
 
     static TIMEZONE_FIELD_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
-    let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash);
+    let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
 
     static DEVICE_NAME_FIELD_STATIC: TextFieldStatic<32> = TextField::new_static();
     let device_name_field = TextField::new(
         &DEVICE_NAME_FIELD_STATIC,
-        device_name_flash,
+        device_name_flash_block,
         "device_name",
         "Device Name",
         "PicoClock",
@@ -81,7 +81,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static LOCATION_FIELD_STATIC: TextFieldStatic<64> = TextField::new_static();
     let location_field = TextField::new(
         &LOCATION_FIELD_STATIC,
-        location_flash,
+        location_flash_block,
         "location",
         "Location",
         "Living Room",
@@ -96,9 +96,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         peripherals.PIN_24,     // CYW43 clock
         peripherals.PIN_29,     // CYW43 data pin
         peripherals.DMA_CH0,    // CYW43 DMA channel
-        wifi_credentials_flash, // Flash block storing Wi-Fi creds
+        wifi_credentials_flash_block, // Flash block storing Wi-Fi creds
         peripherals.PIN_13,     // Reset button pin
-        "Pico",                 // Captive-portal SSID to display
+        "Pico",                 // Captive portal SSID to display
         [timezone_field, device_name_field, location_field],
         spawner,
     )?;

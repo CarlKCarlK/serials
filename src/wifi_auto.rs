@@ -72,7 +72,7 @@ pub struct WifiAutoStatic {
     events: WifiAutoEvents,
     wifi: WifiStatic,
     wifi_auto_cell: StaticCell<WifiAuto>,
-    force_ap: AtomicBool,
+    force_captive_portal: AtomicBool,
     defaults: Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>>,
     button: Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>>,
     fields_storage: StaticCell<Vec<&'static dyn WifiAutoField, MAX_WIFI_AUTO_FIELDS>>,
@@ -124,7 +124,7 @@ pub struct WifiAutoStatic {
 ///     peripherals.DMA_CH0,    // CYW43 DMA
 ///     wifi_flash,             // Flash for WiFi credentials
 ///     peripherals.PIN_13,     // Button for forced reconfiguration
-///     "Pico",                 // AP SSID for captive portal
+///     "Pico",                 // Captive-portal SSID for provisioning
 ///     [timezone_field],       // Array of custom fields
 ///     spawner,
 /// )?;
@@ -155,7 +155,7 @@ pub struct WifiAutoStatic {
 pub struct WifiAuto {
     events: &'static WifiAutoEvents,
     wifi: &'static Wifi,
-    force_ap: &'static AtomicBool,
+    force_captive_portal: &'static AtomicBool,
     defaults: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>>,
     button: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>>,
     fields: &'static [&'static dyn WifiAutoField],
@@ -168,15 +168,15 @@ impl WifiAutoStatic {
             events: Signal::new(),
             wifi: Wifi::new_static(),
             wifi_auto_cell: StaticCell::new(),
-            force_ap: AtomicBool::new(false),
+            force_captive_portal: AtomicBool::new(false),
             defaults: Mutex::new(RefCell::new(None)),
             button: Mutex::new(RefCell::new(None)),
             fields_storage: StaticCell::new(),
         }
     }
 
-    fn force_ap_flag(&'static self) -> &'static AtomicBool {
-        &self.force_ap
+    fn force_captive_portal_flag(&'static self) -> &'static AtomicBool {
+        &self.force_captive_portal
     }
 
     fn defaults(
@@ -213,15 +213,15 @@ impl WifiAuto {
         pin_24: Peri<'static, PIN_24>,
         pin_29: Peri<'static, PIN_29>,
         dma_ch0: Peri<'static, DMA_CH0>,
-        mut credential_store: FlashBlock,
+        mut wifi_credentials_flash_block: FlashBlock,
         button_pin: Peri<'static, impl Pin>,
-        ap_ssid: &'static str,
-        fields: [&'static dyn WifiAutoField; N],
+        captive_portal_ssid: &'static str,
+        custom_fields: [&'static dyn WifiAutoField; N],
         spawner: Spawner,
     ) -> Result<&'static Self> {
-        let stored_credentials = Wifi::peek_credentials(&mut credential_store);
-        let stored_start_mode = Wifi::peek_start_mode(&mut credential_store);
-        if matches!(stored_start_mode, WifiStartMode::AccessPoint) {
+        let stored_credentials = Wifi::peek_credentials(&mut wifi_credentials_flash_block);
+        let stored_start_mode = Wifi::peek_start_mode(&mut wifi_credentials_flash_block);
+        if matches!(stored_start_mode, WifiStartMode::CaptivePortal) {
             if let Some(creds) = stored_credentials.clone() {
                 wifi_auto_static.defaults.lock(|cell| {
                     *cell.borrow_mut() = Some(creds);
@@ -230,18 +230,21 @@ impl WifiAuto {
         }
 
         let button = Button::new(button_pin);
-        let force_ap = button.is_pressed();
-        if force_ap {
+        let force_captive_portal = button.is_pressed();
+        if force_captive_portal {
             if let Some(creds) = stored_credentials.clone() {
                 wifi_auto_static.defaults.lock(|cell| {
                     *cell.borrow_mut() = Some(creds);
                 });
             }
-            Wifi::prepare_start_mode(&mut credential_store, WifiStartMode::AccessPoint)
-                .map_err(|_| Error::StorageCorrupted)?;
+            Wifi::prepare_start_mode(
+                &mut wifi_credentials_flash_block,
+                WifiStartMode::CaptivePortal,
+            )
+            .map_err(|_| Error::StorageCorrupted)?;
         }
 
-        let wifi = Wifi::new_with_ap_ssid(
+        let wifi = Wifi::new_with_captive_portal_ssid(
             &wifi_auto_static.wifi,
             pin_23,
             pin_25,
@@ -249,8 +252,8 @@ impl WifiAuto {
             pin_24,
             pin_29,
             dma_ch0,
-            credential_store,
-            ap_ssid,
+            wifi_credentials_flash_block,
+            captive_portal_ssid,
             spawner,
         );
 
@@ -266,7 +269,7 @@ impl WifiAuto {
                 MAX_WIFI_AUTO_FIELDS
             );
             let mut storage: Vec<&'static dyn WifiAutoField, MAX_WIFI_AUTO_FIELDS> = Vec::new();
-            for field in fields {
+            for field in custom_fields {
                 storage.push(field).unwrap_or_else(|_| unreachable!());
             }
             let stored_vec = wifi_auto_static.fields_storage.init(storage);
@@ -278,13 +281,13 @@ impl WifiAuto {
         let instance = wifi_auto_static.wifi_auto_cell.init(Self {
             events: &wifi_auto_static.events,
             wifi,
-            force_ap: wifi_auto_static.force_ap_flag(),
+            force_captive_portal: wifi_auto_static.force_captive_portal_flag(),
             defaults: wifi_auto_static.defaults(),
             button: wifi_auto_static.button(),
             fields: fields_ref,
         });
 
-        if force_ap {
+        if force_captive_portal {
             instance.force_captive_portal();
         }
 
@@ -292,7 +295,7 @@ impl WifiAuto {
     }
 
     fn force_captive_portal(&self) {
-        self.force_ap.store(true, Ordering::Relaxed);
+        self.force_captive_portal.store(true, Ordering::Relaxed);
     }
 
     /// Return the underlying [`Wifi`] handle for advanced operations such as clearing
@@ -375,12 +378,12 @@ impl WifiAuto {
 
     async fn ensure_connected(&self, spawner: Spawner) -> Result<()> {
         loop {
-            let force_portal = self.force_ap.swap(false, Ordering::AcqRel);
+            let force_captive_portal = self.force_captive_portal.swap(false, Ordering::AcqRel);
             let start_mode = self.wifi.current_start_mode();
             let has_creds = self.wifi.has_persisted_credentials();
             let extras_ready = self.extra_fields_ready()?;
-            if force_portal
-                || matches!(start_mode, WifiStartMode::AccessPoint)
+            if force_captive_portal
+                || matches!(start_mode, WifiStartMode::CaptivePortal)
                 || !has_creds
                 || !extras_ready
             {
@@ -426,7 +429,7 @@ impl WifiAuto {
                 });
             }
             self.wifi
-                .set_start_mode(WifiStartMode::AccessPoint)
+                .set_start_mode(WifiStartMode::CaptivePortal)
                 .map_err(|_| Error::StorageCorrupted)?;
             Timer::after_millis(500).await;
             SCB::sys_reset();
@@ -438,8 +441,10 @@ impl WifiAuto {
             loop {
                 match self.wifi.wait().await {
                     WifiEvent::ClientReady => break,
-                    WifiEvent::ApReady => {
-                        info!("WifiAuto: received AP-ready event while waiting for client mode");
+                    WifiEvent::CaptivePortalReady => {
+                        info!(
+                            "WifiAuto: received captive-portal-ready event while waiting for client mode"
+                        );
                     }
                 }
             }
@@ -453,8 +458,8 @@ impl WifiAuto {
         self.wifi.wait().await;
         let stack = self.wifi.stack().await;
 
-        let ap_ip = Ipv4Address::new(192, 168, 4, 1);
-        let dns_token = unwrap!(dns_server_task(stack, ap_ip));
+        let captive_portal_ip = Ipv4Address::new(192, 168, 4, 1);
+        let dns_token = unwrap!(dns_server_task(stack, captive_portal_ip));
         spawner.spawn(dns_token);
 
         let defaults_owned = self

@@ -1,6 +1,6 @@
 //! Simple DNS server for captive portal
 //!
-//! Responds to all DNS queries with the AP's IP address to support captive portal detection
+//! Responds to all DNS queries with the captive portal IP address to support captive portal detection
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
@@ -12,7 +12,7 @@ use embassy_net::{
 
 const DNS_SERVER_PORT: u16 = 53;
 
-/// DNS server task - responds to all queries with the AP IP address
+/// DNS server task - responds to all queries with the captive portal IP address
 /// This helps with captive portal detection on phones
 #[embassy_executor::task]
 pub async fn dns_server_task(stack: &'static Stack<'static>, answer_ip: Ipv4Address) -> ! {

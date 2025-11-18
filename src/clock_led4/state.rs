@@ -34,7 +34,7 @@ impl ClockLed4State {
             Self::ClientConnecting => self.execute_connecting(clock, time_sync).await,
             Self::MinutesSeconds => self.execute_minutes_seconds(clock, button, time_sync).await,
             Self::EditUtcOffset => self.execute_edit_utc_offset(clock, button).await,
-            Self::CaptivePortalReady => self.execute_access_point_setup(clock, time_sync).await,
+            Self::CaptivePortalReady => self.execute_captive_portal_setup(clock, time_sync).await,
         }
     }
 
@@ -45,7 +45,7 @@ impl ClockLed4State {
             Self::ClientConnecting => Self::render_connecting(clock_time),
             Self::MinutesSeconds => Self::render_minutes_seconds(clock_time),
             Self::EditUtcOffset => Self::render_edit_utc_offset(clock_time),
-            Self::CaptivePortalReady => Self::render_access_point_setup(),
+            Self::CaptivePortalReady => Self::render_captive_portal_setup(),
         }
     }
 
@@ -128,7 +128,11 @@ impl ClockLed4State {
         }
     }
 
-    async fn execute_access_point_setup(self, clock: &Clock<'_>, time_sync: &TimeSync) -> Self {
+    async fn execute_captive_portal_setup(
+        self,
+        clock: &Clock<'_>,
+        time_sync: &TimeSync,
+    ) -> Self {
         clock.set_state(self).await;
         loop {
             match time_sync.wait().await {
@@ -232,7 +236,7 @@ impl ClockLed4State {
         )
     }
 
-    fn render_access_point_setup() -> (BlinkState, [char; 4], Duration) {
+    fn render_captive_portal_setup() -> (BlinkState, [char; 4], Duration) {
         (
             BlinkState::BlinkingAndOn,
             ['C', 'O', 'n', 'n'],
