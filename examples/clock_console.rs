@@ -1,65 +1,26 @@
-//! Log Time - WiFi Configuration and NTP Time Synchronization
+//! Console Clock - WiFi-synced time logging to console
 //!
-//! This example demonstrates a complete WiFi configuration workflow:
-//! 1. Starts in captive portal mode for WiFi credential collection
-//! 2. User connects to the "PicoClock" captive portal and enters their WiFi credentials via web interface
-//! 3. Switches to client mode and connects to the configured network
-//! 4. Syncs time with NTP server and logs time events
-//!
-//! NOTE: This example requires device restart to switch from captive portal to client mode.
-//! A future version may support runtime mode switching.
-//!
-//! Run with:
-//!   - Pico 1 W: `cargo log_time_1w`
-//!   - Pico 2 W: `cargo log_time_2w`
-//!
-//! TODOs:
-//! - List local WiFi networks for user selection
-//! - Save credentials between reboots (but not forever)
+//! This example demonstrates WiFi connection with auto-provisioning
+//! and logs time sync events to the console.
 
 #![cfg(feature = "wifi")]
 #![no_std]
 #![no_main]
+#![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
 use core::convert::Infallible;
-use cortex_m::peripheral::SCB;
-use defmt::{info, unwrap, warn};
+use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
-use embassy_net::Ipv4Address;
-use embassy_time::Timer;
 use panic_probe as _;
-use serials::Error;
 use serials::Result;
 use serials::clock::{Clock, ClockStatic};
-use serials::dns_server::dns_server_task;
-use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
-use serials::time_sync_old::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use serials::wifi_config::{WifiConfigOptions, collect_wifi_credentials};
-
-struct TimezoneStore {
-    block: FlashBlock,
-}
-
-impl TimezoneStore {
-    fn new(block: FlashBlock) -> Self {
-        Self { block }
-    }
-
-    fn load(&mut self) -> Result<i32> {
-        Ok(self.block.load::<i32>()?.unwrap_or(0))
-    }
-
-    fn save(&mut self, offset: i32) -> Result<()> {
-        self.block.save(&offset)
-    }
-}
-
-// ============================================================================
-// Main
-// ============================================================================
+use serials::flash_array::{FlashArray, FlashArrayStatic};
+use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
+use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -67,101 +28,54 @@ pub async fn main(spawner: Spawner) -> ! {
     core::panic!("{err}");
 }
 
-async fn inner_main(spawner: Spawner) -> Result<Infallible> {
-    info!("Starting Log Time Example with WiFi Configuration");
+async fn inner_main(spawner: Spawner) -> Result<!> {
+    info!("Starting Console Clock with WiFi");
 
     // Initialize RP2040 peripherals
     let p = embassy_rp::init(Default::default());
 
-    // Initialize flash storage for WiFi credentials and timezone offset
+    // Use two blocks of flash storage: Wi-Fi credentials + timezone
     static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
-    let [wifi_block, timezone_block] = FlashArray::new(&FLASH_STATIC, p.FLASH)?;
-    let mut timezone_store = TimezoneStore::new(timezone_block);
+    let [wifi_credentials_flash_block, timezone_flash_block] =
+        FlashArray::new(&FLASH_STATIC, p.FLASH)?;
 
-    let stored_offset: i32 = timezone_store.load()?;
-    // Create Clock device (starts ticking immediately)
+    // Define timezone field for captive portal
+    static TIMEZONE_FIELD_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
+    let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
+
+    // Set up WiFi via captive portal
+    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
+    let wifi_auto = WifiAuto::new(
+        &WIFI_AUTO_STATIC,
+        p.PIN_23,  // CYW43 power
+        p.PIN_25,  // CYW43 chip select
+        p.PIO0,    // CYW43 PIO interface
+        p.PIN_24,  // CYW43 clock
+        p.PIN_29,  // CYW43 data pin
+        p.DMA_CH0, // CYW43 DMA channel
+        wifi_credentials_flash_block,
+        p.PIN_13,  // Reset button pin
+        "PicoClock",
+        [timezone_field],
+        spawner,
+    )?;
+
+    // Connect to WiFi
+    let (stack, _button) = wifi_auto
+        .connect(spawner, |_event| async move {})
+        .await?;
+
+    // Create Clock device with timezone from WiFi portal
+    let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
     let clock = Clock::new(&CLOCK_STATIC, spawner);
-    clock.set_utc_offset_minutes(stored_offset).await;
+    clock.set_utc_offset_minutes(timezone_offset_minutes).await;
 
-    // Create TimeSync virtual device with credentials if available
+    // Create TimeSync with network stack
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
-    let time_sync = TimeSync::new(
-        &TIME_SYNC_STATIC,
-        p.PIN_23,  // WiFi chip data out
-        p.PIN_25,  // WiFi chip data in
-        p.PIO0,    // PIO for WiFi chip communication
-        p.PIN_24,  // WiFi chip clock
-        p.PIN_29,  // WiFi chip select
-        p.DMA_CH0, // DMA channel for WiFi
-        wifi_block,
-        spawner,
-    );
+    let time_sync = TimeSync::new(&TIME_SYNC_STATIC, stack, spawner);
 
-    // Determine if we need to run captive portal or connect directly
-    if !time_sync.wifi().has_persisted_credentials() {
-        info!("No stored WiFi credentials - starting captive portal configuration");
-        info!("Starting WiFi in captive portal mode for configuration...");
-        info!("WiFi captive portal mode - starting HTTP configuration server...");
-
-        // Wait for WiFi stack to be ready
-        time_sync.wifi().wait().await;
-        let stack = time_sync.wifi().stack().await;
-        info!("Network stack available for captive portal mode");
-
-        // Spawn DNS server for captive portal detection
-        // This makes Android/iOS show "Sign in to network" notification
-        let captive_portal_ip = Ipv4Address::new(192, 168, 4, 1);
-        let dns_token = unwrap!(dns_server_task(stack, captive_portal_ip));
-        spawner.spawn(dns_token);
-        info!("DNS server started - captive portal detection enabled");
-
-        info!("Collecting WiFi credentials from web interface...");
-        info!("Connect to WiFi 'PicoClock' and open browser to http://192.168.4.1");
-        info!("(Android/iOS should show 'Sign in to network' notification)");
-        info!("");
-        info!("==========================================================");
-        info!("WAITING FOR CONFIGURATION");
-        info!("==========================================================");
-        info!("");
-
-        // Collect credentials from user via web interface
-        let submission =
-            collect_wifi_credentials(stack, spawner, WifiConfigOptions::default()).await?;
-
-        info!("==========================================================");
-        info!("CREDENTIALS RECEIVED!");
-        info!("==========================================================");
-        info!("SSID: {}", submission.credentials.ssid);
-        info!("Password: [hidden]");
-        info!(
-            "Timezone offset (minutes): {}",
-            submission.timezone_offset_minutes
-        );
-        info!("");
-        info!("Persisting credentials to flash storage...");
-        clock
-            .set_utc_offset_minutes(submission.timezone_offset_minutes)
-            .await;
-        time_sync
-            .wifi()
-            .persist_credentials(&submission.credentials)
-            .map_err(|e| {
-                warn!("{}", e);
-                Error::StorageCorrupted
-            })?;
-        timezone_store.save(submission.timezone_offset_minutes)?;
-        info!("Device will reboot and connect using the stored credentials.");
-        info!("==========================================================");
-
-        Timer::after_millis(750).await;
-        SCB::sys_reset();
-    } else {
-        info!("Stored WiFi credentials found - starting client mode directly");
-        info!("Using stored WiFi credentials - starting client mode directly");
-    }
-
-    info!("WiFi and time sync initialized, waiting for events...");
+    info!("WiFi connected, entering event loop");
 
     // Main event loop - log time on every tick and handle sync events
     loop {

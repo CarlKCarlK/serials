@@ -1,7 +1,9 @@
-//! LCD Clock - Event-driven time display
+//! LCD Clock - Event-driven time display with WiFi sync
 
+#![cfg(feature = "wifi")]
 #![no_std]
 #![no_main]
+#![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
 use core::convert::Infallible;
@@ -15,7 +17,9 @@ use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdStatic};
 use serials::clock::{Clock, ClockStatic};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::time_sync_old::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
+use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
 
 // ============================================================================
 // Main Orchestrator
@@ -28,8 +32,8 @@ pub async fn main(spawner: Spawner) -> ! {
     core::panic!("{err}");
 }
 
-async fn inner_main(spawner: Spawner) -> Result<Infallible> {
-    info!("Starting LCD Clock (Event-Driven)");
+async fn inner_main(spawner: Spawner) -> Result<!> {
+    info!("Starting LCD Clock with WiFi");
 
     // Initialize RP2040 peripherals
     let p = embassy_rp::init(Default::default());
@@ -38,35 +42,46 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static CHAR_LCD_STATIC: CharLcdStatic = CharLcd::new_static();
     let char_lcd = CharLcd::new(&CHAR_LCD_STATIC, p.I2C0, p.PIN_5, p.PIN_4, spawner)?;
 
-    // Create Clock device (starts ticking immediately)
-    const DEFAULT_UTC_OFFSET_MINUTES: i32 = 0;
+    // Use two blocks of flash storage: Wi-Fi credentials + timezone
+    static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
+    let [wifi_credentials_flash_block, timezone_flash_block] =
+        FlashArray::new(&FLASH_STATIC, p.FLASH)?;
+
+    // Define timezone field for captive portal
+    static TIMEZONE_FIELD_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
+    let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
+
+    // Set up WiFi via captive portal
+    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
+    let wifi_auto = WifiAuto::new(
+        &WIFI_AUTO_STATIC,
+        p.PIN_23,  // CYW43 power
+        p.PIN_25,  // CYW43 chip select
+        p.PIO0,    // CYW43 PIO interface
+        p.PIN_24,  // CYW43 clock
+        p.PIN_29,  // CYW43 data pin
+        p.DMA_CH0, // CYW43 DMA channel
+        wifi_credentials_flash_block,
+        p.PIN_13,  // Reset button pin
+        "PicoClock",
+        [timezone_field],
+        spawner,
+    )?;
+
+    // Connect to WiFi
+    let (stack, _button) = wifi_auto
+        .connect(spawner, |_event| async move {})
+        .await?;
+
+    // Create Clock device with timezone from WiFi portal
+    let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
     let clock = Clock::new(&CLOCK_STATIC, spawner);
-    clock
-        .set_utc_offset_minutes(DEFAULT_UTC_OFFSET_MINUTES)
-        .await;
+    clock.set_utc_offset_minutes(timezone_offset_minutes).await;
 
-    // Create TimeSync virtual device (creates WiFi internally)
-    static TIME_SYNC: TimeSyncStatic = TimeSync::new_static();
-    #[cfg(feature = "wifi")]
-    let time_sync = {
-        static WIFI_FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
-        let [wifi_block] = FlashArray::new(&WIFI_FLASH_STATIC, p.FLASH)?;
-        TimeSync::new(
-            &TIME_SYNC,
-            p.PIN_23,   // WiFi power enable
-            p.PIN_25,   // WiFi SPI chip select
-            p.PIO0,     // WiFi PIO block for SPI
-            p.PIN_24,   // WiFi SPI MOSI
-            p.PIN_29,   // WiFi SPI CLK
-            p.DMA_CH0,  // WiFi DMA channel for SPI
-            wifi_block, // Flash partition for WiFi credentials
-            serials::wifi::DEFAULT_CAPTIVE_PORTAL_SSID,
-            spawner,
-        )
-    };
-    #[cfg(not(feature = "wifi"))]
-    let time_sync = TimeSync::new(&TIME_SYNC, spawner);
+    // Create TimeSync with network stack
+    static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
+    let time_sync = TimeSync::new(&TIME_SYNC_STATIC, stack, spawner);
 
     info!("Entering main event loop");
 

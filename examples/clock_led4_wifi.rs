@@ -10,14 +10,16 @@
 #![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
+mod clock_led4;
+
+use clock_led4::state::ClockLed4State;
+use clock_led4::{ClockLed4, ClockLed4Static};
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{self, Level};
 use panic_probe as _;
 use serials::Result;
-use serials::clock_led4::state::ClockLed4State;
-use serials::clock_led4::{ClockLed4, ClockLed4Static};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led4::OutputArray;
 use serials::time_sync::{TimeSync, TimeSyncStatic};
@@ -125,5 +127,5 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     let time_sync = TimeSync::new(&TIME_SYNC_STATIC, stack, spawner);
 
     // Run the clock. It will monitor button pushes and time sync events.
-    clock_led4.run(&mut button, time_sync).await
+    clock_led4.check_button(&mut button, &time_sync).await
 }

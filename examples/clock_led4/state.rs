@@ -2,10 +2,10 @@
 
 use super::time::ClockTime;
 use super::time::{ONE_MINUTE, ONE_SECOND};
-use crate::button::{Button, PressDuration};
-use crate::clock_led4::ClockLed4 as Clock;
-use crate::led4::BlinkState;
-use crate::time_sync::{TimeSync, TimeSyncEvent};
+use super::ClockLed4 as Clock;
+use serials::button::{Button, PressDuration};
+use serials::led4::BlinkState;
+use serials::time_sync::{TimeSync, TimeSyncEvent};
 use defmt::info;
 use embassy_futures::select::{Either, select};
 use embassy_time::{Duration, Instant};

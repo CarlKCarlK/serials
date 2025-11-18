@@ -33,8 +33,6 @@ pub mod button;
 pub mod char_lcd;
 #[cfg(not(feature = "host"))]
 pub mod clock;
-#[cfg(not(feature = "host"))]
-pub mod clock_led4;
 #[cfg(all(feature = "wifi", not(feature = "host")))]
 pub mod dhcp_server;
 #[cfg(all(feature = "wifi", not(feature = "host")))]

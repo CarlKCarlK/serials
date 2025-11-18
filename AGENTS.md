@@ -3,6 +3,32 @@
 - When loading data from flash (or any other storage) into a local variable, name the variable after the concrete type. Example: `DeviceConfig` data should live in variables like `device_config` and partitions like `device_config_flash`, not generic `config` or `flash0`.
 - Avoid introducing `unsafe` blocks. If a change truly requires `unsafe`, call it out explicitly and explain the justification so the user can review it carefully.
 
+## Module Structure Convention
+
+This project uses a specific module structure pattern. Do NOT create `mod.rs` files.
+
+Correct pattern:
+
+- `src/foo.rs` or `examples/foo.rs` (main module file)
+- `src/foo/bar.rs` (submodule)
+- `src/foo/baz.rs` (another submodule)
+
+Incorrect pattern (never use):
+
+- `src/foo/mod.rs` ❌
+- `examples/foo/mod.rs` ❌
+
+Example:
+
+```rust
+// File: src/wifi_auto.rs (main module)
+pub mod fields;
+pub mod portal;
+
+// File: src/wifi_auto/fields.rs (submodule)
+// File: src/wifi_auto/portal.rs (submodule)
+```
+
 ## Variable Naming Conventions
 
 Avoid single-character variables; use descriptive names:

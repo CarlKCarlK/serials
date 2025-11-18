@@ -9,18 +9,17 @@ use defmt::info;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
-use embassy_time::{Duration, Timer};
+use embassy_time::Timer;
 
 use self::state::ClockLed4State;
 use self::time::ClockTime;
-use crate::clock_led4::time::ONE_MINUTE;
-use crate::led4::OutputArray;
-use crate::led4::{CELL_COUNT, SEGMENT_COUNT};
-use crate::led4::{Led4, Led4Static};
+use serials::led4::OutputArray;
+use serials::led4::{Led4, Led4Static};
 
 /// A device abstraction for a 4-digit LED clock.
 pub struct ClockLed4<'a> {
     commands: &'a ClockLed4OuterStatic,
+    #[allow(dead_code)] // Used for atomic sharing with device loop
     utc_offset_mirror: &'a AtomicI32,
 }
 /// Static type for the `ClockLed4` device abstraction.
@@ -60,12 +59,12 @@ impl ClockLed4<'_> {
     #[must_use = "Must be used to manage the spawned task"]
     pub fn new(
         clock_led4_static: &'static ClockLed4Static,
-        cell_pins: OutputArray<'static, CELL_COUNT>,
-        segment_pins: OutputArray<'static, SEGMENT_COUNT>,
+        cell_pins: OutputArray<'static, 4>,
+        segment_pins: OutputArray<'static, 8>,
         #[cfg(all(feature = "wifi", not(feature = "host")))]
-        timezone_field: &'static crate::wifi_auto::fields::TimezoneField,
+        timezone_field: &'static serials::wifi_auto::fields::TimezoneField,
         spawner: Spawner,
-    ) -> crate::Result<Self> {
+    ) -> serials::Result<Self> {
         let led4 = Led4::new(
             clock_led4_static.led(),
             cell_pins,
@@ -109,10 +108,10 @@ impl ClockLed4<'_> {
     /// This method runs indefinitely, executing the state machine and handling
     /// button presses and time sync events. It should be called after WiFi
     /// connection is established and time sync is available.
-    pub async fn run(
+    pub async fn check_button(
         &mut self,
-        button: &mut crate::button::Button<'_>,
-        time_sync: &crate::time_sync::TimeSync,
+        button: &mut serials::button::Button<'_>,
+        time_sync: &serials::time_sync::TimeSync,
     ) -> ! {
         let mut clock_state = ClockLed4State::HoursMinutes;
         loop {
@@ -121,7 +120,7 @@ impl ClockLed4<'_> {
     }
 
     /// Set the time from Unix seconds.
-    pub async fn set_time_from_unix(&self, unix_seconds: crate::unix_seconds::UnixSeconds) {
+    pub async fn set_time_from_unix(&self, unix_seconds: serials::unix_seconds::UnixSeconds) {
         self.commands
             .send(ClockLed4Command::SetTimeFromUnix(unix_seconds))
             .await;
@@ -133,38 +132,13 @@ impl ClockLed4<'_> {
             .send(ClockLed4Command::AdjustUtcOffsetHours(hours))
             .await;
     }
-
-    // cmk I'm not sure these need to be public anymore
-    /// Set the UTC offset in minutes directly.
-    pub async fn set_offset_minutes(&self, minutes: i32) {
-        self.utc_offset_mirror.store(minutes, Ordering::Relaxed);
-        self.commands
-            .send(ClockLed4Command::SetUtcOffsetMinutes(minutes))
-            .await;
-    }
-
-    /// Read the most recently applied UTC offset in minutes.
-    #[must_use]
-    pub fn offset_minutes(&self) -> i32 {
-        self.utc_offset_mirror.load(Ordering::Relaxed)
-    }
-
-    /// Display the captive portal setup prompt while waiting for credentials.
-    pub async fn show_captive_portal_setup(&self) {
-        self.commands
-            .send(ClockLed4Command::SetState(ClockLed4State::CaptivePortalReady))
-            .await;
-    }
 }
 
 /// Commands sent to the 4-digit LED clock device.
 pub enum ClockLed4Command {
     SetState(ClockLed4State),
-    SetTimeFromUnix(crate::unix_seconds::UnixSeconds),
-    AdjustClockTime(Duration),
-    ResetSeconds,
+    SetTimeFromUnix(serials::unix_seconds::UnixSeconds),
     AdjustUtcOffsetHours(i32),
-    SetUtcOffsetMinutes(i32),
 }
 
 impl ClockLed4Command {
@@ -177,21 +151,11 @@ impl ClockLed4Command {
             Self::SetTimeFromUnix(unix_seconds) => {
                 clock_time.set_from_unix(unix_seconds);
             }
-            Self::AdjustClockTime(delta) => {
-                *clock_time += delta;
-            }
             Self::SetState(new_clock_mode) => {
                 *clock_state = new_clock_mode;
             }
-            Self::ResetSeconds => {
-                let sleep_duration = ClockTime::till_next(clock_time.now(), ONE_MINUTE);
-                *clock_time += sleep_duration;
-            }
             Self::AdjustUtcOffsetHours(hours) => {
                 clock_time.adjust_utc_offset_hours(hours);
-            }
-            Self::SetUtcOffsetMinutes(minutes) => {
-                clock_time.set_utc_offset_minutes(minutes);
             }
         }
     }
@@ -204,7 +168,7 @@ async fn clock_led4_device_loop(
     initial_utc_offset_minutes: i32,
     utc_offset_mirror: &'static AtomicI32,
     #[cfg(all(feature = "wifi", not(feature = "host")))]
-    timezone_field: &'static crate::wifi_auto::fields::TimezoneField,
+    timezone_field: &'static serials::wifi_auto::fields::TimezoneField,
 ) -> ! {
     let mut clock_time = ClockTime::new(initial_utc_offset_minutes, utc_offset_mirror);
     let mut clock_state = ClockLed4State::default();

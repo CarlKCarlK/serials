@@ -6,7 +6,7 @@ use core::sync::atomic::{AtomicI32, Ordering};
 use defmt::info;
 use embassy_time::{Duration, Instant};
 
-use crate::unix_seconds::UnixSeconds;
+use serials::unix_seconds::UnixSeconds;
 
 // ============================================================================
 // Time Constants
@@ -46,16 +46,6 @@ impl ClockTime {
             utc_offset_minutes: initial_utc_offset_minutes,
             utc_offset_mirror,
         }
-    }
-
-    #[must_use]
-    pub fn utc_offset_minutes(&self) -> i32 {
-        self.utc_offset_minutes
-    }
-
-    pub fn set_utc_offset_minutes(&mut self, minutes: i32) {
-        self.utc_offset_minutes = minutes;
-        self.utc_offset_mirror.store(minutes, Ordering::Relaxed);
     }
 
     #[expect(
@@ -142,11 +132,6 @@ impl ClockTime {
         }
     }
 
-    #[expect(
-        clippy::arithmetic_side_effects,
-        clippy::integer_division_remainder_used,
-        reason = "Wrapping arithmetic is intentional"
-    )]
     pub fn adjust_utc_offset_hours(&mut self, hours: i32) {
         let current_offset_hours = self.utc_offset_hours();
         let new_offset_hours = current_offset_hours + hours;
