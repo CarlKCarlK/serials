@@ -36,7 +36,7 @@ use serials::Result;
 use serials::clock::{Clock, ClockStatic};
 use serials::dns_server::dns_server_task;
 use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
-use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+use serials::time_sync_old::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_config::{WifiConfigOptions, collect_wifi_credentials};
 
 struct TimezoneStore {

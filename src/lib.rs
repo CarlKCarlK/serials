@@ -63,6 +63,8 @@ pub mod rfid;
 pub mod servo;
 #[cfg(not(feature = "host"))]
 pub mod time_sync;
+#[cfg(all(feature = "wifi", not(feature = "host")))]
+pub mod time_sync_old;
 #[cfg(not(feature = "host"))]
 pub mod unix_seconds;
 #[cfg(all(feature = "wifi", not(feature = "host")))]

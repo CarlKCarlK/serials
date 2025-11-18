@@ -1,7 +1,7 @@
 //! A device abstraction for Network Time Protocol (NTP) time synchronization over WiFi.
 //!
-//! This version uses an existing network stack (e.g., from [`WifiAuto`](crate::wifi_auto::WifiAuto)).
-//! For legacy WiFi provisioning, see [`time_sync_old`](crate::time_sync_old).
+//! This is the legacy version that provisions WiFi internally. For new code, prefer
+//! [`time_sync`](crate::time_sync) with [`WifiAuto`](crate::wifi_auto::WifiAuto).
 //!
 //! See [`TimeSync`] for usage examples.
 
@@ -13,13 +13,17 @@ mod wifi_impl {
     use defmt::*;
     use embassy_executor::Spawner;
     use embassy_net::{Stack, dns, udp};
+    use embassy_rp::Peri;
+    use embassy_rp::peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0};
     use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
     use embassy_sync::signal::Signal;
     use embassy_time::{Duration, Timer};
     use static_cell::StaticCell;
 
     use crate::Result;
+    use crate::flash_array::FlashBlock;
     use crate::unix_seconds::UnixSeconds;
+    use crate::wifi::{Wifi, WifiEvent, WifiStatic};
 
     // ============================================================================
     // Types
@@ -39,6 +43,7 @@ mod wifi_impl {
     /// Resources needed to construct a [`TimeSync`] (see [`TimeSync`] docs).
     pub struct TimeSyncStatic {
         events: TimeSyncEvents,
+        wifi: WifiStatic,
         time_sync_cell: StaticCell<TimeSync>,
     }
 
@@ -48,8 +53,6 @@ mod wifi_impl {
 
     /// Device abstraction that manages Network Time Protocol (NTP) synchronization over WiFi.
     ///
-    /// Uses an existing network stack (typically from [`WifiAuto`](crate::wifi_auto::WifiAuto)).
-    ///
     /// # Sync Timing
     ///
     /// - **Initial sync**: Fires immediately on start (retries at 10s, 30s, 60s, then 5min intervals if failed)
@@ -58,55 +61,78 @@ mod wifi_impl {
     /// # Examples
     ///
     /// ```
-    /// # use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-    /// # let example = |stack: &'static embassy_net::Stack<'static>, spawner: embassy_executor::Spawner| async move {
-    /// // Create TimeSync with an existing network stack (often from WifiAuto)
-    /// static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
-    /// let time_sync = TimeSync::new(&TIME_SYNC_STATIC, stack, spawner);
-    ///
-    /// // Wait for sync events
-    /// loop {
-    ///     match time_sync.wait().await {
-    ///         TimeSyncEvent::Success { unix_seconds } => {
-    ///             info!("Time synced: {} seconds", unix_seconds.as_i64());
-    ///         }
-    ///         TimeSyncEvent::Failed(message) => {
-    ///             info!("time sync failed: {message}. Will continue trying");
-    ///         }
+    /// # use serials::time_sync_old::{TimeSync, TimeSyncEvent};
+    /// # let log_next_time_sync = |time_sync: &'static TimeSync| async move {
+    /// match time_sync.wait().await {
+    ///     TimeSyncEvent::Success { unix_seconds } => {
+    ///         let _seconds = unix_seconds.as_i64();
+    ///     }
+    ///     TimeSyncEvent::Failed(message) => {
+    ///         info!("time sync failed: {message}. Will continue trying");
     ///     }
     /// }
     /// # };
-    /// # let _ = example;
+    /// # let _ = log_next_time_sync;
     /// ```
     pub struct TimeSync {
         events: &'static TimeSyncEvents,
+        #[allow(dead_code, reason = "Keeps WiFi alive or holds stack provider")]
+        wifi: Option<&'static Wifi>,
     }
 
     impl TimeSync {
-        /// Create [`TimeSync`] resources. See [`TimeSync`] docs for usage.
+        /// Create [`TimeSync`] resources (includes WiFi). See [`TimeSync`] docs for usage.
         #[must_use]
         pub const fn new_static() -> TimeSyncStatic {
             TimeSyncStatic {
                 events: Signal::new(),
+                wifi: Wifi::new_static(),
                 time_sync_cell: StaticCell::new(),
             }
         }
 
-        /// Create a [`TimeSync`] that uses an existing Embassy stack.
+        /// Create a [`TimeSync`] that provisions WiFi internally and spawns its task.
         ///
-        /// WiFi is managed elsewhere (e.g. via [`WifiAuto`](crate::wifi_auto::WifiAuto))
-        /// and the networking stack is already initialized in client mode.
+        /// # Arguments
+        /// * `credential_store` - Flash block for persisted WiFi credentials
         pub fn new(
             time_sync_static: &'static TimeSyncStatic,
-            stack: &'static Stack<'static>,
+            pin_23: Peri<'static, PIN_23>,
+            pin_25: Peri<'static, PIN_25>,
+            pio0: Peri<'static, PIO0>,
+            pin_24: Peri<'static, PIN_24>,
+            pin_29: Peri<'static, PIN_29>,
+            dma_ch0: Peri<'static, DMA_CH0>,
+            credential_store: FlashBlock,
             spawner: Spawner,
         ) -> &'static Self {
-            let token = unwrap!(time_sync_stack_loop(stack, &time_sync_static.events));
+            // Create WiFi device
+            let wifi = Wifi::new(
+                &time_sync_static.wifi,
+                pin_23,
+                pin_25,
+                pio0,
+                pin_24,
+                pin_29,
+                dma_ch0,
+                credential_store,
+                spawner,
+            );
+
+            // Spawn TimeSync task
+            let token = unwrap!(time_sync_device_loop(wifi, &time_sync_static.events));
             spawner.spawn(token);
 
             time_sync_static.time_sync_cell.init(Self {
                 events: &time_sync_static.events,
+                wifi: Some(wifi),
             })
+        }
+
+        /// Get reference to the WiFi device (see [`TimeSync`] docs for the setup overview).
+        pub fn wifi(&self) -> &'static Wifi {
+            self.wifi
+                .expect("TimeSync WiFi handle unavailable (stack-based mode)")
         }
 
         /// Wait for and return the next [`TimeSyncEvent`]. See [`TimeSync`] docs for an example.
@@ -116,12 +142,43 @@ mod wifi_impl {
     }
 
     #[embassy_executor::task]
-    async fn time_sync_stack_loop(
-        stack: &'static Stack<'static>,
-        sync_events: &'static TimeSyncEvents,
-    ) -> ! {
-        let err = run_time_sync_loop(stack, sync_events).await.unwrap_err();
+    async fn time_sync_device_loop(wifi: &'static Wifi, sync_events: &'static TimeSyncEvents) -> ! {
+        let err = inner_time_sync_device_loop(wifi, sync_events)
+            .await
+            .unwrap_err();
         core::panic!("{err}");
+    }
+
+    async fn inner_time_sync_device_loop(
+        wifi: &'static Wifi,
+        sync_events: &'static TimeSyncEvents,
+    ) -> Result<Infallible> {
+        info!("TimeSync device awaiting network stack...");
+
+        // Wait for WiFi to be ready and get the stack
+        let stack = wifi.stack().await;
+
+        // Check what kind of WiFi event we got
+        let wifi_event = wifi.wait().await;
+        match wifi_event {
+            WifiEvent::CaptivePortalReady => {
+                info!("TimeSync: WiFi in captive portal mode - waiting for client connection");
+                info!(
+                    "TimeSync: Network Time Protocol (NTP) sync will not start until switched to client mode"
+                );
+                // In captive portal mode, we don't sync time - just wait indefinitely
+                loop {
+                    Timer::after_secs(3600).await;
+                }
+            }
+            WifiEvent::ClientReady => {
+                info!(
+                    "TimeSync: WiFi in client mode - starting Network Time Protocol (NTP) sync"
+                );
+            }
+        }
+
+        run_time_sync_loop(stack, sync_events).await
     }
 
     async fn run_time_sync_loop(

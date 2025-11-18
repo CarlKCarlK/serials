@@ -15,7 +15,7 @@ use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdStatic};
 use serials::clock::{Clock, ClockStatic};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+use serials::time_sync_old::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 
 // ============================================================================
 // Main Orchestrator

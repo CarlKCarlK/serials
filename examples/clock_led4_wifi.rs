@@ -122,8 +122,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
     // Every hour, check the time and fire an event.
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
-    // cmk0 can we get rid of the other 'new'?
-    let time_sync = TimeSync::new_from_stack(&TIME_SYNC_STATIC, stack, spawner);
+    let time_sync = TimeSync::new(&TIME_SYNC_STATIC, stack, spawner);
 
     // Run the clock. It will monitor button pushes and time sync events.
     clock_led4.run(&mut button, time_sync).await
