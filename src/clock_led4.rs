@@ -134,6 +134,7 @@ impl ClockLed4<'_> {
             .await;
     }
 
+    // cmk I'm not sure these need to be public anymore
     /// Set the UTC offset in minutes directly.
     pub async fn set_offset_minutes(&self, minutes: i32) {
         self.utc_offset_mirror.store(minutes, Ordering::Relaxed);
