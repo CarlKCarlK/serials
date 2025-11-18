@@ -88,8 +88,6 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         spawner,
     )?;
 
-    // cmk0 'ensure_connected_with_async_ui' is too long (may no longer apply)
-    // cmk0 do we want both ensure_connected_with_async_ui and ensure_connected_with_ui and ensure_connected> (may no longer apply)
     // Drive the display with WifiAuto events while onboarding runs.
     let clock_led4_ref = &clock_led4;
     // cmk0 do we even need src/wifi.rs to be public? rename WifiAuto?
@@ -113,26 +111,26 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         })
         .await?;
 
-    let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
-    clock_led4.set_utc_offset_minutes(timezone_offset_minutes).await;
+    let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
+    clock_led4.set_offset_minutes(offset_minutes).await;
 
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
     let time_sync = TimeSync::new_from_stack(&TIME_SYNC_STATIC, stack, spawner);
 
     // cmk0 why are we ignoring the state inside clock?
-    let mut clock_state = ClockLed4State::HoursMinutes;
-    let mut persisted_offset = clock_led4.utc_offset_minutes();
+    let mut clock_lcd4_state = ClockLed4State::HoursMinutes;
+    let mut persisted_offset_minutes = clock_led4.offset_minutes();
 
     loop {
-        clock_state = clock_state
+        clock_lcd4_state = clock_lcd4_state
             .execute(&mut clock_led4, &mut button, time_sync)
             .await;
 
         // cmk0 is this the nicest way to save the timezone offset to flash when it changes.
-        let current_offset = clock_led4.utc_offset_minutes();
-        if current_offset != persisted_offset {
-            timezone_field.set_offset_minutes(current_offset)?;
-            persisted_offset = current_offset;
+        let current_offset_minutes = clock_led4.offset_minutes();
+        if current_offset_minutes != persisted_offset_minutes {
+            timezone_field.set_offset_minutes(current_offset_minutes)?;
+            persisted_offset_minutes = current_offset_minutes;
         }
     }
 }

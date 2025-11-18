@@ -112,7 +112,7 @@ impl ClockLed4<'_> {
     }
 
     /// Set the UTC offset in minutes directly.
-    pub async fn set_utc_offset_minutes(&self, minutes: i32) {
+    pub async fn set_offset_minutes(&self, minutes: i32) {
         self.utc_offset_mirror.store(minutes, Ordering::Relaxed);
         self.commands
             .send(ClockLed4Command::SetUtcOffsetMinutes(minutes))
@@ -121,7 +121,7 @@ impl ClockLed4<'_> {
 
     /// Read the most recently applied UTC offset in minutes.
     #[must_use]
-    pub fn utc_offset_minutes(&self) -> i32 {
+    pub fn offset_minutes(&self) -> i32 {
         self.utc_offset_mirror.load(Ordering::Relaxed)
     }
 
