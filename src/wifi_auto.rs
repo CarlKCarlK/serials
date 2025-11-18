@@ -11,7 +11,7 @@
 use core::{
     cell::RefCell,
     convert::Infallible,
-    future::{Future, ready},
+    future::Future,
 };
 use cortex_m::peripheral::SCB;
 use defmt::{info, unwrap, warn};
@@ -88,8 +88,7 @@ pub struct WifiAutoStatic {
 /// - Automatic captive portal on first boot or failed connections
 /// - Customizable configuration fields beyond WiFi credentials
 /// - Button-triggered reconfiguration
-/// - Event-driven UI updates via [`ensure_connected_with_ui`](Self::ensure_connected_with_ui)
-///   and [`ensure_connected_with_async_ui`](Self::ensure_connected_with_async_ui)
+/// - Event-driven UI updates via [`connect`](Self::connect)
 ///
 /// # Example
 ///
@@ -130,16 +129,21 @@ pub struct WifiAutoStatic {
 /// )?;
 ///
 /// // Connect with UI feedback (blocks until connected)
+/// // Note: If capturing variables from outer scope, create a reference first:
+/// //   let display_ref = &display;
+/// // Then use display_ref inside the closure.
 /// let (stack, button) = wifi_auto
-///     .ensure_connected_with_ui(spawner, |event| match event {
-///         WifiAutoEvent::CaptivePortalReady => {
-///             defmt::info!("Captive portal ready - connect to WiFi network");
-///         }
-///         WifiAutoEvent::ClientConnecting { try_index, try_count } => {
-///             defmt::info!("Connecting to WiFi (attempt {} of {})...", try_index + 1, try_count);
-///         }
-///         WifiAutoEvent::Connected => {
-///             defmt::info!("WiFi connected successfully!");
+///     .connect(spawner, |event| async move {
+///         match event {
+///             WifiAutoEvent::CaptivePortalReady => {
+///                 defmt::info!("Captive portal ready - connect to WiFi network");
+///             }
+///             WifiAutoEvent::ClientConnecting { try_index, try_count } => {
+///                 defmt::info!("Connecting to WiFi (attempt {} of {})...", try_index + 1, try_count);
+///             }
+///             WifiAutoEvent::Connected => {
+///                 defmt::info!("WiFi connected successfully!");
+///             }
 ///         }
 ///     })
 ///     .await?;
@@ -322,34 +326,31 @@ impl WifiAuto {
         self.events.wait().await
     }
 
-    /// Ensures WiFi connection with a synchronous UI callback for event-driven status updates.
-    ///
-    /// This helper is identical to [`ensure_connected_with_async_ui`](Self::ensure_connected_with_async_ui)
-    /// but accepts a plain closure for simple use cases that only log or mutate
-    /// synchronous state.
-    pub async fn ensure_connected_with_ui<F>(
-        &self,
-        spawner: Spawner,
-        mut on_event: F,
-    ) -> Result<(&'static Stack<'static>, Button<'static>)>
-    where
-        F: FnMut(WifiAutoEvent),
-    {
-        self.ensure_connected_with_async_ui(spawner, move |event| {
-            on_event(event);
-            ready(())
-        })
-        .await
-    }
-
-    /// Ensures WiFi connection with an async UI callback for event-driven status updates.
+    /// Ensures WiFi connection with UI callback for event-driven status updates.
     ///
     /// Automatically monitors connection events and awaits the provided callback for
-    /// each event, allowing callers to interact with async devices (displays, LEDs, etc.).
+    /// each event. The callback can be either synchronous (no `.await` calls) or
+    /// asynchronous (with `.await` calls for async operations like updating displays).
     ///
     /// The future resolves once WiFi connectivity is established and returns access to
     /// the network stack plus the reconfiguration button.
-    pub async fn ensure_connected_with_async_ui<Fut, F>(
+    ///
+    /// # Examples
+    ///
+    /// Synchronous callback (no `.await` calls):
+    /// ```ignore
+    /// wifi_auto.connect(spawner, |event| async move {
+    ///     info!("Event: {:?}", event);
+    /// }).await?;
+    /// ```
+    ///
+    /// Asynchronous callback (with `.await` calls):
+    /// ```ignore
+    /// wifi_auto.connect(spawner, |event| async move {
+    ///     display.set_state(event_to_state(event)).await;
+    /// }).await?;
+    /// ```
+    pub async fn connect<Fut, F>(
         &self,
         spawner: Spawner,
         mut on_event: F,
