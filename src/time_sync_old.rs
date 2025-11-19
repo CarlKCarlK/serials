@@ -176,9 +176,7 @@ mod wifi_impl {
                 }
             }
             WifiEvent::ClientReady => {
-                info!(
-                    "TimeSync: WiFi in client mode - starting Network Time Protocol (NTP) sync"
-                );
+                info!("TimeSync: WiFi in client mode - starting Network Time Protocol (NTP) sync");
             }
         }
 
@@ -283,10 +281,7 @@ mod wifi_impl {
             })?;
         let server_addr = dns_result.first().ok_or("No DNS results")?;
 
-        info!(
-            "Network Time Protocol (NTP) server IP: {}",
-            server_addr
-        );
+        info!("Network Time Protocol (NTP) server IP: {}", server_addr);
 
         // Create UDP socket
         let mut rx_meta = [udp::PacketMetadata::EMPTY; 1];
@@ -319,10 +314,7 @@ mod wifi_impl {
             .send_to(&ntp_request, (*server_addr, NTP_PORT))
             .await
             .map_err(|e| {
-                warn!(
-                    "Network Time Protocol (NTP) send failed: {:?}",
-                    e
-                );
+                warn!("Network Time Protocol (NTP) send failed: {:?}", e);
                 "Network Time Protocol (NTP) send failed"
             })?;
 

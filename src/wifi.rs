@@ -617,7 +617,10 @@ async fn wifi_device_loop_captive_portal(
     spawner.spawn(dhcp_token);
 
     info!("DHCP server started (pool: 192.168.4.2-254)");
-    info!("WiFi captive portal ready - connect to '{}'", captive_portal_ssid);
+    info!(
+        "WiFi captive portal ready - connect to '{}'",
+        captive_portal_ssid
+    );
 
     // Store stack reference and emit CaptivePortalReady event
     stack_storage.init(stack);

@@ -141,7 +141,13 @@ fn check_all() -> ExitCode {
         "\n{}",
         "==> Building examples (pico2, arm, no wifi)...".cyan()
     );
-    let examples_no_wifi = ["blinky", "ir", "led_strip", "led_strip_snake", "clock_led24x4"];
+    let examples_no_wifi = [
+        "blinky",
+        "ir",
+        "led_strip",
+        "led_strip_snake",
+        "clock_led24x4",
+    ];
     for example in &examples_no_wifi {
         println!("  {}", format!("- {example}").bright_black());
         if !run_command(Command::new("cargo").current_dir(&workspace_root).args([

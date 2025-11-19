@@ -105,7 +105,10 @@ impl TimezoneField {
     /// Initialize a new timezone field.
     ///
     /// See [`TimezoneField`] for a complete example.
-    pub fn new(timezone_field_static: &'static TimezoneFieldStatic, flash: FlashBlock) -> &'static Self {
+    pub fn new(
+        timezone_field_static: &'static TimezoneFieldStatic,
+        flash: FlashBlock,
+    ) -> &'static Self {
         timezone_field_static.cell.init(Self::from_flash(flash))
     }
 
