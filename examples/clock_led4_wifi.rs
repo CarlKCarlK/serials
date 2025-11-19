@@ -283,18 +283,13 @@ impl State {
             ],
         );
 
-        match select(
-            button.press_duration(),
-            Timer::after(Duration::from_millis(500)),
-        )
-        .await
-        {
-            Either::First(PressDuration::Short) => {
+        match button.press_duration().await {
+            PressDuration::Short => {
                 let new_offset_minutes = clock_time.offset_minutes() + 60;
                 clock_time.set_offset_minutes(new_offset_minutes);
                 Self::EditOffset
             }
-            Either::First(PressDuration::Long) => {
+            PressDuration::Long => {
                 // Save to flash when user finishes adjusting
                 let clock_offset_minutes = clock_time.offset_minutes();
                 if clock_offset_minutes != *flash_offset_minutes {
@@ -305,7 +300,6 @@ impl State {
                 }
                 Self::HoursMinutes
             }
-            Either::Second(_) => self, // Timer elapsed
         }
     }
 }
