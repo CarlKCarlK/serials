@@ -15,7 +15,7 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_rp::gpio::{self, Level};
-use embassy_time::{Duration, Timer};
+use embassy_time::Timer;
 use panic_probe as _;
 use serials::Result;
 use serials::button::{Button, PressDuration};
@@ -63,7 +63,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         spawner,
     )?;
 
-    // Initialize LED4 display pins.
+    // Initialize the LED4 display.
     let cell_pins = OutputArray::new([
         gpio::Output::new(peripherals.PIN_1, Level::High),
         gpio::Output::new(peripherals.PIN_2, Level::High),
@@ -84,9 +84,6 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
     static LED4_STATIC: Led4Static = Led4::new_static();
     let led4 = Led4::new(&LED4_STATIC, cell_pins, segment_pins, spawner)?;
-
-    let mut flash_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
-    let mut clock_time = ClockTime::new(flash_offset_minutes);
 
     // Start the auto Wi-Fi, using the clock display for status.
     // cmk0 do we even need src/wifi.rs to be public? rename WifiAuto?
@@ -119,6 +116,14 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     // Every hour, check the time and fire an event.
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
     let time_sync = TimeSync::new(&TIME_SYNC_STATIC, stack, spawner);
+
+    // Read the saved timezone offset from flash (must exist after WiFi provisioning).
+    let mut flash_offset_minutes = timezone_field
+        .offset_minutes()?
+        .ok_or(Error::StorageCorrupted)?;
+
+    // Create a lightweight clock_time instance to track the time.
+    let mut clock_time = ClockTime::new(flash_offset_minutes);
 
     // WiFi is connected, start in normal clock mode
     let mut state = State::HoursMinutes;
