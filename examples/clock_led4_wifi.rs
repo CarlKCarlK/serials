@@ -22,7 +22,7 @@ use serials::Result;
 use serials::button::{Button, PressDuration};
 use serials::clock_time::{ClockTime, ONE_MINUTE, ONE_SECOND};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::led4::{BlinkState, Led4, Led4Static, OutputArray};
+use serials::led4::{BlinkState, Led4, Led4Static, OutputArray, circular_outline_animation};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
@@ -89,30 +89,40 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
     let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
     static OFFSET_MIRROR: AtomicI32 = AtomicI32::new(0);
+    OFFSET_MIRROR.store(offset_minutes, Ordering::Relaxed);
     let mut clock_time = ClockTime::new(offset_minutes, &OFFSET_MIRROR);
 
     // Start the auto Wi-Fi, using the clock display for status.
     // cmk0 do we even need src/wifi.rs to be public? rename WifiAuto?
+    let led4_ref = &led4;
     let (stack, mut button) = wifi_auto
-        .connect(spawner, move |_event| async move {
-            // WiFi events don't need to change state - the main loop handles it
+        .connect(spawner, move |event| async move {
+            use serials::wifi_auto::WifiAutoEvent;
+            match event {
+                WifiAutoEvent::CaptivePortalReady => {
+                    led4_ref.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
+                }
+                WifiAutoEvent::Connecting { .. } => {
+                    led4_ref.animate_text(circular_outline_animation(true));
+                }
+                WifiAutoEvent::Connected => {
+                    led4_ref.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
+                }
+            }
         })
         .await?;
-
-    // WiFi is connected, start in normal clock mode
-    let mut state = State::HoursMinutes;
 
     // Every hour, check the time and fire an event.
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
     let time_sync = TimeSync::new(&TIME_SYNC_STATIC, stack, spawner);
 
+    // WiFi is connected, start in normal clock mode
+    let mut state = State::HoursMinutes;
+
     // Main display loop
     loop {
-        let (blink_mode, text, sleep_duration) = state.render(&clock_time);
-        led4.write_text(blink_mode, text);
-
         state = state
-            .execute(&mut clock_time, &mut button, &time_sync, sleep_duration)
+            .execute(&mut clock_time, &mut button, &time_sync, &led4)
             .await;
 
         // Save timezone offset to flash when it changes
@@ -141,30 +151,18 @@ impl State {
         clock_time: &mut ClockTime,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        sleep_duration: Duration,
+        led4: &Led4<'_>,
     ) -> Self {
         match self {
             Self::HoursMinutes => {
-                self.execute_hours_minutes(clock_time, button, time_sync, sleep_duration)
+                self.execute_hours_minutes(clock_time, button, time_sync, led4)
                     .await
             }
             Self::MinutesSeconds => {
-                self.execute_minutes_seconds(clock_time, button, time_sync, sleep_duration)
+                self.execute_minutes_seconds(clock_time, button, time_sync, led4)
                     .await
             }
-            Self::EditOffset => {
-                self.execute_edit_offset(clock_time, button, sleep_duration)
-                    .await
-            }
-        }
-    }
-
-    /// Render the current clock state to display output.
-    pub fn render(self, clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
-        match self {
-            Self::HoursMinutes => Self::render_hours_minutes(clock_time),
-            Self::MinutesSeconds => Self::render_minutes_seconds(clock_time),
-            Self::EditOffset => Self::render_edit_offset(clock_time),
+            Self::EditOffset => self.execute_edit_offset(clock_time, button, led4).await,
         }
     }
 
@@ -173,8 +171,19 @@ impl State {
         clock_time: &mut ClockTime,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        sleep_duration: Duration,
+        led4: &Led4<'_>,
     ) -> Self {
+        let (hours, minutes, _, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_MINUTE);
+        led4.write_text(
+            BlinkState::Solid,
+            [
+                tens_hours(hours),
+                ones_digit(hours),
+                tens_digit(minutes),
+                ones_digit(minutes),
+            ],
+        );
+
         match select(
             select(button.press_duration(), Timer::after(sleep_duration)),
             time_sync.wait(),
@@ -204,8 +213,19 @@ impl State {
         clock_time: &mut ClockTime,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        sleep_duration: Duration,
+        led4: &Led4<'_>,
     ) -> Self {
+        let (_, minutes, seconds, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_SECOND);
+        led4.write_text(
+            BlinkState::Solid,
+            [
+                tens_digit(minutes),
+                ones_digit(minutes),
+                tens_digit(seconds),
+                ones_digit(seconds),
+            ],
+        );
+
         match select(
             select(button.press_duration(), Timer::after(sleep_duration)),
             time_sync.wait(),
@@ -234,49 +254,10 @@ impl State {
         self,
         clock_time: &mut ClockTime,
         button: &mut Button<'_>,
-        sleep_duration: Duration,
+        led4: &Led4<'_>,
     ) -> Self {
-        match select(button.press_duration(), Timer::after(sleep_duration)).await {
-            Either::First(PressDuration::Short) => {
-                clock_time.adjust_offset_hours(1);
-                Self::EditOffset
-            }
-            Either::First(PressDuration::Long) => Self::HoursMinutes,
-            Either::Second(_) => self, // Timer elapsed
-        }
-    }
-
-    fn render_hours_minutes(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
-        let (hours, minutes, _, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_MINUTE);
-        (
-            BlinkState::Solid,
-            [
-                tens_hours(hours),
-                ones_digit(hours),
-                tens_digit(minutes),
-                ones_digit(minutes),
-            ],
-            sleep_duration,
-        )
-    }
-
-    fn render_minutes_seconds(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
-        let (_, minutes, seconds, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_SECOND);
-        (
-            BlinkState::Solid,
-            [
-                tens_digit(minutes),
-                ones_digit(minutes),
-                tens_digit(seconds),
-                ones_digit(seconds),
-            ],
-            sleep_duration,
-        )
-    }
-
-    fn render_edit_offset(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         let (hours, minutes, _, _) = clock_time.h_m_s_sleep_duration(ONE_MINUTE);
-        (
+        led4.write_text(
             BlinkState::BlinkingAndOn,
             [
                 tens_hours(hours),
@@ -284,8 +265,21 @@ impl State {
                 tens_digit(minutes),
                 ones_digit(minutes),
             ],
-            Duration::from_millis(500),
+        );
+
+        match select(
+            button.press_duration(),
+            Timer::after(Duration::from_millis(500)),
         )
+        .await
+        {
+            Either::First(PressDuration::Short) => {
+                clock_time.adjust_offset_hours(1);
+                Self::EditOffset
+            }
+            Either::First(PressDuration::Long) => Self::HoursMinutes,
+            Either::Second(_) => self, // Timer elapsed
+        }
     }
 }
 

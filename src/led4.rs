@@ -298,3 +298,56 @@ async fn run_animation_loop(
         }
     }
 }
+
+/// Creates a circular outline animation that chases around the edges of the display.
+///
+/// Returns an animation with 8 frames showing a segment moving clockwise or
+/// counter-clockwise around the perimeter of the 4-digit display.
+///
+/// # Arguments
+///
+/// * `clockwise` - If `true`, animates clockwise; if `false`, counter-clockwise
+///
+/// # Example
+///
+/// ```no_run
+/// # use serials::led4::{Led4, circular_outline_animation};
+/// # async fn example(led4: &Led4<'_>) {
+/// // Animate clockwise
+/// led4.animate_text(circular_outline_animation(true));
+///
+/// // Animate counter-clockwise
+/// led4.animate_text(circular_outline_animation(false));
+/// # }
+/// ```
+#[must_use]
+pub fn circular_outline_animation(clockwise: bool) -> Led4Animation {
+    const FRAME_DURATION: Duration = Duration::from_millis(120);
+    const CLOCKWISE: [[char; 4]; 8] = [
+        ['\'', '\'', '\'', '\''],
+        ['\'', '\'', '\'', '"'],
+        [' ', ' ', ' ', '>'],
+        [' ', ' ', ' ', ')'],
+        ['_', '_', '_', '_'],
+        ['*', '_', '_', '_'],
+        ['<', ' ', ' ', ' '],
+        ['(', '\'', '\'', '\''],
+    ];
+    const COUNTER: [[char; 4]; 8] = [
+        ['(', '\'', '\'', '\''],
+        ['<', ' ', ' ', ' '],
+        ['*', '_', '_', '_'],
+        ['_', '_', '_', '_'],
+        [' ', ' ', ' ', ')'],
+        [' ', ' ', ' ', '>'],
+        ['\'', '\'', '\'', '"'],
+        ['\'', '\'', '\'', '\''],
+    ];
+
+    let mut animation = Led4Animation::new();
+    let frames = if clockwise { &CLOCKWISE } else { &COUNTER };
+    for text in frames {
+        let _ = animation.push(AnimationFrame::new(*text, FRAME_DURATION));
+    }
+    animation
+}

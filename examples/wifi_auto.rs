@@ -90,15 +90,15 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
     let wifi_auto = WifiAuto::new(
         &WIFI_AUTO_STATIC,
-        peripherals.PIN_23,     // CYW43 power
-        peripherals.PIN_25,     // CYW43 chip select
-        peripherals.PIO0,       // CYW43 PIO interface
-        peripherals.PIN_24,     // CYW43 clock
-        peripherals.PIN_29,     // CYW43 data pin
-        peripherals.DMA_CH0,    // CYW43 DMA channel
+        peripherals.PIN_23,           // CYW43 power
+        peripherals.PIN_25,           // CYW43 chip select
+        peripherals.PIO0,             // CYW43 PIO interface
+        peripherals.PIN_24,           // CYW43 clock
+        peripherals.PIN_29,           // CYW43 data pin
+        peripherals.DMA_CH0,          // CYW43 DMA channel
         wifi_credentials_flash_block, // Flash block storing Wi-Fi creds
-        peripherals.PIN_13,     // Reset button pin
-        "Pico",                 // Captive portal SSID to display
+        peripherals.PIN_13,           // Reset button pin
+        "Pico",                       // Captive portal SSID to display
         [timezone_field, device_name_field, location_field],
         spawner,
     )?;
@@ -112,7 +112,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                 }
 
                 WifiAutoEvent::Connecting { try_index, .. } => {
-                    led4_ref.animate_text(circular_outline_animation((try_index & 1) == 0));
+                    led4_ref.animate_text(serials::led4::circular_outline_animation(
+                        (try_index & 1) == 0,
+                    ));
                 }
 
                 WifiAutoEvent::Connected => {
@@ -214,35 +216,4 @@ async fn fetch_ntp_time(stack: &'static Stack<'static>) -> Result<UnixSeconds, &
 
     let ntp_seconds = u32::from_be_bytes([response[40], response[41], response[42], response[43]]);
     UnixSeconds::from_ntp_seconds(ntp_seconds).ok_or("Invalid NTP timestamp")
-}
-
-fn circular_outline_animation(clockwise: bool) -> Led4Animation {
-    const FRAME_DURATION: Duration = Duration::from_millis(120);
-    const CLOCKWISE: [[char; 4]; 8] = [
-        ['\u{0027}', '\u{0027}', '\u{0027}', '\u{0027}'],
-        ['\u{0027}', '\u{0027}', '\u{0027}', '"'],
-        [' ', ' ', ' ', '>'],
-        [' ', ' ', ' ', ')'],
-        ['_', '_', '_', '_'],
-        ['*', '_', '_', '_'],
-        ['<', ' ', ' ', ' '],
-        ['(', '\u{0027}', '\u{0027}', '\u{0027}'],
-    ];
-    const COUNTER: [[char; 4]; 8] = [
-        ['(', '\u{0027}', '\u{0027}', '\u{0027}'],
-        ['<', ' ', ' ', ' '],
-        ['*', '_', '_', '_'],
-        ['_', '_', '_', '_'],
-        [' ', ' ', ' ', ')'],
-        [' ', ' ', ' ', '>'],
-        ['\u{0027}', '\u{0027}', '\u{0027}', '"'],
-        ['\u{0027}', '\u{0027}', '\u{0027}', '\u{0027}'],
-    ];
-
-    let mut animation = Led4Animation::new();
-    let frames = if clockwise { &CLOCKWISE } else { &COUNTER };
-    for text in frames {
-        let _ = animation.push(AnimationFrame::new(*text, FRAME_DURATION));
-    }
-    animation
 }
