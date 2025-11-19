@@ -98,7 +98,7 @@ where
         // Convert the flat array to a LinearMap
         let mut map = LinearMap::new();
         for &(addr, cmd, button) in button_map {
-            let _ = map.insert((addr, cmd), button);
+            map.insert((addr, cmd), button).ok();
         }
 
         Ok(Self {

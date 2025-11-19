@@ -525,7 +525,8 @@ impl<const N: usize> WifiAutoField for TextField<N> {
             .filter(|value| !value.is_empty())
             .unwrap_or_else(|| {
                 let mut text = String::<N>::new();
-                let _ = text.push_str(self.default_value);
+                text.push_str(self.default_value)
+                    .expect("default value exceeds capacity");
                 text
             });
         let escaped = simple_escape(current.as_str());
@@ -566,22 +567,32 @@ fn simple_escape(input: &str) -> String<128> {
     for ch in input.chars() {
         match ch {
             '&' => {
-                let _ = escaped.push_str("&amp;");
+                escaped
+                    .push_str("&amp;")
+                    .expect("escaped text exceeds capacity");
             }
             '<' => {
-                let _ = escaped.push_str("&lt;");
+                escaped
+                    .push_str("&lt;")
+                    .expect("escaped text exceeds capacity");
             }
             '>' => {
-                let _ = escaped.push_str("&gt;");
+                escaped
+                    .push_str("&gt;")
+                    .expect("escaped text exceeds capacity");
             }
             '"' => {
-                let _ = escaped.push_str("&quot;");
+                escaped
+                    .push_str("&quot;")
+                    .expect("escaped text exceeds capacity");
             }
             '\'' => {
-                let _ = escaped.push_str("&#39;");
+                escaped
+                    .push_str("&#39;")
+                    .expect("escaped text exceeds capacity");
             }
             _ => {
-                let _ = escaped.push(ch);
+                escaped.push(ch).expect("escaped text exceeds capacity");
             }
         }
     }

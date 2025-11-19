@@ -107,14 +107,14 @@ pub async fn http_config_server_task(stack: &'static Stack<'static>) -> ! {
         let request_len = match socket.read(request).await {
             Ok(0) => {
                 info!("Client closed without sending data");
-                let _ = socket.flush().await;
+                socket.flush().await.ok();
                 socket.close();
                 continue;
             }
             Ok(n) => n,
             Err(e) => {
                 warn!("Read error: {:?}", e);
-                let _ = socket.flush().await;
+                socket.flush().await.ok();
                 socket.close();
                 continue;
             }
@@ -184,10 +184,13 @@ fn parse_credentials_from_post(request: &str) -> Option<WifiCredentialSubmission
             let decoded_value = url_decode(value);
             match key {
                 "ssid" => {
-                    let _ = ssid.push_str(&decoded_value);
+                    ssid.push_str(&decoded_value)
+                        .expect("ssid exceeds capacity");
                 }
                 "password" => {
-                    let _ = password.push_str(&decoded_value);
+                    password
+                        .push_str(&decoded_value)
+                        .expect("password exceeds capacity");
                 }
                 "offset" => {
                     offset_minutes = decoded_value.parse::<i32>().ok();

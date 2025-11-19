@@ -18,9 +18,23 @@ default = ["defmt", "pico1", "arm"]
 defmt = []
 pico1 = ["dep:embassy-rp", "embassy-rp/rp2040"]
 pico2 = ["dep:embassy-rp", "embassy-rp/rp235xb", "dep:rp235x-hal"]
-arm = ["dep:cortex-m", "dep:cortex-m-rt", "embassy-executor/arch-cortex-m", "dep:embassy-hal-internal", "embassy-hal-internal/cortex-m", "embassy-hal-internal/prio-bits-2", "critical-section/restore-state-u8"]
-riscv = ["dep:riscv", "dep:riscv-rt", "embassy-executor/arch-riscv32", "dep:embassy-hal-internal", "critical-section/restore-state-bool"]
-host = []  # For testing on host platform without hardware dependencies
+arm = [
+    "dep:cortex-m",
+    "dep:cortex-m-rt",
+    "embassy-executor/arch-cortex-m",
+    "dep:embassy-hal-internal",
+    "embassy-hal-internal/cortex-m",
+    "embassy-hal-internal/prio-bits-2",
+    "critical-section/restore-state-u8",
+]
+riscv = [
+    "dep:riscv",
+    "dep:riscv-rt",
+    "embassy-executor/arch-riscv32",
+    "dep:embassy-hal-internal",
+    "critical-section/restore-state-bool",
+]
+host = [] # For testing on host platform without hardware dependencies
 wifi = [
     # WiFi currently only works with pico1
     "dep:cyw43",
@@ -28,7 +42,7 @@ wifi = [
     "dep:cyw43-firmware",
     "dep:embassy-net",
 ]
- display-trace = []
+display-trace = []
 
 [dependencies]
 defmt = "0.3.10"
@@ -41,7 +55,9 @@ cortex-m = { version = "0.7.7", optional = true }
 
 # RISC-V dependencies (for Pico 2 RISC-V core)
 riscv-rt = { version = "0.12", optional = true }
-riscv = { version = "0.11", features = ["critical-section-single-hart"], optional = true }
+riscv = { version = "0.11", features = [
+    "critical-section-single-hart",
+], optional = true }
 
 embassy-executor = { git = "https://github.com/embassy-rs/embassy", branch = "main", default-features = false, features = [
     "executor-thread",
@@ -70,7 +86,9 @@ heapless = { version = "0.8.0", features = ["serde"] }
 time = { version = "0.3", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 postcard = { version = "1.0", default-features = false }
-rp235x-hal = { git = "https://github.com/rp-rs/rp-hal", branch = "main", package = "rp235x-hal", features = ["rt"], optional = true }
+rp235x-hal = { git = "https://github.com/rp-rs/rp-hal", branch = "main", package = "rp235x-hal", features = [
+    "rt",
+], optional = true }
 smart-leds = "0.4.0"
 itertools = { version = "0.13.0", default-features = false }
 crc32fast = { version = "1.4.0", default-features = false }
@@ -78,14 +96,29 @@ critical-section = { version = "1.2.0", default-features = false }
 embedded-hal = "1.0.0"
 embedded-hal-async = "1.0.0"
 embedded-io-async = "0.6.1"
-embedded-hal-bus = { version = "0.3.0", features = ["async", "portable-atomic"] }
+embedded-hal-bus = { version = "0.3.0", features = [
+    "async",
+    "portable-atomic",
+] }
 portable-atomic = { version = "1.11.1", features = ["critical-section"] }
 hd44780-driver = "0.4.0"
 esp-hal-mfrc522 = "0.3.2"
-cyw43 = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = ["defmt", "firmware-logs"], optional = true }
-cyw43-pio = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = ["defmt"], optional = true }
+cyw43 = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
+    "defmt",
+    "firmware-logs",
+], optional = true }
+cyw43-pio = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
+    "defmt",
+], optional = true }
 cyw43-firmware = { version = "0.1", features = ["wifi"], optional = true }
-embassy-net = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = ["defmt", "tcp", "udp", "dhcpv4", "dns", "medium-ethernet"], optional = true }
+embassy-net = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
+    "defmt",
+    "tcp",
+    "udp",
+    "dhcpv4",
+    "dns",
+    "medium-ethernet",
+], optional = true }
 static_cell = "2.1.0"
 embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy", branch = "main", default-features = false, optional = true }
 paste = "1.0"
@@ -137,6 +170,7 @@ semicolon_if_nothing_returned = "warn"
 semicolon_inside_block = "warn"
 str_to_string = "warn"
 unwrap_used = "deny"
+unused_result = "deny"
 wildcard_imports = "deny"
 
 all = { level = "warn", priority = -2 }
@@ -179,7 +213,8 @@ std_instead_of_core = "warn"
 too_long_first_doc_paragraph = "warn"
 unnecessary_wraps = "warn"
 unreachable = "warn"
-
+must_use_candidate = "warn"
+unused_must_use = "warn"
 # TODO: Uncomment before ship to reconcile use of possibly redundant crates, debug remnants, missing
 # license files and more
 # blanket_clippy_restriction_lints = "warn"

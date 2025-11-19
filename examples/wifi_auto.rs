@@ -127,12 +127,14 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
     let device_name = device_name_field.text()?.unwrap_or_else(|| {
         let mut name = String::new();
-        let _ = name.push_str("PicoClock");
+        name.push_str("PicoClock")
+            .expect("default name exceeds capacity");
         name
     });
     let location = location_field.text()?.unwrap_or_else(|| {
         let mut name = String::new();
-        let _ = name.push_str("Living Room");
+        name.push_str("Living Room")
+            .expect("default location exceeds capacity");
         name
     });
     info!(

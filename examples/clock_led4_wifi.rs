@@ -4,9 +4,9 @@
 //! `ClockLed4` state machine. The `WifiAuto` helper owns Wi-Fi onboarding while the
 //! clock display reflects progress and, once connected, continues handling user input.
 
-#![cfg(feature = "wifi")]
 #![no_std]
 #![no_main]
+#![cfg(feature = "wifi")]
 #![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
@@ -85,8 +85,8 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     static LED4_STATIC: Led4Static = Led4::new_static();
     let led4 = Led4::new(&LED4_STATIC, cell_pins, segment_pins, spawner)?;
 
-    let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
-    let mut clock_time = ClockTime::new(offset_minutes);
+    let mut flash_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
+    let mut clock_time = ClockTime::new(flash_offset_minutes);
 
     // Start the auto Wi-Fi, using the clock display for status.
     // cmk0 do we even need src/wifi.rs to be public? rename WifiAuto?
@@ -96,17 +96,25 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
             use serials::wifi_auto::WifiAutoEvent;
             match event {
                 WifiAutoEvent::CaptivePortalReady => {
+                    info!("Event: CaptivePortalReady");
                     led4_ref.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
                 }
-                WifiAutoEvent::Connecting { .. } => {
+                WifiAutoEvent::Connecting {
+                    try_index,
+                    try_count,
+                } => {
+                    info!("Event: Connecting attempt {}/{}", try_index + 1, try_count);
                     led4_ref.animate_text(circular_outline_animation(true));
                 }
                 WifiAutoEvent::Connected => {
+                    info!("Event: Connected");
                     led4_ref.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
                 }
             }
         })
         .await?;
+
+    info!("WiFi connect() returned successfully");
 
     // Every hour, check the time and fire an event.
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
@@ -114,18 +122,17 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
     // WiFi is connected, start in normal clock mode
     let mut state = State::HoursMinutes;
-
-    // Main display loop
     loop {
         state = state
-            .execute(&mut clock_time, &mut button, &time_sync, &led4)
+            .execute(
+                &mut clock_time,
+                &mut button,
+                &time_sync,
+                &led4,
+                &timezone_field,
+                &mut flash_offset_minutes,
+            )
             .await;
-
-        // Save timezone offset to flash when it changes
-        let current_offset_minutes = clock_time.offset_minutes();
-        if current_offset_minutes != offset_minutes {
-            let _ = timezone_field.set_offset_minutes(current_offset_minutes);
-        }
     }
 }
 
@@ -148,6 +155,8 @@ impl State {
         button: &mut Button<'_>,
         time_sync: &TimeSync,
         led4: &Led4<'_>,
+        timezone_field: &TimezoneField,
+        flash_offset_minutes: &mut i32,
     ) -> Self {
         match self {
             Self::HoursMinutes => {
@@ -158,7 +167,16 @@ impl State {
                 self.execute_minutes_seconds(clock_time, button, time_sync, led4)
                     .await
             }
-            Self::EditOffset => self.execute_edit_offset(clock_time, button, led4).await,
+            Self::EditOffset => {
+                self.execute_edit_offset(
+                    clock_time,
+                    button,
+                    led4,
+                    timezone_field,
+                    flash_offset_minutes,
+                )
+                .await
+            }
         }
     }
 
@@ -251,6 +269,8 @@ impl State {
         clock_time: &mut ClockTime,
         button: &mut Button<'_>,
         led4: &Led4<'_>,
+        timezone_field: &TimezoneField,
+        flash_offset_minutes: &mut i32,
     ) -> Self {
         let (hours, minutes, _, _) = clock_time.h_m_s_sleep_duration(ONE_MINUTE);
         led4.write_text(
@@ -274,7 +294,17 @@ impl State {
                 clock_time.set_offset_minutes(new_offset_minutes);
                 Self::EditOffset
             }
-            Either::First(PressDuration::Long) => Self::HoursMinutes,
+            Either::First(PressDuration::Long) => {
+                // Save to flash when user finishes adjusting
+                let clock_offset_minutes = clock_time.offset_minutes();
+                if clock_offset_minutes != *flash_offset_minutes {
+                    timezone_field
+                        .set_offset_minutes(clock_offset_minutes)
+                        .expect("failed to save offset to flash");
+                    *flash_offset_minutes = clock_offset_minutes;
+                }
+                Self::HoursMinutes
+            }
             Either::Second(_) => self, // Timer elapsed
         }
     }

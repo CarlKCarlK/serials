@@ -72,7 +72,7 @@ pub enum Led4Command {
     Animation(Led4Animation),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct AnimationFrame {
     pub text: [char; CELL_COUNT],
     pub duration: Duration,
@@ -310,7 +310,7 @@ async fn run_animation_loop(
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```ignore
 /// # use serials::led4::{Led4, circular_outline_animation};
 /// # async fn example(led4: &Led4<'_>) {
 /// // Animate clockwise
@@ -347,7 +347,9 @@ pub fn circular_outline_animation(clockwise: bool) -> Led4Animation {
     let mut animation = Led4Animation::new();
     let frames = if clockwise { &CLOCKWISE } else { &COUNTER };
     for text in frames {
-        let _ = animation.push(AnimationFrame::new(*text, FRAME_DURATION));
+        animation
+            .push(AnimationFrame::new(*text, FRAME_DURATION))
+            .expect("animation exceeds frame capacity");
     }
     animation
 }

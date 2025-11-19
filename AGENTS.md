@@ -122,7 +122,6 @@ Use American over British spelling
 
 When making up variable notes for examples and elsewhere, never use the prefix "My". I hate that.
 
-
 Yes, in Rust the get_ prefix is generally discouraged for getters. The Rust API guidelines specifically recommend against it.
 
 Rust convention:
@@ -143,4 +142,10 @@ Example:
 ```rust
 static LED4_STATIC: Led4Static = Led4::new_static();
 let led4 = Led4::new(&LED4_STATIC, cells, segments, spawner)?;
+```
+
+Don't ignore errors by assigning results to an ignored variable. Don't do this:
+
+```rust
+let _ = something_that_returns_a_result()
 ```

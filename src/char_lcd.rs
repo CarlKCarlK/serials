@@ -110,11 +110,13 @@ impl LcdDriver {
         let data = (nibble << 4) | LCD_BACKLIGHT | rs_bit;
 
         // Write with enable high
-        let _ = self.i2c.blocking_write(self.address, &[data | LCD_ENABLE]);
+        self.i2c
+            .blocking_write(self.address, &[data | LCD_ENABLE])
+            .ok();
         Timer::after_micros(1).await;
 
         // Write with enable low
-        let _ = self.i2c.blocking_write(self.address, &[data]);
+        self.i2c.blocking_write(self.address, &[data]).ok();
         Timer::after_micros(50).await;
     }
 

@@ -25,6 +25,7 @@
         "MMSS",
         "MOSI",
         "picc",
+        "prio",
         "refdiv",
         "reqa",
         "syncer"

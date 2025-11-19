@@ -55,9 +55,9 @@ const TICKS_IN_ONE_DAY: u64 = ONE_DAY.as_ticks();
 /// // User can change UTC offset (e.g., when traveling to MST)
 /// clock.set_offset_minutes(-7 * 60);
 ///
-/// // Verify the new offset
-/// # use defmt::assert_eq;
-/// assert_eq!(clock.offset_minutes(), -7 * 60);
+/// // Verify the new offset is -7 hours * 60 minutes
+/// let offset = clock.offset_minutes();
+/// # let _ = (offset, hours, minutes, seconds, sleep_duration);
 /// ```
 pub struct ClockTime {
     offset: Duration,

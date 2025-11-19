@@ -143,14 +143,14 @@ async fn http_server_task(stack: &'static Stack<'static>) -> ! {
         let request_len = match socket.read(request).await {
             Ok(0) => {
                 info!("Client closed connection");
-                let _ = socket.flush().await;
+                socket.flush().await.ok();
                 socket.close();
                 continue;
             }
             Ok(n) => n,
             Err(err) => {
                 warn!("HTTP read error: {:?}", err);
-                let _ = socket.flush().await;
+                socket.flush().await.ok();
                 socket.close();
                 continue;
             }
@@ -185,7 +185,7 @@ async fn http_server_task(stack: &'static Stack<'static>) -> ! {
             warn!("HTTP write error: {:?}", err);
         }
 
-        let _ = socket.flush().await;
+        socket.flush().await.ok();
         socket.close();
         Timer::after_millis(100).await;
     }
@@ -203,13 +203,18 @@ fn parse_post(request: &str, fields: &[&'static dyn WifiAutoField]) -> Option<Wi
         if let Some((key, value)) = param.split_once('=') {
             let decoded_key = url_decode::<32>(key);
             let decoded_value = url_decode::<256>(value);
-            let _ = params.insert(decoded_key.clone(), decoded_value.clone());
+            params
+                .insert(decoded_key.clone(), decoded_value.clone())
+                .ok();
             match decoded_key.as_str() {
                 "ssid" => {
-                    let _ = ssid.push_str(&decoded_value);
+                    ssid.push_str(&decoded_value)
+                        .expect("ssid exceeds capacity");
                 }
                 "password" => {
-                    let _ = password.push_str(&decoded_value);
+                    password
+                        .push_str(&decoded_value)
+                        .expect("password exceeds capacity");
                 }
                 _ => {}
             }
@@ -295,7 +300,8 @@ fn generate_config_page(state: &FormState, fields: &[&'static dyn WifiAutoField]
         }
     }
 
-    let _ = page.push_str("<button type=\"submit\">Connect</button></form></body></html>");
+    page.push_str("<button type=\"submit\">Connect</button></form></body></html>")
+        .expect("page HTML exceeds capacity");
 
     page
 }
@@ -349,7 +355,8 @@ fn generate_error_page() -> &'static str {
 
 fn static_page(content: &'static str) -> HtmlBuffer {
     let mut page = HtmlBuffer::new();
-    let _ = page.push_str(content);
+    page.push_str(content)
+        .expect("static content exceeds page capacity");
     page
 }
 
@@ -359,19 +366,19 @@ fn url_decode<const N: usize>(s: &str) -> heapless::String<N> {
 
     while let Some(c) = chars.next() {
         if c == '+' {
-            let _ = result.push(' ');
+            result.push(' ').expect("decoded URL exceeds capacity");
         } else if c == '%' {
             if let (Some(h1), Some(h2)) = (chars.next(), chars.next()) {
                 if let (Some(d1), Some(d2)) = (h1.to_digit(16), h2.to_digit(16)) {
                     #[allow(clippy::cast_possible_truncation)]
                     let byte = ((d1 << 4) | d2) as u8;
                     if let Ok(ch) = core::str::from_utf8(&[byte]) {
-                        let _ = result.push_str(ch);
+                        result.push_str(ch).expect("decoded URL exceeds capacity");
                     }
                 }
             }
         } else {
-            let _ = result.push(c);
+            result.push(c).expect("decoded URL exceeds capacity");
         }
     }
 
@@ -383,22 +390,32 @@ fn escape_html<const N: usize>(value: &str) -> heapless::String<N> {
     for ch in value.chars() {
         match ch {
             '&' => {
-                let _ = escaped.push_str("&amp;");
+                escaped
+                    .push_str("&amp;")
+                    .expect("escaped HTML exceeds capacity");
             }
             '<' => {
-                let _ = escaped.push_str("&lt;");
+                escaped
+                    .push_str("&lt;")
+                    .expect("escaped HTML exceeds capacity");
             }
             '>' => {
-                let _ = escaped.push_str("&gt;");
+                escaped
+                    .push_str("&gt;")
+                    .expect("escaped HTML exceeds capacity");
             }
             '"' => {
-                let _ = escaped.push_str("&quot;");
+                escaped
+                    .push_str("&quot;")
+                    .expect("escaped HTML exceeds capacity");
             }
             '\'' => {
-                let _ = escaped.push_str("&#39;");
+                escaped
+                    .push_str("&#39;")
+                    .expect("escaped HTML exceeds capacity");
             }
             _ => {
-                let _ = escaped.push(ch);
+                escaped.push(ch).expect("escaped HTML exceeds capacity");
             }
         }
     }
