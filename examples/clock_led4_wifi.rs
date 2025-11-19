@@ -10,7 +10,6 @@
 #![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
-use core::sync::atomic::{AtomicI32, Ordering};
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
@@ -42,7 +41,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     let [wifi_credentials_flash_block, timezone_flash_block] =
         FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
 
-    // Define HTML etc for asking for timezone on the captive portal.
+    // Define HTML to ask for timezone on the captive portal.
     static TIMEZONE_FIELD_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
 
@@ -64,7 +63,6 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         spawner,
     )?;
 
-    // Define a clock with an LED4 display.
     // Initialize LED4 display pins.
     let cell_pins = OutputArray::new([
         gpio::Output::new(peripherals.PIN_1, Level::High),
@@ -88,9 +86,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     let led4 = Led4::new(&LED4_STATIC, cell_pins, segment_pins, spawner)?;
 
     let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
-    static OFFSET_MIRROR: AtomicI32 = AtomicI32::new(0);
-    OFFSET_MIRROR.store(offset_minutes, Ordering::Relaxed);
-    let mut clock_time = ClockTime::new(offset_minutes, &OFFSET_MIRROR);
+    let mut clock_time = ClockTime::new(offset_minutes);
 
     // Start the auto Wi-Fi, using the clock display for status.
     // cmk0 do we even need src/wifi.rs to be public? rename WifiAuto?
@@ -126,7 +122,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
             .await;
 
         // Save timezone offset to flash when it changes
-        let current_offset_minutes = OFFSET_MIRROR.load(Ordering::Relaxed);
+        let current_offset_minutes = clock_time.offset_minutes();
         if current_offset_minutes != offset_minutes {
             let _ = timezone_field.set_offset_minutes(current_offset_minutes);
         }
@@ -274,7 +270,8 @@ impl State {
         .await
         {
             Either::First(PressDuration::Short) => {
-                clock_time.adjust_offset_hours(1);
+                let new_offset_minutes = clock_time.offset_minutes() + 60;
+                clock_time.set_offset_minutes(new_offset_minutes);
                 Self::EditOffset
             }
             Either::First(PressDuration::Long) => Self::HoursMinutes,
