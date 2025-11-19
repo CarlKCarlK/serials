@@ -16,7 +16,7 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_rp::gpio::{self, Level};
-use embassy_time::{Duration, Instant, Timer};
+use embassy_time::{Duration, Timer};
 use panic_probe as _;
 use serials::Result;
 use serials::button::{Button, PressDuration};
@@ -90,7 +90,6 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
     static OFFSET_MIRROR: AtomicI32 = AtomicI32::new(0);
     let mut clock_time = ClockTime::new(offset_minutes, &OFFSET_MIRROR);
-    let mut state = State::Connecting;
 
     // Start the auto Wi-Fi, using the clock display for status.
     // cmk0 do we even need src/wifi.rs to be public? rename WifiAuto?
@@ -99,6 +98,9 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
             // WiFi events don't need to change state - the main loop handles it
         })
         .await?;
+
+    // WiFi is connected, start in normal clock mode
+    let mut state = State::HoursMinutes;
 
     // Every hour, check the time and fire an event.
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
@@ -128,10 +130,8 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 pub enum State {
     #[default]
     HoursMinutes,
-    Connecting,
     MinutesSeconds,
     EditOffset,
-    CaptivePortalReady,
 }
 
 impl State {
@@ -148,17 +148,12 @@ impl State {
                 self.execute_hours_minutes(clock_time, button, time_sync, sleep_duration)
                     .await
             }
-            Self::Connecting => self.execute_connecting(clock_time, time_sync).await,
             Self::MinutesSeconds => {
                 self.execute_minutes_seconds(clock_time, button, time_sync, sleep_duration)
                     .await
             }
             Self::EditOffset => {
                 self.execute_edit_offset(clock_time, button, sleep_duration)
-                    .await
-            }
-            Self::CaptivePortalReady => {
-                self.execute_captive_portal_setup(clock_time, time_sync, sleep_duration)
                     .await
             }
         }
@@ -168,45 +163,8 @@ impl State {
     pub fn render(self, clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         match self {
             Self::HoursMinutes => Self::render_hours_minutes(clock_time),
-            Self::Connecting => Self::render_connecting(clock_time),
             Self::MinutesSeconds => Self::render_minutes_seconds(clock_time),
             Self::EditOffset => Self::render_edit_offset(clock_time),
-            Self::CaptivePortalReady => Self::render_captive_portal_setup(),
-        }
-    }
-
-    async fn execute_connecting(self, clock_time: &mut ClockTime, time_sync: &TimeSync) -> Self {
-        let deadline_ticks = Instant::now()
-            .as_ticks()
-            .saturating_add(ONE_MINUTE.as_ticks());
-
-        let now_ticks = Instant::now().as_ticks();
-        if now_ticks >= deadline_ticks {
-            return Self::CaptivePortalReady;
-        }
-
-        let remaining_ticks = deadline_ticks - now_ticks;
-        if remaining_ticks == 0 {
-            return Self::CaptivePortalReady;
-        }
-
-        let timeout = Duration::from_ticks(remaining_ticks);
-        match embassy_time::with_timeout(timeout, time_sync.wait()).await {
-            Ok(event) => match event {
-                TimeSyncEvent::Success { unix_seconds } => {
-                    info!(
-                        "Time sync success: setting clock to {}",
-                        unix_seconds.as_i64()
-                    );
-                    clock_time.set_from_unix(unix_seconds);
-                    Self::HoursMinutes
-                }
-                TimeSyncEvent::Failed(msg) => {
-                    info!("Time sync failed: {}", msg);
-                    self
-                }
-            },
-            Err(_) => Self::CaptivePortalReady,
         }
     }
 
@@ -288,29 +246,6 @@ impl State {
         }
     }
 
-    async fn execute_captive_portal_setup(
-        self,
-        clock_time: &mut ClockTime,
-        time_sync: &TimeSync,
-        sleep_duration: Duration,
-    ) -> Self {
-        match select(time_sync.wait(), Timer::after(sleep_duration)).await {
-            Either::First(TimeSyncEvent::Success { unix_seconds }) => {
-                info!(
-                    "Time sync success: setting clock to {}",
-                    unix_seconds.as_i64()
-                );
-                clock_time.set_from_unix(unix_seconds);
-                Self::HoursMinutes
-            }
-            Either::First(TimeSyncEvent::Failed(msg)) => {
-                info!("Time sync failed: {}", msg);
-                self
-            }
-            Either::Second(_) => self, // Timer elapsed
-        }
-    }
-
     fn render_hours_minutes(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
         let (hours, minutes, _, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_MINUTE);
         (
@@ -323,38 +258,6 @@ impl State {
             ],
             sleep_duration,
         )
-    }
-
-    fn render_connecting(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
-        const FRAME_DURATION: Duration = Duration::from_millis(120);
-        const TOP: char = '\'';
-        const TOP_RIGHT: char = '"';
-        const RIGHT: char = '>';
-        const BOTTOM_RIGHT: char = ')';
-        const BOTTOM: char = '_';
-        const BOTTOM_LEFT: char = '*';
-        const LEFT: char = '<';
-        const TOP_LEFT: char = '(';
-        const FRAMES: [[char; 4]; 8] = [
-            [TOP, TOP, TOP, TOP],
-            [TOP, TOP, TOP, TOP_RIGHT],
-            [' ', ' ', ' ', RIGHT],
-            [' ', ' ', ' ', BOTTOM_RIGHT],
-            [BOTTOM, BOTTOM, BOTTOM, BOTTOM],
-            [BOTTOM_LEFT, BOTTOM, BOTTOM, BOTTOM],
-            [LEFT, ' ', ' ', ' '],
-            [TOP_LEFT, TOP, TOP, TOP],
-        ];
-
-        let frame_duration_ticks = FRAME_DURATION.as_ticks();
-        let frame_index = if frame_duration_ticks == 0 {
-            0
-        } else {
-            let now_ticks = clock_time.now().as_ticks();
-            ((now_ticks / frame_duration_ticks) % FRAMES.len() as u64) as usize
-        };
-
-        (BlinkState::Solid, FRAMES[frame_index], FRAME_DURATION)
     }
 
     fn render_minutes_seconds(clock_time: &ClockTime) -> (BlinkState, [char; 4], Duration) {
@@ -381,14 +284,6 @@ impl State {
                 tens_digit(minutes),
                 ones_digit(minutes),
             ],
-            Duration::from_millis(500),
-        )
-    }
-
-    fn render_captive_portal_setup() -> (BlinkState, [char; 4], Duration) {
-        (
-            BlinkState::BlinkingAndOn,
-            ['C', 'O', 'n', 'n'],
             Duration::from_millis(500),
         )
     }
