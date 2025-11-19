@@ -16,18 +16,16 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_rp::gpio::{self, Level};
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Instant, Timer};
 use panic_probe as _;
 use serials::Result;
-use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::button::{Button, PressDuration};
 use serials::clock_time::{ClockTime, ONE_MINUTE, ONE_SECOND};
+use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led4::{BlinkState, Led4, Led4Static, OutputArray};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use serials::unix_seconds::UnixSeconds;
 use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
-use serials::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoStatic};
+use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -86,56 +84,48 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         gpio::Output::new(peripherals.PIN_12, Level::Low),
     ]);
 
-    // cmk0 look at the clock docs
-    static CLOCK_LED4_STATIC: ClockLed4Static = ClockLed4::new_static();
-    let mut clock_led4 = ClockLed4::new(
-        &CLOCK_LED4_STATIC,
-        cell_pins,
-        segment_pins,
-        timezone_field,
-        spawner,
-    )?;
+    static LED4_STATIC: Led4Static = Led4::new_static();
+    let led4 = Led4::new(&LED4_STATIC, cell_pins, segment_pins, spawner)?;
+
+    let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
+    static OFFSET_MIRROR: AtomicI32 = AtomicI32::new(0);
+    let mut clock_time = ClockTime::new(offset_minutes, &OFFSET_MIRROR);
+    let mut state = State::Connecting;
 
     // Start the auto Wi-Fi, using the clock display for status.
-    let clock_led4_ref = &clock_led4;
     // cmk0 do we even need src/wifi.rs to be public? rename WifiAuto?
     let (stack, mut button) = wifi_auto
-        .connect(spawner, move |event| {
-            async move {
-                match event {
-                    WifiAutoEvent::CaptivePortalReady => {
-                        clock_led4_ref
-                            .set_state(ClockLed4State::CaptivePortalReady)
-                            .await;
-                    }
-                    // cmk0 the Connecting does the animation itself. Shouldn't it just use led4's animation_text method?
-                    // cmk0 can/should we move the circular animations into led4?
-                    WifiAutoEvent::Connecting { .. } => {
-                        clock_led4_ref.set_state(ClockLed4State::Connecting).await;
-                    }
-                    WifiAutoEvent::Connected => {
-                        clock_led4_ref.set_state(ClockLed4State::HoursMinutes).await;
-                    }
-                }
-            }
+        .connect(spawner, move |_event| async move {
+            // WiFi events don't need to change state - the main loop handles it
         })
         .await?;
-
-    // When the wi-fi is connected, we get an internet stack and the button.
 
     // Every hour, check the time and fire an event.
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
     let time_sync = TimeSync::new(&TIME_SYNC_STATIC, stack, spawner);
 
-    // Run the clock. It will monitor button pushes and time sync events.
-    clock_led4.check_button(&mut button, &time_sync).await
+    // Main display loop
+    loop {
+        let (blink_mode, text, sleep_duration) = state.render(&clock_time);
+        led4.write_text(blink_mode, text);
+
+        state = state
+            .execute(&mut clock_time, &mut button, &time_sync, sleep_duration)
+            .await;
+
+        // Save timezone offset to flash when it changes
+        let current_offset_minutes = OFFSET_MIRROR.load(Ordering::Relaxed);
+        if current_offset_minutes != offset_minutes {
+            let _ = timezone_field.set_offset_minutes(current_offset_minutes);
+        }
+    }
 }
 
 // State machine for 4-digit LED clock display modes and transitions.
 
 /// Display states for the 4-digit LED clock.
 #[derive(Debug, defmt::Format, Clone, Copy, Default)]
-pub enum ClockLed4State {
+pub enum State {
     #[default]
     HoursMinutes,
     Connecting,
@@ -144,20 +134,33 @@ pub enum ClockLed4State {
     CaptivePortalReady,
 }
 
-impl ClockLed4State {
+impl State {
     /// Execute the state machine for this clock state.
-    pub async fn execute(
+    async fn execute(
         self,
-        clock: &mut ClockLed4<'_>,
+        clock_time: &mut ClockTime,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
+        sleep_duration: Duration,
     ) -> Self {
         match self {
-            Self::HoursMinutes => self.execute_hours_minutes(clock, button, time_sync).await,
-            Self::Connecting => self.execute_connecting(clock, time_sync).await,
-            Self::MinutesSeconds => self.execute_minutes_seconds(clock, button, time_sync).await,
-            Self::EditOffset => self.execute_edit_offset(clock, button).await,
-            Self::CaptivePortalReady => self.execute_captive_portal_setup(clock, time_sync).await,
+            Self::HoursMinutes => {
+                self.execute_hours_minutes(clock_time, button, time_sync, sleep_duration)
+                    .await
+            }
+            Self::Connecting => self.execute_connecting(clock_time, time_sync).await,
+            Self::MinutesSeconds => {
+                self.execute_minutes_seconds(clock_time, button, time_sync, sleep_duration)
+                    .await
+            }
+            Self::EditOffset => {
+                self.execute_edit_offset(clock_time, button, sleep_duration)
+                    .await
+            }
+            Self::CaptivePortalReady => {
+                self.execute_captive_portal_setup(clock_time, time_sync, sleep_duration)
+                    .await
+            }
         }
     }
 
@@ -172,51 +175,67 @@ impl ClockLed4State {
         }
     }
 
-    async fn execute_connecting(self, clock: &ClockLed4<'_>, time_sync: &TimeSync) -> Self {
-        clock.set_state(self).await;
+    async fn execute_connecting(self, clock_time: &mut ClockTime, time_sync: &TimeSync) -> Self {
         let deadline_ticks = Instant::now()
             .as_ticks()
             .saturating_add(ONE_MINUTE.as_ticks());
 
-        loop {
-            let now_ticks = Instant::now().as_ticks();
-            if now_ticks >= deadline_ticks {
-                return Self::CaptivePortalReady;
-            }
+        let now_ticks = Instant::now().as_ticks();
+        if now_ticks >= deadline_ticks {
+            return Self::CaptivePortalReady;
+        }
 
-            let remaining_ticks = deadline_ticks - now_ticks;
-            if remaining_ticks == 0 {
-                return Self::CaptivePortalReady;
-            }
+        let remaining_ticks = deadline_ticks - now_ticks;
+        if remaining_ticks == 0 {
+            return Self::CaptivePortalReady;
+        }
 
-            let timeout = Duration::from_ticks(remaining_ticks);
-            match embassy_time::with_timeout(timeout, time_sync.wait()).await {
-                Ok(event) => match event {
-                    success @ TimeSyncEvent::Success { .. } => {
-                        Self::handle_time_sync_event(clock, success).await;
-                        return Self::HoursMinutes;
-                    }
-                    failure @ TimeSyncEvent::Failed(_) => {
-                        Self::handle_time_sync_event(clock, failure).await;
-                    }
-                },
-                Err(_) => return Self::CaptivePortalReady,
-            }
+        let timeout = Duration::from_ticks(remaining_ticks);
+        match embassy_time::with_timeout(timeout, time_sync.wait()).await {
+            Ok(event) => match event {
+                TimeSyncEvent::Success { unix_seconds } => {
+                    info!(
+                        "Time sync success: setting clock to {}",
+                        unix_seconds.as_i64()
+                    );
+                    clock_time.set_from_unix(unix_seconds);
+                    Self::HoursMinutes
+                }
+                TimeSyncEvent::Failed(msg) => {
+                    info!("Time sync failed: {}", msg);
+                    self
+                }
+            },
+            Err(_) => Self::CaptivePortalReady,
         }
     }
 
     async fn execute_hours_minutes(
         self,
-        clock: &ClockLed4<'_>,
+        clock_time: &mut ClockTime,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
+        sleep_duration: Duration,
     ) -> Self {
-        clock.set_state(self).await;
-        match select(button.press_duration(), time_sync.wait()).await {
-            Either::First(PressDuration::Short) => Self::MinutesSeconds,
-            Either::First(PressDuration::Long) => Self::EditOffset,
-            Either::Second(event) => {
-                Self::handle_time_sync_event(clock, event).await;
+        match select(
+            select(button.press_duration(), Timer::after(sleep_duration)),
+            time_sync.wait(),
+        )
+        .await
+        {
+            Either::First(Either::First(PressDuration::Short)) => Self::MinutesSeconds,
+            Either::First(Either::First(PressDuration::Long)) => Self::EditOffset,
+            Either::First(Either::Second(_)) => self, // Timer elapsed
+            Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
+                info!(
+                    "Time sync success: setting clock to {}",
+                    unix_seconds.as_i64()
+                );
+                clock_time.set_from_unix(unix_seconds);
+                self
+            }
+            Either::Second(TimeSyncEvent::Failed(msg)) => {
+                info!("Time sync failed: {}", msg);
                 self
             }
         }
@@ -224,64 +243,71 @@ impl ClockLed4State {
 
     async fn execute_minutes_seconds(
         self,
-        clock: &ClockLed4<'_>,
+        clock_time: &mut ClockTime,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
+        sleep_duration: Duration,
     ) -> Self {
-        clock.set_state(self).await;
-        match select(button.press_duration(), time_sync.wait()).await {
-            Either::First(PressDuration::Short) => Self::HoursMinutes,
-            Either::First(PressDuration::Long) => Self::EditOffset,
-            Either::Second(event) => {
-                Self::handle_time_sync_event(clock, event).await;
+        match select(
+            select(button.press_duration(), Timer::after(sleep_duration)),
+            time_sync.wait(),
+        )
+        .await
+        {
+            Either::First(Either::First(PressDuration::Short)) => Self::HoursMinutes,
+            Either::First(Either::First(PressDuration::Long)) => Self::EditOffset,
+            Either::First(Either::Second(_)) => self, // Timer elapsed
+            Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
+                info!(
+                    "Time sync success: setting clock to {}",
+                    unix_seconds.as_i64()
+                );
+                clock_time.set_from_unix(unix_seconds);
+                self
+            }
+            Either::Second(TimeSyncEvent::Failed(msg)) => {
+                info!("Time sync failed: {}", msg);
                 self
             }
         }
     }
 
-    async fn execute_edit_offset(self, clock: &ClockLed4<'_>, button: &mut Button<'_>) -> Self {
-        clock.set_state(self).await;
-        match button.press_duration().await {
-            PressDuration::Short => {
-                clock.adjust_offset_hours(1).await;
-                clock.set_state(Self::EditOffset).await;
+    async fn execute_edit_offset(
+        self,
+        clock_time: &mut ClockTime,
+        button: &mut Button<'_>,
+        sleep_duration: Duration,
+    ) -> Self {
+        match select(button.press_duration(), Timer::after(sleep_duration)).await {
+            Either::First(PressDuration::Short) => {
+                clock_time.adjust_offset_hours(1);
                 Self::EditOffset
             }
-            PressDuration::Long => Self::HoursMinutes,
+            Either::First(PressDuration::Long) => Self::HoursMinutes,
+            Either::Second(_) => self, // Timer elapsed
         }
     }
 
     async fn execute_captive_portal_setup(
         self,
-        clock: &ClockLed4<'_>,
+        clock_time: &mut ClockTime,
         time_sync: &TimeSync,
+        sleep_duration: Duration,
     ) -> Self {
-        clock.set_state(self).await;
-        loop {
-            match time_sync.wait().await {
-                success @ TimeSyncEvent::Success { .. } => {
-                    Self::handle_time_sync_event(clock, success).await;
-                    return Self::HoursMinutes;
-                }
-                failure @ TimeSyncEvent::Failed(_) => {
-                    Self::handle_time_sync_event(clock, failure).await;
-                }
-            }
-        }
-    }
-
-    async fn handle_time_sync_event(clock: &ClockLed4<'_>, event: TimeSyncEvent) {
-        match event {
-            TimeSyncEvent::Success { unix_seconds } => {
+        match select(time_sync.wait(), Timer::after(sleep_duration)).await {
+            Either::First(TimeSyncEvent::Success { unix_seconds }) => {
                 info!(
                     "Time sync success: setting clock to {}",
                     unix_seconds.as_i64()
                 );
-                clock.set_time_from_unix(unix_seconds).await;
+                clock_time.set_from_unix(unix_seconds);
+                Self::HoursMinutes
             }
-            TimeSyncEvent::Failed(msg) => {
+            Either::First(TimeSyncEvent::Failed(msg)) => {
                 info!("Time sync failed: {}", msg);
+                self
             }
+            Either::Second(_) => self, // Timer elapsed
         }
     }
 
@@ -368,6 +394,7 @@ impl ClockLed4State {
     }
 }
 
+// cmk attach to an impl
 #[inline]
 #[expect(
     clippy::arithmetic_side_effects,
@@ -391,184 +418,4 @@ const fn tens_hours(value: u8) -> char {
 )]
 const fn ones_digit(value: u8) -> char {
     ((value % 10) + b'0') as char
-}
-
-/// A device abstraction for 4-digit LED clocks.
-pub struct ClockLed4<'a> {
-    commands: &'a ClockLed4OuterStatic,
-    #[allow(dead_code)] // Used for atomic sharing with device loop
-    offset_mirror: &'a AtomicI32,
-}
-
-/// Static type for the `ClockLed4` device abstraction.
-pub struct ClockLed4Static {
-    commands: ClockLed4OuterStatic,
-    led: Led4Static,
-    offset_minutes: AtomicI32,
-}
-
-/// Channel type for sending commands to the `ClockLed4` device.
-pub type ClockLed4OuterStatic = Channel<CriticalSectionRawMutex, ClockLed4Command, 4>;
-
-impl ClockLed4Static {
-    #[must_use]
-    pub const fn new_static() -> Self {
-        Self {
-            commands: Channel::new(),
-            led: Led4::new_static(),
-            offset_minutes: AtomicI32::new(0),
-        }
-    }
-
-    fn commands(&'static self) -> &'static ClockLed4OuterStatic {
-        &self.commands
-    }
-
-    fn led(&'static self) -> &'static Led4Static {
-        &self.led
-    }
-
-    fn offset_mirror(&'static self) -> &'static AtomicI32 {
-        &self.offset_minutes
-    }
-}
-
-impl ClockLed4<'_> {
-    /// Create a new `ClockLed4` instance, which entails starting an Embassy task.
-    #[must_use = "Must be used to manage the spawned task"]
-    pub fn new(
-        clock_led4_static: &'static ClockLed4Static,
-        cell_pins: OutputArray<'static, 4>,
-        segment_pins: OutputArray<'static, 8>,
-        #[cfg(all(feature = "wifi", not(feature = "host")))]
-        timezone_field: &'static TimezoneField,
-        spawner: Spawner,
-    ) -> Result<Self> {
-        let led4 = Led4::new(clock_led4_static.led(), cell_pins, segment_pins, spawner)?;
-        #[cfg(all(feature = "wifi", not(feature = "host")))]
-        let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
-        #[cfg(not(all(feature = "wifi", not(feature = "host"))))]
-        let offset_minutes = 0;
-        let token = clock_led4_device_loop(
-            clock_led4_static.commands(),
-            led4,
-            offset_minutes,
-            clock_led4_static.offset_mirror(),
-            #[cfg(all(feature = "wifi", not(feature = "host")))]
-            timezone_field,
-        )?;
-        spawner.spawn(token);
-        Ok(Self {
-            commands: clock_led4_static.commands(),
-            offset_mirror: clock_led4_static.offset_mirror(),
-        })
-    }
-
-    /// Creates a new `ClockLed4Static` instance.
-    #[must_use]
-    pub const fn new_static() -> ClockLed4Static {
-        ClockLed4Static::new_static()
-    }
-
-    /// Set the clock state directly.
-    pub async fn set_state(&self, clock_state: ClockLed4State) {
-        self.commands
-            .send(ClockLed4Command::SetState(clock_state))
-            .await;
-    }
-
-    /// Run the clock state machine loop.
-    ///
-    /// This method runs indefinitely, executing the state machine and handling
-    /// button presses and time sync events. It should be called after WiFi
-    /// connection is established and time sync is available.
-    pub async fn check_button(
-        &mut self,
-        button: &mut Button<'_>,
-        time_sync: &TimeSync,
-    ) -> ! {
-        let mut clock_state = ClockLed4State::HoursMinutes;
-        loop {
-            clock_state = clock_state.execute(self, button, time_sync).await;
-        }
-    }
-
-    /// Set the time from Unix seconds.
-    pub async fn set_time_from_unix(&self, unix_seconds: UnixSeconds) {
-        self.commands
-            .send(ClockLed4Command::SetTimeFromUnix(unix_seconds))
-            .await;
-    }
-
-    /// Adjust the UTC offset by the given number of hours.
-    pub async fn adjust_offset_hours(&self, hours: i32) {
-        self.commands
-            .send(ClockLed4Command::AdjustOffsetHours(hours))
-            .await;
-    }
-}
-
-/// Commands sent to the 4-digit LED clock device.
-pub enum ClockLed4Command {
-    SetState(ClockLed4State),
-    SetTimeFromUnix(UnixSeconds),
-    AdjustOffsetHours(i32),
-}
-
-impl ClockLed4Command {
-    #[expect(
-        clippy::arithmetic_side_effects,
-        reason = "The += operator wraps to always produce a result less than one day."
-    )]
-    fn apply(self, clock_time: &mut ClockTime, clock_state: &mut ClockLed4State) {
-        match self {
-            Self::SetTimeFromUnix(unix_seconds) => {
-                clock_time.set_from_unix(unix_seconds);
-            }
-            Self::SetState(new_clock_mode) => {
-                *clock_state = new_clock_mode;
-            }
-            Self::AdjustOffsetHours(hours) => {
-                clock_time.adjust_offset_hours(hours);
-            }
-        }
-    }
-}
-
-#[embassy_executor::task]
-async fn clock_led4_device_loop(
-    clock_commands: &'static ClockLed4OuterStatic,
-    blinker: Led4<'static>,
-    initial_offset_minutes: i32,
-    offset_mirror: &'static AtomicI32,
-    #[cfg(all(feature = "wifi", not(feature = "host")))]
-    timezone_field: &'static TimezoneField,
-) -> ! {
-    let mut clock_time = ClockTime::new(initial_offset_minutes, offset_mirror);
-    let mut clock_state = ClockLed4State::default();
-    #[cfg(all(feature = "wifi", not(feature = "host")))]
-    let mut persisted_offset_minutes = initial_offset_minutes;
-
-    loop {
-        let (blink_mode, text, sleep_duration) = clock_state.render(&clock_time);
-        blinker.write_text(blink_mode, text);
-
-        #[cfg(feature = "display-trace")]
-        info!("Sleep for {:?}", sleep_duration);
-        if let Either::First(notification) =
-            select(clock_commands.receive(), Timer::after(sleep_duration)).await
-        {
-            notification.apply(&mut clock_time, &mut clock_state);
-        }
-
-        // Save timezone offset to flash when it changes.
-        #[cfg(all(feature = "wifi", not(feature = "host")))]
-        {
-            let current_offset_minutes = offset_mirror.load(Ordering::Relaxed);
-            if current_offset_minutes != persisted_offset_minutes {
-                let _ = timezone_field.set_offset_minutes(current_offset_minutes);
-                persisted_offset_minutes = current_offset_minutes;
-            }
-        }
-    }
 }
