@@ -91,7 +91,12 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     // Create Clock device with timezone from WiFi portal
     let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
-    let clock = Clock::new(&CLOCK_STATIC, timezone_offset_minutes, ONE_SECOND, spawner);
+    let clock = Clock::new(
+        &CLOCK_STATIC,
+        timezone_offset_minutes,
+        Some(ONE_SECOND),
+        spawner,
+    );
 
     info!("WiFi connected, entering event loop");
 
@@ -114,7 +119,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
             // On time sync success, update the clock
             Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
                 info!("Time sync SUCCESS: unix_seconds={}", unix_seconds.as_i64());
-                clock.set_time(unix_seconds).await;
+                clock.set_utc_time(unix_seconds).await;
             }
 
             // On time sync failure, just log the error

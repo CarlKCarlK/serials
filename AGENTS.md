@@ -59,6 +59,11 @@ Preserving comments: When changing code, generally don't remove TODO's and cmk's
 - **Commit messages**: Always suggest a concise 1-2 line commit message when completing work (no bullet points, just 1-2 lines maximum).
 - Preserve comments: keep `cmk00`/`cmk0`/`TODO` comments. If they seem obsolete, append `(may no longer apply)` rather than deleting.
 
+## Documentation Conventions
+
+- Start module docs with "A device abstraction ..." and have them point readers to the main struct docs.
+- Put a single compilable example on the primary struct; other public docs should link back to that example instead of duplicating snippets.
+
 - **Markdown formatting**: When creating or editing markdown files, follow these rules to avoid linter warnings:
   - Add blank lines before and after lists (both bulleted and numbered)
   - Add blank lines before and after code blocks (fenced with triple backticks)

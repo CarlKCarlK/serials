@@ -115,7 +115,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
     // Create a headless Clock device that knows its timezone offset.
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
-    let clock = Clock::new(&CLOCK_STATIC, offset_minutes, spawner);
+    let clock = Clock::new(&CLOCK_STATIC, offset_minutes, Some(ONE_MINUTE), spawner);
 
     // Start in HH:MM mode
     let mut state = State::HoursMinutes;
@@ -158,7 +158,7 @@ impl State {
         time_sync: &TimeSync,
         led4: &Led4<'_>,
     ) -> Result<Self> {
-        let (hours, minutes, _) = h12_m_s(&clock.current_time());
+        let (hours, minutes, _) = h12_m_s(&clock.now_local());
         led4.write_text(
             BlinkState::Solid,
             [
@@ -168,7 +168,7 @@ impl State {
                 ones_digit(minutes),
             ],
         );
-        clock.set_tick_interval(ONE_MINUTE).await;
+        clock.set_tick_interval(Some(ONE_MINUTE)).await;
         loop {
             match select(
                 select(button.press_duration(), clock.wait()),
@@ -202,7 +202,7 @@ impl State {
                         "Time sync success: setting clock to {}",
                         unix_seconds.as_i64()
                     );
-                    clock.set_time(unix_seconds).await;
+                    clock.set_utc_time(unix_seconds).await;
                 }
                 Either::Second(TimeSyncEvent::Failed(msg)) => {
                     info!("Time sync failed: {}", msg);
@@ -218,7 +218,7 @@ impl State {
         time_sync: &TimeSync,
         led4: &Led4<'_>,
     ) -> Result<Self> {
-        let (_, minutes, seconds) = h12_m_s(&clock.current_time());
+        let (_, minutes, seconds) = h12_m_s(&clock.now_local());
         led4.write_text(
             BlinkState::Solid,
             [
@@ -228,7 +228,7 @@ impl State {
                 ones_digit(seconds),
             ],
         );
-        clock.set_tick_interval(ONE_SECOND).await;
+        clock.set_tick_interval(Some(ONE_SECOND)).await;
         loop {
             match select(
                 select(button.press_duration(), clock.wait()),
@@ -262,7 +262,7 @@ impl State {
                         "Time sync success: setting clock to {}",
                         unix_seconds.as_i64()
                     );
-                    clock.set_time(unix_seconds).await;
+                    clock.set_utc_time(unix_seconds).await;
                 }
                 Either::Second(TimeSyncEvent::Failed(msg)) => {
                     info!("Time sync failed: {}", msg);
@@ -281,7 +281,7 @@ impl State {
         info!("Entering edit offset mode");
 
         // Blink current hours and minutes
-        let (hours, minutes, _) = h12_m_s(&clock.current_time());
+        let (hours, minutes, _) = h12_m_s(&clock.now_local());
         led4.write_text(
             BlinkState::BlinkingAndOn,
             [
@@ -306,8 +306,8 @@ impl State {
                     clock.set_offset_minutes(offset_minutes).await;
                     info!("New offset: {} minutes", offset_minutes);
 
-                    // Update display (atomic already updated, can use current_time)
-                    let (hours, minutes, _) = h12_m_s(&clock.current_time());
+                    // Update display (atomic already updated, can use now_local)
+                    let (hours, minutes, _) = h12_m_s(&clock.now_local());
                     info!(
                         "Updated time after offset change: {:02}:{:02}",
                         hours, minutes

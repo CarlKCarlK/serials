@@ -28,6 +28,8 @@ wifi-auto-w = "run --example wifi_auto --release --target thumbv6m-none-eabi --f
 wifi-auto-w-check = "check --example wifi_auto --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 clock_console_w = "run --example clock_console --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 clock_console_w_check = "check --example clock_console --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
+clock-simple = "run --example clock_simple --release --target thumbv6m-none-eabi --features pico1,arm"
+clock-simple-check = "check --example clock_simple --release --target thumbv6m-none-eabi --features pico1,arm"
 
 # Pico 2 ARM aliases
 flash-2 = "run --example flash --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
@@ -56,6 +58,8 @@ blinky-2 = "run --example blinky --release --target thumbv8m.main-none-eabihf --
 blinky-2-check = "check --example blinky --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 servos-2 = "run --example servos --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 servos-2-check = "check --example servos --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+clock-simple-2 = "run --example clock_simple --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+clock-simple-2-check = "check --example clock_simple --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 wifi-web-2w = "run --example wifi_web --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
 wifi-web-2w-check = "check --example wifi_web --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
 

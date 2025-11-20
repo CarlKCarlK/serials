@@ -93,8 +93,10 @@ struct FormState {
 static FORM_STATE: Mutex<CriticalSectionRawMutex, RefCell<FormState>> =
     Mutex::new(RefCell::new(FormState { defaults: None }));
 
-static FORM_FIELDS: Mutex<CriticalSectionRawMutex, RefCell<&'static [&'static dyn WifiSetupField]>> =
-    Mutex::new(RefCell::new(&[]));
+static FORM_FIELDS: Mutex<
+    CriticalSectionRawMutex,
+    RefCell<&'static [&'static dyn WifiSetupField]>,
+> = Mutex::new(RefCell::new(&[]));
 
 pub async fn collect_credentials(
     stack: &'static Stack<'static>,
@@ -102,7 +104,10 @@ pub async fn collect_credentials(
     defaults: Option<&WifiCredentials>,
     fields: &'static [&'static dyn WifiSetupField],
 ) -> Result<WifiCredentials> {
-    info!("WifiSetup portal registering {} custom fields", fields.len());
+    info!(
+        "WifiSetup portal registering {} custom fields",
+        fields.len()
+    );
     FORM_STATE.lock(|state| {
         state.borrow_mut().defaults = defaults.cloned();
     });

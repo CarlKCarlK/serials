@@ -75,7 +75,12 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     // cmk offset must be set or return error
     let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
-    let clock = Clock::new(&CLOCK_STATIC, timezone_offset_minutes, ONE_SECOND, spawner);
+    let clock = Clock::new(
+        &CLOCK_STATIC,
+        timezone_offset_minutes,
+        Some(ONE_SECOND),
+        spawner,
+    );
 
     // Create TimeSync with network stack
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
@@ -121,7 +126,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
             // On time sync events, set clock and display status
             Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
                 info!("Sync successful: unix_seconds={}", unix_seconds.as_i64());
-                clock.set_time(unix_seconds).await;
+                clock.set_utc_time(unix_seconds).await;
                 char_lcd
                     .display(String::<64>::try_from("Synced!").unwrap(), 800)
                     .await;

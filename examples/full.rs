@@ -19,7 +19,7 @@ use heapless::{FnvIndexMap, String};
 use panic_probe as _;
 use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdStatic};
-use serials::clock::{Clock, ClockStatic, ONE_SECOND, h_m_s};
+use serials::clock::{Clock, ClockStatic, ONE_SECOND};
 #[cfg(feature = "wifi")]
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::ir::{Ir, IrEvent, IrStatic};
@@ -32,6 +32,7 @@ use serials::servo::servo_a;
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 #[cfg(feature = "wifi")]
 use serials::wifi_config::collect_wifi_credentials;
+use time::OffsetDateTime;
 
 use colors::{BLACK, BLUE, GREEN, RED, YELLOW};
 
@@ -109,9 +110,14 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     info!("LCD initialized");
 
-    const DEFAULT_offset_MINUTES: i32 = 0;
+    const DEFAULT_OFFSET_MINUTES: i32 = 0;
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
-    let clock = Clock::new(&CLOCK_STATIC, DEFAULT_offset_MINUTES, ONE_SECOND, spawner);
+    let clock = Clock::new(
+        &CLOCK_STATIC,
+        DEFAULT_OFFSET_MINUTES,
+        Some(ONE_SECOND),
+        spawner,
+    );
 
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
     #[cfg(feature = "wifi")]
@@ -261,9 +267,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                 }
             },
             Either::Second(clock_or_sync_event) => match clock_or_sync_event {
-                Either::First(time_info) => {
-                    latest_time = Some(time_info);
-                    let dt = time_info.datetime;
+                Either::First(datetime) => {
+                    latest_time = Some(datetime);
+                    let dt = datetime;
                     let mm = dt.minute();
                     let ss = dt.second();
                     let chars = [
@@ -282,7 +288,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                 }
                 Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
                     info!("Time sync success: unix_seconds={}", unix_seconds.as_i64());
-                    clock.set_time(unix_seconds).await;
+                    clock.set_utc_time(unix_seconds).await;
                     lcd.display(String::<64>::try_from("Synced!").unwrap(), 800)
                         .await;
                 }
@@ -334,8 +340,14 @@ async fn advance_led_progress(
 fn append_time_line(text: &mut String<64>, latest_time: Option<OffsetDateTime>) {
     match latest_time {
         Some(dt) => {
-            let (hour, minute, second) = h_m_s(&dt);
-            write!(text, "\n{:02}:{:02}:{:02}", hour, minute, second).unwrap();
+            write!(
+                text,
+                "\n{:02}:{:02}:{:02}",
+                dt.hour(),
+                dt.minute(),
+                dt.second()
+            )
+            .unwrap();
         }
         None => {
             text.push_str("\nTime unknown").unwrap();
