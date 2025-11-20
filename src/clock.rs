@@ -139,16 +139,20 @@ impl Clock {
             return OffsetDateTime::from_unix_timestamp(0).expect("midnight is valid");
         }
 
-        // Current time = boot time + time since boot
+        // Current time = boot time + time since boot + timezone offset
         let elapsed_secs = Instant::now().as_secs();
         #[expect(clippy::arithmetic_side_effects, reason = "saturating_add used")]
-        let unix_seconds = UnixSeconds(boot_unix.saturating_add(elapsed_secs as i64));
+        let utc_unix_seconds = boot_unix.saturating_add(elapsed_secs as i64);
 
+        // Apply timezone offset to get local time
         #[expect(clippy::arithmetic_side_effects, reason = "offset bounds checked")]
-        let offset = UtcOffset::from_whole_seconds(offset_minutes * 60).unwrap_or(UtcOffset::UTC);
+        let offset_seconds = i64::from(offset_minutes) * 60;
+        #[expect(clippy::arithmetic_side_effects, reason = "saturating_add used")]
+        let local_unix_seconds = utc_unix_seconds.saturating_add(offset_seconds);
 
+        let unix_seconds = UnixSeconds(local_unix_seconds);
         unix_seconds
-            .to_offset_datetime(offset)
+            .to_offset_datetime(UtcOffset::UTC)
             .expect("valid offset datetime")
     }
 
