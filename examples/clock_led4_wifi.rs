@@ -17,7 +17,7 @@ use embassy_futures::select::{Either, select};
 use embassy_rp::gpio::{self, Level};
 use panic_probe as _;
 use serials::button::{Button, PressDuration};
-use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h_m_s};
+use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led4::{BlinkState, Led4, Led4Static, OutputArray, circular_outline_animation};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
@@ -158,8 +158,7 @@ impl State {
         time_sync: &TimeSync,
         led4: &Led4<'_>,
     ) -> Result<Self> {
-        clock.set_tick_interval(ONE_MINUTE).await;
-        let (hours, minutes, _) = h_m_s(&clock.current_time());
+        let (hours, minutes, _) = h12_m_s(&clock.current_time());
         led4.write_text(
             BlinkState::Solid,
             [
@@ -169,6 +168,7 @@ impl State {
                 ones_digit(minutes),
             ],
         );
+        clock.set_tick_interval(ONE_MINUTE).await;
         loop {
             match select(
                 select(button.press_duration(), clock.wait()),
@@ -185,7 +185,7 @@ impl State {
                 }
                 // Clock tick
                 Either::First(Either::Second(time_event)) => {
-                    let (hours, minutes, _) = h_m_s(&time_event);
+                    let (hours, minutes, _) = h12_m_s(&time_event);
                     led4.write_text(
                         BlinkState::Solid,
                         [
@@ -218,8 +218,7 @@ impl State {
         time_sync: &TimeSync,
         led4: &Led4<'_>,
     ) -> Result<Self> {
-        clock.set_tick_interval(ONE_SECOND).await;
-        let (_, minutes, seconds) = h_m_s(&clock.current_time());
+        let (_, minutes, seconds) = h12_m_s(&clock.current_time());
         led4.write_text(
             BlinkState::Solid,
             [
@@ -229,6 +228,7 @@ impl State {
                 ones_digit(seconds),
             ],
         );
+        clock.set_tick_interval(ONE_SECOND).await;
         loop {
             match select(
                 select(button.press_duration(), clock.wait()),
@@ -245,7 +245,7 @@ impl State {
                 }
                 // Clock tick
                 Either::First(Either::Second(time_event)) => {
-                    let (_, minutes, seconds) = h_m_s(&time_event);
+                    let (_, minutes, seconds) = h12_m_s(&time_event);
                     led4.write_text(
                         BlinkState::Solid,
                         [
@@ -281,7 +281,7 @@ impl State {
         info!("Entering edit offset mode");
 
         // Blink current hours and minutes
-        let (hours, minutes, _) = h_m_s(&clock.current_time());
+        let (hours, minutes, _) = h12_m_s(&clock.current_time());
         led4.write_text(
             BlinkState::BlinkingAndOn,
             [
@@ -292,7 +292,7 @@ impl State {
             ],
         );
 
-        // Get the current offset minutes from flash (source of truth)
+        // Get the current offset minutes from clock (source of truth)
         let mut offset_minutes = clock.offset_minutes();
         info!("Current offset: {} minutes", offset_minutes);
 
@@ -301,12 +301,17 @@ impl State {
             match button.press_duration().await {
                 PressDuration::Short => {
                     info!("Short press detected - incrementing offset");
-                    // Increment the headless clock's offset by 1 hour
+                    // Increment the offset by 1 hour
                     offset_minutes += 60;
                     clock.set_offset_minutes(offset_minutes).await;
                     info!("New offset: {} minutes", offset_minutes);
 
-                    let (hours, minutes, _) = h_m_s(&clock.current_time());
+                    // Update display (atomic already updated, can use current_time)
+                    let (hours, minutes, _) = h12_m_s(&clock.current_time());
+                    info!(
+                        "Updated time after offset change: {:02}:{:02}",
+                        hours, minutes
+                    );
                     led4.write_text(
                         BlinkState::BlinkingAndOn,
                         [

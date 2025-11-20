@@ -56,6 +56,23 @@
 			],
 			"group": "build",
 			"label": "Build flash (Pico 1)"
+		},
+		{
+			"type": "cargo",
+			"command": "build",
+			"args": [
+				"--example",
+				"clock_led4_wifi",
+				"--target",
+				"thumbv6m-none-eabi",
+				"--features",
+				"pico1,wifi,arm"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build",
+			"label": "Build clock_led4_wifi (Pico 1)"
 		}
 	]
 }

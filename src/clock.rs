@@ -3,7 +3,7 @@
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
 use core::convert::Infallible;
-use core::sync::atomic::{AtomicI32, AtomicU64, Ordering};
+use core::sync::atomic::{AtomicI32, Ordering};
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -11,6 +11,7 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Instant, Timer};
+use portable_atomic::{AtomicI64, AtomicU64};
 use time::{OffsetDateTime, UtcOffset};
 
 use crate::Result;
@@ -29,22 +30,23 @@ pub const ONE_MINUTE: Duration = Duration::from_secs(60);
 // Types
 // ============================================================================
 
-/// Extract hour, minute, second from OffsetDateTime
-pub fn h_m_s(dt: &OffsetDateTime) -> (u8, u8, u8) {
-    let hour = dt.hour() as u8;
+/// Extract hour (12-hour format), minute, second from OffsetDateTime
+pub fn h12_m_s(dt: &OffsetDateTime) -> (u8, u8, u8) {
+    let hour_24 = dt.hour() as u8;
+    let hour_12 = match hour_24 {
+        0 => 12,
+        1..=12 => hour_24,
+        _ => hour_24 - 12,
+    };
     let minute = dt.minute() as u8;
     let second = dt.second() as u8;
-    (hour, minute, second)
+    (hour_12, minute, second)
 }
 
 /// Commands sent to the clock device.
 enum ClockCommand {
-    /// Set the current time from Unix timestamp.
-    SetTime { unix_seconds: UnixSeconds },
-    /// Update the UTC offset (in minutes).
-    SetOffset { minutes: i32 },
-    /// Set the tick interval (e.g., ONE_SECOND, ONE_MINUTE).
-    SetTickInterval { interval: Duration },
+    /// Emit a tick notification (used when time/offset changes)
+    UpdateTicker,
 }
 
 // ============================================================================
@@ -63,7 +65,7 @@ pub struct ClockStatic {
     offset_minutes: AtomicI32,
     tick_interval_ms: AtomicU64,
     // Unix timestamp when the processor booted (0 = not set)
-    boot_unix_seconds: AtomicI32,
+    boot_unix_seconds: AtomicI64,
 }
 
 impl ClockStatic {
@@ -75,11 +77,6 @@ impl ClockStatic {
         self.tick_interval_ms
             .store(tick_interval_ms, Ordering::Relaxed);
     }
-
-    fn set_boot_unix_seconds(&self, boot_unix_seconds: i32) {
-        self.boot_unix_seconds
-            .store(boot_unix_seconds, Ordering::Relaxed);
-    }
 }
 
 /// A device abstraction that manages time keeping and emits time tick events.
@@ -88,7 +85,7 @@ pub struct Clock {
     ticks: &'static ClockTicks,
     offset_minutes: &'static AtomicI32,
     tick_interval_ms: &'static AtomicU64,
-    boot_unix_seconds: &'static AtomicI32,
+    boot_unix_seconds: &'static AtomicI64,
 }
 
 impl Clock {
@@ -100,7 +97,7 @@ impl Clock {
             ticks: Signal::new(),
             offset_minutes: AtomicI32::new(0),
             tick_interval_ms: AtomicU64::new(1000),
-            boot_unix_seconds: AtomicI32::new(0),
+            boot_unix_seconds: AtomicI64::new(0),
         }
     }
 
@@ -128,8 +125,14 @@ impl Clock {
     /// Get the current time without waiting for a tick.
     /// Computed from atomics + Instant::now() - no async needed.
     pub fn current_time(&self) -> OffsetDateTime {
-        let boot_unix = self.boot_unix_seconds.load(Ordering::Relaxed);
+        let _boot_unix = self.boot_unix_seconds.load(Ordering::Relaxed);
         let offset_minutes = self.offset_minutes.load(Ordering::Relaxed);
+        self.current_time_with_offset(offset_minutes)
+    }
+
+    /// Get the current time with a specific offset (useful when offset is changing).
+    pub fn current_time_with_offset(&self, offset_minutes: i32) -> OffsetDateTime {
+        let boot_unix = self.boot_unix_seconds.load(Ordering::Relaxed);
 
         if boot_unix == 0 {
             // Time not set - return midnight
@@ -139,7 +142,7 @@ impl Clock {
         // Current time = boot time + time since boot
         let elapsed_secs = Instant::now().as_secs();
         #[expect(clippy::arithmetic_side_effects, reason = "saturating_add used")]
-        let unix_seconds = UnixSeconds(i64::from(boot_unix).saturating_add(elapsed_secs as i64));
+        let unix_seconds = UnixSeconds(boot_unix.saturating_add(elapsed_secs as i64));
 
         #[expect(clippy::arithmetic_side_effects, reason = "offset bounds checked")]
         let offset = UtcOffset::from_whole_seconds(offset_minutes * 60).unwrap_or(UtcOffset::UTC);
@@ -151,16 +154,26 @@ impl Clock {
 
     /// Send a command to set the time
     pub async fn set_time(&self, unix_seconds: UnixSeconds) {
-        self.commands
-            .send(ClockCommand::SetTime { unix_seconds })
-            .await;
+        // Calculate and update boot time immediately
+        let uptime_secs = Instant::now().as_secs();
+        let boot_unix = unix_seconds.as_i64().saturating_sub(uptime_secs as i64);
+        self.boot_unix_seconds.store(boot_unix, Ordering::Relaxed);
+        info!(
+            "Clock time set: {} (boot time: {})",
+            unix_seconds.as_i64(),
+            boot_unix
+        );
+        // Notify the device loop to emit a tick
+        self.commands.send(ClockCommand::UpdateTicker).await;
     }
 
     /// Update the UTC offset used for subsequent ticks.
     pub async fn set_offset_minutes(&self, minutes: i32) {
-        self.commands
-            .send(ClockCommand::SetOffset { minutes })
-            .await;
+        // Update the atomic immediately
+        self.offset_minutes.store(minutes, Ordering::Relaxed);
+        info!("Clock UTC offset updated to {} minutes", minutes);
+        // Notify the device loop to emit a tick
+        self.commands.send(ClockCommand::UpdateTicker).await;
     }
 
     /// Get the current UTC offset in minutes.
@@ -171,9 +184,12 @@ impl Clock {
     /// Set the tick interval (e.g., Duration::from_secs(1), Duration::from_secs(60)).
     /// The clock will emit events aligned to boundaries (top of second, top of minute, etc.).
     pub async fn set_tick_interval(&self, interval: Duration) {
-        self.commands
-            .send(ClockCommand::SetTickInterval { interval })
-            .await;
+        // Update the atomic immediately
+        let interval_ms = interval.as_millis();
+        self.tick_interval_ms.store(interval_ms, Ordering::Relaxed);
+        info!("Clock tick interval updated to {} ms", interval_ms);
+        // Notify device loop to wake up and recalculate sleep duration
+        self.commands.send(ClockCommand::UpdateTicker).await;
     }
 }
 
@@ -213,34 +229,11 @@ async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infa
             Either::First(_) => {
                 // Timer elapsed - tick occurred, loop will signal again
             }
-            Either::Second(cmd) => {
-                // Command received - update atomics and recompute next tick
-                match cmd {
-                    ClockCommand::SetTime { unix_seconds } => {
-                        // Calculate boot time: boot_time = ntp_time - uptime
-                        let uptime_secs = Instant::now().as_secs();
-                        let boot_unix = unix_seconds.as_i64().saturating_sub(uptime_secs as i64);
-                        resources.set_boot_unix_seconds(boot_unix as i32);
-
-                        info!(
-                            "Clock time set: {} (boot time: {})",
-                            unix_seconds.as_i64(),
-                            boot_unix
-                        );
-
-                        // Emit immediate tick with new time
-                        resources.ticks.signal(());
-                    }
-                    ClockCommand::SetOffset { minutes } => {
-                        resources.set_offset_minutes(minutes);
-                        info!("Clock UTC offset updated to {} minutes", minutes);
-                    }
-                    ClockCommand::SetTickInterval { interval } => {
-                        tick_interval_ms = interval.as_millis();
-                        resources.set_tick_interval_ms(tick_interval_ms);
-                        info!("Clock tick interval updated to {} ms", tick_interval_ms);
-                    }
-                }
+            Either::Second(ClockCommand::UpdateTicker) => {
+                // Caller updated atomics and wants an immediate tick
+                // Also read the latest tick interval in case it changed
+                tick_interval_ms = resources.tick_interval_ms.load(Ordering::Relaxed);
+                resources.ticks.signal(());
             }
         }
     }

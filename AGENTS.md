@@ -149,3 +149,37 @@ Don't ignore errors by assigning results to an ignored variable. Don't do this:
 ```rust
 let _ = something_that_returns_a_result()
 ```
+
+## Async Coordination
+
+**Never use delays/timers to "fix" async coordination issues.** Delays like `Timer::after(Duration::from_millis(1))` to "let something finish" are evil - they're unreliable, hide the real problem, and make code fragile.
+
+If async operations need coordination:
+
+- Use proper synchronization primitives (Signals, Channels, Mutexes)
+- Make operations synchronous if they don't need to be async
+- Restructure the design to avoid the race condition
+- Use acknowledgment/completion signals
+
+❌ Bad (hoping a delay is long enough):
+
+```rust
+send_command().await;
+Timer::after(Duration::from_millis(1)).await; // Evil!
+let result = read_state();
+```
+
+✅ Good (proper coordination):
+
+```rust
+send_command().await;
+wait_for_completion().await;
+let result = read_state();
+```
+
+or
+
+```rust
+// If read_state can be synchronous
+let result = read_state_sync();
+```
