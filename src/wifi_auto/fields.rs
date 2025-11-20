@@ -132,10 +132,16 @@ impl TimezoneField {
     /// This method allows programmatic updates to the timezone, such as when
     /// the user adjusts the timezone via button presses or other UI interactions.
     ///
+    /// Only writes to flash if the value has changed, avoiding unnecessary flash wear.
+    ///
     /// Alternatively, you can access the underlying flash block directly for
     /// more control over flash operations.
     pub fn set_offset_minutes(&self, offset: i32) -> Result<()> {
-        self.flash.borrow_mut().save(&offset)
+        let current = self.offset_minutes()?;
+        if current != Some(offset) {
+            self.flash.borrow_mut().save(&offset)?;
+        }
+        Ok(())
     }
 
     /// Clear the stored timezone offset, returning the field to an unconfigured state.
