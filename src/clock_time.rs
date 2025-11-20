@@ -37,10 +37,12 @@ const TICKS_IN_ONE_DAY: u64 = ONE_DAY.as_ticks();
 /// # Example
 ///
 /// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
 /// # use serials::clock_time::{ClockTime, ONE_MINUTE};
 /// # use serials::unix_seconds::UnixSeconds;
-/// # use embassy_time::Duration;
-/// #
+/// # fn example() {
 /// // Create a clock with UTC-8 offset (PST)
 /// let mut clock = ClockTime::new(-8 * 60);
 ///
@@ -58,6 +60,7 @@ const TICKS_IN_ONE_DAY: u64 = ONE_DAY.as_ticks();
 /// // Verify the new offset is -7 hours * 60 minutes
 /// let offset = clock.offset_minutes();
 /// # let _ = (offset, hours, minutes, seconds, sleep_duration);
+/// # }
 /// ```
 pub struct ClockTime {
     offset: Duration,

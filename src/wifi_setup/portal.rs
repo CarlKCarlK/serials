@@ -10,8 +10,8 @@ use embedded_io_async::Write as _;
 use heapless::{FnvIndexMap, String};
 use static_cell::StaticCell;
 
+use super::credentials::WifiCredentials;
 use crate::Result;
-use crate::wifi_config::WifiCredentials;
 
 pub type HtmlBuffer = String<16384>;
 
@@ -30,7 +30,7 @@ pub type HtmlBuffer = String<16384>;
 /// - [`render`](Self::render): Generate HTML form elements for the captive portal
 /// - [`parse`](Self::parse): Parse and save submitted form data
 /// - [`is_satisfied`](Self::is_satisfied): Check if field has valid configuration
-pub trait WifiAutoField: Sync {
+pub trait WifiSetupField: Sync {
     /// Render HTML form elements for this field.
     ///
     /// Append form elements (labels, inputs, selects, etc.) to the `page` buffer.
@@ -93,16 +93,16 @@ struct FormState {
 static FORM_STATE: Mutex<CriticalSectionRawMutex, RefCell<FormState>> =
     Mutex::new(RefCell::new(FormState { defaults: None }));
 
-static FORM_FIELDS: Mutex<CriticalSectionRawMutex, RefCell<&'static [&'static dyn WifiAutoField]>> =
+static FORM_FIELDS: Mutex<CriticalSectionRawMutex, RefCell<&'static [&'static dyn WifiSetupField]>> =
     Mutex::new(RefCell::new(&[]));
 
 pub async fn collect_credentials(
     stack: &'static Stack<'static>,
     spawner: Spawner,
     defaults: Option<&WifiCredentials>,
-    fields: &'static [&'static dyn WifiAutoField],
+    fields: &'static [&'static dyn WifiSetupField],
 ) -> Result<WifiCredentials> {
-    info!("WifiAuto portal registering {} custom fields", fields.len());
+    info!("WifiSetup portal registering {} custom fields", fields.len());
     FORM_STATE.lock(|state| {
         state.borrow_mut().defaults = defaults.cloned();
     });
@@ -119,7 +119,7 @@ pub async fn collect_credentials(
 
 #[embassy_executor::task]
 async fn http_server_task(stack: &'static Stack<'static>) -> ! {
-    info!("WifiAuto HTTP portal starting");
+    info!("WifiSetup HTTP portal starting");
 
     static RX_BUFFER: StaticCell<[u8; 2048]> = StaticCell::new();
     static TX_BUFFER: StaticCell<[u8; 4096]> = StaticCell::new();
@@ -174,7 +174,7 @@ async fn http_server_task(stack: &'static Stack<'static>) -> ! {
                     CREDENTIAL_CHANNEL.send(credentials).await;
                     static_page(generate_success_page())
                 } else {
-                    warn!("WifiAuto portal failed to parse POST");
+                    warn!("WifiSetup portal failed to parse POST");
                     static_page(generate_error_page())
                 }
             }
@@ -191,7 +191,7 @@ async fn http_server_task(stack: &'static Stack<'static>) -> ! {
     }
 }
 
-fn parse_post(request: &str, fields: &[&'static dyn WifiAutoField]) -> Option<WifiCredentials> {
+fn parse_post(request: &str, fields: &[&'static dyn WifiSetupField]) -> Option<WifiCredentials> {
     let body_start = request.find("\r\n\r\n")? + 4;
     let body = &request[body_start..];
 
@@ -228,7 +228,7 @@ fn parse_post(request: &str, fields: &[&'static dyn WifiAutoField]) -> Option<Wi
     let form = FormData::new(&params);
     for field in fields {
         if let Err(err) = field.parse(&form) {
-            warn!("WifiAuto field parse failed: {}", Debug2Format(&err));
+            warn!("WifiSetup field parse failed: {}", Debug2Format(&err));
             return None;
         }
     }
@@ -236,8 +236,8 @@ fn parse_post(request: &str, fields: &[&'static dyn WifiAutoField]) -> Option<Wi
     Some(WifiCredentials { ssid, password })
 }
 
-fn generate_config_page(state: &FormState, fields: &[&'static dyn WifiAutoField]) -> HtmlBuffer {
-    info!("WifiAuto portal rendering {} fields", fields.len());
+fn generate_config_page(state: &FormState, fields: &[&'static dyn WifiSetupField]) -> HtmlBuffer {
+    info!("WifiSetup portal rendering {} fields", fields.len());
     let mut page = HtmlBuffer::new();
     let ssid = state
         .defaults
@@ -296,7 +296,7 @@ fn generate_config_page(state: &FormState, fields: &[&'static dyn WifiAutoField]
 
     for field in fields {
         if let Err(err) = field.render(&mut page) {
-            warn!("WifiAuto field render failed: {}", Debug2Format(&err));
+            warn!("WifiSetup field render failed: {}", Debug2Format(&err));
         }
     }
 

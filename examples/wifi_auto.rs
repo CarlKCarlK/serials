@@ -1,4 +1,4 @@
-//! Minimal example that provisions Wi-Fi credentials using the `WifiAuto`
+//! Minimal example that provisions Wi-Fi credentials using the `WifiSetup`
 //! abstraction and displays connection status on a 4-digit LED display.
 //!
 //! // cmk0 Future iterations should add extra captive-portal widgets (e.g. nickname)
@@ -23,8 +23,8 @@ use serials::Result;
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led4::{AnimationFrame, BlinkState, Led4, Led4Animation, Led4Static, OutputArray};
 use serials::unix_seconds::UnixSeconds;
-use serials::wifi_auto::fields::{TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic};
-use serials::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoStatic};
+use serials::wifi_setup::fields::{TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic};
+use serials::wifi_setup::{WifiSetup, WifiSetupEvent, WifiSetupStatic};
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -33,7 +33,7 @@ pub async fn main(spawner: Spawner) -> ! {
 }
 
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
-    info!("Starting wifi_auto example");
+    info!("Starting wifi_setup example");
     let peripherals = embassy_rp::init(Default::default());
 
     // Initialize LED4 display
@@ -87,9 +87,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         "Living Room",
     );
 
-    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
-    let wifi_auto = WifiAuto::new(
-        &WIFI_AUTO_STATIC,
+    static WIFI_SETUP_STATIC: WifiSetupStatic = WifiSetup::new_static();
+    let wifi_setup = WifiSetup::new(
+        &wifi_setup_STATIC,
         peripherals.PIN_23,           // CYW43 power
         peripherals.PIN_25,           // CYW43 chip select
         peripherals.PIO0,             // CYW43 PIO interface
@@ -104,20 +104,20 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     )?;
 
     let led4_ref = &led4;
-    let (stack, mut button) = wifi_auto
+    let (stack, mut button) = wifi_setup
         .connect(spawner, |event| async move {
             match event {
-                WifiAutoEvent::CaptivePortalReady => {
+                WifiSetupEvent::CaptivePortalReady => {
                     led4_ref.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
                 }
 
-                WifiAutoEvent::Connecting { try_index, .. } => {
+                WifiSetupEvent::Connecting { try_index, .. } => {
                     led4_ref.animate_text(serials::led4::circular_outline_animation(
                         (try_index & 1) == 0,
                     ));
                 }
 
-                WifiAutoEvent::Connected => {
+                WifiSetupEvent::Connected => {
                     led4_ref.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
                 }
             }

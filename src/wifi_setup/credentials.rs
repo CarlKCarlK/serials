@@ -1,6 +1,7 @@
 //! WiFi credential collection via captive portal web interface.
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
+#![allow(dead_code, reason = "legacy code kept for reference")]
 
 use defmt::{info, unwrap, warn};
 use embassy_net::{Stack, tcp::TcpSocket};

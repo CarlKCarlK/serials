@@ -1,7 +1,7 @@
-//! Wi-Fi enabled 4-digit clock that provisions credentials through `WifiAuto`.
+//! Wi-Fi enabled 4-digit clock that provisions credentials through `WifiSetup`.
 //!
 //! This example demonstrates how to pair the shared captive-portal workflow with the
-//! `ClockLed4` state machine. The `WifiAuto` helper owns Wi-Fi onboarding while the
+//! `ClockLed4` state machine. The `WifiSetup` helper owns Wi-Fi onboarding while the
 //! clock display reflects progress and, once connected, continues handling user input.
 
 #![no_std]
@@ -22,8 +22,8 @@ use serials::clock_time::{ClockTime, ONE_MINUTE, ONE_SECOND};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led4::{BlinkState, Led4, Led4Static, OutputArray, circular_outline_animation};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
-use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
+use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
+use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
 use serials::{Error, Result};
 
 #[embassy_executor::main]
@@ -33,7 +33,7 @@ pub async fn main(spawner: Spawner) -> ! {
 }
 
 async fn inner_main(spawner: Spawner) -> Result<!> {
-    info!("Starting Wi-Fi 4-digit clock (WifiAuto)");
+    info!("Starting Wi-Fi 4-digit clock (WifiSetup)");
     let peripherals = embassy_rp::init(Default::default());
 
     // Use two blocks of flash storage: Wi-Fi credentials + timezone
@@ -46,10 +46,10 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
 
     // Set up Wifi via a captive portal. The button pin is used to reset stored credentials.
-    // cmk0 think about the WifiAuto name
-    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
-    let wifi_auto = WifiAuto::new(
-        &WIFI_AUTO_STATIC,
+    // cmk0 think about the WifiSetup name
+    static WIFI_SETUP_STATIC: WifiSetupStatic = WifiSetup::new_static();
+    let wifi_setup = WifiSetup::new(
+        &WIFI_SETUP_STATIC,
         peripherals.PIN_23,  // CYW43 power
         peripherals.PIN_25,  // CYW43 chip select
         peripherals.PIO0,    // CYW43 PIO interface
@@ -86,24 +86,24 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     let led4 = Led4::new(&LED4_STATIC, cell_pins, segment_pins, spawner)?;
 
     // Start the auto Wi-Fi, using the clock display for status.
-    // cmk0 do we even need src/wifi.rs to be public? rename WifiAuto?
+    // cmk0 do we even need src/wifi.rs to be public? rename WifiSetup?
     let led4_ref = &led4;
-    let (stack, mut button) = wifi_auto
+    let (stack, mut button) = wifi_setup
         .connect(spawner, move |event| async move {
-            use serials::wifi_auto::WifiAutoEvent;
+            use serials::wifi_setup::WifiSetupEvent;
             match event {
-                WifiAutoEvent::CaptivePortalReady => {
+                WifiSetupEvent::CaptivePortalReady => {
                     info!("Event: CaptivePortalReady");
                     led4_ref.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
                 }
-                WifiAutoEvent::Connecting {
+                WifiSetupEvent::Connecting {
                     try_index,
                     try_count,
                 } => {
                     info!("Event: Connecting attempt {}/{}", try_index + 1, try_count);
                     led4_ref.animate_text(circular_outline_animation(true));
                 }
-                WifiAutoEvent::Connected => {
+                WifiSetupEvent::Connected => {
                     info!("Event: Connected");
                     led4_ref.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
                 }

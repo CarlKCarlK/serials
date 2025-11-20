@@ -18,9 +18,9 @@ use serials::Result;
 use serials::clock::{Clock, ClockStatic};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use serials::wifi_auto::WifiAutoEvent;
-use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
-use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
+use serials::wifi_setup::WifiSetupEvent;
+use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
+use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -44,9 +44,9 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
 
     // Set up WiFi via captive portal
-    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
-    let wifi_auto = WifiAuto::new(
-        &WIFI_AUTO_STATIC,
+    static WIFI_SETUP_STATIC: WifiSetupStatic = WifiSetup::new_static();
+    let wifi_setup = WifiSetup::new(
+        &WIFI_SETUP_STATIC,
         p.PIN_23,  // CYW43 power
         p.PIN_25,  // CYW43 chip select
         p.PIO0,    // CYW43 PIO interface
@@ -61,13 +61,13 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     )?;
 
     // Connect to WiFi
-    let (stack, _button) = wifi_auto
+    let (stack, _button) = wifi_setup
         .connect(spawner, |event| async move {
             match event {
-                WifiAutoEvent::CaptivePortalReady => {
+                WifiSetupEvent::CaptivePortalReady => {
                     info!("Captive portal ready - connect to WiFi network");
                 }
-                WifiAutoEvent::Connecting {
+                WifiSetupEvent::Connecting {
                     try_index,
                     try_count,
                 } => {
@@ -77,7 +77,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
                         try_count
                     );
                 }
-                WifiAutoEvent::Connected => {
+                WifiSetupEvent::Connected => {
                     info!("WiFi connected successfully!");
                 }
             }

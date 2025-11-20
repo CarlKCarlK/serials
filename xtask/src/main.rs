@@ -124,7 +124,52 @@ fn check_all() -> ExitCode {
     let features_wifi_pico2 = build_features(board_pico2, arch, true);
     let features_wifi_pico1 = build_features(board_pico1, arch, true);
 
-    println!("{}", "==> Building library...".cyan());
+    println!("{}", "==> Running doc tests...".cyan());
+    if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
+        "test",
+        "--doc",
+        "--target",
+        target_pico2,
+        "--features",
+        features_wifi_pico2.as_str(),
+        "--no-default-features",
+    ])) {
+        return ExitCode::FAILURE;
+    }
+
+    println!("\n{}", "==> Running unit tests...".cyan());
+    let host_target = host_target();
+    match host_target.as_deref() {
+        Some(target) => {
+            println!(
+                "  {}",
+                format!("Using host target: {target}").bright_black()
+            );
+        }
+        None => {
+            println!(
+                "{}",
+                "  Unable to detect host target; relying on cargo default.".bright_black()
+            );
+        }
+    }
+
+    let mut unit_test_cmd = Command::new("cargo");
+    unit_test_cmd
+        .current_dir(&workspace_root)
+        .args(["test", "--lib"]);
+
+    if let Some(target) = host_target {
+        unit_test_cmd.arg("--target").arg(target);
+    }
+
+    unit_test_cmd.args(["--no-default-features", "--features", "host"]);
+
+    if !run_command(&mut unit_test_cmd) {
+        return ExitCode::FAILURE;
+    }
+
+    println!("\n{}", "==> Building library...".cyan());
     if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
         "build",
         "--lib",
@@ -203,51 +248,6 @@ fn check_all() -> ExitCode {
         ])) {
             return ExitCode::FAILURE;
         }
-    }
-
-    println!("\n{}", "==> Running doc tests...".cyan());
-    if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
-        "test",
-        "--doc",
-        "--target",
-        target_pico2,
-        "--features",
-        features_wifi_pico2.as_str(),
-        "--no-default-features",
-    ])) {
-        return ExitCode::FAILURE;
-    }
-
-    println!("\n{}", "==> Running unit tests...".cyan());
-    let host_target = host_target();
-    match host_target.as_deref() {
-        Some(target) => {
-            println!(
-                "  {}",
-                format!("Using host target: {target}").bright_black()
-            );
-        }
-        None => {
-            println!(
-                "{}",
-                "  Unable to detect host target; relying on cargo default.".bright_black()
-            );
-        }
-    }
-
-    let mut unit_test_cmd = Command::new("cargo");
-    unit_test_cmd
-        .current_dir(&workspace_root)
-        .args(["test", "--lib"]);
-
-    if let Some(target) = host_target {
-        unit_test_cmd.arg("--target").arg(target);
-    }
-
-    unit_test_cmd.args(["--no-default-features", "--features", "host"]);
-
-    if !run_command(&mut unit_test_cmd) {
-        return ExitCode::FAILURE;
     }
 
     println!("\n{}", "==> Building documentation...".cyan());

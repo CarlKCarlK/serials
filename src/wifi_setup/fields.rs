@@ -1,7 +1,7 @@
-//! Pre-built field implementations for [`WifiAutoField`].
+//! Pre-built field implementations for [`WifiSetupField`].
 //!
 //! This module provides ready-to-use field types that can be passed to
-//! [`WifiAuto::new()`](super::WifiAuto::new) for collecting additional
+//! [`WifiSetup::new()`](super::WifiSetup::new) for collecting additional
 //! configuration beyond WiFi credentials.
 //!
 //! See [`TimezoneField`] and [`TextField`] for complete examples of implementing custom fields.
@@ -16,7 +16,7 @@ use defmt::info;
 use heapless::String;
 use static_cell::StaticCell;
 
-use super::portal::{FormData, HtmlBuffer, WifiAutoField};
+use super::portal::{FormData, HtmlBuffer, WifiSetupField};
 use crate::flash_array::FlashBlock;
 use crate::{Error, Result};
 
@@ -33,8 +33,8 @@ use crate::{Error, Result};
 /// # #![no_main]
 /// # use panic_probe as _;
 /// # use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
-/// # use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
-/// # use serials::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
+/// # use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
+/// # use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 /// # use embassy_executor::Spawner;
 /// # async fn example(
 /// #     spawner: Spawner,
@@ -49,10 +49,10 @@ use crate::{Error, Result};
 /// static TIMEZONE_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
 /// let timezone_field = TimezoneField::new(&TIMEZONE_STATIC, timezone_flash);
 ///
-/// // Pass to WifiAuto
-/// static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
-/// let wifi_auto = WifiAuto::new(
-///     &WIFI_AUTO_STATIC,
+/// // Pass to WifiSetup
+/// static wifi_setup_STATIC: WifiSetupStatic = WifiSetup::new_static();
+/// let wifi_setup = WifiSetup::new(
+///     &wifi_setup_STATIC,
 ///     peripherals.PIN_23,
 ///     peripherals.PIN_25,
 ///     peripherals.PIO0,
@@ -77,7 +77,7 @@ pub struct TimezoneField {
 
 // SAFETY: TimezoneField is used in a single-threaded Embassy executor on RP2040/RP2350.
 // There are no interrupts that access this data, and all async operations are cooperative
-// (non-preemptive). The Sync bound is required only because WifiAutoField trait objects
+// (non-preemptive). The Sync bound is required only because WifiSetupField trait objects
 // are stored in static storage, not because of actual concurrent access.
 unsafe impl Sync for TimezoneField {}
 
@@ -150,9 +150,9 @@ impl TimezoneField {
     }
 }
 
-impl WifiAutoField for TimezoneField {
+impl WifiSetupField for TimezoneField {
     fn render(&self, page: &mut HtmlBuffer) -> Result<()> {
-        info!("WifiAuto field: rendering timezone select");
+        info!("WifiSetup field: rendering timezone select");
         let current = self.offset_minutes()?.unwrap_or(0);
         FmtWrite::write_str(page, "<label for=\"timezone\">Time zone:</label>")
             .map_err(|_| Error::FormatError)?;
@@ -384,8 +384,8 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 /// # #![no_main]
 /// # use panic_probe as _;
 /// # use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
-/// # use serials::wifi_auto::{WifiAuto, WifiAutoStatic};
-/// # use serials::wifi_auto::fields::{TextField, TextFieldStatic};
+/// # use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
+/// # use serials::wifi_setup::fields::{TextField, TextFieldStatic};
 /// # use embassy_executor::Spawner;
 /// # async fn example(
 /// #     spawner: Spawner,
@@ -406,10 +406,10 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 ///     "Pico",           // Default value
 /// );
 ///
-/// // Pass to WifiAuto
-/// static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
-/// let wifi_auto = WifiAuto::new(
-///     &WIFI_AUTO_STATIC,
+/// // Pass to WifiSetup
+/// static wifi_setup_STATIC: WifiSetupStatic = WifiSetup::new_static();
+/// let wifi_setup = WifiSetup::new(
+///     &wifi_setup_STATIC,
 ///     peripherals.PIN_23,
 ///     peripherals.PIN_25,
 ///     peripherals.PIO0,
@@ -437,7 +437,7 @@ pub struct TextField<const N: usize> {
 
 // SAFETY: TextField is used in a single-threaded Embassy executor on RP2040/RP2350.
 // There are no interrupts that access this data, and all async operations are cooperative
-// (non-preemptive). The Sync bound is required only because WifiAutoField trait objects
+// (non-preemptive). The Sync bound is required only because WifiSetupField trait objects
 // are stored in static storage, not because of actual concurrent access.
 unsafe impl<const N: usize> Sync for TextField<N> {}
 
@@ -523,9 +523,9 @@ impl<const N: usize> TextField<N> {
     }
 }
 
-impl<const N: usize> WifiAutoField for TextField<N> {
+impl<const N: usize> WifiSetupField for TextField<N> {
     fn render(&self, page: &mut HtmlBuffer) -> Result<()> {
-        info!("WifiAuto field: rendering text input");
+        info!("WifiSetup field: rendering text input");
         let current = self
             .text()?
             .filter(|value| !value.is_empty())
@@ -551,7 +551,7 @@ impl<const N: usize> WifiAutoField for TextField<N> {
 
     fn parse(&self, form: &FormData<'_>) -> Result<()> {
         let Some(value) = form.get(self.field_name) else {
-            info!("WifiAuto field: text input missing from submission");
+            info!("WifiSetup field: text input missing from submission");
             return Ok(());
         };
         let trimmed = value.trim();

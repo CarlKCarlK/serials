@@ -310,7 +310,10 @@ async fn run_animation_loop(
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
 /// # use serials::led4::{Led4, circular_outline_animation};
 /// # async fn example(led4: &Led4<'_>) {
 /// // Animate clockwise

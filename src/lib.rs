@@ -35,10 +35,6 @@ pub mod char_lcd;
 pub mod clock;
 #[cfg(not(feature = "host"))]
 pub mod clock_time;
-#[cfg(all(feature = "wifi", not(feature = "host")))]
-pub mod dhcp_server;
-#[cfg(all(feature = "wifi", not(feature = "host")))]
-pub mod dns_server;
 #[cfg(not(feature = "host"))]
 mod error;
 #[cfg(not(feature = "host"))]
@@ -66,11 +62,7 @@ pub mod time_sync;
 #[cfg(not(feature = "host"))]
 pub mod unix_seconds;
 #[cfg(all(feature = "wifi", not(feature = "host")))]
-pub mod wifi;
-#[cfg(all(feature = "wifi", not(feature = "host")))]
-pub mod wifi_auto;
-#[cfg(all(feature = "wifi", not(feature = "host")))]
-pub mod wifi_config;
+pub mod wifi_setup;
 
 // Re-export error types and result (used throughout)
 #[cfg(not(feature = "host"))]

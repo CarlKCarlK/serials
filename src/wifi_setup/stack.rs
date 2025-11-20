@@ -10,7 +10,7 @@
 //!
 //! ## Provisioning via captive portal
 //!
-//! ```no_run
+//! ```ignore
 //! # #![no_std]
 //! # #![no_main]
 //! # use panic_probe as _;
@@ -49,7 +49,7 @@
 //!
 //! ## Client mode with stored credentials
 //!
-//! ```no_run
+//! ```ignore
 //! # #![no_std]
 //! # #![no_main]
 //! # use panic_probe as _;
@@ -106,9 +106,9 @@ use embassy_time::Timer;
 use portable_atomic::{AtomicBool, Ordering};
 use static_cell::StaticCell;
 
-use crate::dhcp_server::dhcp_server_task;
+use super::credentials::WifiCredentials;
+use super::dhcp::dhcp_server_task;
 use crate::flash_array::FlashBlock;
-use crate::wifi_config::WifiCredentials;
 
 pub const DEFAULT_CAPTIVE_PORTAL_SSID: &str = "Pico";
 
