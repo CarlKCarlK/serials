@@ -296,6 +296,7 @@ impl State {
         let mut offset_minutes = clock.offset_minutes();
         info!("Current offset: {} minutes", offset_minutes);
 
+        clock.set_tick_interval(None).await; // Disable ticks in edit mode
         loop {
             info!("Waiting for button press in edit mode");
             match button.press_duration().await {
