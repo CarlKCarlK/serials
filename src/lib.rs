@@ -34,8 +34,6 @@ pub mod char_lcd;
 #[cfg(not(feature = "host"))]
 pub mod clock;
 #[cfg(not(feature = "host"))]
-pub mod clock_time;
-#[cfg(not(feature = "host"))]
 mod error;
 #[cfg(not(feature = "host"))]
 pub mod flash_array;

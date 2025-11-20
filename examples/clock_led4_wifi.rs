@@ -15,10 +15,9 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_rp::gpio::{self, Level};
-use embassy_time::Timer;
 use panic_probe as _;
 use serials::button::{Button, PressDuration};
-use serials::clock_time::{ClockTime, ONE_MINUTE, ONE_SECOND};
+use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led4::{BlinkState, Led4, Led4Static, OutputArray, circular_outline_animation};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
@@ -46,7 +45,6 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
 
     // Set up Wifi via a captive portal. The button pin is used to reset stored credentials.
-    // cmk0 think about the WifiSetup name
     static WIFI_SETUP_STATIC: WifiSetupStatic = WifiSetup::new_static();
     let wifi_setup = WifiSetup::new(
         &WIFI_SETUP_STATIC,
@@ -63,7 +61,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         spawner,
     )?;
 
-    // Initialize the LED4 display.
+    // Set up the LED4 display.
     let cell_pins = OutputArray::new([
         gpio::Output::new(peripherals.PIN_1, Level::High),
         gpio::Output::new(peripherals.PIN_2, Level::High),
@@ -85,63 +83,57 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     static LED4_STATIC: Led4Static = Led4::new_static();
     let led4 = Led4::new(&LED4_STATIC, cell_pins, segment_pins, spawner)?;
 
-    // Start the auto Wi-Fi, using the clock display for status.
-    // cmk0 do we even need src/wifi.rs to be public? rename WifiSetup?
+    // Connect Wi-Fi, using the clock display for status.
     let led4_ref = &led4;
     let (stack, mut button) = wifi_setup
         .connect(spawner, move |event| async move {
             use serials::wifi_setup::WifiSetupEvent;
             match event {
                 WifiSetupEvent::CaptivePortalReady => {
-                    info!("Event: CaptivePortalReady");
                     led4_ref.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
                 }
-                WifiSetupEvent::Connecting {
-                    try_index,
-                    try_count,
-                } => {
-                    info!("Event: Connecting attempt {}/{}", try_index + 1, try_count);
+                WifiSetupEvent::Connecting { .. } => {
                     led4_ref.animate_text(circular_outline_animation(true));
                 }
                 WifiSetupEvent::Connected => {
-                    info!("Event: Connected");
                     led4_ref.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
                 }
             }
         })
         .await?;
 
-    info!("WiFi connect() returned successfully");
+    info!("WiFi connected");
 
     // Every hour, check the time and fire an event.
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
     let time_sync = TimeSync::new(&TIME_SYNC_STATIC, stack, spawner);
 
-    // Read the saved timezone offset from flash (must exist after WiFi provisioning).
+    // Read the timezone offset, an extra field that WiFi portal saved to flash.
     let offset_minutes = timezone_field
         .offset_minutes()?
         .ok_or(Error::StorageCorrupted)?;
 
-    // Create a lightweight clock_time instance to track the time.
-    let mut clock_time = ClockTime::new(offset_minutes);
+    // Create a headless Clock device that knows its timezone offset.
+    static CLOCK_STATIC: ClockStatic = Clock::new_static();
+    let clock = Clock::new(&CLOCK_STATIC, offset_minutes, spawner);
 
-    // WiFi is connected, start in normal clock mode
+    // Start in HH:MM mode
     let mut state = State::HoursMinutes;
     loop {
         state = match state {
             State::HoursMinutes => {
                 state
-                    .execute_hours_minutes(&mut clock_time, &mut button, &time_sync, &led4)
+                    .execute_hours_minutes(&clock, &mut button, &time_sync, &led4)
                     .await?
             }
             State::MinutesSeconds => {
                 state
-                    .execute_minutes_seconds(&mut clock_time, &mut button, &time_sync, &led4)
+                    .execute_minutes_seconds(&clock, &mut button, &time_sync, &led4)
                     .await?
             }
             State::EditOffset => {
                 state
-                    .execute_edit_offset(&mut clock_time, &mut button, &timezone_field, &led4)
+                    .execute_edit_offset(&clock, &mut button, &timezone_field, &led4)
                     .await?
             }
         };
@@ -151,9 +143,8 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 // State machine for 4-digit LED clock display modes and transitions.
 
 /// Display states for the 4-digit LED clock.
-#[derive(Debug, defmt::Format, Clone, Copy, Default)]
+#[derive(Debug, defmt::Format, Clone, Copy, PartialEq)]
 pub enum State {
-    #[default]
     HoursMinutes,
     MinutesSeconds,
     EditOffset,
@@ -162,12 +153,12 @@ pub enum State {
 impl State {
     async fn execute_hours_minutes(
         self,
-        clock_time: &mut ClockTime,
+        clock: &Clock,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
         led4: &Led4<'_>,
     ) -> Result<Self> {
-        let (hours, minutes, _, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_MINUTE);
+        let (hours, minutes, _) = h_m_s(&clock.current_time());
         led4.write_text(
             BlinkState::Solid,
             [
@@ -177,23 +168,38 @@ impl State {
                 ones_digit(minutes),
             ],
         );
-
+        clock.set_tick_interval(ONE_MINUTE).await;
         Ok(
             match select(
-                select(button.press_duration(), Timer::after(sleep_duration)),
+                select(button.press_duration(), clock.wait()),
                 time_sync.wait(),
             )
             .await
             {
+                // Button pushes
                 Either::First(Either::First(PressDuration::Short)) => Self::MinutesSeconds,
                 Either::First(Either::First(PressDuration::Long)) => Self::EditOffset,
-                Either::First(Either::Second(_)) => self, // Timer elapsed
+                // Clock tick
+                Either::First(Either::Second(time_event)) => {
+                    let (hours, minutes, _) = h_m_s(&time_event);
+                    led4.write_text(
+                        BlinkState::Solid,
+                        [
+                            tens_hours(hours),
+                            ones_digit(hours),
+                            tens_digit(minutes),
+                            ones_digit(minutes),
+                        ],
+                    );
+                    self
+                }
+                // Time sync events
                 Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
                     info!(
                         "Time sync success: setting clock to {}",
                         unix_seconds.as_i64()
                     );
-                    clock_time.set_from_unix(unix_seconds);
+                    clock.set_time(unix_seconds).await;
                     self
                 }
                 Either::Second(TimeSyncEvent::Failed(msg)) => {
@@ -206,12 +212,12 @@ impl State {
 
     async fn execute_minutes_seconds(
         self,
-        clock_time: &mut ClockTime,
+        clock: &Clock,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
         led4: &Led4<'_>,
     ) -> Result<Self> {
-        let (_, minutes, seconds, sleep_duration) = clock_time.h_m_s_sleep_duration(ONE_SECOND);
+        let (_, minutes, seconds) = h_m_s(&clock.current_time());
         led4.write_text(
             BlinkState::Solid,
             [
@@ -221,23 +227,38 @@ impl State {
                 ones_digit(seconds),
             ],
         );
-
+        clock.set_tick_interval(ONE_SECOND).await;
         Ok(
             match select(
-                select(button.press_duration(), Timer::after(sleep_duration)),
+                select(button.press_duration(), clock.wait()),
                 time_sync.wait(),
             )
             .await
             {
+                // Button pushes
                 Either::First(Either::First(PressDuration::Short)) => Self::HoursMinutes,
                 Either::First(Either::First(PressDuration::Long)) => Self::EditOffset,
-                Either::First(Either::Second(_)) => self, // Timer elapsed
+                // Clock tick
+                Either::First(Either::Second(time_event)) => {
+                    let (_, minutes, seconds) = h_m_s(&time_event);
+                    led4.write_text(
+                        BlinkState::Solid,
+                        [
+                            tens_digit(minutes),
+                            ones_digit(minutes),
+                            tens_digit(seconds),
+                            ones_digit(seconds),
+                        ],
+                    );
+                    self
+                }
+                // Time sync events
                 Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
                     info!(
                         "Time sync success: setting clock to {}",
                         unix_seconds.as_i64()
                     );
-                    clock_time.set_from_unix(unix_seconds);
+                    clock.set_time(unix_seconds).await;
                     self
                 }
                 Either::Second(TimeSyncEvent::Failed(msg)) => {
@@ -250,12 +271,13 @@ impl State {
 
     async fn execute_edit_offset(
         self,
-        clock_time: &mut ClockTime,
+        clock: &Clock,
         button: &mut Button<'_>,
         timezone_field: &TimezoneField,
         led4: &Led4<'_>,
     ) -> Result<Self> {
-        let (hours, minutes, _, _) = clock_time.h_m_s_sleep_duration(ONE_MINUTE);
+        // Blink current hours and minutes
+        let (hours, minutes, _) = h_m_s(&clock.current_time());
         led4.write_text(
             BlinkState::BlinkingAndOn,
             [
@@ -266,18 +288,34 @@ impl State {
             ],
         );
 
-        Ok(match button.press_duration().await {
-            PressDuration::Short => {
-                let new_offset_minutes = clock_time.offset_minutes() + 60;
-                clock_time.set_offset_minutes(new_offset_minutes);
-                Self::EditOffset
+        // Get the current offset minutes to edit
+        let mut offset_minutes = clock.offset_minutes().await;
+
+        loop {
+            match button.press_duration().await {
+                PressDuration::Short => {
+                    // Increment the headless clock's offset by 1 hour
+                    offset_minutes += 60;
+                    clock.set_offset_minutes(offset_minutes).await;
+
+                    let (hours, minutes, _) = h_m_s(&clock.current_time());
+                    led4.write_text(
+                        BlinkState::BlinkingAndOn,
+                        [
+                            tens_hours(hours),
+                            ones_digit(hours),
+                            tens_digit(minutes),
+                            ones_digit(minutes),
+                        ],
+                    );
+                }
+                PressDuration::Long => {
+                    // Save to flash and exit edit mode
+                    timezone_field.set_offset_minutes(offset_minutes)?;
+                    return Ok(Self::HoursMinutes);
+                }
             }
-            PressDuration::Long => {
-                // Save to flash when user finishes adjusting
-                timezone_field.set_offset_minutes(clock_time.offset_minutes())?;
-                Self::HoursMinutes
-            }
-        })
+        }
     }
 }
 

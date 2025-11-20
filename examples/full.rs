@@ -19,7 +19,7 @@ use heapless::{FnvIndexMap, String};
 use panic_probe as _;
 use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdStatic};
-use serials::clock::{Clock, ClockEvent, ClockState, ClockStatic};
+use serials::clock::{Clock, ClockStatic, ONE_SECOND, h_m_s};
 #[cfg(feature = "wifi")]
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::ir::{Ir, IrEvent, IrStatic};
@@ -111,8 +111,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     const DEFAULT_offset_MINUTES: i32 = 0;
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
-    let clock = Clock::new(&CLOCK_STATIC, spawner);
-    clock.set_offset_minutes(DEFAULT_offset_MINUTES).await;
+    let clock = Clock::new(&CLOCK_STATIC, DEFAULT_offset_MINUTES, ONE_SECOND, spawner);
 
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
     #[cfg(feature = "wifi")]
@@ -162,7 +161,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let mut card_map: FnvIndexMap<[u8; 10], u8, 4> = FnvIndexMap::new();
 
     // Track the most recent clock event for display purposes
-    let mut latest_time: Option<ClockEvent> = None;
+    let mut latest_time: Option<OffsetDateTime> = None;
 
     // Main loop: wait for RFID, IR, clock, or time-sync events
     loop {
@@ -332,24 +331,12 @@ async fn advance_led_progress(
     Ok(())
 }
 
-fn append_time_line(text: &mut String<64>, latest_time: Option<ClockEvent>) {
+fn append_time_line(text: &mut String<64>, latest_time: Option<OffsetDateTime>) {
     match latest_time {
-        Some(time_info) => match time_info.state {
-            ClockState::Synced => {
-                let dt = time_info.datetime;
-                write!(
-                    text,
-                    "\n{:02}:{:02}:{:02}",
-                    dt.hour(),
-                    dt.minute(),
-                    dt.second()
-                )
-                .unwrap();
-            }
-            ClockState::NotSet => {
-                text.push_str("\nTime not set").unwrap();
-            }
-        },
+        Some(dt) => {
+            let (hour, minute, second) = h_m_s(&dt);
+            write!(text, "\n{:02}:{:02}:{:02}", hour, minute, second).unwrap();
+        }
         None => {
             text.push_str("\nTime unknown").unwrap();
         }

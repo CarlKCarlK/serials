@@ -3,48 +3,50 @@
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
 use core::convert::Infallible;
-use core::fmt;
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
+use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_sync::signal::Signal;
-use embassy_time::{Instant, Timer};
-use heapless::String;
+use embassy_time::{Duration, Instant, Timer};
 use time::{OffsetDateTime, UtcOffset};
 
+use crate::Result;
 use crate::unix_seconds::UnixSeconds;
-use crate::{Error, Result};
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+/// Duration representing one second.
+pub const ONE_SECOND: Duration = Duration::from_secs(1);
+/// Duration representing one minute (60 seconds).
+pub const ONE_MINUTE: Duration = Duration::from_secs(60);
 
 // ============================================================================
 // Types
 // ============================================================================
 
-/// State of clock synchronization.
-#[derive(Clone, Copy)]
-pub enum ClockState {
-    /// Clock time has not been set from external source.
-    NotSet,
-    /// Clock time has been synchronized with external time source.
-    Synced,
-}
+// ClockEvent removed; now clock emits OffsetDateTime directly
 
-/// Event emitted by the clock device on each tick.
-#[derive(Clone, Copy)]
-pub struct ClockEvent {
-    /// Current date and time.
-    pub datetime: OffsetDateTime,
-    /// Synchronization state of the clock.
-    pub state: ClockState,
+/// Extract hour, minute, second from OffsetDateTime
+pub fn h_m_s(dt: &OffsetDateTime) -> (u8, u8, u8) {
+    let hour = dt.hour() as u8;
+    let minute = dt.minute() as u8;
+    let second = dt.second() as u8;
+    (hour, minute, second)
 }
 
 /// Commands sent to the clock device.
-pub enum ClockCommand {
+enum ClockCommand {
     /// Set the current time from Unix timestamp.
     SetTime { unix_seconds: UnixSeconds },
     /// Update the UTC offset (in minutes).
     SetOffset { minutes: i32 },
+    /// Set the tick interval (e.g., ONE_SECOND, ONE_MINUTE).
+    SetTickInterval { interval: Duration },
 }
 
 // ============================================================================
@@ -52,20 +54,27 @@ pub enum ClockCommand {
 // ============================================================================
 
 /// Channel type for clock commands.
-pub type ClockCommands = Channel<CriticalSectionRawMutex, ClockCommand, 4>;
-/// Signal type for clock events.
-pub type ClockEvents = Signal<CriticalSectionRawMutex, ClockEvent>;
+type ClockCommands = Channel<CriticalSectionRawMutex, ClockCommand, 4>;
+/// Signal type for clock tick notifications.
+type ClockTicks = Signal<CriticalSectionRawMutex, ()>;
+/// Current time storage.
+type CurrentTime = Mutex<CriticalSectionRawMutex, core::cell::Cell<OffsetDateTime>>;
 
 /// Resources needed by Clock device
 pub struct ClockStatic {
     commands: ClockCommands,
-    events: ClockEvents,
+    ticks: ClockTicks,
+    current_time: CurrentTime,
+    offset_minutes: Signal<CriticalSectionRawMutex, i32>,
+    tick_interval: Signal<CriticalSectionRawMutex, Duration>,
 }
 
 /// A device abstraction that manages time keeping and emits time tick events.
 pub struct Clock {
     commands: &'static ClockCommands,
-    events: &'static ClockEvents,
+    ticks: &'static ClockTicks,
+    current_time: &'static CurrentTime,
+    offset_minutes: &'static Signal<CriticalSectionRawMutex, i32>,
 }
 
 impl Clock {
@@ -74,23 +83,38 @@ impl Clock {
     pub const fn new_static() -> ClockStatic {
         ClockStatic {
             commands: Channel::new(),
-            events: Signal::new(),
+            ticks: Signal::new(),
+            current_time: Mutex::new(core::cell::Cell::new(OffsetDateTime::UNIX_EPOCH)),
+            offset_minutes: Signal::new(),
+            tick_interval: Signal::new(),
         }
     }
 
     /// Create a new Clock device and spawn its task
-    pub fn new(clock_static: &'static ClockStatic, spawner: Spawner) -> Self {
+    pub fn new(clock_static: &'static ClockStatic, offset_minutes: i32, spawner: Spawner) -> Self {
+        let tick_interval = ONE_SECOND;
+        clock_static.offset_minutes.signal(offset_minutes);
+        clock_static.tick_interval.signal(tick_interval);
         let token = unwrap!(clock_device_loop(clock_static));
         spawner.spawn(token);
         Self {
             commands: &clock_static.commands,
-            events: &clock_static.events,
+            ticks: &clock_static.ticks,
+            current_time: &clock_static.current_time,
+            offset_minutes: &clock_static.offset_minutes,
         }
     }
 
     /// Wait for and return the next clock tick event
-    pub async fn wait(&self) -> ClockEvent {
-        self.events.wait().await
+    pub async fn wait(&self) -> OffsetDateTime {
+        self.ticks.wait().await;
+        self.current_time.lock(|cell| cell.get())
+    }
+
+    /// Get the current time without waiting for a tick.
+    /// Returns the most recently computed time.
+    pub fn current_time(&self) -> OffsetDateTime {
+        self.current_time.lock(|cell| cell.get())
     }
 
     /// Send a command to set the time
@@ -107,61 +131,17 @@ impl Clock {
             .await;
     }
 
-    /// Format 24-hour time as 12-hour with AM/PM
-    #[must_use]
-    fn format_12hour(hours: u8) -> (u8, &'static str) {
-        if hours == 0 {
-            (12, "AM")
-        } else if hours < 12 {
-            (hours, "AM")
-        } else if hours == 12 {
-            (12, "PM")
-        } else {
-            #[expect(clippy::arithmetic_side_effects, reason = "hour guaranteed 13-23")]
-            (hours - 12, "PM")
-        }
+    /// Get the current UTC offset in minutes.
+    pub async fn offset_minutes(&self) -> i32 {
+        self.offset_minutes.wait().await
     }
 
-    /// Format time info as display string
-    pub fn format_display(time_info: &ClockEvent) -> Result<String<64>> {
-        let mut text = String::<64>::new();
-
-        let dt = time_info.datetime;
-        let (hour12, am_pm) = Self::format_12hour(dt.hour());
-
-        match time_info.state {
-            ClockState::NotSet => {
-                fmt::Write::write_fmt(
-                    &mut text,
-                    format_args!(
-                        "{:2}:{:02}:{:02} {}\nTime not set",
-                        hour12,
-                        dt.minute(),
-                        dt.second(),
-                        am_pm
-                    ),
-                )
-                .map_err(|_| Error::FormatError)?;
-            }
-            ClockState::Synced => {
-                fmt::Write::write_fmt(
-                    &mut text,
-                    format_args!(
-                        "{:2}:{:02}:{:02} {}\n{:04}-{:02}-{:02}",
-                        hour12,
-                        dt.minute(),
-                        dt.second(),
-                        am_pm,
-                        dt.year(),
-                        u8::from(dt.month()),
-                        dt.day()
-                    ),
-                )
-                .map_err(|_| Error::FormatError)?;
-            }
-        }
-
-        Ok(text)
+    /// Set the tick interval (e.g., Duration::from_secs(1), Duration::from_secs(60)).
+    /// The clock will emit events aligned to boundaries (top of second, top of minute, etc.).
+    pub async fn set_tick_interval(&self, interval: Duration) {
+        self.commands
+            .send(ClockCommand::SetTickInterval { interval })
+            .await;
     }
 }
 
@@ -172,33 +152,43 @@ async fn clock_device_loop(resources: &'static ClockStatic) -> ! {
 }
 
 async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infallible> {
-    let mut offset_minutes: i32 = 0;
-    let mut offset = UtcOffset::UTC;
+    let mut offset_minutes: i32 = resources.offset_minutes.wait().await;
+    #[expect(clippy::arithmetic_side_effects, reason = "offset bounds checked")]
+    let mut offset = UtcOffset::from_whole_seconds(offset_minutes * 60).unwrap_or(UtcOffset::UTC);
+    let mut tick_interval = resources.tick_interval.wait().await;
 
     info!(
-        "Clock device started (UTC offset: {} minutes)",
-        offset_minutes
+        "Clock device started (UTC offset: {} minutes, tick interval: {} ms)",
+        offset_minutes,
+        tick_interval.as_millis()
     );
 
     // Monotonic anchor for drift-free timekeeping
     let mut base_unix_seconds: Option<UnixSeconds> = None;
     let mut base_instant: Option<Instant> = None;
-    let mut clock_state = ClockState::NotSet;
 
     // For initial "Time not set" display, start from midnight
     let mut current_time: OffsetDateTime =
         OffsetDateTime::from_unix_timestamp(0).expect("midnight is valid");
 
-    loop {
-        // Emit tick event
-        let time_info = ClockEvent {
-            datetime: current_time,
-            state: clock_state,
-        };
-        resources.events.signal(time_info);
+    // Helper to calculate duration until next tick boundary
+    let sleep_until_boundary = |now_instant: Instant, interval: Duration| -> Duration {
+        let elapsed_ticks = now_instant.as_ticks();
+        let interval_ticks = interval.as_ticks();
+        let ticks_until_next = interval_ticks - (elapsed_ticks % interval_ticks);
+        Duration::from_ticks(ticks_until_next)
+    };
 
-        // Wait for either 1 second or a command
-        match select(Timer::after_secs(1), resources.commands.receive()).await {
+    loop {
+        // Store current time and emit tick notification
+        resources.current_time.lock(|cell| cell.set(current_time));
+        resources.ticks.signal(());
+
+        // Calculate sleep duration aligned to tick boundary
+        let sleep_duration = sleep_until_boundary(Instant::now(), tick_interval);
+
+        // Wait for either tick interval or a command
+        match select(Timer::after(sleep_duration), resources.commands.receive()).await {
             Either::First(_) => {
                 // Timer elapsed - compute time from monotonic anchor
                 if let (Some(base_unix_seconds), Some(base_instant)) =
@@ -224,7 +214,6 @@ async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infa
                         // Set monotonic anchor
                         base_unix_seconds = Some(unix_seconds);
                         base_instant = Some(Instant::now());
-                        clock_state = ClockState::Synced;
 
                         // Update current time
                         current_time = unix_seconds
@@ -237,12 +226,9 @@ async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infa
                             offset_minutes
                         );
 
-                        // Emit immediate tick with new time
-                        let time_info = ClockEvent {
-                            datetime: current_time,
-                            state: clock_state,
-                        };
-                        resources.events.signal(time_info);
+                        // Store and emit immediate tick with new time
+                        resources.current_time.lock(|cell| cell.set(current_time));
+                        resources.ticks.signal(());
                     }
                     ClockCommand::SetOffset { minutes } => {
                         offset_minutes = minutes;
@@ -259,6 +245,10 @@ async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infa
                         }
 
                         info!("Clock UTC offset updated to {} minutes", offset_minutes);
+                    }
+                    ClockCommand::SetTickInterval { interval } => {
+                        tick_interval = interval;
+                        info!("Clock tick interval updated to {} ms", interval.as_millis());
                     }
                 }
             }

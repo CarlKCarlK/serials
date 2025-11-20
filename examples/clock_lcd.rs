@@ -6,6 +6,7 @@
 #![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
+use core::fmt;
 use defmt::*;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
@@ -14,7 +15,7 @@ use heapless::String;
 use panic_probe as _;
 use serials::Result;
 use serials::char_lcd::{CharLcd, CharLcdStatic};
-use serials::clock::{Clock, ClockStatic};
+use serials::clock::{Clock, ClockStatic, ONE_SECOND};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
@@ -71,10 +72,10 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     let (stack, _button) = wifi_setup.connect(spawner, |_event| async move {}).await?;
 
     // Create Clock device with timezone from WiFi portal
+    // cmk offset must be set or return error
     let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
-    let clock = Clock::new(&CLOCK_STATIC, spawner);
-    clock.set_offset_minutes(timezone_offset_minutes).await;
+    let clock = Clock::new(&CLOCK_STATIC, timezone_offset_minutes, ONE_SECOND, spawner);
 
     // Create TimeSync with network stack
     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
@@ -87,7 +88,33 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         match select(clock.wait(), time_sync.wait()).await {
             // On every tick event, update the LCD display
             Either::First(time_info) => {
-                let text = Clock::format_display(&time_info)?;
+                let mut text = String::<64>::new();
+                let (hour12, am_pm) = if time_info.hour() == 0 {
+                    (12, "AM")
+                } else if time_info.hour() < 12 {
+                    (time_info.hour(), "AM")
+                } else if time_info.hour() == 12 {
+                    (12, "PM")
+                } else {
+                    #[expect(clippy::arithmetic_side_effects, reason = "hour guaranteed 13-23")]
+                    {
+                        (time_info.hour() - 12, "PM")
+                    }
+                };
+                fmt::Write::write_fmt(
+                    &mut text,
+                    format_args!(
+                        "{:2}:{:02}:{:02} {}\n{:04}-{:02}-{:02}",
+                        hour12,
+                        time_info.minute(),
+                        time_info.second(),
+                        am_pm,
+                        time_info.year(),
+                        u8::from(time_info.month()),
+                        time_info.day()
+                    ),
+                )
+                .map_err(|_| Error::FormatError)?;
                 char_lcd.display(text, 0).await;
             }
 

@@ -15,7 +15,7 @@ use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use panic_probe as _;
 use serials::Result;
-use serials::clock::{Clock, ClockStatic};
+use serials::clock::{Clock, ClockStatic, ONE_SECOND};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::WifiSetupEvent;
@@ -91,8 +91,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     // Create Clock device with timezone from WiFi portal
     let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
     static CLOCK_STATIC: ClockStatic = Clock::new_static();
-    let clock = Clock::new(&CLOCK_STATIC, spawner);
-    clock.set_offset_minutes(timezone_offset_minutes).await;
+    let clock = Clock::new(&CLOCK_STATIC, timezone_offset_minutes, ONE_SECOND, spawner);
 
     info!("WiFi connected, entering event loop");
 
@@ -101,19 +100,14 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         match select(clock.wait(), time_sync.wait()).await {
             // On every clock tick, log the current time
             Either::First(time_info) => {
-                let dt = time_info.datetime;
                 info!(
-                    "Current time: {:04}-{:02}-{:02} {:02}:{:02}:{:02} (state: {})",
-                    dt.year(),
-                    u8::from(dt.month()),
-                    dt.day(),
-                    dt.hour(),
-                    dt.minute(),
-                    dt.second(),
-                    match time_info.state {
-                        serials::clock::ClockState::NotSet => "NOT SET",
-                        serials::clock::ClockState::Synced => "SYNCED",
-                    }
+                    "Current time: {:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+                    time_info.year(),
+                    u8::from(time_info.month()),
+                    time_info.day(),
+                    time_info.hour(),
+                    time_info.minute(),
+                    time_info.second(),
                 );
             }
 
