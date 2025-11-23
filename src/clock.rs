@@ -31,6 +31,8 @@ pub const ONE_MINUTE: Duration = Duration::from_secs(60);
 pub const ONE_HOUR: Duration = Duration::from_secs(3_600);
 /// Duration representing one day (24 hours).
 pub const ONE_DAY: Duration = Duration::from_secs(86_400);
+/// Maximum absolute offset minutes supported by [`UtcOffset`] (< 24h).
+const MAX_OFFSET_MINUTES: i32 = (ONE_DAY.as_secs() as i32 / 60) - 1;
 /// Fixed-point scale factor for speed multiplier (parts per million).
 const SPEED_SCALE_PPM: u64 = 1_000_000;
 
@@ -192,6 +194,10 @@ impl Clock {
     pub fn now_local(&self) -> OffsetDateTime {
         let offset_minutes = self.offset_minutes.load(Ordering::Relaxed);
         let base_unix_micros = self.base_unix_micros.load(Ordering::Relaxed);
+        core::assert!(
+            offset_minutes.unsigned_abs() <= MAX_OFFSET_MINUTES as u32,
+            "offset minutes within +/-24h"
+        );
 
         if base_unix_micros == 0 {
             // Time not set - return midnight
@@ -241,6 +247,10 @@ impl Clock {
 
     /// Update the UTC offset used for subsequent [`now_local`](Clock::now_local) results and tick events.
     pub async fn set_offset_minutes(&self, minutes: i32) {
+        core::assert!(
+            minutes.unsigned_abs() <= MAX_OFFSET_MINUTES as u32,
+            "offset minutes within +/-24h"
+        );
         // Update the atomic immediately
         self.offset_minutes.store(minutes, Ordering::Relaxed);
         info!("Clock UTC offset updated to {} minutes", minutes);

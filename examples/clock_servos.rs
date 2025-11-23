@@ -323,6 +323,10 @@ impl State {
                     info!("Short press detected - incrementing offset");
                     // Increment the offset by 1 hour
                     offset_minutes += 60;
+                    const ONE_DAY_MINUTES: i32 = serials::clock::ONE_DAY.as_secs() as i32 / 60;
+                    if offset_minutes >= ONE_DAY_MINUTES {
+                        offset_minutes -= ONE_DAY_MINUTES;
+                    }
                     clock.set_offset_minutes(offset_minutes).await;
                     info!("New offset: {} minutes", offset_minutes);
 
