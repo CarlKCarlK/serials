@@ -10,17 +10,16 @@
 #![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
-use core::cell::RefCell;
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
-use embassy_time::Timer;
 use panic_probe as _;
 use serials::button::{Button, PressDuration};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::servo::{Servo, servo_even};
+use serials::servo::servo_even;
+use serials::servo_wiggle::{WiggleMode, WigglingServo, WigglingServoStatic};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
@@ -63,9 +62,19 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     )?;
 
     // Configure two servos for the display.
+    static LEFT_SERVO_WIGGLE_STATIC: WigglingServoStatic = WigglingServo::new_static();
+    static RIGHT_SERVO_WIGGLE_STATIC: WigglingServoStatic = WigglingServo::new_static();
     let servo_display = ServoClockDisplay::new(
-        servo_even!(peripherals.PIN_0, peripherals.PWM_SLICE0, 500, 2500),
-        servo_even!(peripherals.PIN_2, peripherals.PWM_SLICE1, 500, 2500),
+        WigglingServo::new(
+            &LEFT_SERVO_WIGGLE_STATIC,
+            servo_even!(peripherals.PIN_0, peripherals.PWM_SLICE0, 500, 2500),
+            spawner,
+        )?,
+        WigglingServo::new(
+            &RIGHT_SERVO_WIGGLE_STATIC,
+            servo_even!(peripherals.PIN_2, peripherals.PWM_SLICE1, 500, 2500),
+            spawner,
+        )?,
     );
 
     // Connect Wi-Fi, using the servos for status indications.
@@ -76,9 +85,9 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
             async move {
                 use serials::wifi_setup::WifiSetupEvent;
                 match event {
-                    WifiSetupEvent::CaptivePortalReady => servo_display_ref.show_portal_ready(),
-                    WifiSetupEvent::Connecting { .. } => servo_display_ref.show_connecting(),
-                    WifiSetupEvent::Connected => servo_display_ref.show_connected(),
+                    WifiSetupEvent::CaptivePortalReady => servo_display_ref.show_portal_ready().await,
+                    WifiSetupEvent::Connecting { .. } => servo_display_ref.show_connecting().await,
+                    WifiSetupEvent::Connected => servo_display_ref.show_connected().await,
                 }
             }
         })
@@ -141,7 +150,7 @@ impl State {
         servo_display: &ServoClockDisplay,
     ) -> Result<Self> {
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
-        servo_display.show_hours_minutes(hours, minutes);
+        servo_display.show_hours_minutes(hours, minutes).await;
         clock.set_tick_interval(Some(ONE_MINUTE)).await;
         loop {
             match select(
@@ -160,7 +169,7 @@ impl State {
                 // Clock tick
                 Either::First(Either::Second(time_event)) => {
                     let (hours, minutes, _) = h12_m_s(&time_event);
-                    servo_display.show_hours_minutes(hours, minutes);
+                    servo_display.show_hours_minutes(hours, minutes).await;
                 }
                 // Time sync events
                 Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
@@ -185,7 +194,7 @@ impl State {
         servo_display: &ServoClockDisplay,
     ) -> Result<Self> {
         let (_, minutes, seconds) = h12_m_s(&clock.now_local());
-        servo_display.show_minutes_seconds(minutes, seconds);
+        servo_display.show_minutes_seconds(minutes, seconds).await;
         clock.set_tick_interval(Some(ONE_SECOND)).await;
         loop {
             match select(
@@ -204,7 +213,7 @@ impl State {
                 // Clock tick
                 Either::First(Either::Second(time_event)) => {
                     let (_, minutes, seconds) = h12_m_s(&time_event);
-                    servo_display.show_minutes_seconds(minutes, seconds);
+                    servo_display.show_minutes_seconds(minutes, seconds).await;
                 }
                 // Time sync events
                 Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
@@ -232,18 +241,19 @@ impl State {
 
         // Show current hours and minutes
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
-        servo_display.show_hours_minutes_indicator(hours, minutes, false);
+        servo_display
+            .show_hours_minutes_indicator(hours, minutes)
+            .await;
 
         // Get the current offset minutes from clock (source of truth)
         let mut offset_minutes = clock.offset_minutes();
         info!("Current offset: {} minutes", offset_minutes);
 
         clock.set_tick_interval(None).await; // Disable ticks in edit mode
-        let mut wiggle_up = false;
         loop {
             info!("Waiting for button press in edit mode");
-            match select(button.press_duration(), Timer::after_millis(500)).await {
-                Either::First(PressDuration::Short) => {
+            match button.press_duration().await {
+                PressDuration::Short => {
                     info!("Short press detected - incrementing offset");
                     // Increment the offset by 1 hour
                     offset_minutes += 60;
@@ -256,19 +266,16 @@ impl State {
                         "Updated time after offset change: {:02}:{:02}",
                         hours, minutes
                     );
-                    servo_display.show_hours_minutes_indicator(hours, minutes, wiggle_up);
+                    servo_display
+                        .show_hours_minutes_indicator(hours, minutes)
+                        .await;
                 }
-                Either::First(PressDuration::Long) => {
+                PressDuration::Long => {
                     info!("Long press detected - saving and exiting edit mode");
                     // Save to flash and exit edit mode
                     timezone_field.set_offset_minutes(offset_minutes)?;
                     info!("Offset saved to flash: {} minutes", offset_minutes);
                     return Ok(Self::HoursMinutes);
-                }
-                Either::Second(_) => {
-                    wiggle_up = !wiggle_up;
-                    let (hours, minutes, _) = h12_m_s(&clock.now_local());
-                    servo_display.show_hours_minutes_indicator(hours, minutes, wiggle_up);
                 }
             }
         }
@@ -276,55 +283,63 @@ impl State {
 }
 
 struct ServoClockDisplay {
-    left: RefCell<Servo<'static>>,
-    right: RefCell<Servo<'static>>,
+    left: WigglingServo,
+    right: WigglingServo,
 }
 
 impl ServoClockDisplay {
-    fn new(left: Servo<'static>, right: Servo<'static>) -> Self {
-        Self {
-            left: RefCell::new(left),
-            right: RefCell::new(right),
-        }
+    fn new(left: WigglingServo, right: WigglingServo) -> Self {
+        Self { left, right }
     }
 
-    fn show_portal_ready(&self) {
-        self.set_angles(0, 0);
+    async fn show_portal_ready(&self) {
+        self.set_angles(0, WiggleMode::Still, 0, WiggleMode::Still)
+            .await;
     }
 
-    fn show_connecting(&self) {
-        self.set_angles(90, 90);
+    async fn show_connecting(&self) {
+        self.set_angles(90, WiggleMode::Still, 90, WiggleMode::Still)
+            .await;
     }
 
-    fn show_connected(&self) {
-        self.set_angles(180, 180);
+    async fn show_connected(&self) {
+        self.set_angles(180, WiggleMode::Still, 180, WiggleMode::Still)
+            .await;
     }
 
-    fn show_hours_minutes(&self, hours: u8, minutes: u8) {
+    async fn show_hours_minutes(&self, hours: u8, minutes: u8) {
         let left_angle = hours_to_degrees(hours);
         let right_angle = sixty_to_degrees(minutes);
-        self.set_angles(left_angle, right_angle);
+        self.set_angles(left_angle, WiggleMode::Still, right_angle, WiggleMode::Still)
+            .await;
     }
 
-    fn show_hours_minutes_indicator(&self, hours: u8, minutes: u8, wiggle_up: bool) {
+    async fn show_hours_minutes_indicator(&self, hours: u8, minutes: u8) {
         let left_angle = hours_to_degrees(hours);
         let right_angle = sixty_to_degrees(minutes);
-        let indicator_right = wiggle(right_angle, wiggle_up);
-        self.set_angles(left_angle, indicator_right);
+        self.set_angles(left_angle, WiggleMode::Still, right_angle, WiggleMode::Wiggle)
+            .await;
     }
 
-    fn show_minutes_seconds(&self, minutes: u8, seconds: u8) {
+    async fn show_minutes_seconds(&self, minutes: u8, seconds: u8) {
         let left_angle = sixty_to_degrees(minutes);
         let right_angle = sixty_to_degrees(seconds);
-        self.set_angles(left_angle, right_angle);
+        self.set_angles(left_angle, WiggleMode::Still, right_angle, WiggleMode::Still)
+            .await;
     }
 
-    fn set_angles(&self, left_degrees: i32, right_degrees: i32) {
+    async fn set_angles(
+        &self,
+        left_degrees: i32,
+        left_mode: WiggleMode,
+        right_degrees: i32,
+        right_mode: WiggleMode,
+    ) {
         // Swap servos and reflect angles for physical orientation.
         let physical_left = reflect_degrees(right_degrees);
         let physical_right = reflect_degrees(left_degrees);
-        self.left.borrow_mut().set_degrees(physical_left);
-        self.right.borrow_mut().set_degrees(physical_right);
+        self.left.set(physical_left, right_mode).await;
+        self.right.set(physical_right, left_mode).await;
     }
 }
 
@@ -344,14 +359,4 @@ fn sixty_to_degrees(value: u8) -> i32 {
 fn reflect_degrees(degrees: i32) -> i32 {
     assert!((0..=180).contains(&degrees));
     180 - degrees
-}
-
-#[inline]
-fn wiggle(base_degrees: i32, up: bool) -> i32 {
-    let delta = 10;
-    if up {
-        (base_degrees + delta).min(180)
-    } else {
-        (base_degrees - delta).max(0)
-    }
 }
