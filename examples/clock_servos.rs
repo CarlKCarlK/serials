@@ -416,7 +416,8 @@ impl ServoClockDisplay {
 #[inline]
 fn hours_to_degrees(hours: u8) -> i32 {
     assert!((1..=12).contains(&hours));
-    i32::from(hours) * 180 / 12
+    let normalized_hour = hours % 12;
+    i32::from(normalized_hour) * 180 / 12
 }
 
 #[inline]
