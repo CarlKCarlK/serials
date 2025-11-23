@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 400 250"
+     width="400" height="250">
+
+  <!-- Background -->
+  <!-- <rect x="0" y="0" width="400" height="250" fill="#2b2620"/> -->
+
+  <!-- Semicircle outline -->
+  <!-- Center (200,200), radius 150 -->
+  <path d="M 50 200 A 150 150 0 0 1 350 200"
+        fill="none"
+        stroke="#c8a46a"
+        stroke-width="4"/>
+
+  <!-- Group for all ticks + labels -->
+  <g fill="#f5e2b8" stroke="#f5e2b8" stroke-width="3"
+     font-family="serif" font-size="18">
+
+    <!-- Template tick is straight up from center; we rotate it -->
+    <!-- Numbers are outside the arc (y=35), ticks straddle the arc (50–65) -->
+
+    <!-- 12 at left (-90°) -->
+    <g transform="rotate(-90 200 200)">
+      <line x1="200" y1="50" x2="200" y2="65" />
+      <text x="200" y="35" text-anchor="middle" dominant-baseline="middle">12</text>
+    </g>
+
+    <!-- 1 at -75° -->
+    <g transform="rotate(-75 200 200)">
+      <line x1="200" y1="50" x2="200" y2="65" />
+      <text x="200" y="35" text-anchor="middle" dominant-baseline="middle">1</text>
+    </g>
+
+    <!-- 2 at -60° -->
+    <g transform="rotate(-60 200 200)">
+      <line x1="200" y1="50" x2="200" y2="65" />
+      <text x="200" y="35" text-anchor="middle" dominant-baseline="middle">2</text>
+    </g>
+
+    <!-- 3 at -45° -->
+    <g transform="rotate(-45 200 200)">
+      <line x1="200" y1="50" x2="200" y2="65" />
+      <text x="200" y="35" text-anchor="middle" dominant-baseline="middle">3</text>
+    </g>
+
+    <!-- 4 at -30° -->
+    <g transform="rotate(-30 200 200)">
+      <line x1="200" y1="50" x2="200" y2="65" />
+      <text x="200" y="35" text-anchor="middle" dominant-baseline="middle">4</text>
+    </g>
+
+    <!-- 5 at -15° -->
+    <g transform="rotate(-15 200 200)">
+      <line x1="200" y1="50" x2="200" y2="65" />
+      <text x="200" y="35" text-anchor="middle" dominant-baseline="middle">5</text>
+    </g>
+
+    <!-- 6 at 0° (top center) -->
+    <g transform="rotate(0 200 200)">
+      <line x1="200" y1="50" x2="200" y2="65" />
+      <text x="200" y="35" text-anchor="middle" dominant-baseline="middle">6</text>
+    </g>
+
+    <!-- 7 at 15° -->
+    <g transform="rotate(15 200 200)">
+      <line x1="200" y1="50" x2="200" y2="65" />
+      <text x="200" y="35" text-anchor="middle" dominant-baseline="middle">7</text>
+    </g>
+
+    <!-- 8 at 30° -->
+    <g transform="rotate(30 200 200)">
+      <line x1="200" y1="50" x2="200" y2="65" />
+      <text x="200" y="35" text-anchor="middle" dominant-baseline="middle">8</text>
+    </g>
+
+    <!-- 9 at 45° -->
+    <g transform="rotate(45 200 200)">
+      <line x1="200" y1="50" x2="200" y2="65" />
+      <text x="200" y="35" text-anchor="middle" dominant-baseline="middle">9</text>
+    </g>
+
+    <!-- 10 at 60° -->
+    <g transform="rotate(60 200 200)">
+      <line x1="200" y1="50" x2="200" y2="65" />
+      <text x="200" y="35" text-anchor="middle" dominant-baseline="middle">10</text>
+    </g>
+
+    <!-- 11 at 75° -->
+    <g transform="rotate(75 200 200)">
+      <line x1="200" y1="50" x2="200" y2="65" />
+      <text x="200" y="35" text-anchor="middle" dominant-baseline="middle">11</text>
+    </g>
+
+    <!-- 12 at right (90°) -->
+    <g transform="rotate(90 200 200)">
+      <line x1="200" y1="50" x2="200" y2="65" />
+      <text x="200" y="35" text-anchor="middle" dominant-baseline="middle">12</text>
+    </g>
+
+  </g>
+</svg>
