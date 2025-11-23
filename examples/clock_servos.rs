@@ -87,7 +87,9 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
             async move {
                 use serials::wifi_setup::WifiSetupEvent;
                 match event {
-                    WifiSetupEvent::CaptivePortalReady => servo_display_ref.show_portal_ready().await,
+                    WifiSetupEvent::CaptivePortalReady => {
+                        servo_display_ref.show_portal_ready().await
+                    }
                     WifiSetupEvent::Connecting { .. } => servo_display_ref.show_connecting().await,
                     WifiSetupEvent::Connected => servo_display_ref.show_connected().await,
                 }
@@ -126,12 +128,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
             }
             State::HoursMinutesFast => {
                 state
-                    .execute_hours_minutes_fast(
-                        &clock,
-                        &mut button,
-                        &time_sync,
-                        &servo_display,
-                    )
+                    .execute_hours_minutes_fast(&clock, &mut button, &time_sync, &servo_display)
                     .await?
             }
             State::EditOffset => {
@@ -380,22 +377,37 @@ impl ServoClockDisplay {
     async fn show_hours_minutes(&self, hours: u8, minutes: u8) {
         let left_angle = hours_to_degrees(hours);
         let right_angle = sixty_to_degrees(minutes);
-        self.set_angles(left_angle, WiggleMode::Still, right_angle, WiggleMode::Still)
-            .await;
+        self.set_angles(
+            left_angle,
+            WiggleMode::Still,
+            right_angle,
+            WiggleMode::Still,
+        )
+        .await;
     }
 
     async fn show_hours_minutes_indicator(&self, hours: u8, minutes: u8) {
         let left_angle = hours_to_degrees(hours);
         let right_angle = sixty_to_degrees(minutes);
-        self.set_angles(left_angle, WiggleMode::Still, right_angle, WiggleMode::Wiggle)
-            .await;
+        self.set_angles(
+            left_angle,
+            WiggleMode::Still,
+            right_angle,
+            WiggleMode::Wiggle,
+        )
+        .await;
     }
 
     async fn show_minutes_seconds(&self, minutes: u8, seconds: u8) {
         let left_angle = sixty_to_degrees(minutes);
         let right_angle = sixty_to_degrees(seconds);
-        self.set_angles(left_angle, WiggleMode::Still, right_angle, WiggleMode::Still)
-            .await;
+        self.set_angles(
+            left_angle,
+            WiggleMode::Still,
+            right_angle,
+            WiggleMode::Still,
+        )
+        .await;
     }
 
     async fn set_angles(

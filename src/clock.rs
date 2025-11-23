@@ -205,14 +205,16 @@ impl Clock {
         }
 
         let base_instant_ticks = self.base_instant_ticks.load(Ordering::Relaxed);
-        core::assert!(base_instant_ticks > 0, "base_instant_ticks must be set when time is set");
+        core::assert!(
+            base_instant_ticks > 0,
+            "base_instant_ticks must be set when time is set"
+        );
         let now_ticks = Instant::now().as_ticks();
         core::assert!(now_ticks >= base_instant_ticks);
         let elapsed_ticks = now_ticks - base_instant_ticks;
         let speed_scaled_ppm = self.speed_scaled_ppm.load(Ordering::Relaxed);
         core::assert!(speed_scaled_ppm > 0, "speed multiplier must be positive");
-        let scaled_elapsed_micros =
-            scale_elapsed_microseconds(elapsed_ticks, speed_scaled_ppm);
+        let scaled_elapsed_micros = scale_elapsed_microseconds(elapsed_ticks, speed_scaled_ppm);
 
         let utc_micros = i128::from(base_unix_micros) + i128::from(scaled_elapsed_micros);
         let utc_seconds = i64::try_from(utc_micros / 1_000_000).expect("utc seconds fits");
@@ -238,8 +240,7 @@ impl Clock {
         let now_ticks = Instant::now().as_ticks();
 
         self.base_unix_micros.store(unix_micros, Ordering::Relaxed);
-        self.base_instant_ticks
-            .store(now_ticks, Ordering::Relaxed);
+        self.base_instant_ticks.store(now_ticks, Ordering::Relaxed);
         info!("Clock time set: {}", unix_seconds);
         // Notify the device loop to emit a tick
         self.commands.send(ClockCommand::UpdateTicker).await;
@@ -286,31 +287,29 @@ impl Clock {
         let scaled = speed_multiplier * SPEED_SCALE_PPM as f32 + 0.5;
         core::assert!(scaled.is_finite(), "scaled speed must be finite");
         core::assert!(scaled > 0.0, "scaled speed must be positive");
-        core::assert!(
-            scaled <= u64::MAX as f32,
-            "scaled speed must fit in u64"
-        );
+        core::assert!(scaled <= u64::MAX as f32, "scaled speed must fit in u64");
         let speed_scaled_ppm = scaled as u64;
 
         let now_ticks = Instant::now().as_ticks();
         let base_unix_micros = self.base_unix_micros.load(Ordering::Relaxed);
         if base_unix_micros != 0 {
             let base_instant_ticks = self.base_instant_ticks.load(Ordering::Relaxed);
-            core::assert!(base_instant_ticks > 0, "base instant must be set when time is set");
+            core::assert!(
+                base_instant_ticks > 0,
+                "base instant must be set when time is set"
+            );
             core::assert!(now_ticks >= base_instant_ticks);
             let elapsed_real_ticks = now_ticks - base_instant_ticks;
             let elapsed_real_micros =
                 i64::try_from(elapsed_real_ticks).expect("elapsed real micros fits in i64");
-            let real_unix_micros =
-                i128::from(base_unix_micros) + i128::from(elapsed_real_micros);
+            let real_unix_micros = i128::from(base_unix_micros) + i128::from(elapsed_real_micros);
             let real_unix_micros =
                 i64::try_from(real_unix_micros).expect("real unix micros fits in i64");
             self.base_unix_micros
                 .store(real_unix_micros, Ordering::Relaxed);
         }
 
-        self.base_instant_ticks
-            .store(now_ticks, Ordering::Relaxed);
+        self.base_instant_ticks.store(now_ticks, Ordering::Relaxed);
         self.speed_scaled_ppm
             .store(speed_scaled_ppm, Ordering::Relaxed);
         info!("Clock speed set: {} ppm", speed_scaled_ppm);
@@ -363,8 +362,7 @@ async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infa
         }
 
         // Calculate sleep duration aligned to tick boundary
-        let interval_micros =
-            scaled_interval_microseconds(tick_interval_ms, speed_scaled_ppm);
+        let interval_micros = scaled_interval_microseconds(tick_interval_ms, speed_scaled_ppm);
         let sleep_duration = sleep_until_boundary(interval_micros);
 
         // Wait for either tick interval or a command
@@ -387,8 +385,8 @@ fn scaled_interval_microseconds(interval_ms: u64, speed_scaled_ppm: u64) -> u64 
     let interval_micros = interval_ms
         .checked_mul(1_000)
         .expect("interval micros fits in u64");
-    let scaled = u128::from(interval_micros) * u128::from(SPEED_SCALE_PPM)
-        / u128::from(speed_scaled_ppm);
+    let scaled =
+        u128::from(interval_micros) * u128::from(SPEED_SCALE_PPM) / u128::from(speed_scaled_ppm);
     let scaled = u64::try_from(scaled).expect("scaled interval fits in u64");
     core::assert!(scaled > 0, "scaled interval must be positive");
     scaled
@@ -396,7 +394,7 @@ fn scaled_interval_microseconds(interval_ms: u64, speed_scaled_ppm: u64) -> u64 
 
 fn scale_elapsed_microseconds(elapsed_ticks: u64, speed_scaled_ppm: u64) -> i64 {
     core::assert!(speed_scaled_ppm > 0, "speed must be positive");
-    let scaled = u128::from(elapsed_ticks) * u128::from(speed_scaled_ppm)
-        / u128::from(SPEED_SCALE_PPM);
+    let scaled =
+        u128::from(elapsed_ticks) * u128::from(speed_scaled_ppm) / u128::from(SPEED_SCALE_PPM);
     i64::try_from(scaled).expect("scaled elapsed fits in i64")
 }

@@ -25,6 +25,8 @@ use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
 use serials::{Error, Result};
 
+const FAST_MODE_SPEED: f32 = 720.0;
+
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
     let err = inner_main(spawner).await.unwrap_err();
@@ -131,6 +133,11 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
                     .execute_minutes_seconds(&clock, &mut button, &time_sync, &led4)
                     .await?
             }
+            State::HoursMinutesFast => {
+                state
+                    .execute_hours_minutes_fast(&clock, &mut button, &time_sync, &led4)
+                    .await?
+            }
             State::EditOffset => {
                 state
                     .execute_edit_offset(&clock, &mut button, &timezone_field, &led4)
@@ -147,6 +154,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 pub enum State {
     HoursMinutes,
     MinutesSeconds,
+    HoursMinutesFast,
     EditOffset,
 }
 
@@ -158,6 +166,7 @@ impl State {
         time_sync: &TimeSync,
         led4: &Led4<'_>,
     ) -> Result<Self> {
+        clock.set_speed(1.0).await;
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
         led4.write_text(
             BlinkState::Solid,
@@ -218,6 +227,7 @@ impl State {
         time_sync: &TimeSync,
         led4: &Led4<'_>,
     ) -> Result<Self> {
+        clock.set_speed(1.0).await;
         let (_, minutes, seconds) = h12_m_s(&clock.now_local());
         led4.write_text(
             BlinkState::Solid,
@@ -238,7 +248,7 @@ impl State {
             {
                 // Button pushes
                 Either::First(Either::First(PressDuration::Short)) => {
-                    return Ok(Self::HoursMinutes);
+                    return Ok(Self::HoursMinutesFast);
                 }
                 Either::First(Either::First(PressDuration::Long)) => {
                     return Ok(Self::EditOffset);
@@ -271,6 +281,78 @@ impl State {
         }
     }
 
+    async fn execute_hours_minutes_fast(
+        self,
+        clock: &Clock,
+        button: &mut Button<'_>,
+        time_sync: &TimeSync,
+        led4: &Led4<'_>,
+    ) -> Result<Self> {
+        clock.set_speed(FAST_MODE_SPEED).await;
+        let (hours, minutes, _) = h12_m_s(&clock.now_local());
+        led4.write_text(
+            BlinkState::Solid,
+            [
+                tens_hours(hours),
+                ones_digit(hours),
+                tens_digit(minutes),
+                ones_digit(minutes),
+            ],
+        );
+        clock.set_tick_interval(Some(ONE_MINUTE)).await;
+
+        let display_task = async {
+            loop {
+                match select(clock.wait(), time_sync.wait()).await {
+                    Either::First(time_event) => {
+                        let (hours, minutes, _) = h12_m_s(&time_event);
+                        led4.write_text(
+                            BlinkState::Solid,
+                            [
+                                tens_hours(hours),
+                                ones_digit(hours),
+                                tens_digit(minutes),
+                                ones_digit(minutes),
+                            ],
+                        );
+                    }
+                    Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
+                        info!(
+                            "Time sync success: setting clock to {}",
+                            unix_seconds.as_i64()
+                        );
+                        clock.set_utc_time(unix_seconds).await;
+                        let (hours, minutes, _) = h12_m_s(&clock.now_local());
+                        led4.write_text(
+                            BlinkState::Solid,
+                            [
+                                tens_hours(hours),
+                                ones_digit(hours),
+                                tens_digit(minutes),
+                                ones_digit(minutes),
+                            ],
+                        );
+                    }
+                    Either::Second(TimeSyncEvent::Failed(msg)) => {
+                        info!("Time sync failed: {}", msg);
+                    }
+                }
+            }
+        };
+
+        match select(button.press_duration(), display_task).await {
+            Either::First(PressDuration::Short) => {
+                clock.set_speed(1.0).await;
+                Ok(Self::HoursMinutes)
+            }
+            Either::First(PressDuration::Long) => {
+                clock.set_speed(1.0).await;
+                Ok(Self::EditOffset)
+            }
+            Either::Second(_) => unreachable!(),
+        }
+    }
+
     async fn execute_edit_offset(
         self,
         clock: &Clock,
@@ -297,6 +379,7 @@ impl State {
         info!("Current offset: {} minutes", offset_minutes);
 
         clock.set_tick_interval(None).await; // Disable ticks in edit mode
+        clock.set_speed(1.0).await;
         loop {
             info!("Waiting for button press in edit mode");
             match button.press_duration().await {
@@ -304,6 +387,10 @@ impl State {
                     info!("Short press detected - incrementing offset");
                     // Increment the offset by 1 hour
                     offset_minutes += 60;
+                    const ONE_DAY_MINUTES: i32 = serials::clock::ONE_DAY.as_secs() as i32 / 60;
+                    if offset_minutes >= ONE_DAY_MINUTES {
+                        offset_minutes -= ONE_DAY_MINUTES;
+                    }
                     clock.set_offset_minutes(offset_minutes).await;
                     info!("New offset: {} minutes", offset_minutes);
 
