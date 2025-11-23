@@ -319,6 +319,7 @@ impl ServoClockDisplay {
     async fn show_connecting(&self) {
         // Keep bottom servo fixed; animate top servo through a two-phase sweep.
         self.bottom.set(0, WiggleMode::Still).await;
+        // cmk understand if we really want this to have 11 steps and a sleep after each.
         let descending =
             serials::servo_wiggle::linear_animation_steps::<11>(180, 0, Duration::from_secs(5));
         self.top
@@ -342,6 +343,7 @@ impl ServoClockDisplay {
         self.bottom
             .animate(
                 serials::concat_anim_steps!(
+                    // cmk make more concise
                     &[
                         AnimateStep {
                             degrees: 0,
