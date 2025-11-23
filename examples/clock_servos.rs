@@ -15,12 +15,13 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
+use embassy_time::Duration;
 use panic_probe as _;
 use serials::button::{Button, PressDuration};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::servo::servo_even;
-use serials::servo_wiggle::{WiggleMode, WigglingServo, WigglingServoStatic};
+use serials::servo_wiggle::{AnimateStep, WiggleMode, WigglingServo, WigglingServoStatic};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
@@ -92,7 +93,9 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
                         servo_display_ref.show_portal_ready().await
                     }
                     WifiSetupEvent::Connecting { .. } => servo_display_ref.show_connecting().await,
-                    WifiSetupEvent::Connected => servo_display_ref.show_connected().await,
+                    WifiSetupEvent::Connected => {
+                        // No-op; main loop will immediately render real time.
+                    }
                 }
             }
         })
@@ -299,22 +302,80 @@ impl State {
 }
 
 struct ServoClockDisplay {
-    left: WigglingServo,
-    right: WigglingServo,
+    bottom: WigglingServo,
+    top: WigglingServo,
 }
 
 impl ServoClockDisplay {
-    fn new(left: WigglingServo, right: WigglingServo) -> Self {
-        Self { left, right }
+    fn new(bottom: WigglingServo, top: WigglingServo) -> Self {
+        Self { bottom, top }
     }
 
     async fn show_portal_ready(&self) {
-        self.set_angles(0, WiggleMode::Still, 0, WiggleMode::Still)
-            .await;
+        self.bottom.set(90, WiggleMode::Still).await;
+        self.top.set(90, WiggleMode::Still).await;
     }
 
     async fn show_connecting(&self) {
-        self.set_angles(90, WiggleMode::Still, 90, WiggleMode::Still)
+        // Keep bottom servo fixed; animate top servo through a two-phase sweep.
+        self.bottom.set(0, WiggleMode::Still).await;
+        const DESC_HOLD: Duration = Duration::from_millis(455); // ~5s across 11 steps
+        self.top
+            .animate(&[
+                AnimateStep {
+                    degrees: 180,
+                    hold_duration: DESC_HOLD,
+                },
+                AnimateStep {
+                    degrees: 162,
+                    hold_duration: DESC_HOLD,
+                },
+                AnimateStep {
+                    degrees: 144,
+                    hold_duration: DESC_HOLD,
+                },
+                AnimateStep {
+                    degrees: 126,
+                    hold_duration: DESC_HOLD,
+                },
+                AnimateStep {
+                    degrees: 108,
+                    hold_duration: DESC_HOLD,
+                },
+                AnimateStep {
+                    degrees: 90,
+                    hold_duration: DESC_HOLD,
+                },
+                AnimateStep {
+                    degrees: 72,
+                    hold_duration: DESC_HOLD,
+                },
+                AnimateStep {
+                    degrees: 54,
+                    hold_duration: DESC_HOLD,
+                },
+                AnimateStep {
+                    degrees: 36,
+                    hold_duration: DESC_HOLD,
+                },
+                AnimateStep {
+                    degrees: 18,
+                    hold_duration: DESC_HOLD,
+                },
+                AnimateStep {
+                    degrees: 0,
+                    hold_duration: DESC_HOLD,
+                },
+                // Hold at 0, then snap to 180.
+                AnimateStep {
+                    degrees: 0,
+                    hold_duration: Duration::from_millis(2500),
+                },
+                AnimateStep {
+                    degrees: 180,
+                    hold_duration: Duration::from_millis(2500),
+                },
+            ])
             .await;
     }
 
@@ -369,8 +430,8 @@ impl ServoClockDisplay {
         // Swap servos and reflect angles for physical orientation.
         let physical_left = reflect_degrees(right_degrees);
         let physical_right = reflect_degrees(left_degrees);
-        self.left.set(physical_left, right_mode).await;
-        self.right.set(physical_right, left_mode).await;
+        self.bottom.set(physical_left, right_mode).await;
+        self.top.set(physical_right, left_mode).await;
     }
 }
 
