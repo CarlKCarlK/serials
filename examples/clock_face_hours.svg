@@ -9,11 +9,11 @@
   <!-- Center (200,200), radius 150 -->
   <path d="M 50 200 A 150 150 0 0 1 350 200"
         fill="none"
-        stroke="#c8a46a"
+        stroke="#444444"
         stroke-width="4"/>
 
   <!-- Group for all ticks + labels -->
-  <g fill="#f5e2b8" stroke="#f5e2b8" stroke-width="3"
+  <g fill="#444444" stroke="#444444" stroke-width="3"
      font-family="serif" font-size="18">
 
     <!-- Template tick is straight up from center; we rotate it -->
