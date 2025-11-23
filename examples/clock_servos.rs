@@ -1,8 +1,8 @@
 //! Wi-Fi enabled clock that visualizes time with two servos.
 //!
 //! This example combines the `WifiSetup` captive-portal workflow with a servo-based
-//! display. The left servo shows hours or minutes (mode-dependent) across 180° and
-//! the right servo shows minutes or seconds across 180°.
+//! display. Because the servos are mounted reversed, the left servo shows minutes/seconds
+//! and the right servo shows hours/minutes with 180° reflections applied.
 
 #![no_std]
 #![no_main]
@@ -15,6 +15,7 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
+use embassy_time::Timer;
 use panic_probe as _;
 use serials::button::{Button, PressDuration};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
@@ -231,17 +232,18 @@ impl State {
 
         // Show current hours and minutes
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
-        servo_display.show_hours_minutes(hours, minutes);
+        servo_display.show_hours_minutes_indicator(hours, minutes, false);
 
         // Get the current offset minutes from clock (source of truth)
         let mut offset_minutes = clock.offset_minutes();
         info!("Current offset: {} minutes", offset_minutes);
 
         clock.set_tick_interval(None).await; // Disable ticks in edit mode
+        let mut wiggle_up = false;
         loop {
             info!("Waiting for button press in edit mode");
-            match button.press_duration().await {
-                PressDuration::Short => {
+            match select(button.press_duration(), Timer::after_millis(500)).await {
+                Either::First(PressDuration::Short) => {
                     info!("Short press detected - incrementing offset");
                     // Increment the offset by 1 hour
                     offset_minutes += 60;
@@ -254,14 +256,19 @@ impl State {
                         "Updated time after offset change: {:02}:{:02}",
                         hours, minutes
                     );
-                    servo_display.show_hours_minutes(hours, minutes);
+                    servo_display.show_hours_minutes_indicator(hours, minutes, wiggle_up);
                 }
-                PressDuration::Long => {
+                Either::First(PressDuration::Long) => {
                     info!("Long press detected - saving and exiting edit mode");
                     // Save to flash and exit edit mode
                     timezone_field.set_offset_minutes(offset_minutes)?;
                     info!("Offset saved to flash: {} minutes", offset_minutes);
                     return Ok(Self::HoursMinutes);
+                }
+                Either::Second(_) => {
+                    wiggle_up = !wiggle_up;
+                    let (hours, minutes, _) = h12_m_s(&clock.now_local());
+                    servo_display.show_hours_minutes_indicator(hours, minutes, wiggle_up);
                 }
             }
         }
@@ -299,6 +306,13 @@ impl ServoClockDisplay {
         self.set_angles(left_angle, right_angle);
     }
 
+    fn show_hours_minutes_indicator(&self, hours: u8, minutes: u8, wiggle_up: bool) {
+        let left_angle = hours_to_degrees(hours);
+        let right_angle = sixty_to_degrees(minutes);
+        let indicator_right = wiggle(right_angle, wiggle_up);
+        self.set_angles(left_angle, indicator_right);
+    }
+
     fn show_minutes_seconds(&self, minutes: u8, seconds: u8) {
         let left_angle = sixty_to_degrees(minutes);
         let right_angle = sixty_to_degrees(seconds);
@@ -306,8 +320,11 @@ impl ServoClockDisplay {
     }
 
     fn set_angles(&self, left_degrees: i32, right_degrees: i32) {
-        self.left.borrow_mut().set_degrees(left_degrees);
-        self.right.borrow_mut().set_degrees(right_degrees);
+        // Swap servos and reflect angles for physical orientation.
+        let physical_left = reflect_degrees(right_degrees);
+        let physical_right = reflect_degrees(left_degrees);
+        self.left.borrow_mut().set_degrees(physical_left);
+        self.right.borrow_mut().set_degrees(physical_right);
     }
 }
 
@@ -321,4 +338,20 @@ fn hours_to_degrees(hours: u8) -> i32 {
 fn sixty_to_degrees(value: u8) -> i32 {
     assert!(value < 60);
     i32::from(value) * 180 / 60
+}
+
+#[inline]
+fn reflect_degrees(degrees: i32) -> i32 {
+    assert!((0..=180).contains(&degrees));
+    180 - degrees
+}
+
+#[inline]
+fn wiggle(base_degrees: i32, up: bool) -> i32 {
+    let delta = 10;
+    if up {
+        (base_degrees + delta).min(180)
+    } else {
+        (base_degrees - delta).max(0)
+    }
 }
