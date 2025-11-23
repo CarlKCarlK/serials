@@ -319,63 +319,43 @@ impl ServoClockDisplay {
     async fn show_connecting(&self) {
         // Keep bottom servo fixed; animate top servo through a two-phase sweep.
         self.bottom.set(0, WiggleMode::Still).await;
-        const DESC_HOLD: Duration = Duration::from_millis(455); // ~5s across 11 steps
+        let descending =
+            serials::servo_wiggle::linear_animation_steps::<11>(180, 0, Duration::from_secs(5));
         self.top
-            .animate(&[
-                AnimateStep {
-                    degrees: 180,
-                    hold_duration: DESC_HOLD,
-                },
-                AnimateStep {
-                    degrees: 162,
-                    hold_duration: DESC_HOLD,
-                },
-                AnimateStep {
-                    degrees: 144,
-                    hold_duration: DESC_HOLD,
-                },
-                AnimateStep {
-                    degrees: 126,
-                    hold_duration: DESC_HOLD,
-                },
-                AnimateStep {
-                    degrees: 108,
-                    hold_duration: DESC_HOLD,
-                },
-                AnimateStep {
-                    degrees: 90,
-                    hold_duration: DESC_HOLD,
-                },
-                AnimateStep {
-                    degrees: 72,
-                    hold_duration: DESC_HOLD,
-                },
-                AnimateStep {
-                    degrees: 54,
-                    hold_duration: DESC_HOLD,
-                },
-                AnimateStep {
-                    degrees: 36,
-                    hold_duration: DESC_HOLD,
-                },
-                AnimateStep {
-                    degrees: 18,
-                    hold_duration: DESC_HOLD,
-                },
-                AnimateStep {
-                    degrees: 0,
-                    hold_duration: DESC_HOLD,
-                },
-                // Hold at 0, then snap to 180.
-                AnimateStep {
-                    degrees: 0,
-                    hold_duration: Duration::from_millis(2500),
-                },
-                AnimateStep {
-                    degrees: 180,
-                    hold_duration: Duration::from_millis(2500),
-                },
-            ])
+            .animate(
+                serials::concat_anim_steps!(
+                    &descending,
+                    &[
+                        AnimateStep {
+                            degrees: 0,
+                            hold_duration: Duration::from_millis(2500),
+                        },
+                        AnimateStep {
+                            degrees: 180,
+                            hold_duration: Duration::from_millis(2500),
+                        },
+                    ]
+                )
+                .as_slice(),
+            )
+            .await;
+        self.bottom
+            .animate(
+                serials::concat_anim_steps!(
+                    &[
+                        AnimateStep {
+                            degrees: 0,
+                            hold_duration: Duration::from_millis(2500),
+                        },
+                        AnimateStep {
+                            degrees: 180,
+                            hold_duration: Duration::from_millis(2500),
+                        },
+                    ],
+                    &descending
+                )
+                .as_slice(),
+            )
             .await;
     }
 

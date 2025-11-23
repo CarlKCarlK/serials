@@ -2,6 +2,7 @@
 //!
 //! See [`WigglingServo`] for usage and examples.
 
+use core::array;
 use embassy_executor::{SpawnError, Spawner};
 use embassy_futures::select::{Either, select};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -26,8 +27,65 @@ pub struct AnimateStep {
     pub hold_duration: Duration,
 }
 
+/// Build a linear sequence of `AnimateStep`s from `start_degrees` to `end_degrees` over
+/// `total_duration` split into `N` steps (inclusive of endpoints).
+#[must_use]
+pub fn linear_animation_steps<const N: usize>(
+    start_degrees: i32,
+    end_degrees: i32,
+    total_duration: Duration,
+) -> [AnimateStep; N] {
+    assert!(N > 0, "at least one step required");
+    assert!((0..=180).contains(&start_degrees));
+    assert!((0..=180).contains(&end_degrees));
+    assert!(
+        total_duration.as_micros() > 0,
+        "total duration must be positive"
+    );
+    let step_duration = total_duration / (N as u32);
+    let delta = end_degrees - start_degrees;
+    let denom = i32::try_from(((N - 1) as i32).max(1)).expect("denom fits in i32");
+    array::from_fn(|idx| {
+        let angle = if N == 1 {
+            start_degrees
+        } else {
+            start_degrees + delta * i32::try_from(idx).expect("index fits") / denom
+        };
+        AnimateStep {
+            degrees: angle,
+            hold_duration: step_duration,
+        }
+    })
+}
+
 type AnimateSequence = Vec<AnimateStep, MAX_ANIMATE_STEPS>;
-const MAX_ANIMATE_STEPS: usize = 16;
+pub const MAX_ANIMATE_STEPS: usize = 16;
+
+/// Macro to concatenate fixed-size arrays of `AnimateStep` without unsafe or nightly features.
+/// Use the `cap = N` form to override the capacity if the arrays exceed `MAX_ANIMATE_STEPS`.
+#[macro_export]
+macro_rules! concat_anim_steps {
+    (cap = $cap:expr, $first:expr, $second:expr) => {{
+        let first: &[serials::servo_wiggle::AnimateStep] = $first;
+        let second: &[serials::servo_wiggle::AnimateStep] = $second;
+        let mut out: heapless::Vec<serials::servo_wiggle::AnimateStep, { $cap }> =
+            heapless::Vec::new();
+        for step in first {
+            out.push(*step).expect("first array fits");
+        }
+        for step in second {
+            out.push(*step).expect("second array fits");
+        }
+        out
+    }};
+    ($first:expr, $second:expr) => {
+        $crate::concat_anim_steps!(
+            cap = $crate::servo_wiggle::MAX_ANIMATE_STEPS,
+            $first,
+            $second
+        )
+    };
+}
 
 /// Static resources for [`WigglingServo`].
 pub struct WigglingServoStatic {
