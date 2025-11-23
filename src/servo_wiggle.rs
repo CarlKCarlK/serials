@@ -51,6 +51,12 @@ pub struct WigglingServo {
 }
 
 impl WigglingServo {
+    /// Create static resources for a wiggling servo.
+    #[must_use]
+    pub const fn new_static() -> WigglingServoStatic {
+        WigglingServoStatic::new_static()
+    }
+
     /// Create the wiggling servo device and spawn its task.
     ///
     /// # Errors
@@ -79,7 +85,7 @@ impl WigglingServo {
     }
 }
 
-#[embassy_executor::task]
+#[embassy_executor::task(pool_size = 2)]
 async fn device_loop(
     wiggling_servo_static: &'static WigglingServoStatic,
     mut servo: Servo<'static>,
