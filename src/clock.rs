@@ -14,7 +14,7 @@ use embassy_sync::channel::Channel;
 use embassy_sync::signal::Signal;
 use embassy_time::{Duration, Instant, Timer};
 use portable_atomic::{AtomicI64, AtomicU64};
-use time::{OffsetDateTime, UtcOffset};
+use time::{Duration as TimeDuration, OffsetDateTime, UtcOffset};
 
 use crate::Result;
 use crate::unix_seconds::UnixSeconds;
@@ -31,6 +31,8 @@ pub const ONE_MINUTE: Duration = Duration::from_secs(60);
 pub const ONE_HOUR: Duration = Duration::from_secs(3_600);
 /// Duration representing one day (24 hours).
 pub const ONE_DAY: Duration = Duration::from_secs(86_400);
+/// Fixed-point scale factor for speed multiplier (parts per million).
+const SPEED_SCALE_PPM: u64 = 1_000_000;
 
 // ============================================================================
 // Types
@@ -70,8 +72,12 @@ pub struct ClockStatic {
     ticks: ClockTicks,
     offset_minutes: AtomicI32,
     tick_interval_ms: AtomicU64,
-    // Unix timestamp when the processor booted (0 = not set)
-    boot_unix_seconds: AtomicI64,
+    // Base UTC timestamp in microseconds corresponding to base_instant_ticks (0 = not set)
+    base_unix_micros: AtomicI64,
+    // Monotonic ticks (microseconds) when base_unix_micros was captured
+    base_instant_ticks: AtomicU64,
+    // Speed multiplier scaled by SPEED_SCALE_PPM (1.0x = 1_000_000)
+    speed_scaled_ppm: AtomicU64,
 }
 
 impl ClockStatic {
@@ -131,7 +137,9 @@ pub struct Clock {
     ticks: &'static ClockTicks,
     offset_minutes: &'static AtomicI32,
     tick_interval_ms: &'static AtomicU64,
-    boot_unix_seconds: &'static AtomicI64,
+    base_unix_micros: &'static AtomicI64,
+    base_instant_ticks: &'static AtomicU64,
+    speed_scaled_ppm: &'static AtomicU64,
 }
 
 impl Clock {
@@ -143,7 +151,9 @@ impl Clock {
             ticks: Signal::new(),
             offset_minutes: AtomicI32::new(0),
             tick_interval_ms: AtomicU64::new(0),
-            boot_unix_seconds: AtomicI64::new(0),
+            base_unix_micros: AtomicI64::new(0),
+            base_instant_ticks: AtomicU64::new(0),
+            speed_scaled_ppm: AtomicU64::new(SPEED_SCALE_PPM),
         }
     }
 
@@ -163,7 +173,9 @@ impl Clock {
             ticks: &clock_static.ticks,
             offset_minutes: &clock_static.offset_minutes,
             tick_interval_ms: &clock_static.tick_interval_ms,
-            boot_unix_seconds: &clock_static.boot_unix_seconds,
+            base_unix_micros: &clock_static.base_unix_micros,
+            base_instant_ticks: &clock_static.base_instant_ticks,
+            speed_scaled_ppm: &clock_static.speed_scaled_ppm,
         }
     }
 
@@ -179,17 +191,27 @@ impl Clock {
     /// Computed from atomics + `Instant::now()` - no async needed.
     pub fn now_local(&self) -> OffsetDateTime {
         let offset_minutes = self.offset_minutes.load(Ordering::Relaxed);
-        let boot_unix = self.boot_unix_seconds.load(Ordering::Relaxed);
+        let base_unix_micros = self.base_unix_micros.load(Ordering::Relaxed);
 
-        if boot_unix == 0 {
+        if base_unix_micros == 0 {
             // Time not set - return midnight
             return OffsetDateTime::from_unix_timestamp(0).expect("midnight is valid");
         }
 
-        // Current time = boot time + time since boot
-        let elapsed_secs = Instant::now().as_secs();
-        #[expect(clippy::arithmetic_side_effects, reason = "saturating_add used")]
-        let utc_unix_seconds = boot_unix.saturating_add(elapsed_secs as i64);
+        let base_instant_ticks = self.base_instant_ticks.load(Ordering::Relaxed);
+        core::assert!(base_instant_ticks > 0, "base_instant_ticks must be set when time is set");
+        let now_ticks = Instant::now().as_ticks();
+        core::assert!(now_ticks >= base_instant_ticks);
+        let elapsed_ticks = now_ticks - base_instant_ticks;
+        let speed_scaled_ppm = self.speed_scaled_ppm.load(Ordering::Relaxed);
+        core::assert!(speed_scaled_ppm > 0, "speed multiplier must be positive");
+        let scaled_elapsed_micros =
+            scale_elapsed_microseconds(elapsed_ticks, speed_scaled_ppm);
+
+        let utc_micros = i128::from(base_unix_micros) + i128::from(scaled_elapsed_micros);
+        let utc_seconds = i64::try_from(utc_micros / 1_000_000).expect("utc seconds fits");
+        let utc_remainder_micros =
+            i64::try_from(utc_micros % 1_000_000).expect("microsecond remainder fits");
 
         #[expect(
             clippy::arithmetic_side_effects,
@@ -197,22 +219,22 @@ impl Clock {
         )]
         let offset = UtcOffset::from_whole_seconds(offset_minutes * 60)
             .expect("offset minutes within +/-24h");
-        OffsetDateTime::from_unix_timestamp(utc_unix_seconds)
-            .expect("valid utc timestamp")
-            .to_offset(offset)
+        let utc = OffsetDateTime::from_unix_timestamp(utc_seconds).expect("valid utc timestamp")
+            + TimeDuration::microseconds(utc_remainder_micros);
+        utc.to_offset(offset)
     }
 
     /// Set the current UTC time. See [`Clock`] docs for usage.
     pub async fn set_utc_time(&self, unix_seconds: UnixSeconds) {
-        // Calculate and update boot time immediately
-        let uptime_secs = Instant::now().as_secs();
-        let boot_unix = unix_seconds.as_i64().saturating_sub(uptime_secs as i64);
-        self.boot_unix_seconds.store(boot_unix, Ordering::Relaxed);
-        info!(
-            "Clock time set: {} (boot time: {})",
-            unix_seconds.as_i64(),
-            boot_unix
-        );
+        let unix_seconds = unix_seconds.as_i64();
+        let unix_micros = i128::from(unix_seconds) * i128::from(1_000_000);
+        let unix_micros = i64::try_from(unix_micros).expect("unix micros fits in i64");
+        let now_ticks = Instant::now().as_ticks();
+
+        self.base_unix_micros.store(unix_micros, Ordering::Relaxed);
+        self.base_instant_ticks
+            .store(now_ticks, Ordering::Relaxed);
+        info!("Clock time set: {}", unix_seconds);
         // Notify the device loop to emit a tick
         self.commands.send(ClockCommand::UpdateTicker).await;
     }
@@ -245,6 +267,45 @@ impl Clock {
         // Notify device loop to wake up and recalculate sleep duration
         self.commands.send(ClockCommand::UpdateTicker).await;
     }
+
+    /// Update the speed multiplier (1.0 = real time). Changing speed resets the base time to
+    /// the current real time so returning to 1.0 resumes the correct clock.
+    pub async fn set_speed(&self, speed_multiplier: f32) {
+        core::assert!(speed_multiplier.is_finite(), "speed must be finite");
+        core::assert!(speed_multiplier > 0.0, "speed must be positive");
+        let scaled = speed_multiplier * SPEED_SCALE_PPM as f32 + 0.5;
+        core::assert!(scaled.is_finite(), "scaled speed must be finite");
+        core::assert!(scaled > 0.0, "scaled speed must be positive");
+        core::assert!(
+            scaled <= u64::MAX as f32,
+            "scaled speed must fit in u64"
+        );
+        let speed_scaled_ppm = scaled as u64;
+
+        let now_ticks = Instant::now().as_ticks();
+        let base_unix_micros = self.base_unix_micros.load(Ordering::Relaxed);
+        if base_unix_micros != 0 {
+            let base_instant_ticks = self.base_instant_ticks.load(Ordering::Relaxed);
+            core::assert!(base_instant_ticks > 0, "base instant must be set when time is set");
+            core::assert!(now_ticks >= base_instant_ticks);
+            let elapsed_real_ticks = now_ticks - base_instant_ticks;
+            let elapsed_real_micros =
+                i64::try_from(elapsed_real_ticks).expect("elapsed real micros fits in i64");
+            let real_unix_micros =
+                i128::from(base_unix_micros) + i128::from(elapsed_real_micros);
+            let real_unix_micros =
+                i64::try_from(real_unix_micros).expect("real unix micros fits in i64");
+            self.base_unix_micros
+                .store(real_unix_micros, Ordering::Relaxed);
+        }
+
+        self.base_instant_ticks
+            .store(now_ticks, Ordering::Relaxed);
+        self.speed_scaled_ppm
+            .store(speed_scaled_ppm, Ordering::Relaxed);
+        info!("Clock speed set: {} ppm", speed_scaled_ppm);
+        self.commands.send(ClockCommand::UpdateTicker).await;
+    }
 }
 
 #[embassy_executor::task]
@@ -256,18 +317,19 @@ async fn clock_device_loop(resources: &'static ClockStatic) -> ! {
 async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infallible> {
     // Local loop variables
     let mut tick_interval_ms = resources.tick_interval_ms.load(Ordering::Relaxed);
+    let mut speed_scaled_ppm = resources.speed_scaled_ppm.load(Ordering::Relaxed);
     let offset_minutes = resources.offset_minutes.load(Ordering::Relaxed);
 
     info!(
-        "Clock device started (UTC offset: {} minutes, tick interval: {} ms)",
-        offset_minutes, tick_interval_ms
+        "Clock device started (UTC offset: {} minutes, tick interval: {} ms, speed: {} ppm)",
+        offset_minutes, tick_interval_ms, speed_scaled_ppm
     );
 
     // Helper to calculate duration until next tick boundary
-    let sleep_until_boundary = |interval_ms: u64| -> Duration {
+    let sleep_until_boundary = |interval_micros: u64| -> Duration {
+        core::assert!(interval_micros > 0);
         let now_ticks = Instant::now().as_ticks();
-        let interval_ticks = interval_ms * 1000; // ms to microseconds
-        let ticks_until_next = interval_ticks - (now_ticks % interval_ticks);
+        let ticks_until_next = interval_micros - (now_ticks % interval_micros);
         Duration::from_micros(ticks_until_next)
     };
 
@@ -283,6 +345,7 @@ async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infa
             match resources.commands.receive().await {
                 ClockCommand::UpdateTicker => {
                     tick_interval_ms = resources.tick_interval_ms.load(Ordering::Relaxed);
+                    speed_scaled_ppm = resources.speed_scaled_ppm.load(Ordering::Relaxed);
                     // emit_tick remains true for next loop iteration
                 }
             }
@@ -290,7 +353,9 @@ async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infa
         }
 
         // Calculate sleep duration aligned to tick boundary
-        let sleep_duration = sleep_until_boundary(tick_interval_ms);
+        let interval_micros =
+            scaled_interval_microseconds(tick_interval_ms, speed_scaled_ppm);
+        let sleep_duration = sleep_until_boundary(interval_micros);
 
         // Wait for either tick interval or a command
         match select(Timer::after(sleep_duration), resources.commands.receive()).await {
@@ -299,8 +364,29 @@ async fn inner_clock_device_loop(resources: &'static ClockStatic) -> Result<Infa
             }
             Either::Second(ClockCommand::UpdateTicker) => {
                 tick_interval_ms = resources.tick_interval_ms.load(Ordering::Relaxed);
+                speed_scaled_ppm = resources.speed_scaled_ppm.load(Ordering::Relaxed);
                 emit_tick = true;
             }
         }
     }
+}
+
+fn scaled_interval_microseconds(interval_ms: u64, speed_scaled_ppm: u64) -> u64 {
+    core::assert!(interval_ms > 0, "interval must be positive");
+    core::assert!(speed_scaled_ppm > 0, "speed must be positive");
+    let interval_micros = interval_ms
+        .checked_mul(1_000)
+        .expect("interval micros fits in u64");
+    let scaled = u128::from(interval_micros) * u128::from(SPEED_SCALE_PPM)
+        / u128::from(speed_scaled_ppm);
+    let scaled = u64::try_from(scaled).expect("scaled interval fits in u64");
+    core::assert!(scaled > 0, "scaled interval must be positive");
+    scaled
+}
+
+fn scale_elapsed_microseconds(elapsed_ticks: u64, speed_scaled_ppm: u64) -> i64 {
+    core::assert!(speed_scaled_ppm > 0, "speed must be positive");
+    let scaled = u128::from(elapsed_ticks) * u128::from(speed_scaled_ppm)
+        / u128::from(SPEED_SCALE_PPM);
+    i64::try_from(scaled).expect("scaled elapsed fits in i64")
 }

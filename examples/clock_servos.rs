@@ -25,6 +25,8 @@ use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
 use serials::{Error, Result};
 
+const FAST_MODE_SPEED: f32 = 720.0;
+
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
     let err = inner_main(spawner).await.unwrap_err();
@@ -122,6 +124,16 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
                     .execute_minutes_seconds(&clock, &mut button, &time_sync, &servo_display)
                     .await?
             }
+            State::HoursMinutesFast => {
+                state
+                    .execute_hours_minutes_fast(
+                        &clock,
+                        &mut button,
+                        &time_sync,
+                        &servo_display,
+                    )
+                    .await?
+            }
             State::EditOffset => {
                 state
                     .execute_edit_offset(&clock, &mut button, &timezone_field, &servo_display)
@@ -138,6 +150,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 pub enum State {
     HoursMinutes,
     MinutesSeconds,
+    HoursMinutesFast,
     EditOffset,
 }
 
@@ -149,6 +162,7 @@ impl State {
         time_sync: &TimeSync,
         servo_display: &ServoClockDisplay,
     ) -> Result<Self> {
+        clock.set_speed(1.0).await;
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
         servo_display.show_hours_minutes(hours, minutes).await;
         clock.set_tick_interval(Some(ONE_MINUTE)).await;
@@ -193,6 +207,7 @@ impl State {
         time_sync: &TimeSync,
         servo_display: &ServoClockDisplay,
     ) -> Result<Self> {
+        clock.set_speed(1.0).await;
         let (_, minutes, seconds) = h12_m_s(&clock.now_local());
         servo_display.show_minutes_seconds(minutes, seconds).await;
         clock.set_tick_interval(Some(ONE_SECOND)).await;
@@ -205,7 +220,7 @@ impl State {
             {
                 // Button pushes
                 Either::First(Either::First(PressDuration::Short)) => {
-                    return Ok(Self::HoursMinutes);
+                    return Ok(Self::HoursMinutesFast);
                 }
                 Either::First(Either::First(PressDuration::Long)) => {
                     return Ok(Self::EditOffset);
@@ -230,6 +245,56 @@ impl State {
         }
     }
 
+    async fn execute_hours_minutes_fast(
+        self,
+        clock: &Clock,
+        button: &mut Button<'_>,
+        time_sync: &TimeSync,
+        servo_display: &ServoClockDisplay,
+    ) -> Result<Self> {
+        clock.set_speed(FAST_MODE_SPEED).await;
+        let (hours, minutes, _) = h12_m_s(&clock.now_local());
+        servo_display.show_hours_minutes(hours, minutes).await;
+        clock.set_tick_interval(Some(ONE_MINUTE)).await;
+        let display_task = async {
+            loop {
+                match select(clock.wait(), time_sync.wait()).await {
+                    Either::First(time_event) => {
+                        let (hours, minutes, _) = h12_m_s(&time_event);
+                        servo_display.show_hours_minutes(hours, minutes).await;
+                    }
+                    Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
+                        info!(
+                            "Time sync success: setting clock to {}",
+                            unix_seconds.as_i64()
+                        );
+                        clock.set_utc_time(unix_seconds).await;
+                        let (hours, minutes, _) = h12_m_s(&clock.now_local());
+                        servo_display.show_hours_minutes(hours, minutes).await;
+                    }
+                    Either::Second(TimeSyncEvent::Failed(msg)) => {
+                        info!("Time sync failed: {}", msg);
+                    }
+                }
+            }
+        };
+
+        match select(button.press_duration(), display_task).await {
+            Either::First(PressDuration::Short) => {
+                clock.set_speed(1.0).await;
+                Ok(Self::HoursMinutes)
+            }
+            Either::First(PressDuration::Long) => {
+                clock.set_speed(1.0).await;
+                Ok(Self::EditOffset)
+            }
+            Either::Second(_) => {
+                // display_task never completes
+                unreachable!()
+            }
+        }
+    }
+
     async fn execute_edit_offset(
         self,
         clock: &Clock,
@@ -238,6 +303,7 @@ impl State {
         servo_display: &ServoClockDisplay,
     ) -> Result<Self> {
         info!("Entering edit offset mode");
+        clock.set_speed(1.0).await;
 
         // Show current hours and minutes
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
