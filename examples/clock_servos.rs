@@ -10,6 +10,7 @@
 #![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
+use core::pin::pin;
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
@@ -113,22 +114,17 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     let clock = Clock::new(&CLOCK_STATIC, offset_minutes, Some(ONE_MINUTE), spawner);
 
     // Start in HH:MM mode
-    let mut state = State::HoursMinutes;
+    let mut state = State::HoursMinutes { speed: 1.0 };
     loop {
         state = match state {
-            State::HoursMinutes => {
+            State::HoursMinutes { speed } => {
                 state
-                    .execute_hours_minutes(&clock, &mut button, &time_sync, &servo_display)
+                    .execute_hours_minutes(speed, &clock, &mut button, &time_sync, &servo_display)
                     .await?
             }
             State::MinutesSeconds => {
                 state
                     .execute_minutes_seconds(&clock, &mut button, &time_sync, &servo_display)
-                    .await?
-            }
-            State::HoursMinutesFast => {
-                state
-                    .execute_hours_minutes_fast(&clock, &mut button, &time_sync, &servo_display)
                     .await?
             }
             State::EditOffset => {
@@ -145,52 +141,53 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 /// Display states for the servo clock.
 #[derive(Debug, defmt::Format, Clone, Copy, PartialEq)]
 pub enum State {
-    HoursMinutes,
+    HoursMinutes { speed: f32 },
     MinutesSeconds,
-    HoursMinutesFast,
     EditOffset,
 }
 
 impl State {
     async fn execute_hours_minutes(
         self,
+        speed: f32,
         clock: &Clock,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
         servo_display: &ServoClockDisplay,
     ) -> Result<Self> {
-        clock.set_speed(1.0).await;
+        clock.set_speed(speed).await;
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
         servo_display.show_hours_minutes(hours, minutes).await;
         clock.set_tick_interval(Some(ONE_MINUTE)).await;
+        let mut button_press = pin!(button.press_duration());
         loop {
-            match select(
-                select(button.press_duration(), clock.wait()),
-                time_sync.wait(),
-            )
-            .await
-            {
+            match select(&mut button_press, select(clock.wait(), time_sync.wait())).await {
                 // Button pushes
-                Either::First(Either::First(PressDuration::Short)) => {
-                    return Ok(Self::MinutesSeconds);
-                }
-                Either::First(Either::First(PressDuration::Long)) => {
-                    return Ok(Self::EditOffset);
-                }
+                Either::First(press_duration) => match (press_duration, speed.to_bits()) {
+                    (PressDuration::Short, bits) if bits == 1.0f32.to_bits() => {
+                        return Ok(Self::MinutesSeconds);
+                    }
+                    (PressDuration::Short, _) => {
+                        return Ok(Self::HoursMinutes { speed: 1.0 });
+                    }
+                    (PressDuration::Long, _) => {
+                        return Ok(Self::EditOffset);
+                    }
+                },
                 // Clock tick
-                Either::First(Either::Second(time_event)) => {
+                Either::Second(Either::First(time_event)) => {
                     let (hours, minutes, _) = h12_m_s(&time_event);
                     servo_display.show_hours_minutes(hours, minutes).await;
                 }
                 // Time sync events
-                Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
+                Either::Second(Either::Second(TimeSyncEvent::Success { unix_seconds })) => {
                     info!(
                         "Time sync success: setting clock to {}",
                         unix_seconds.as_i64()
                     );
                     clock.set_utc_time(unix_seconds).await;
                 }
-                Either::Second(TimeSyncEvent::Failed(msg)) => {
+                Either::Second(Either::Second(TimeSyncEvent::Failed(msg))) => {
                     info!("Time sync failed: {}", msg);
                 }
             }
@@ -217,7 +214,9 @@ impl State {
             {
                 // Button pushes
                 Either::First(Either::First(PressDuration::Short)) => {
-                    return Ok(Self::HoursMinutesFast);
+                    return Ok(Self::HoursMinutes {
+                        speed: FAST_MODE_SPEED,
+                    });
                 }
                 Either::First(Either::First(PressDuration::Long)) => {
                     return Ok(Self::EditOffset);
@@ -238,56 +237,6 @@ impl State {
                 Either::Second(TimeSyncEvent::Failed(msg)) => {
                     info!("Time sync failed: {}", msg);
                 }
-            }
-        }
-    }
-
-    async fn execute_hours_minutes_fast(
-        self,
-        clock: &Clock,
-        button: &mut Button<'_>,
-        time_sync: &TimeSync,
-        servo_display: &ServoClockDisplay,
-    ) -> Result<Self> {
-        clock.set_speed(FAST_MODE_SPEED).await;
-        let (hours, minutes, _) = h12_m_s(&clock.now_local());
-        servo_display.show_hours_minutes(hours, minutes).await;
-        clock.set_tick_interval(Some(ONE_MINUTE)).await;
-        let display_task = async {
-            loop {
-                match select(clock.wait(), time_sync.wait()).await {
-                    Either::First(time_event) => {
-                        let (hours, minutes, _) = h12_m_s(&time_event);
-                        servo_display.show_hours_minutes(hours, minutes).await;
-                    }
-                    Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
-                        info!(
-                            "Time sync success: setting clock to {}",
-                            unix_seconds.as_i64()
-                        );
-                        clock.set_utc_time(unix_seconds).await;
-                        let (hours, minutes, _) = h12_m_s(&clock.now_local());
-                        servo_display.show_hours_minutes(hours, minutes).await;
-                    }
-                    Either::Second(TimeSyncEvent::Failed(msg)) => {
-                        info!("Time sync failed: {}", msg);
-                    }
-                }
-            }
-        };
-
-        match select(button.press_duration(), display_task).await {
-            Either::First(PressDuration::Short) => {
-                clock.set_speed(1.0).await;
-                Ok(Self::HoursMinutes)
-            }
-            Either::First(PressDuration::Long) => {
-                clock.set_speed(1.0).await;
-                Ok(Self::EditOffset)
-            }
-            Either::Second(_) => {
-                // display_task never completes
-                unreachable!()
             }
         }
     }
@@ -342,7 +291,7 @@ impl State {
                     // Save to flash and exit edit mode
                     timezone_field.set_offset_minutes(offset_minutes)?;
                     info!("Offset saved to flash: {} minutes", offset_minutes);
-                    return Ok(Self::HoursMinutes);
+                    return Ok(Self::HoursMinutes { speed: 1.0 });
                 }
             }
         }
