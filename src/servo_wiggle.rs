@@ -22,19 +22,19 @@ enum WiggleCommand {
 }
 
 #[derive(Clone, Copy, Debug, defmt::Format)]
-pub struct AnimateStep {
+pub struct Step {
     pub degrees: i32,
-    pub hold_duration: Duration,
+    pub duration: Duration,
 }
 
 /// Build a linear sequence of `AnimateStep`s from `start_degrees` to `end_degrees` over
 /// `total_duration` split into `N` steps (inclusive of endpoints).
 #[must_use]
-pub fn linear_animation_steps<const N: usize>(
+pub fn linear<const N: usize>(
     start_degrees: i32,
     end_degrees: i32,
     total_duration: Duration,
-) -> [AnimateStep; N] {
+) -> [Step; N] {
     assert!(N > 0, "at least one step required");
     assert!((0..=180).contains(&start_degrees));
     assert!((0..=180).contains(&end_degrees));
@@ -51,25 +51,24 @@ pub fn linear_animation_steps<const N: usize>(
         } else {
             start_degrees + delta * i32::try_from(idx).expect("index fits") / denom
         };
-        AnimateStep {
+        Step {
             degrees: angle,
-            hold_duration: step_duration,
+            duration: step_duration,
         }
     })
 }
 
-type AnimateSequence = Vec<AnimateStep, MAX_ANIMATE_STEPS>;
+type AnimateSequence = Vec<Step, MAX_ANIMATE_STEPS>;
 pub const MAX_ANIMATE_STEPS: usize = 16;
 
 /// Macro to concatenate fixed-size arrays of `AnimateStep` without unsafe or nightly features.
 /// Use the `cap = N` form to override the capacity if the arrays exceed `MAX_ANIMATE_STEPS`.
 #[macro_export]
-macro_rules! concat_anim_steps {
+macro_rules! servo_wiggle_concat {
     (cap = $cap:expr, $first:expr, $second:expr) => {{
-        let first: &[serials::servo_wiggle::AnimateStep] = $first;
-        let second: &[serials::servo_wiggle::AnimateStep] = $second;
-        let mut out: heapless::Vec<serials::servo_wiggle::AnimateStep, { $cap }> =
-            heapless::Vec::new();
+        let first: &[serials::servo_wiggle::Step] = $first;
+        let second: &[serials::servo_wiggle::Step] = $second;
+        let mut out: heapless::Vec<serials::servo_wiggle::Step, { $cap }> = heapless::Vec::new();
         for step in first {
             out.push(*step).expect("first array fits");
         }
@@ -79,13 +78,14 @@ macro_rules! concat_anim_steps {
         out
     }};
     ($first:expr, $second:expr) => {
-        $crate::concat_anim_steps!(
+        $crate::servo_wiggle_concat!(
             cap = $crate::servo_wiggle::MAX_ANIMATE_STEPS,
             $first,
             $second
         )
     };
 }
+pub use crate::servo_wiggle_concat as concat;
 
 /// Static resources for [`WigglingServo`].
 pub struct WigglingServoStatic {
@@ -156,13 +156,13 @@ impl WigglingServo {
 
     /// Animate the servo through a sequence of angles with per-step hold durations.
     /// The sequence repeats until interrupted by a new command.
-    pub async fn animate(&self, steps: &[AnimateStep]) {
+    pub async fn animate(&self, steps: &[Step]) {
         assert!(!steps.is_empty(), "animate requires at least one step");
         let mut sequence: AnimateSequence = Vec::new();
         for step in steps {
             assert!((0..=180).contains(&step.degrees));
             assert!(
-                step.hold_duration.as_micros() > 0,
+                step.duration.as_micros() > 0,
                 "hold duration must be positive"
             );
             sequence.push(*step).expect("animate sequence fits");
@@ -260,7 +260,7 @@ async fn run_animation(
                 servo.set_degrees(step.degrees);
                 *current_degrees = step.degrees;
             }
-            match select(Timer::after(step.hold_duration), commands.receive()).await {
+            match select(Timer::after(step.duration), commands.receive()).await {
                 Either::First(_) => {}
                 Either::Second(command) => return Some(command),
             }

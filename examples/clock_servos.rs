@@ -21,7 +21,7 @@ use serials::button::{Button, PressDuration};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::servo::servo_even;
-use serials::servo_wiggle::{AnimateStep, WiggleMode, WigglingServo, WigglingServoStatic};
+use serials::servo_wiggle::{self, WiggleMode, WigglingServo, WigglingServoStatic, linear};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
@@ -319,50 +319,14 @@ impl ServoClockDisplay {
     async fn show_connecting(&self) {
         // Keep bottom servo fixed; animate top servo through a two-phase sweep.
         self.bottom.set(0, WiggleMode::Still).await;
-        // cmk understand if we really want this to have 11 steps and a sleep after each.
-        let descending =
-            serials::servo_wiggle::linear_animation_steps::<11>(180, 0, Duration::from_secs(5));
+        const FIVE_SECONDS: Duration = Duration::from_secs(5);
+        let clockwise = linear::<10>(180 - 18, 0, FIVE_SECONDS);
+        let and_back = linear::<2>(0, 180, FIVE_SECONDS);
         self.top
-            .animate(
-                serials::concat_anim_steps!(
-                    &descending,
-                    &[
-                        AnimateStep {
-                            degrees: 0,
-                            hold_duration: Duration::from_millis(2500),
-                        },
-                        AnimateStep {
-                            degrees: 180,
-                            hold_duration: Duration::from_millis(2500),
-                        },
-                    ]
-                )
-                .as_slice(),
-            )
+            .animate(servo_wiggle::concat!(&clockwise, &and_back).as_slice())
             .await;
         self.bottom
-            .animate(
-                serials::concat_anim_steps!(
-                    // cmk make more concise
-                    &[
-                        AnimateStep {
-                            degrees: 0,
-                            hold_duration: Duration::from_millis(2500),
-                        },
-                        AnimateStep {
-                            degrees: 180,
-                            hold_duration: Duration::from_millis(2500),
-                        },
-                    ],
-                    &descending
-                )
-                .as_slice(),
-            )
-            .await;
-    }
-
-    async fn show_connected(&self) {
-        self.set_angles(180, WiggleMode::Still, 180, WiggleMode::Still)
+            .animate(servo_wiggle::concat!(&and_back, &clockwise).as_slice())
             .await;
     }
 
