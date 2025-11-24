@@ -21,7 +21,7 @@ use serials::button::{Button, PressDuration};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::servo::servo_even;
-use serials::servo_wiggle::{self, WiggleMode, WigglingServo, WigglingServoStatic, linear};
+use serials::servo_animate::{self, linear, ServoAnimate, ServoAnimateStatic, Step};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
@@ -66,16 +66,16 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     )?;
 
     // Configure two servos for the display.
-    static LEFT_SERVO_WIGGLE_STATIC: WigglingServoStatic = WigglingServo::new_static();
-    static RIGHT_SERVO_WIGGLE_STATIC: WigglingServoStatic = WigglingServo::new_static();
+    static LEFT_SERVO_ANIMATE_STATIC: ServoAnimateStatic = ServoAnimate::new_static();
+    static RIGHT_SERVO_ANIMATE_STATIC: ServoAnimateStatic = ServoAnimate::new_static();
     let servo_display = ServoClockDisplay::new(
-        WigglingServo::new(
-            &LEFT_SERVO_WIGGLE_STATIC,
+        ServoAnimate::new(
+            &LEFT_SERVO_ANIMATE_STATIC,
             servo_even!(peripherals.PIN_0, peripherals.PWM_SLICE0, 500, 2500),
             spawner,
         )?,
-        WigglingServo::new(
-            &RIGHT_SERVO_WIGGLE_STATIC,
+        ServoAnimate::new(
+            &RIGHT_SERVO_ANIMATE_STATIC,
             servo_even!(peripherals.PIN_2, peripherals.PWM_SLICE1, 500, 2500),
             spawner,
         )?,
@@ -259,6 +259,18 @@ impl State {
         servo_display
             .show_hours_minutes_indicator(hours, minutes)
             .await;
+        // Add a gentle wiggle on the bottom servo to signal edit mode.
+        const WIGGLE: [Step; 2] = [
+            Step {
+                degrees: 80,
+                duration: Duration::from_millis(250),
+            },
+            Step {
+                degrees: 100,
+                duration: Duration::from_millis(250),
+            },
+        ];
+        servo_display.bottom.animate(&WIGGLE).await;
 
         // Get the current offset minutes from clock (source of truth)
         let mut offset_minutes = clock.offset_minutes();
@@ -302,87 +314,59 @@ impl State {
 }
 
 struct ServoClockDisplay {
-    bottom: WigglingServo,
-    top: WigglingServo,
+    bottom: ServoAnimate,
+    top: ServoAnimate,
 }
 
 impl ServoClockDisplay {
-    fn new(bottom: WigglingServo, top: WigglingServo) -> Self {
+    fn new(bottom: ServoAnimate, top: ServoAnimate) -> Self {
         Self { bottom, top }
     }
 
     async fn show_portal_ready(&self) {
-        self.bottom.set(90, WiggleMode::Still).await;
-        self.top.set(90, WiggleMode::Still).await;
+        self.bottom.set(90).await;
+        self.top.set(90).await;
     }
 
     async fn show_connecting(&self) {
         // Keep bottom servo fixed; animate top servo through a two-phase sweep.
-        self.bottom.set(0, WiggleMode::Still).await;
+        self.bottom.set(0).await;
         // cmk understand if we really want this to have 11 steps and a sleep after each.
         const FIVE_SECONDS: Duration = Duration::from_secs(5);
         let clockwise = linear::<10>(180 - 18, 0, FIVE_SECONDS);
         let and_back = linear::<2>(0, 180, FIVE_SECONDS);
         self.top
-            .animate(
-                servo_wiggle::concat!(cap = 16, &clockwise, &and_back).as_slice(),
-            )
+            .animate(servo_animate::concat!(cap = 16, &clockwise, &and_back).as_slice())
             .await;
         self.bottom
-            .animate(
-                servo_wiggle::concat!(cap = 16, &and_back, &clockwise).as_slice(),
-            )
+            .animate(servo_animate::concat!(cap = 16, &and_back, &clockwise).as_slice())
             .await;
     }
 
     async fn show_hours_minutes(&self, hours: u8, minutes: u8) {
         let left_angle = hours_to_degrees(hours);
         let right_angle = sixty_to_degrees(minutes);
-        self.set_angles(
-            left_angle,
-            WiggleMode::Still,
-            right_angle,
-            WiggleMode::Still,
-        )
-        .await;
+        self.set_angles(left_angle, right_angle).await;
     }
 
     async fn show_hours_minutes_indicator(&self, hours: u8, minutes: u8) {
         let left_angle = hours_to_degrees(hours);
         let right_angle = sixty_to_degrees(minutes);
-        self.set_angles(
-            left_angle,
-            WiggleMode::Still,
-            right_angle,
-            WiggleMode::Wiggle,
-        )
-        .await;
+        self.set_angles(left_angle, right_angle).await;
     }
 
     async fn show_minutes_seconds(&self, minutes: u8, seconds: u8) {
         let left_angle = sixty_to_degrees(minutes);
         let right_angle = sixty_to_degrees(seconds);
-        self.set_angles(
-            left_angle,
-            WiggleMode::Still,
-            right_angle,
-            WiggleMode::Still,
-        )
-        .await;
+        self.set_angles(left_angle, right_angle).await;
     }
 
-    async fn set_angles(
-        &self,
-        left_degrees: i32,
-        left_mode: WiggleMode,
-        right_degrees: i32,
-        right_mode: WiggleMode,
-    ) {
+    async fn set_angles(&self, left_degrees: i32, right_degrees: i32) {
         // Swap servos and reflect angles for physical orientation.
         let physical_left = reflect_degrees(right_degrees);
         let physical_right = reflect_degrees(left_degrees);
-        self.bottom.set(physical_left, right_mode).await;
-        self.top.set(physical_right, left_mode).await;
+        self.bottom.set(physical_left).await;
+        self.top.set(physical_right).await;
     }
 }
 

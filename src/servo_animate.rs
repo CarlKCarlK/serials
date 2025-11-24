@@ -1,9 +1,6 @@
-//! A device abstraction for oscillating a single servo between two angles.
+//! A device abstraction for driving a single servo with scripted animations.
 //!
-//! See [`WigglingServo`] for usage and examples.
-// cmk generate docs with examples
-// cmk good name?
-// can other mode be implemented with animate?
+//! See [`ServoAnimate`] for usage and examples.
 
 use core::array;
 use embassy_executor::{SpawnError, Spawner};
@@ -15,12 +12,9 @@ use heapless::Vec;
 
 use crate::servo::Servo;
 
-const WIGGLE_DELTA_DEGREES: i32 = 10;
-const WIGGLE_PERIOD: Duration = Duration::from_millis(500);
-
-/// Commands sent to the wiggling servo device.
-enum WiggleCommand {
-    Set { degrees: i32, mode: WiggleMode },
+/// Commands sent to the servo animate device.
+enum AnimateCommand {
+    Set { degrees: i32 },
     Animate { steps: AnimateSequence },
 }
 
@@ -67,10 +61,10 @@ type AnimateSequence = Vec<Step, 16>;
 /// Macro to concatenate fixed-size arrays of `Step` without unsafe or nightly features.
 /// Use the `cap = N` form to set the capacity of the temporary buffer.
 #[macro_export]
-macro_rules! servo_wiggle_concat {
+macro_rules! servo_animate_concat {
     (cap = $cap:expr, $first:expr $(, $rest:expr)+ $(,)?) => {{
-        let mut out: heapless::Vec<serials::servo_wiggle::Step, { $cap }> = heapless::Vec::new();
-        let sequences: &[&[serials::servo_wiggle::Step]] = &[ $first $(, $rest)+ ];
+        let mut out: heapless::Vec<serials::servo_animate::Step, { $cap }> = heapless::Vec::new();
+        let sequences: &[&[serials::servo_animate::Step]] = &[ $first $(, $rest)+ ];
         for seq in sequences {
             for step in *seq {
                 out.push(*step).expect("sequence fits");
@@ -79,15 +73,15 @@ macro_rules! servo_wiggle_concat {
         out
     }};
 }
-pub use crate::servo_wiggle_concat as concat;
+pub use crate::servo_animate_concat as concat;
 
-/// Static resources for [`WigglingServo`].
-pub struct WigglingServoStatic {
-    commands: Channel<CriticalSectionRawMutex, WiggleCommand, 4>,
+/// Static resources for [`ServoAnimate`].
+pub struct ServoAnimateStatic {
+    commands: Channel<CriticalSectionRawMutex, AnimateCommand, 4>,
 }
 
-impl WigglingServoStatic {
-    /// Create static resources for the wiggling servo device.
+impl ServoAnimateStatic {
+    /// Create static resources for the servo animate device.
     #[must_use]
     pub const fn new_static() -> Self {
         Self {
@@ -96,27 +90,16 @@ impl WigglingServoStatic {
     }
 }
 
-/// Determines how the servo should move.
-#[derive(Clone, Copy, Debug, defmt::Format, PartialEq, Eq)]
-pub enum WiggleMode {
-    /// Hold the servo at a fixed angle.
-    Still,
-    /// Oscillate the servo around the target angle.
-    Wiggle,
+/// A device abstraction that drives a single servo with scripted animation sequences.
+pub struct ServoAnimate {
+    commands: &'static Channel<CriticalSectionRawMutex, AnimateCommand, 4>,
 }
 
-/// A device abstraction that drives a single servo with optional wiggle animation.
-///
-/// Use [`WigglingServo::set`] to update the target angle and whether it should wiggle.
-pub struct WigglingServo {
-    commands: &'static Channel<CriticalSectionRawMutex, WiggleCommand, 4>,
-}
-
-impl WigglingServo {
-    /// Create static resources for a wiggling servo.
+impl ServoAnimate {
+    /// Create static resources for a servo animator.
     #[must_use]
-    pub const fn new_static() -> WigglingServoStatic {
-        WigglingServoStatic::new_static()
+    pub const fn new_static() -> ServoAnimateStatic {
+        ServoAnimateStatic::new_static()
     }
 
     /// Create the wiggling servo device and spawn its task.
@@ -126,26 +109,21 @@ impl WigglingServo {
     /// Returns an error if the task cannot be spawned.
     #[must_use = "Device must be kept alive to drive the servo task"]
     pub fn new(
-        wiggling_servo_static: &'static WigglingServoStatic,
+        servo_animate_static: &'static ServoAnimateStatic,
         servo: Servo<'static>,
         spawner: Spawner,
     ) -> Result<Self, SpawnError> {
-        let token = device_loop(wiggling_servo_static, servo)?;
+        let token = device_loop(servo_animate_static, servo)?;
         spawner.spawn(token);
         Ok(Self {
-            commands: &wiggling_servo_static.commands,
+            commands: &servo_animate_static.commands,
         })
     }
 
-    /// Set the target angle (0..=180) and motion mode.
-    ///
-    /// If `mode` is [`WiggleMode::Wiggle`], the servo will oscillate ±10° around the
-    /// target angle until updated again.
-    pub async fn set(&self, degrees: i32, mode: WiggleMode) {
+    /// Set the target angle (0..=180).
+    pub async fn set(&self, degrees: i32) {
         assert!((0..=180).contains(&degrees));
-        self.commands
-            .send(WiggleCommand::Set { degrees, mode })
-            .await;
+        self.commands.send(AnimateCommand::Set { degrees }).await;
     }
 
     /// Animate the servo through a sequence of angles with per-step hold durations.
@@ -163,64 +141,39 @@ impl WigglingServo {
         }
 
         self.commands
-            .send(WiggleCommand::Animate { steps: sequence })
+            .send(AnimateCommand::Animate { steps: sequence })
             .await;
     }
 }
 
 #[embassy_executor::task(pool_size = 2)]
 async fn device_loop(
-    wiggling_servo_static: &'static WigglingServoStatic,
+    servo_animate_static: &'static ServoAnimateStatic,
     mut servo: Servo<'static>,
 ) -> ! {
     let mut base_degrees = 0;
-    let mut mode = WiggleMode::Still;
-    let mut wiggle_high = false;
     servo.set_degrees(base_degrees);
 
-    let mut pending_command: Option<WiggleCommand> = None;
+    let mut pending_command: Option<AnimateCommand> = None;
 
     loop {
         let command = if let Some(command) = pending_command.take() {
             command
         } else {
-            match mode {
-                WiggleMode::Still => wiggling_servo_static.commands.receive().await,
-                WiggleMode::Wiggle => {
-                    let wiggle_degrees = wiggle(base_degrees, wiggle_high);
-                    wiggle_high = !wiggle_high;
-                    servo.set_degrees(wiggle_degrees);
-                    match select(
-                        Timer::after(WIGGLE_PERIOD),
-                        wiggling_servo_static.commands.receive(),
-                    )
-                    .await
-                    {
-                        Either::First(_) => continue,
-                        Either::Second(command) => command,
-                    }
-                }
-            }
+            servo_animate_static.commands.receive().await
         };
 
         match command {
-            WiggleCommand::Set {
-                degrees,
-                mode: new_mode,
-            } => {
+            AnimateCommand::Set { degrees } => {
                 base_degrees = degrees;
-                mode = new_mode;
-                wiggle_high = false;
                 servo.set_degrees(base_degrees);
             }
-            WiggleCommand::Animate { steps } => {
-                mode = WiggleMode::Still;
-                wiggle_high = false;
+            AnimateCommand::Animate { steps } => {
                 let final_target = steps.last().map(|step| step.degrees);
                 if let Some(command) = run_animation(
                     steps,
                     &mut servo,
-                    &wiggling_servo_static.commands,
+                    &servo_animate_static.commands,
                     &mut base_degrees,
                 )
                 .await
@@ -234,20 +187,12 @@ async fn device_loop(
     }
 }
 
-#[inline]
-fn wiggle(base_degrees: i32, up: bool) -> i32 {
-    if up {
-        (base_degrees + WIGGLE_DELTA_DEGREES).min(180)
-    } else {
-        (base_degrees - WIGGLE_DELTA_DEGREES).max(0)
-    }
-}
 async fn run_animation(
     steps: AnimateSequence,
     servo: &mut Servo<'static>,
-    commands: &Channel<CriticalSectionRawMutex, WiggleCommand, 4>,
+    commands: &Channel<CriticalSectionRawMutex, AnimateCommand, 4>,
     current_degrees: &mut i32,
-) -> Option<WiggleCommand> {
+) -> Option<AnimateCommand> {
     loop {
         for step in &steps {
             if *current_degrees != step.degrees {
