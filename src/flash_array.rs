@@ -192,9 +192,7 @@ impl FlashArrayStatic {
 ///     display_mode: u8,
 /// }
 ///
-/// # async fn example() -> serials::Result<()> {
-/// let p = embassy_rp::init(Default::default());
-///
+/// # async fn example(p: embassy_rp::Peripherals) -> serials::Result<()> {
 /// static FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
 /// let [mut device_config_block] = FlashArray::new(&FLASH_STATIC, p.FLASH)?;
 ///

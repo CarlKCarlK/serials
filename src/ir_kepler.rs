@@ -79,16 +79,17 @@ const KEPLER_MAPPING: [(u16, u8, KeplerButton); 21] = [
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// # use defmt::info;
-/// # use embassy_executor::Spawner;
 /// # use serials::ir_kepler::{IrKepler, IrKeplerStatic};
-/// # async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
+/// # async fn example(
+/// #     p: embassy_rp::Peripherals,
+/// #     spawner: embassy_executor::Spawner,
+/// # ) -> serials::Result<()> {
 /// static IR_KEPLER_STATIC: IrKeplerStatic = IrKepler::new_static();
 /// let ir_kepler = IrKepler::new(&IR_KEPLER_STATIC, p.PIN_15, spawner)?;
 ///
 /// loop {
 ///     let button = ir_kepler.wait().await;
-///     info!("Button: {:?}", button);
+///     defmt::info!("Button: {:?}", button);
 /// }
 /// # }
 /// ```

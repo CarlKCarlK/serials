@@ -56,10 +56,8 @@ pub use servo_odd;
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// # use core::default::Default;
 /// # use serials::servo::servo_odd;
-/// # async fn example() {
-/// # let p = embassy_rp::init(Default::default());
+/// # async fn example(p: embassy_rp::Peripherals) {
 /// // Create a servo on GPIO 15 with pulse range 500-2500 microseconds
 /// // (500µs = 0°, 2500µs = 180° for typical SG90)
 /// // GPIO 15 is odd. Calculate slice: (15 / 2) % 8 = 7 % 8 = 7 → PWM_SLICE7
@@ -95,20 +93,18 @@ impl<'d> Servo<'d> {
     /// Consider using the [`servo_even!`] or [`servo_odd!`] macros instead for simpler usage.
     ///
     /// # Examples
-    /// ```no_run
-    /// # #![no_std]
-    /// # #![no_main]
-    /// # use panic_probe as _;
-    /// # use core::default::Default;
-    /// # use embassy_rp::pwm::{Config, Pwm};
-    /// # use serials::servo::{Servo, ServoChannel};
-    /// # async fn example() {
-    /// # let p = unsafe { embassy_rp::Peripherals::steal() };
-    /// // GPIO 15 is odd, uses channel B. Calculate slice: (15 / 2) % 8 = 7
-    /// let pwm = Pwm::new_output_b(p.PWM_SLICE7, p.PIN_15, Config::default());
-    /// let mut servo = Servo::new(pwm, ServoChannel::B, 500, 2500);
-    /// # }
-    /// ```
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// # use embassy_rp::pwm::{Config, Pwm};
+/// # use serials::servo::{Servo, ServoChannel};
+/// # async fn example(p: embassy_rp::Peripherals) {
+/// // GPIO 15 is odd, uses channel B. Calculate slice: (15 / 2) % 8 = 7
+/// let pwm = Pwm::new_output_b(p.PWM_SLICE7, p.PIN_15, Config::default());
+/// let mut servo = Servo::new(pwm, ServoChannel::B, 500, 2500);
+/// # }
+/// ```
     pub fn new(pwm: Pwm<'d>, channel: ServoChannel, min_us: u16, max_us: u16) -> Self {
         Self::init(pwm, channel, min_us, max_us)
     }

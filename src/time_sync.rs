@@ -60,14 +60,12 @@ mod wifi_impl {
     /// # #![no_std]
     /// # #![no_main]
     /// # use panic_probe as _;
-    /// use embassy_executor::Spawner;
-    /// use embassy_net::Stack;
     /// use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
     ///
     /// # #[allow(dead_code)]
     /// async fn run_time_sync(
-    ///     stack: &'static Stack<'static>,
-    ///     spawner: Spawner,
+    ///     stack: &'static embassy_net::Stack<'static>,
+    ///     spawner: embassy_executor::Spawner,
     /// ) {
     ///     // Create TimeSync with an existing network stack (often from WifiSetup)
     ///     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();

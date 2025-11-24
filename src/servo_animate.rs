@@ -114,11 +114,10 @@ impl ServoAnimateStatic {
 /// # fn panic(_info: &PanicInfo) -> ! {
 /// #     loop {}
 /// # }
-/// # use embassy_executor::Spawner;
 /// use embassy_time::Duration;
 /// use serials::servo_animate::{self, linear, ServoAnimate, ServoAnimateStatic, Step, servo_even};
 ///
-/// async fn demo(p: embassy_rp::Peripherals, spawner: Spawner) {
+/// async fn demo(p: embassy_rp::Peripherals, spawner: embassy_executor::Spawner) {
 ///     static SERVO_ANIMATE_STATIC: ServoAnimateStatic = ServoAnimate::new_static();
 ///     let servo = ServoAnimate::new(
 ///         &SERVO_ANIMATE_STATIC,

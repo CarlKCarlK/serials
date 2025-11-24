@@ -108,13 +108,10 @@ impl ClockStatic {
 /// # fn panic(_info: &PanicInfo) -> ! {
 /// #     loop {}
 /// # }
-/// use defmt::info;
-/// use embassy_executor::Spawner;
 /// use serials::clock::{Clock, ClockStatic, ONE_SECOND, h12_m_s};
 /// use serials::unix_seconds::UnixSeconds;
 ///
-/// async fn run_clock(spawner: Spawner) {
-///     let _peripherals = embassy_rp::init(Default::default());
+/// async fn run_clock(spawner: embassy_executor::Spawner) {
 ///     static CLOCK_STATIC: ClockStatic = Clock::new_static();
 ///     let clock = Clock::new(&CLOCK_STATIC, -420, Some(ONE_SECOND), spawner); // PDT offset (UTC-7)
 ///
@@ -123,18 +120,18 @@ impl ClockStatic {
 ///
 ///     let now_local = clock.now_local();
 ///     let (hour12, minute, second) = h12_m_s(&now_local);
-///     info!("Local time: {:02}:{:02}:{:02} PDT", hour12, minute, second);
+///     defmt::info!("Local time: {:02}:{:02}:{:02} PDT", hour12, minute, second);
 ///     // Logs: Local time: 07:00:00 PDT
 ///
 ///     clock.set_offset_minutes(-480).await; // Switch to PST (UTC-8)
 ///     let (hour12, minute, second) = h12_m_s(&clock.now_local());
-///     info!("Local time: {:02}:{:02}:{:02} PST", hour12, minute, second);
+///     defmt::info!("Local time: {:02}:{:02}:{:02} PST", hour12, minute, second);
 ///     // Logs: Local time: 06:00:00 PST
 ///
 ///     loop {
 ///         let tick = clock.wait().await;
 ///         let (hour12, minute, second) = h12_m_s(&tick);
-///         info!("Tick: {:02}:{:02}:{:02}", hour12, minute, second);
+///         defmt::info!("Tick: {:02}:{:02}:{:02}", hour12, minute, second);
 ///         // Logs: Tick: 06:00:01, Tick: 06:00:02, ...
 ///     }
 /// }

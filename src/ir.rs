@@ -37,10 +37,11 @@ pub type IrStatic = EmbassyChannel<CriticalSectionRawMutex, IrEvent, 8>;
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// # use defmt::info;
-/// # use embassy_executor::Spawner;
 /// # use serials::ir::{Ir, IrEvent};
-/// # async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
+/// # async fn example(
+/// #     p: embassy_rp::Peripherals,
+/// #     spawner: embassy_executor::Spawner,
+/// # ) -> serials::Result<()> {
 /// static IR_STATIC: serials::ir::IrStatic = Ir::new_static();
 /// let ir = Ir::new(&IR_STATIC, p.PIN_15, spawner)?;
 ///
@@ -48,7 +49,7 @@ pub type IrStatic = EmbassyChannel<CriticalSectionRawMutex, IrEvent, 8>;
 ///     let event = ir.wait().await;
 ///     match event {
 ///         IrEvent::Press { addr, cmd } => {
-///             info!("IR: addr=0x{:04X}, cmd=0x{:02X}", addr, cmd);
+///             defmt::info!("IR: addr=0x{:04X}, cmd=0x{:02X}", addr, cmd);
 ///         }
 ///     }
 /// }

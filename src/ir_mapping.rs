@@ -37,12 +37,14 @@ impl IrMappingStatic {
 /// # #![no_main]
 /// # use panic_probe as _;
 /// # use core::prelude::rust_2024::derive;
-/// # use embassy_executor::Spawner;
 /// # use serials::ir_mapping::{IrMapping, IrMappingStatic};
 /// #
 /// #[derive(Debug, Clone, Copy)]
 /// enum RemoteButton { Power, Play, Stop }
-/// # async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
+/// # async fn example(
+/// #     p: embassy_rp::Peripherals,
+/// #     spawner: embassy_executor::Spawner,
+/// # ) -> serials::Result<()> {
 /// let button_map = [
 ///     (0x0000, 0x45, RemoteButton::Power),
 ///     (0x0000, 0x0C, RemoteButton::Play),
