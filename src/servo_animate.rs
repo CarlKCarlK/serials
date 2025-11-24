@@ -18,6 +18,9 @@ enum AnimateCommand {
     Animate { steps: AnimateSequence },
 }
 
+/// A single animation step: hold `degrees` for `duration`.
+///
+/// See [`ServoAnimate`] for a full example.
 #[derive(Clone, Copy, Debug, defmt::Format)]
 pub struct Step {
     pub degrees: i32,
@@ -26,6 +29,8 @@ pub struct Step {
 
 /// Build a linear sequence of `AnimateStep`s from `start_degrees` to `end_degrees` over
 /// `total_duration` split into `N` steps (inclusive of endpoints).
+///
+/// See [`ServoAnimate`] for a complete example of building sequences and running them.
 #[must_use]
 pub fn linear<const N: usize>(
     start_degrees: i32,
@@ -58,8 +63,10 @@ pub fn linear<const N: usize>(
 
 type AnimateSequence = Vec<Step, 16>;
 
-/// Macro to concatenate fixed-size arrays of `Step` without unsafe or nightly features.
+/// Macro to concatenate fixed-size arrays of [`Step`] without unsafe or nightly features.
+///
 /// Use the `cap = N` form to set the capacity of the temporary buffer.
+/// See [`ServoAnimate`] for an example of assembling a sequence.
 #[macro_export]
 macro_rules! servo_animate_concat {
     (cap = $cap:expr, $first:expr $(, $rest:expr)+ $(,)?) => {{
@@ -73,6 +80,7 @@ macro_rules! servo_animate_concat {
         out
     }};
 }
+pub use crate::servo::{servo_even, servo_odd};
 pub use crate::servo_animate_concat as concat;
 
 /// Static resources for [`ServoAnimate`].
@@ -90,7 +98,44 @@ impl ServoAnimateStatic {
     }
 }
 
+// cmk should step have a ::new?
+
 /// A device abstraction that drives a single servo with scripted animation sequences.
+///
+/// # Example
+/// ```
+/// # #![no_std]
+/// # #![no_main]
+/// # use embassy_executor::Spawner;
+/// use embassy_time::Duration;
+/// use serials::servo_animate::{self, linear, ServoAnimate, ServoAnimateStatic, Step, servo_even};
+///
+/// async fn demo(p: embassy_rp::Peripherals, spawner: Spawner) {
+///     static SERVO_ANIMATE_STATIC: ServoAnimateStatic = ServoAnimate::new_static();
+///     let servo = ServoAnimate::new(
+///         &SERVO_ANIMATE_STATIC,
+///         servo_even!(p.PIN_0, p.PWM_SLICE0, 500, 2500),
+///         spawner,
+///     )
+///     .unwrap();
+///
+///     // Sweep down from 180 to 0 over 5 seconds, hold, then repeat.
+///     const FIVE_SECONDS: Duration = Duration::from_secs(5);
+///     const HALF_SECOND: Duration = Duration::from_millis(500);
+///     let sweep = linear::<11>(180, 0, FIVE_SECONDS);
+///     let sequence = servo_animate::concat!(
+///         cap = 16,
+///         &sweep,
+///         &[
+///             Step {
+///                 degrees: 0,
+///                 duration: HALF_SECOND,
+///             },
+///         ]
+///     );
+///     servo.animate(&sequence).await;
+/// }
+/// ```
 pub struct ServoAnimate {
     commands: &'static Channel<CriticalSectionRawMutex, AnimateCommand, 4>,
 }
@@ -102,7 +147,7 @@ impl ServoAnimate {
         ServoAnimateStatic::new_static()
     }
 
-    /// Create the wiggling servo device and spawn its task.
+    /// Create the servo animator and spawn its task. See [`ServoAnimate`] for a full example.
     ///
     /// # Errors
     ///
@@ -120,7 +165,7 @@ impl ServoAnimate {
         })
     }
 
-    /// Set the target angle (0..=180).
+    /// Set the target angle (0..=180). See [`ServoAnimate`] for usage.
     pub async fn set(&self, degrees: i32) {
         assert!((0..=180).contains(&degrees));
         self.commands.send(AnimateCommand::Set { degrees }).await;
@@ -133,10 +178,6 @@ impl ServoAnimate {
         let mut sequence: AnimateSequence = Vec::new();
         for step in steps {
             assert!((0..=180).contains(&step.degrees));
-            assert!(
-                step.duration.as_micros() > 0,
-                "hold duration must be positive"
-            );
             sequence.push(*step).expect("animate sequence fits");
         }
 

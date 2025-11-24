@@ -20,8 +20,7 @@ use panic_probe as _;
 use serials::button::{Button, PressDuration};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::servo::servo_even;
-use serials::servo_animate::{self, linear, ServoAnimate, ServoAnimateStatic, Step};
+use serials::servo_animate::{self, linear, servo_even, ServoAnimate, ServoAnimateStatic, Step};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
@@ -300,6 +299,7 @@ impl State {
                     servo_display
                         .show_hours_minutes_indicator(hours, minutes)
                         .await;
+                    servo_display.bottom.animate(&WIGGLE).await;
                 }
                 PressDuration::Long => {
                     info!("Long press detected - saving and exiting edit mode");
@@ -335,12 +335,10 @@ impl ServoClockDisplay {
         const FIVE_SECONDS: Duration = Duration::from_secs(5);
         let clockwise = linear::<10>(180 - 18, 0, FIVE_SECONDS);
         let and_back = linear::<2>(0, 180, FIVE_SECONDS);
-        self.top
-            .animate(servo_animate::concat!(cap = 16, &clockwise, &and_back).as_slice())
-            .await;
-        self.bottom
-            .animate(servo_animate::concat!(cap = 16, &and_back, &clockwise).as_slice())
-            .await;
+        let top_sequence = servo_animate::concat!(cap = 16, &clockwise, &and_back);
+        self.top.animate(&top_sequence).await;
+        let bottom_sequence = servo_animate::concat!(cap = 16, &and_back, &clockwise);
+        self.bottom.animate(&bottom_sequence).await;
     }
 
     async fn show_hours_minutes(&self, hours: u8, minutes: u8) {
