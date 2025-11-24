@@ -14,7 +14,7 @@ use crate::servo::Servo;
 
 /// Commands sent to the servo animate device.
 enum AnimateCommand {
-    Set { degrees: i32 },
+    Set { degrees: u16 },
     Animate { steps: AnimateSequence },
 }
 
@@ -23,7 +23,7 @@ enum AnimateCommand {
 /// See [`ServoAnimate`] for a full example.
 #[derive(Clone, Copy, Debug, defmt::Format)]
 pub struct Step {
-    pub degrees: i32,
+    pub degrees: u16,
     pub duration: Duration,
 }
 
@@ -33,12 +33,11 @@ pub struct Step {
 /// See [`ServoAnimate`] for a complete example of building sequences and running them.
 #[must_use]
 pub fn linear<const N: usize>(
-    start_degrees: i32,
-    end_degrees: i32,
+    start_degrees: u16,
+    end_degrees: u16,
     total_duration: Duration,
 ) -> [Step; N] {
     assert!(N > 0, "at least one step required");
-    // cmk if must be 0> then why i32 and not u32?
     assert!((0..=180).contains(&start_degrees));
     assert!((0..=180).contains(&end_degrees));
     assert!(
@@ -46,16 +45,17 @@ pub fn linear<const N: usize>(
         "total duration must be positive"
     );
     let step_duration = total_duration / (N as u32);
-    let delta = end_degrees - start_degrees;
+    let delta = i32::from(end_degrees) - i32::from(start_degrees);
     let denom = i32::try_from(((N - 1) as i32).max(1)).expect("denom fits in i32");
     array::from_fn(|idx| {
-        let angle = if N == 1 {
+        let degrees = if N == 1 {
             start_degrees
         } else {
-            start_degrees + delta * i32::try_from(idx).expect("index fits") / denom
+            let step = delta * i32::try_from(idx).expect("index fits") / denom;
+            u16::try_from(i32::from(start_degrees) + step).expect("angle fits")
         };
         Step {
-            degrees: angle,
+            degrees,
             duration: step_duration,
         }
     })
@@ -173,9 +173,11 @@ impl ServoAnimate {
     }
 
     /// Set the target angle (0..=180). See [`ServoAnimate`] for usage.
-    pub async fn set(&self, degrees: i32) {
+    pub async fn set(&self, degrees: u16) {
         assert!((0..=180).contains(&degrees));
-        self.commands.send(AnimateCommand::Set { degrees }).await;
+        self.commands
+            .send(AnimateCommand::Set { degrees })
+            .await;
     }
 
     /// Animate the servo through a sequence of angles with per-step hold durations.
@@ -199,7 +201,7 @@ async fn device_loop(
     servo_animate_static: &'static ServoAnimateStatic,
     mut servo: Servo<'static>,
 ) -> ! {
-    let mut base_degrees = 0;
+    let mut base_degrees: u16 = 0;
     servo.set_degrees(base_degrees);
 
     let mut pending_command: Option<AnimateCommand> = None;
@@ -239,7 +241,7 @@ async fn run_animation(
     steps: AnimateSequence,
     servo: &mut Servo<'static>,
     commands: &Channel<CriticalSectionRawMutex, AnimateCommand, 4>,
-    current_degrees: &mut i32,
+    current_degrees: &mut u16,
 ) -> Option<AnimateCommand> {
     loop {
         for step in &steps {

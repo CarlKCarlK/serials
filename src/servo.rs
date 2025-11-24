@@ -160,11 +160,12 @@ impl<'d> Servo<'d> {
         self.set_pulse_us(self.min_us + (self.max_us - self.min_us) / 2);
     }
 
-    /// Set position in degrees 0..=180 (clamped) mapped into [min_us, max_us].
-    pub fn set_degrees(&mut self, deg: i32) {
-        let d = deg.clamp(0, 180) as u16;
-        let us = self.min_us as u32 + (d as u32) * (self.max_us as u32 - self.min_us as u32) / 180;
-        info!("Servo set_degrees({}) -> {}µs", deg, us);
+    /// Set position in degrees 0..=180 mapped into [min_us, max_us].
+    pub fn set_degrees(&mut self, degrees: u16) {
+        assert!((0..=180).contains(&degrees));
+        let us = self.min_us as u32
+            + (u32::from(degrees)) * (u32::from(self.max_us) - u32::from(self.min_us)) / 180;
+        info!("Servo set_degrees({}) -> {}µs", degrees, us);
         self.set_pulse_us(us as u16);
     }
 
