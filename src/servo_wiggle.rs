@@ -62,32 +62,22 @@ pub fn linear<const N: usize>(
     })
 }
 
-type AnimateSequence = Vec<Step, MAX_ANIMATE_STEPS>;
-pub const MAX_ANIMATE_STEPS: usize = 16;
+type AnimateSequence = Vec<Step, 16>;
 
-/// Macro to concatenate fixed-size arrays of `AnimateStep` without unsafe or nightly features.
-/// Use the `cap = N` form to override the capacity if the arrays exceed `MAX_ANIMATE_STEPS`.
+/// Macro to concatenate fixed-size arrays of `Step` without unsafe or nightly features.
+/// Use the `cap = N` form to set the capacity of the temporary buffer.
 #[macro_export]
 macro_rules! servo_wiggle_concat {
-    (cap = $cap:expr, $first:expr, $second:expr) => {{
-        let first: &[serials::servo_wiggle::Step] = $first;
-        let second: &[serials::servo_wiggle::Step] = $second;
+    (cap = $cap:expr, $first:expr $(, $rest:expr)+ $(,)?) => {{
         let mut out: heapless::Vec<serials::servo_wiggle::Step, { $cap }> = heapless::Vec::new();
-        for step in first {
-            out.push(*step).expect("first array fits");
-        }
-        for step in second {
-            out.push(*step).expect("second array fits");
+        let sequences: &[&[serials::servo_wiggle::Step]] = &[ $first $(, $rest)+ ];
+        for seq in sequences {
+            for step in *seq {
+                out.push(*step).expect("sequence fits");
+            }
         }
         out
     }};
-    ($first:expr, $second:expr) => {
-        $crate::servo_wiggle_concat!(
-            cap = $crate::servo_wiggle::MAX_ANIMATE_STEPS,
-            $first,
-            $second
-        )
-    };
 }
 pub use crate::servo_wiggle_concat as concat;
 

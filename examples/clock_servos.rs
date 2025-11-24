@@ -324,10 +324,14 @@ impl ServoClockDisplay {
         let clockwise = linear::<10>(180 - 18, 0, FIVE_SECONDS);
         let and_back = linear::<2>(0, 180, FIVE_SECONDS);
         self.top
-            .animate(servo_wiggle::concat!(&clockwise, &and_back).as_slice())
+            .animate(
+                servo_wiggle::concat!(cap = 16, &clockwise, &and_back).as_slice(),
+            )
             .await;
         self.bottom
-            .animate(servo_wiggle::concat!(&and_back, &clockwise).as_slice())
+            .animate(
+                servo_wiggle::concat!(cap = 16, &and_back, &clockwise).as_slice(),
+            )
             .await;
     }
 
