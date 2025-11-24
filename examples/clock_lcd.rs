@@ -13,7 +13,7 @@ use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use heapless::String;
 use panic_probe as _;
-use serials::Result;
+use serials::{Error, Result};
 use serials::char_lcd::{CharLcd, CharLcdStatic};
 use serials::clock::{Clock, ClockStatic, ONE_SECOND};
 use serials::flash_array::{FlashArray, FlashArrayStatic};

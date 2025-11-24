@@ -103,9 +103,15 @@ impl ServoAnimateStatic {
 /// A device abstraction that drives a single servo with scripted animation sequences.
 ///
 /// # Example
-/// ```
+///
+/// ```no_run
 /// # #![no_std]
 /// # #![no_main]
+/// # use core::panic::PanicInfo;
+/// # #[panic_handler]
+/// # fn panic(_info: &PanicInfo) -> ! {
+/// #     loop {}
+/// # }
 /// # use embassy_executor::Spawner;
 /// use embassy_time::Duration;
 /// use serials::servo_animate::{self, linear, ServoAnimate, ServoAnimateStatic, Step, servo_even};

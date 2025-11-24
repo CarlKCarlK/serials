@@ -103,6 +103,11 @@ impl ClockStatic {
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
+/// # use core::panic::PanicInfo;
+/// # #[panic_handler]
+/// # fn panic(_info: &PanicInfo) -> ! {
+/// #     loop {}
+/// # }
 /// use defmt::info;
 /// use embassy_executor::Spawner;
 /// use serials::clock::{Clock, ClockStatic, ONE_SECOND, h12_m_s};
