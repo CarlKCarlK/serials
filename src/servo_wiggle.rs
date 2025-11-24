@@ -1,6 +1,9 @@
 //! A device abstraction for oscillating a single servo between two angles.
 //!
 //! See [`WigglingServo`] for usage and examples.
+// cmk generate docs with examples
+// cmk good name?
+// can other mode be implemented with animate?
 
 use core::array;
 use embassy_executor::{SpawnError, Spawner};
@@ -36,6 +39,7 @@ pub fn linear<const N: usize>(
     total_duration: Duration,
 ) -> [Step; N] {
     assert!(N > 0, "at least one step required");
+    // cmk if must be 0> then why i32 and not u32?
     assert!((0..=180).contains(&start_degrees));
     assert!((0..=180).contains(&end_degrees));
     assert!(

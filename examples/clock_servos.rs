@@ -319,6 +319,7 @@ impl ServoClockDisplay {
     async fn show_connecting(&self) {
         // Keep bottom servo fixed; animate top servo through a two-phase sweep.
         self.bottom.set(0, WiggleMode::Still).await;
+        // cmk understand if we really want this to have 11 steps and a sleep after each.
         const FIVE_SECONDS: Duration = Duration::from_secs(5);
         let clockwise = linear::<10>(180 - 18, 0, FIVE_SECONDS);
         let and_back = linear::<2>(0, 180, FIVE_SECONDS);
