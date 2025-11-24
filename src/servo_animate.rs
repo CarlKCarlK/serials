@@ -1,6 +1,6 @@
-//! A device abstraction for driving a single servo with scripted animations.
+//! A device abstraction for animating a loop of servo actions.
 //!
-//! See [`ServoAnimate`] for usage and examples.
+//! See [`ServoAnimate`] for usage and examples, and [`Servo`] for servo setup helpers.
 
 use core::array;
 use embassy_executor::{SpawnError, Spawner};
@@ -63,7 +63,7 @@ pub fn linear<const N: usize>(
 
 type AnimateSequence = Vec<Step, 16>;
 
-/// Macro to concatenate fixed-size arrays of [`Step`] without unsafe or nightly features.
+/// Macro to concatenate arrays of animation [`Step`] values.
 ///
 /// Use the `cap = N` form to set the capacity of the temporary buffer.
 /// See [`ServoAnimate`] for an example of assembling a sequence.
@@ -101,6 +101,8 @@ impl ServoAnimateStatic {
 // cmk should step have a ::new?
 
 /// A device abstraction that drives a single servo with scripted animation sequences.
+///
+/// See [`Servo`] for servo setup guidance and [`ServoAnimate`] for usage.
 ///
 /// # Example
 ///
