@@ -63,25 +63,21 @@ pub fn linear<const N: usize>(
 
 type AnimateSequence = Vec<Step, 16>;
 
-/// Macro to concatenate arrays of animation [`Step`] values.
+/// Concatenate arrays of animation [`Step`] values into a single sequence.
 ///
-/// Use the `cap = N` form to set the capacity of the temporary buffer.
-/// See [`ServoAnimate`] for an example of assembling a sequence.
-#[macro_export]
-macro_rules! servo_animate_concat {
-    (cap = $cap:expr, $first:expr $(, $rest:expr)+ $(,)?) => {{
-        let mut out: heapless::Vec<serials::servo_animate::Step, { $cap }> = heapless::Vec::new();
-        let sequences: &[&[serials::servo_animate::Step]] = &[ $first $(, $rest)+ ];
-        for seq in sequences {
-            for step in *seq {
-                out.push(*step).expect("sequence fits");
-            }
+/// Provide the capacity as a const generic and pass slices of step arrays.
+/// Import with `use serials::servo_animate::concat_steps;`.
+#[must_use]
+pub fn concat_steps<const CAP: usize>(sequences: &[&[Step]]) -> Vec<Step, CAP> {
+    let mut out: Vec<Step, CAP> = Vec::new();
+    for sequence in sequences {
+        for step in *sequence {
+            out.push(*step).expect("sequence fits");
         }
-        out
-    }};
+    }
+    out
 }
 pub use crate::servo::{servo_even, servo_odd};
-pub use crate::servo_animate_concat as concat;
 
 /// Static resources for [`ServoAnimate`].
 pub struct ServoAnimateStatic {
@@ -115,7 +111,7 @@ impl ServoAnimateStatic {
 /// #     loop {}
 /// # }
 /// use embassy_time::Duration;
-/// use serials::servo_animate::{self, linear, ServoAnimate, ServoAnimateStatic, Step, servo_even};
+/// use serials::servo_animate::{concat_steps, linear, ServoAnimate, ServoAnimateStatic, Step, servo_even};
 ///
 /// async fn demo(p: embassy_rp::Peripherals, spawner: embassy_executor::Spawner) {
 ///     static SERVO_ANIMATE_STATIC: ServoAnimateStatic = ServoAnimate::new_static();
@@ -130,16 +126,15 @@ impl ServoAnimateStatic {
 ///     const FIVE_SECONDS: Duration = Duration::from_secs(5);
 ///     const HALF_SECOND: Duration = Duration::from_millis(500);
 ///     let sweep = linear::<11>(180, 0, FIVE_SECONDS);
-///     let sequence = servo_animate::concat!(
-///         cap = 16,
+///     let sequence = concat_steps::<16>(&[
 ///         &sweep,
 ///         &[
 ///             Step {
 ///                 degrees: 0,
 ///                 duration: HALF_SECOND,
 ///             },
-///         ]
-///     );
+///         ],
+///     ]);
 ///     servo.animate(&sequence).await;
 /// }
 /// ```

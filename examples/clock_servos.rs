@@ -335,9 +335,9 @@ impl ServoClockDisplay {
         const FIVE_SECONDS: Duration = Duration::from_secs(5);
         let clockwise = linear::<10>(180 - 18, 0, FIVE_SECONDS);
         let and_back = linear::<2>(0, 180, FIVE_SECONDS);
-        let top_sequence = servo_animate::concat!(cap = 16, &clockwise, &and_back);
+        let top_sequence = serials::servo_animate::concat_steps::<16>(&[&clockwise, &and_back]);
         self.top.animate(&top_sequence).await;
-        let bottom_sequence = servo_animate::concat!(cap = 16, &and_back, &clockwise);
+        let bottom_sequence = serials::servo_animate::concat_steps::<16>(&[&and_back, &clockwise]);
         self.bottom.animate(&bottom_sequence).await;
     }
 

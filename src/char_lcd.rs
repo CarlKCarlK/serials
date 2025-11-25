@@ -13,7 +13,7 @@ use crate::{Error, Result};
 
 /// Messages sent to the character LCD device.
 #[derive(Clone, Debug)]
-pub enum CharLcdMessage {
+pub(crate) enum CharLcdMessage {
     /// Display a message for the specified duration (0 = until next message)
     Display {
         text: String<64>, // 64 chars supports up to 20x4 displays (80 chars)
@@ -22,7 +22,21 @@ pub enum CharLcdMessage {
 }
 
 /// Static type for the `CharLcd` device abstraction.
-pub type CharLcdStatic = Channel<CriticalSectionRawMutex, CharLcdMessage, 8>;
+pub struct CharLcdStatic(Channel<CriticalSectionRawMutex, CharLcdMessage, 8>);
+
+impl CharLcdStatic {
+    pub const fn new() -> Self {
+        Self(Channel::new())
+    }
+
+    async fn send(&self, message: CharLcdMessage) {
+        self.0.send(message).await;
+    }
+
+    async fn receive(&self) -> CharLcdMessage {
+        self.0.receive().await
+    }
+}
 
 /// A device abstraction for an HD44780-compatible character LCD.
 pub struct CharLcd {
@@ -33,7 +47,7 @@ impl CharLcd {
     /// Create CharLcd resources
     #[must_use]
     pub const fn new_static() -> CharLcdStatic {
-        Channel::new()
+        CharLcdStatic::new()
     }
 
     /// Create a new CharLcd device

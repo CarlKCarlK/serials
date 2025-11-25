@@ -48,7 +48,7 @@ impl Leds {
     /// Segment F of the 7-segment display.
     const SEG_F: u8 = 0b_0010_0000;
 
-    #[cfg_attr(not(test), expect(dead_code, reason = "Used by numeric conversion helpers"))]
+    #[cfg_attr(not(test), allow(dead_code))]
     /// Array representing the segments for digits 0-9 on a 7-segment display.
     const DIGITS: [u8; 10] = [
         0b_0011_1111, // Digit 0
@@ -63,7 +63,7 @@ impl Leds {
         0b_0110_1111, // Digit 9
     ];
 
-    #[cfg_attr(not(test), expect(dead_code, reason = "Used by numeric conversion helpers"))]
+    #[cfg_attr(not(test), allow(dead_code))]
     /// Decimal point of the 7-segment display.
     const DECIMAL: u8 = 0b_1000_0000;
 
@@ -224,10 +224,7 @@ impl BitMatrixLed4 {
         Self(bits)
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "Kept for tests and potential in-crate numeric helpers")
-    )]
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn from_bits(bits: u8) -> Self {
         Self([bits; CELL_COUNT])
     }
@@ -251,10 +248,7 @@ impl BitMatrixLed4 {
         reason = "Indexing and arithmetic are safe; modulo is required for digit extraction"
     )]
     /// Creates bit matrix from number. If overflow, lights decimal points.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "Kept for tests and potential in-crate numeric helpers")
-    )]
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn from_number(mut number: u16, padding: u8) -> Self {
         let mut bit_matrix = Self::from_bits(padding);
 

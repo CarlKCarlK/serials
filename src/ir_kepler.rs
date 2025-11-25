@@ -1,4 +1,4 @@
-//! Device abstraction for the SunFounder Kepler Kit IR remote control.
+//! A device abstraction for the SunFounder Kepler Kit IR remote control.
 //!
 //! See [`IrKepler`] for usage examples.
 

@@ -1,4 +1,4 @@
-//! A generic device abstraction for mapping IR remote buttons to application-specific actions.
+//! A device abstraction for mapping IR remote buttons to application-specific actions.
 //!
 //! See [`IrMapping`] for usage examples.
 
