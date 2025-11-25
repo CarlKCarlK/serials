@@ -1,10 +1,6 @@
-//! WiFi auto-provisioning with captive portal fallback.
+//! A device abstraction for WiFi auto-provisioning with captive portal fallback.
 //!
-//! This module provides [`WifiSetup`], a high-level abstraction for managing WiFi
-//! connections with automatic credential provisioning through a captive portal when
-//! credentials are missing or connection fails.
-//!
-//! See [`WifiSetup`] for a complete example.
+//! See [`WifiSetup`] for the main struct and usage examples.
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 

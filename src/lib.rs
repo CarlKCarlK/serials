@@ -22,11 +22,11 @@ compile_error!("Pico 1 (RP2040) only supports ARM architecture, not RISC-V");
 
 // Only include modules that work without embassy when host feature is enabled
 #[cfg(feature = "host")]
-pub mod bit_matrix_led4;
+pub(crate) mod bit_matrix_led4;
 
 // These modules require embassy_rp and are excluded when testing on host
 #[cfg(not(feature = "host"))]
-pub mod bit_matrix_led4;
+pub(crate) mod bit_matrix_led4;
 #[cfg(not(feature = "host"))]
 pub mod button;
 #[cfg(not(feature = "host"))]
@@ -59,8 +59,6 @@ pub mod servo;
 pub mod servo_animate;
 #[cfg(not(feature = "host"))]
 pub mod time_sync;
-#[cfg(not(feature = "host"))]
-pub mod unix_seconds;
 #[cfg(all(feature = "wifi", not(feature = "host")))]
 pub mod wifi_setup;
 

@@ -18,7 +18,21 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal}
 use embassy_time::Timer;
 
 /// Static for the [`Led4Simple`] device.
-pub type Led4SimpleStatic = Signal<CriticalSectionRawMutex, BitMatrixLed4>;
+pub struct Led4SimpleStatic(Signal<CriticalSectionRawMutex, BitMatrixLed4>);
+
+impl Led4SimpleStatic {
+    pub const fn new() -> Self {
+        Self(Signal::new())
+    }
+
+    fn signal(&self, bit_matrix: BitMatrixLed4) {
+        self.0.signal(bit_matrix);
+    }
+
+    async fn wait(&self) -> BitMatrixLed4 {
+        self.0.wait().await
+    }
+}
 
 /// A device abstraction for a non-blinking 4-digit 7-segment LED display.
 ///
@@ -72,7 +86,7 @@ impl Led4Simple<'_> {
     /// Creates static channel resources for the display.
     #[must_use]
     pub const fn new_static() -> Led4SimpleStatic {
-        Signal::new()
+        Led4SimpleStatic::new()
     }
 
     /// Creates the display device and spawns its background task.

@@ -1,5 +1,8 @@
 //! A device abstraction that manages timekeeping and emits tick events.
 //!
+//! The clock is headless: it uses the monotonic timer only—no external peripherals required—so
+//! it can run in tests or alongside other devices without owning hardware.
+//!
 //! See [`Clock`] for usage and examples.
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
@@ -17,7 +20,7 @@ use portable_atomic::{AtomicI64, AtomicU64};
 use time::{Duration as TimeDuration, OffsetDateTime, UtcOffset};
 
 use crate::Result;
-use crate::unix_seconds::UnixSeconds;
+use crate::time_sync::UnixSeconds;
 
 // ============================================================================
 // Constants
@@ -96,7 +99,8 @@ impl ClockStatic {
 /// A device abstraction that manages time keeping and emits time tick events.
 ///
 /// Pass `Some(duration)` to enable periodic ticks aligned to that interval; use `None` to emit
-/// ticks only when time/offset changes.
+/// ticks only when time/offset changes. The clock is headless (no hardware ownership) and
+/// supports time scaling for demos/tests via [`Clock::set_speed`].
 ///
 /// # Examples
 ///
@@ -109,7 +113,7 @@ impl ClockStatic {
 /// #     loop {}
 /// # }
 /// use serials::clock::{Clock, ClockStatic, ONE_SECOND, h12_m_s};
-/// use serials::unix_seconds::UnixSeconds;
+/// use serials::time_sync::UnixSeconds;
 ///
 /// async fn run_clock(spawner: embassy_executor::Spawner) {
 ///     static CLOCK_STATIC: ClockStatic = Clock::new_static();
@@ -283,6 +287,11 @@ impl Clock {
 
     /// Update the speed multiplier (1.0 = real time). Changing speed resets the base time to
     /// the current real time so returning to 1.0 resumes the correct clock.
+    ///
+    /// Internally this stores real wall-clock ticks (`Instant::now`) and a base Unix timestamp
+    /// in microseconds. When you speed up (e.g., `2.0`), elapsed real ticks are scaled before
+    /// converting back to Unix time; when you slow down (e.g., `0.5`), they are scaled down.
+    /// Useful for fast-forwarding demos or accelerating tests without sleeping in real time.
     pub async fn set_speed(&self, speed_multiplier: f32) {
         core::assert!(speed_multiplier.is_finite(), "speed must be finite");
         core::assert!(speed_multiplier > 0.0, "speed must be positive");

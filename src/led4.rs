@@ -149,11 +149,27 @@ pub type Led4Animation = Vec<AnimationFrame, ANIMATION_MAX_FRAMES>;
 /// [`Led4::new`] and use the returned handle for all display updates.
 pub struct Led4<'a>(&'a Led4OuterStatic);
 
-/// Static for the [`Led4`] device.
-pub type Led4Static = (Led4OuterStatic, Led4SimpleStatic);
-
 /// Signal for sending display commands to the [`Led4`] device.
 pub(crate) type Led4OuterStatic = Signal<CriticalSectionRawMutex, Led4Command>;
+
+/// Static for the [`Led4`] device.
+pub struct Led4Static {
+    outer: Led4OuterStatic,
+    display: Led4SimpleStatic,
+}
+
+impl Led4Static {
+    pub const fn new() -> Self {
+        Self {
+            outer: Signal::new(),
+            display: Led4SimpleStatic::new(),
+        }
+    }
+
+    fn split(&self) -> (&Led4OuterStatic, &Led4SimpleStatic) {
+        (&self.outer, &self.display)
+    }
+}
 
 impl Led4<'_> {
     /// Creates the display device and spawns its background task; see [`Led4`] docs.
@@ -164,7 +180,7 @@ impl Led4<'_> {
         segment_pins: OutputArray<'static, SEGMENT_COUNT>,
         spawner: Spawner,
     ) -> Result<Self> {
-        let (outer_static, display_static) = led4_static;
+        let (outer_static, display_static) = led4_static.split();
         let display = Led4Simple::new(display_static, cell_pins, segment_pins, spawner)?;
         let token = device_loop(outer_static, display)?;
         spawner.spawn(token);
@@ -174,7 +190,7 @@ impl Led4<'_> {
     /// Creates static channel resources for [`Led4::new`]; see [`Led4`] docs.
     #[must_use]
     pub const fn new_static() -> Led4Static {
-        (Signal::new(), Led4Simple::new_static())
+        Led4Static::new()
     }
 
     /// Sends text to the display with optional blinking.

@@ -6,6 +6,37 @@
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
+use time::{OffsetDateTime, UtcOffset};
+
+/// Units-safe wrapper for Unix timestamps (seconds since 1970-01-01 00:00:00 UTC).
+#[repr(transparent)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, defmt::Format)]
+pub struct UnixSeconds(pub i64);
+
+impl UnixSeconds {
+    /// Get the underlying i64 value.
+    #[must_use]
+    pub const fn as_i64(self) -> i64 {
+        self.0
+    }
+
+    /// Convert NTP seconds (since 1900-01-01) to Unix seconds (since 1970-01-01).
+    #[must_use]
+    pub const fn from_ntp_seconds(ntp: u32) -> Option<Self> {
+        const NTP_TO_UNIX_SECONDS: i64 = 2_208_988_800;
+        let seconds = (ntp as i64) - NTP_TO_UNIX_SECONDS;
+        if seconds >= 0 { Some(Self(seconds)) } else { None }
+    }
+
+    /// Convert to [`OffsetDateTime`] with the given timezone offset.
+    #[must_use]
+    pub fn to_offset_datetime(self, offset: UtcOffset) -> Option<OffsetDateTime> {
+        OffsetDateTime::from_unix_timestamp(self.as_i64())
+            .ok()
+            .map(|datetime| datetime.to_offset(offset))
+    }
+}
+
 #[cfg(feature = "wifi")]
 mod wifi_impl {
     use core::convert::Infallible;
@@ -18,7 +49,7 @@ mod wifi_impl {
     use static_cell::StaticCell;
 
     use crate::Result;
-    use crate::unix_seconds::UnixSeconds;
+    use crate::time_sync::UnixSeconds;
 
     // ============================================================================
     // Types
@@ -314,7 +345,7 @@ pub use wifi_impl::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 
 #[cfg(not(feature = "wifi"))]
 mod stub {
-    use crate::unix_seconds::UnixSeconds;
+    use crate::time_sync::UnixSeconds;
     use embassy_executor::Spawner;
     use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
     use embassy_sync::signal::Signal;
