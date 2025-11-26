@@ -31,45 +31,45 @@ use crate::{Error, Result};
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// # use panic_probe as _;
-/// # use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
-/// # use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
-/// # use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
-/// # use embassy_executor::Spawner;
-/// # async fn example(
-/// #     spawner: Spawner,
-/// #     peripherals: embassy_rp::Peripherals,
-/// # ) -> Result<(), serials::Error> {
-/// // Set up flash storage
-/// static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
-/// let [wifi_flash, timezone_flash] =
-///     FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
+/// use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
+/// use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
+/// use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
+/// # #[panic_handler]
+/// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
+/// async fn example(
+///     spawner: embassy_executor::Spawner,
+///     peripherals: embassy_rp::Peripherals,
+/// ) -> Result<(), serials::Error> {
+///     // Set up flash storage
+///     static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
+///     let [wifi_flash, timezone_flash] =
+///         FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
 ///
-/// // Create timezone field
-/// static TIMEZONE_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
-/// let timezone_field = TimezoneField::new(&TIMEZONE_STATIC, timezone_flash);
+///     // Create timezone field
+///     static TIMEZONE_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
+///     let timezone_field = TimezoneField::new(&TIMEZONE_STATIC, timezone_flash);
 ///
-/// // Pass to WifiSetup
-/// static wifi_setup_STATIC: WifiSetupStatic = WifiSetup::new_static();
-/// let wifi_setup = WifiSetup::new(
-///     &wifi_setup_STATIC,
-///     peripherals.PIN_23,
-///     peripherals.PIN_25,
-///     peripherals.PIO0,
-///     peripherals.PIN_24,
-///     peripherals.PIN_29,
-///     peripherals.DMA_CH0,
-///     wifi_flash,
-///     peripherals.PIN_13,
-///     "ClockStation",
-///     [timezone_field],  // Custom fields array
-///     spawner,
-/// )?;
+///     // Pass to WifiSetup
+///     static wifi_setup_STATIC: WifiSetupStatic = WifiSetup::new_static();
+///     let wifi_setup = WifiSetup::new(
+///         &wifi_setup_STATIC,
+///         peripherals.PIN_23,
+///         peripherals.PIN_25,
+///         peripherals.PIO0,
+///         peripherals.PIN_24,
+///         peripherals.PIN_29,
+///         peripherals.DMA_CH0,
+///         wifi_flash,
+///         peripherals.PIN_13,
+///         "ClockStation",
+///         [timezone_field],  // Custom fields array
+///         spawner,
+///     )?;
 ///
-/// // Later, retrieve the timezone offset
-/// let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
-/// # Ok(())
-/// # }
+///     // Later, retrieve the timezone offset
+///     let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
+///     Ok(())
+/// }
 /// ```
 pub struct TimezoneField {
     flash: RefCell<FlashBlock>,
@@ -382,51 +382,51 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// # use panic_probe as _;
-/// # use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
-/// # use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
-/// # use serials::wifi_setup::fields::{TextField, TextFieldStatic};
-/// # use embassy_executor::Spawner;
-/// # async fn example(
-/// #     spawner: Spawner,
-/// #     peripherals: embassy_rp::Peripherals,
-/// # ) -> Result<(), serials::Error> {
-/// // Set up flash storage
-/// static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
-/// let [wifi_flash, device_name_flash] =
-///     FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
+/// use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
+/// use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
+/// use serials::wifi_setup::fields::{TextField, TextFieldStatic};
+/// # #[panic_handler]
+/// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
+/// async fn example(
+///     spawner: embassy_executor::Spawner,
+///     peripherals: embassy_rp::Peripherals,
+/// ) -> Result<(), serials::Error> {
+///     // Set up flash storage
+///     static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
+///     let [wifi_flash, device_name_flash] =
+///         FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
 ///
-/// // Create device name field (max 32 chars)
-/// static DEVICE_NAME_STATIC: TextFieldStatic<32> = TextField::new_static();
-/// let device_name_field = TextField::new(
-///     &DEVICE_NAME_STATIC,
-///     device_name_flash,
-///     "device_name",    // HTML field name
-///     "Device Name",    // Label text
-///     "Pico",           // Default value
-/// );
+///     // Create device name field (max 32 chars)
+///     static DEVICE_NAME_STATIC: TextFieldStatic<32> = TextField::new_static();
+///     let device_name_field = TextField::new(
+///         &DEVICE_NAME_STATIC,
+///         device_name_flash,
+///         "device_name",    // HTML field name
+///         "Device Name",    // Label text
+///         "Pico",           // Default value
+///     );
 ///
-/// // Pass to WifiSetup
-/// static wifi_setup_STATIC: WifiSetupStatic = WifiSetup::new_static();
-/// let wifi_setup = WifiSetup::new(
-///     &wifi_setup_STATIC,
-///     peripherals.PIN_23,
-///     peripherals.PIN_25,
-///     peripherals.PIO0,
-///     peripherals.PIN_24,
-///     peripherals.PIN_29,
-///     peripherals.DMA_CH0,
-///     wifi_flash,
-///     peripherals.PIN_13,
-///     "Pico",
-///     [device_name_field],  // Custom fields array
-///     spawner,
-/// )?;
+///     // Pass to WifiSetup
+///     static wifi_setup_STATIC: WifiSetupStatic = WifiSetup::new_static();
+///     let wifi_setup = WifiSetup::new(
+///         &wifi_setup_STATIC,
+///         peripherals.PIN_23,
+///         peripherals.PIN_25,
+///         peripherals.PIO0,
+///         peripherals.PIN_24,
+///         peripherals.PIN_29,
+///         peripherals.DMA_CH0,
+///         wifi_flash,
+///         peripherals.PIN_13,
+///         "Pico",
+///         [device_name_field],  // Custom fields array
+///         spawner,
+///     )?;
 ///
-/// // Later, retrieve the device name
-/// let device_name = device_name_field.text()?.unwrap_or_default();
-/// # Ok(())
-/// # }
+///     // Later, retrieve the device name
+///     let device_name = device_name_field.text()?.unwrap_or_default();
+///     Ok(())
+/// }
 /// ```
 pub struct TextField<const N: usize> {
     flash: RefCell<FlashBlock>,

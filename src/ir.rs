@@ -25,10 +25,25 @@ pub enum IrEvent {
     // Repeat { addr: u16, cmd: u8 },
 }
 
-/// Static type for the `Ir` device abstraction.
+/// Static resources for the `Ir` device abstraction.
 ///
 /// See [`Ir`] for usage examples.
-pub type IrStatic = EmbassyChannel<CriticalSectionRawMutex, IrEvent, 8>;
+pub struct IrStatic(EmbassyChannel<CriticalSectionRawMutex, IrEvent, 8>);
+
+impl IrStatic {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self(EmbassyChannel::new())
+    }
+
+    pub(crate) async fn send(&self, event: IrEvent) {
+        self.0.send(event).await;
+    }
+
+    pub(crate) async fn receive(&self) -> IrEvent {
+        self.0.receive().await
+    }
+}
 
 /// A device abstraction for an infrared receiver using the NEC protocol.
 ///
@@ -36,24 +51,22 @@ pub type IrStatic = EmbassyChannel<CriticalSectionRawMutex, IrEvent, 8>;
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// # use panic_probe as _;
-/// # use serials::ir::{Ir, IrEvent};
-/// # async fn example(
-/// #     p: embassy_rp::Peripherals,
-/// #     spawner: embassy_executor::Spawner,
-/// # ) -> serials::Result<()> {
-/// static IR_STATIC: serials::ir::IrStatic = Ir::new_static();
-/// let ir = Ir::new(&IR_STATIC, p.PIN_15, spawner)?;
+/// use serials::ir::{Ir, IrEvent, IrStatic};
+/// # #[panic_handler]
+/// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 ///
-/// loop {
-///     let event = ir.wait().await;
-///     match event {
-///         IrEvent::Press { addr, cmd } => {
-///             defmt::info!("IR: addr=0x{:04X}, cmd=0x{:02X}", addr, cmd);
-///         }
+/// async fn example(
+///     p: embassy_rp::Peripherals,
+///     spawner: embassy_executor::Spawner,
+/// ) -> serials::Result<()> {
+///     static IR_STATIC: IrStatic = Ir::new_static();
+///     let ir = Ir::new(&IR_STATIC, p.PIN_15, spawner)?;
+///
+///     loop {
+///         let IrEvent::Press { addr, cmd } = ir.wait().await;
+///         defmt::info!("IR: addr=0x{:04X}, cmd=0x{:02X}", addr, cmd);
 ///     }
 /// }
-/// # }
 /// ```
 pub struct Ir<'a> {
     ir_static: &'a IrStatic,
@@ -65,7 +78,7 @@ impl Ir<'_> {
     /// See [`Ir`] for usage examples.
     #[must_use]
     pub const fn new_static() -> IrStatic {
-        EmbassyChannel::new()
+        IrStatic::new()
     }
 
     /// Create a new IR receiver on the specified pin.

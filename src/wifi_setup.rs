@@ -95,67 +95,66 @@ pub struct WifiSetupStatic {
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// # use serials::flash_array::{FlashArray, FlashArrayStatic};
-/// # use serials::wifi_setup::{WifiSetup, WifiSetupStatic, WifiSetupEvent};
-/// # use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
-/// # use embassy_executor::Spawner;
-/// # async fn example(
-/// #     spawner: Spawner,
-/// #     peripherals: embassy_rp::Peripherals,
-/// # ) -> Result<(), serials::Error> {
-/// // Set up flash storage for WiFi credentials and timezone
-/// static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
-/// let [wifi_flash, timezone_flash] =
-///     FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
+/// use serials::flash_array::{FlashArray, FlashArrayStatic};
+/// use serials::wifi_setup::{WifiSetup, WifiSetupStatic, WifiSetupEvent};
+/// use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
+/// async fn example(
+///     spawner: embassy_executor::Spawner,
+///     peripherals: embassy_rp::Peripherals,
+/// ) -> Result<(), serials::Error> {
+///     // Set up flash storage for WiFi credentials and timezone
+///     static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
+///     let [wifi_flash, timezone_flash] =
+///         FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
 ///
-/// // Create a timezone field to collect during provisioning
-/// static TIMEZONE_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
-/// let timezone_field = TimezoneField::new(&TIMEZONE_STATIC, timezone_flash);
+///     // Create a timezone field to collect during provisioning
+///     static TIMEZONE_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
+///     let timezone_field = TimezoneField::new(&TIMEZONE_STATIC, timezone_flash);
 ///
-/// // Initialize WifiSetup with the custom field
-/// static wifi_setup_STATIC: WifiSetupStatic = WifiSetup::new_static();
-/// let wifi_setup = WifiSetup::new(
-///     &wifi_setup_STATIC,
-///     peripherals.PIN_23,     // CYW43 power
-///     peripherals.PIN_25,     // CYW43 chip select
-///     peripherals.PIO0,       // CYW43 PIO interface
-///     peripherals.PIN_24,     // CYW43 clock
-///     peripherals.PIN_29,     // CYW43 data
-///     peripherals.DMA_CH0,    // CYW43 DMA
-///     wifi_flash,             // Flash for WiFi credentials
-///     peripherals.PIN_13,     // Button for forced reconfiguration
-///     "PicoAccess",           // Captive-portal SSID for provisioning
-///     [timezone_field],       // Array of custom fields
-///     spawner,
-/// )?;
+///     // Initialize WifiSetup with the custom field
+///     static wifi_setup_STATIC: WifiSetupStatic = WifiSetup::new_static();
+///     let wifi_setup = WifiSetup::new(
+///         &wifi_setup_STATIC,
+///         peripherals.PIN_23,     // CYW43 power
+///         peripherals.PIN_25,     // CYW43 chip select
+///         peripherals.PIO0,       // CYW43 PIO interface
+///         peripherals.PIN_24,     // CYW43 clock
+///         peripherals.PIN_29,     // CYW43 data
+///         peripherals.DMA_CH0,    // CYW43 DMA
+///         wifi_flash,             // Flash for WiFi credentials
+///         peripherals.PIN_13,     // Button for forced reconfiguration
+///         "PicoAccess",           // Captive-portal SSID for provisioning
+///         [timezone_field],       // Array of custom fields
+///         spawner,
+///     )?;
 ///
-/// // Connect with UI feedback (blocks until connected)
-/// // Note: If capturing variables from outer scope, create a reference first:
-/// //   let display_ref = &display;
-/// // Then use display_ref inside the closure.
-/// let (stack, button) = wifi_setup
-///     .connect(spawner, |event| async move {
-///         match event {
-///             WifiSetupEvent::CaptivePortalReady => {
-///                 defmt::info!("Captive portal ready - connect to WiFi network");
+///     // Connect with UI feedback (blocks until connected)
+///     // Note: If capturing variables from outer scope, create a reference first:
+///     //   let display_ref = &display;
+///     // Then use display_ref inside the closure.
+///     let (stack, button) = wifi_setup
+///         .connect(spawner, |event| async move {
+///             match event {
+///                 WifiSetupEvent::CaptivePortalReady => {
+///                     defmt::info!("Captive portal ready - connect to WiFi network");
+///                 }
+///                 WifiSetupEvent::Connecting { try_index, try_count } => {
+///                     defmt::info!("Connecting to WiFi (attempt {} of {})...", try_index + 1, try_count);
+///                 }
+///                 WifiSetupEvent::Connected => {
+///                     defmt::info!("WiFi connected successfully!");
+///                 }
 ///             }
-///             WifiSetupEvent::Connecting { try_index, try_count } => {
-///                 defmt::info!("Connecting to WiFi (attempt {} of {})...", try_index + 1, try_count);
-///             }
-///             WifiSetupEvent::Connected => {
-///                 defmt::info!("WiFi connected successfully!");
-///             }
-///         }
-///     })
-///     .await?;
+///         })
+///         .await?;
 ///
-/// // Now connected - retrieve timezone configuration
-/// let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
+///     // Now connected - retrieve timezone configuration
+///     let offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
 ///
-/// // Use stack for internet access and button for user interactions
-/// // Example: fetch NTP time, make HTTP requests, etc.
-/// # Ok(())
-/// # }
+///     // Use stack for internet access and button for user interactions
+///     // Example: fetch NTP time, make HTTP requests, etc.
+///     Ok(())
+/// }
 /// ```
 pub struct WifiSetup {
     events: &'static WifiSetupEvents,
@@ -345,14 +344,14 @@ impl WifiSetup {
     /// # use panic_probe as _;
     /// # use embassy_executor::Spawner;
     /// # use serials::wifi_setup::WifiSetup;
-    /// # use serials::wifi_setup::WifiSetupEvent;
-    /// # use serials::Result;
-    /// # async fn connect_sync(wifi_setup: &WifiSetup, spawner: Spawner) -> Result<()> {
-    /// wifi_setup.connect(spawner, |event| async move {
-    ///     defmt::info!("Event: {:?}", event);
-    /// }).await?;
-    /// # Ok(())
-    /// # }
+/// # use serials::wifi_setup::WifiSetupEvent;
+/// # use serials::Result;
+/// async fn connect_sync(wifi_setup: &WifiSetup, spawner: embassy_executor::Spawner) -> Result<()> {
+    ///     wifi_setup.connect(spawner, |event| async move {
+    ///         defmt::info!("Event: {:?}", event);
+    ///     }).await?;
+    ///     Ok(())
+    /// }
     /// ```
     ///
     /// Asynchronous callback (with `.await` calls):
@@ -369,15 +368,15 @@ impl WifiSetup {
     ///     defmt::info!("Updated display: {:?}", event);
     /// }
     ///
-    /// # async fn connect_async(
-    /// #     wifi_setup: &WifiSetup,
-    /// #     spawner: Spawner,
-    /// # ) -> Result<()> {
-    /// wifi_setup.connect(spawner, |event| async move {
-    ///     update_display(event).await;
-    /// }).await?;
-    /// # Ok(())
-    /// # }
+/// async fn connect_async(
+///     wifi_setup: &WifiSetup,
+///     spawner: embassy_executor::Spawner,
+/// ) -> Result<()> {
+    ///     wifi_setup.connect(spawner, |event| async move {
+    ///         update_display(event).await;
+    ///     }).await?;
+    ///     Ok(())
+    /// }
     /// ```
     pub async fn connect<Fut, F>(
         &self,

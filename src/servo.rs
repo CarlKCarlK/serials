@@ -55,17 +55,18 @@ pub use servo_odd;
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// # use panic_probe as _;
 /// # use serials::servo::servo_odd;
-/// # async fn example(p: embassy_rp::Peripherals) {
-/// // Create a servo on GPIO 15 with pulse range 500-2500 microseconds
-/// // (500µs = 0°, 2500µs = 180° for typical SG90)
-/// // GPIO 15 is odd. Calculate slice: (15 / 2) % 8 = 7 % 8 = 7 → PWM_SLICE7
-/// let mut servo = servo_odd!(p.PIN_15, p.PWM_SLICE7, 500, 2500);
+/// # #[panic_handler]
+/// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
+/// async fn example(p: embassy_rp::Peripherals) {
+///     // Create a servo on GPIO 15 with pulse range 500-2500 microseconds
+///     // (500µs = 0°, 2500µs = 180° for typical SG90)
+///     // GPIO 15 is odd. Calculate slice: (15 / 2) % 8 = 7 % 8 = 7 → PWM_SLICE7
+///     let mut servo = servo_odd!(p.PIN_15, p.PWM_SLICE7, 500, 2500);
 ///
-/// servo.set_degrees(45);  // Move to 45 degrees
-/// servo.center();          // Move to center position
-/// # }
+///     servo.set_degrees(45);  // Move to 45 degrees
+///     servo.center();          // Move to center position
+/// }
 /// ```
 pub struct Servo<'d> {
     pwm: Pwm<'d>,
@@ -96,14 +97,14 @@ impl<'d> Servo<'d> {
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// # use panic_probe as _;
-/// # use embassy_rp::pwm::{Config, Pwm};
-/// # use serials::servo::{Servo, ServoChannel};
-/// # async fn example(p: embassy_rp::Peripherals) {
-/// // GPIO 15 is odd, uses channel B. Calculate slice: (15 / 2) % 8 = 7
-/// let pwm = Pwm::new_output_b(p.PWM_SLICE7, p.PIN_15, Config::default());
-/// let mut servo = Servo::new(pwm, ServoChannel::B, 500, 2500);
-/// # }
+/// use serials::servo::{Servo, ServoChannel};
+/// # #[panic_handler]
+/// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
+/// async fn example(p: embassy_rp::Peripherals) {
+///     // GPIO 15 is odd, uses channel B. Calculate slice: (15 / 2) % 8 = 7
+///     let pwm = embassy_rp::pwm::Pwm::new_output_b(p.PWM_SLICE7, p.PIN_15, embassy_rp::pwm::Config::default());
+///     let mut servo = Servo::new(pwm, ServoChannel::B, 500, 2500);
+/// }
 /// ```
     pub fn new(pwm: Pwm<'d>, channel: ServoChannel, min_us: u16, max_us: u16) -> Self {
         Self::init(pwm, channel, min_us, max_us)

@@ -26,12 +26,22 @@ pub enum KeplerButton {
     USd,
 }
 
-/// Static type for Kepler IR remote events.
-///
-/// This is a type alias to [`IrMappingStatic`] for convenience.
+/// Static resources for Kepler IR remote events.
 ///
 /// See [`IrKepler`] for usage examples.
-pub type IrKeplerStatic = IrMappingStatic;
+pub struct IrKeplerStatic(IrMappingStatic);
+
+impl IrKeplerStatic {
+    /// Create static resources for the Kepler remote.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self(IrMappingStatic::new())
+    }
+
+    pub(crate) const fn inner(&self) -> &IrMappingStatic {
+        &self.0
+    }
+}
 
 /// Type alias for the Kepler button mapping.
 ///
@@ -70,7 +80,7 @@ const KEPLER_MAPPING: [(u16, u8, KeplerButton); 21] = [
     (0x0000, 0x4A, KeplerButton::Num(9)),
 ];
 
-/// Device abstraction for the SunFounder Kepler Kit IR remote.
+/// A device abstraction for the SunFounder Kepler Kit IR remote.
 ///
 /// This provides a simple interface for the Kepler remote with built-in button mappings.
 ///
@@ -79,19 +89,20 @@ const KEPLER_MAPPING: [(u16, u8, KeplerButton); 21] = [
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// # use serials::ir_kepler::{IrKepler, IrKeplerStatic};
-/// # async fn example(
-/// #     p: embassy_rp::Peripherals,
-/// #     spawner: embassy_executor::Spawner,
-/// # ) -> serials::Result<()> {
-/// static IR_KEPLER_STATIC: IrKeplerStatic = IrKepler::new_static();
-/// let ir_kepler = IrKepler::new(&IR_KEPLER_STATIC, p.PIN_15, spawner)?;
+/// use serials::ir_kepler::{IrKepler, IrKeplerStatic};
 ///
-/// loop {
-///     let button = ir_kepler.wait().await;
-///     defmt::info!("Button: {:?}", button);
+/// async fn example(
+///     p: embassy_rp::Peripherals,
+///     spawner: embassy_executor::Spawner,
+/// ) -> serials::Result<()> {
+///     static IR_KEPLER_STATIC: IrKeplerStatic = IrKepler::new_static();
+///     let ir_kepler = IrKepler::new(&IR_KEPLER_STATIC, p.PIN_15, spawner)?;
+///
+///     loop {
+///         let button = ir_kepler.wait().await;
+///         defmt::info!("Button: {:?}", button);
+///     }
 /// }
-/// # }
 /// ```
 pub struct IrKepler<'a> {
     mapping: IrKeplerMapping<'a>,
@@ -103,7 +114,7 @@ impl<'a> IrKepler<'a> {
     /// See [`IrKepler`] for usage examples.
     #[must_use]
     pub const fn new_static() -> IrKeplerStatic {
-        IrKeplerMapping::new_static()
+        IrKeplerStatic::new()
     }
 
     /// Create a new Kepler remote handler.
@@ -122,7 +133,7 @@ impl<'a> IrKepler<'a> {
         pin: Peri<'static, P>,
         spawner: Spawner,
     ) -> Result<Self> {
-        let mapping = IrMapping::new(ir_kepler_static, pin, &KEPLER_MAPPING, spawner)?;
+        let mapping = IrMapping::new(ir_kepler_static.inner(), pin, &KEPLER_MAPPING, spawner)?;
         Ok(Self { mapping })
     }
 

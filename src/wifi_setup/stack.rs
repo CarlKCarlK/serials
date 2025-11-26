@@ -14,14 +14,15 @@
 //! # #![no_std]
 //! # #![no_main]
 //! # use panic_probe as _;
-//! # use core::default::Default;
 //! use serials::flash_array::{FlashArray, FlashArrayStatic};
-//! use serials::wifi::Wifi;
+//! use serials::wifi::{Wifi, WifiStatic};
+//! # #[panic_handler]
+//! # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 //!
-//! # async fn example(spawner: embassy_executor::Spawner) {
-//! let p = embassy_rp::init(Default::default());
+//! async fn example(spawner: embassy_executor::Spawner) {
+//! let p = embassy_rp::init(core::default::Default::default());
 //!
-//! static WIFI_STATIC: serials::wifi::WifiStatic = Wifi::new_static();
+//! static WIFI_STATIC: WifiStatic = Wifi::new_static();
 //! static FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
 //! let [wifi_block] = FlashArray::new(&FLASH_STATIC, p.FLASH).unwrap();
 //!
@@ -44,7 +45,7 @@
 //! // Get network stack for serving configuration interface
 //! let stack = wifi.stack().await;
 //! // ... serve web interface on 192.168.4.1 ...
-//! # }
+//! }
 //! ```
 //!
 //! ## Client mode with stored credentials
@@ -53,15 +54,16 @@
 //! # #![no_std]
 //! # #![no_main]
 //! # use panic_probe as _;
-//! # use core::default::Default;
 //! use serials::flash_array::{FlashArray, FlashArrayStatic};
-//! use serials::wifi::Wifi;
+//! use serials::wifi::{Wifi, WifiStatic};
 //! use serials::wifi_config::WifiCredentials;
+//! # #[panic_handler]
+//! # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 //!
-//! # async fn example(spawner: embassy_executor::Spawner, credentials: WifiCredentials) {
-//! let p = embassy_rp::init(Default::default());
+//! async fn example(spawner: embassy_executor::Spawner, credentials: WifiCredentials) {
+//! let p = embassy_rp::init(core::default::Default::default());
 //!
-//! static WIFI_STATIC: serials::wifi::WifiStatic = Wifi::new_static();
+//! static WIFI_STATIC: WifiStatic = Wifi::new_static();
 //! static FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
 //! let [wifi_block] = FlashArray::new(&FLASH_STATIC, p.FLASH).unwrap();
 //!
@@ -81,7 +83,7 @@
 //! wifi.wait().await;
 //! let stack = wifi.stack().await;
 //! // ... use stack ...
-//! # }
+//! }
 //! ```
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]

@@ -44,28 +44,27 @@ impl Led4SimpleStatic {
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// # use panic_probe as _;
-/// use embassy_rp::gpio::{Level, Output};
 /// use serials::led4_simple::{Led4Simple, Led4SimpleStatic};
 /// use serials::led4::OutputArray;
-/// # use embassy_executor::Spawner;
+/// # #[panic_handler]
+/// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 ///
-/// # async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<(), embassy_executor::SpawnError> {
+/// async fn example(p: embassy_rp::Peripherals, spawner: embassy_executor::Spawner) -> Result<(), embassy_executor::SpawnError> {
 ///     let cells = OutputArray::new([
-///         Output::new(p.PIN_1, Level::High),
-///         Output::new(p.PIN_2, Level::High),
-///         Output::new(p.PIN_3, Level::High),
-///         Output::new(p.PIN_4, Level::High),
+///         embassy_rp::gpio::Output::new(p.PIN_1, embassy_rp::gpio::Level::High),
+///         embassy_rp::gpio::Output::new(p.PIN_2, embassy_rp::gpio::Level::High),
+///         embassy_rp::gpio::Output::new(p.PIN_3, embassy_rp::gpio::Level::High),
+///         embassy_rp::gpio::Output::new(p.PIN_4, embassy_rp::gpio::Level::High),
 ///     ]);
 ///     let segments = OutputArray::new([
-///         Output::new(p.PIN_5, Level::Low),
-///         Output::new(p.PIN_6, Level::Low),
-///         Output::new(p.PIN_7, Level::Low),
-///         Output::new(p.PIN_8, Level::Low),
-///         Output::new(p.PIN_9, Level::Low),
-///         Output::new(p.PIN_10, Level::Low),
-///         Output::new(p.PIN_11, Level::Low),
-///         Output::new(p.PIN_12, Level::Low),
+///         embassy_rp::gpio::Output::new(p.PIN_5, embassy_rp::gpio::Level::Low),
+///         embassy_rp::gpio::Output::new(p.PIN_6, embassy_rp::gpio::Level::Low),
+///         embassy_rp::gpio::Output::new(p.PIN_7, embassy_rp::gpio::Level::Low),
+///         embassy_rp::gpio::Output::new(p.PIN_8, embassy_rp::gpio::Level::Low),
+///         embassy_rp::gpio::Output::new(p.PIN_9, embassy_rp::gpio::Level::Low),
+///         embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low),
+///         embassy_rp::gpio::Output::new(p.PIN_11, embassy_rp::gpio::Level::Low),
+///         embassy_rp::gpio::Output::new(p.PIN_12, embassy_rp::gpio::Level::Low),
 ///     ]);
 ///     
 ///     static LED4_SIMPLE_STATIC: Led4SimpleStatic = Led4Simple::new_static();

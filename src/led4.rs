@@ -104,30 +104,29 @@ pub type Led4Animation = Vec<AnimationFrame, ANIMATION_MAX_FRAMES>;
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// # use panic_probe as _;
-/// use embassy_rp::gpio::{Level, Output};
 /// use serials::{Error, led4::{BlinkState, Led4, Led4Static, OutputArray}};
-/// # use embassy_executor::Spawner;
+/// # #[panic_handler]
+/// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 ///
-/// async fn example(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<(), Error> {
+/// async fn example(p: embassy_rp::Peripherals, spawner: embassy_executor::Spawner) -> Result<(), Error> {
 ///     // Set up cell pins (control which digit is active)
 ///     let cells = OutputArray::new([
-///         Output::new(p.PIN_1, Level::High),
-///         Output::new(p.PIN_2, Level::High),
-///         Output::new(p.PIN_3, Level::High),
-///         Output::new(p.PIN_4, Level::High),
+///         embassy_rp::gpio::Output::new(p.PIN_1, embassy_rp::gpio::Level::High),
+///         embassy_rp::gpio::Output::new(p.PIN_2, embassy_rp::gpio::Level::High),
+///         embassy_rp::gpio::Output::new(p.PIN_3, embassy_rp::gpio::Level::High),
+///         embassy_rp::gpio::Output::new(p.PIN_4, embassy_rp::gpio::Level::High),
 ///     ]);
 ///
 ///     // Set up segment pins (control which segments light up)
 ///     let segments = OutputArray::new([
-///         Output::new(p.PIN_5, Level::Low),  // Segment A
-///         Output::new(p.PIN_6, Level::Low),  // Segment B
-///         Output::new(p.PIN_7, Level::Low),  // Segment C
-///         Output::new(p.PIN_8, Level::Low),  // Segment D
-///         Output::new(p.PIN_9, Level::Low),  // Segment E
-///         Output::new(p.PIN_10, Level::Low), // Segment F
-///         Output::new(p.PIN_11, Level::Low), // Segment G
-///         Output::new(p.PIN_12, Level::Low), // Decimal point
+///         embassy_rp::gpio::Output::new(p.PIN_5, embassy_rp::gpio::Level::Low),  // Segment A
+///         embassy_rp::gpio::Output::new(p.PIN_6, embassy_rp::gpio::Level::Low),  // Segment B
+///         embassy_rp::gpio::Output::new(p.PIN_7, embassy_rp::gpio::Level::Low),  // Segment C
+///         embassy_rp::gpio::Output::new(p.PIN_8, embassy_rp::gpio::Level::Low),  // Segment D
+///         embassy_rp::gpio::Output::new(p.PIN_9, embassy_rp::gpio::Level::Low),  // Segment E
+///         embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low), // Segment F
+///         embassy_rp::gpio::Output::new(p.PIN_11, embassy_rp::gpio::Level::Low), // Segment G
+///         embassy_rp::gpio::Output::new(p.PIN_12, embassy_rp::gpio::Level::Low), // Decimal point
 ///     ]);
 ///
 ///     // Create the display
@@ -211,30 +210,31 @@ impl Led4<'_> {
     /// # use embassy_rp::gpio::{Level, Output};
     /// # use embassy_executor::Spawner;
     /// # use serials::led4::{Led4, Led4Static, OutputArray, AnimationFrame, Led4Animation};
-    /// # async fn demo(peripherals: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
-    /// let cells = OutputArray::new([
-    ///     Output::new(peripherals.PIN_1, Level::High),
-    ///     Output::new(peripherals.PIN_2, Level::High),
-    ///     Output::new(peripherals.PIN_3, Level::High),
-    ///     Output::new(peripherals.PIN_4, Level::High),
-    /// ]);
-    /// let segments = OutputArray::new([
-    ///     Output::new(peripherals.PIN_5, Level::Low),
-    ///     Output::new(peripherals.PIN_6, Level::Low),
-    ///     Output::new(peripherals.PIN_7, Level::Low),
-    ///     Output::new(peripherals.PIN_8, Level::Low),
-    ///     Output::new(peripherals.PIN_9, Level::Low),
-    ///     Output::new(peripherals.PIN_10, Level::Low),
-    ///     Output::new(peripherals.PIN_11, Level::Low),
-    ///     Output::new(peripherals.PIN_12, Level::Low),
-    /// ]);
-    /// static LED4_STATIC: Led4Static = Led4::new_static();
-    /// let display = Led4::new(&LED4_STATIC, cells, segments, spawner)?;
-    /// let mut animation = Led4Animation::new();
-    /// animation.push(AnimationFrame::new(['-', '-', '-', '-'], embassy_time::Duration::from_millis(100))).ok();
-    /// animation.push(AnimationFrame::new([' ', ' ', ' ', ' '], embassy_time::Duration::from_millis(100))).ok();
-    /// display.animate_text(animation);
-    /// # Ok(()) }
+    /// async fn demo(peripherals: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
+    ///     let cells = OutputArray::new([
+    ///         Output::new(peripherals.PIN_1, Level::High),
+    ///         Output::new(peripherals.PIN_2, Level::High),
+    ///         Output::new(peripherals.PIN_3, Level::High),
+    ///         Output::new(peripherals.PIN_4, Level::High),
+    ///     ]);
+    ///     let segments = OutputArray::new([
+    ///         Output::new(peripherals.PIN_5, Level::Low),
+    ///         Output::new(peripherals.PIN_6, Level::Low),
+    ///         Output::new(peripherals.PIN_7, Level::Low),
+    ///         Output::new(peripherals.PIN_8, Level::Low),
+    ///         Output::new(peripherals.PIN_9, Level::Low),
+    ///         Output::new(peripherals.PIN_10, Level::Low),
+    ///         Output::new(peripherals.PIN_11, Level::Low),
+    ///         Output::new(peripherals.PIN_12, Level::Low),
+    ///     ]);
+    ///     static LED4_STATIC: Led4Static = Led4::new_static();
+    ///     let display = Led4::new(&LED4_STATIC, cells, segments, spawner)?;
+    ///     let mut animation = Led4Animation::new();
+    ///     animation.push(AnimationFrame::new(['-', '-', '-', '-'], embassy_time::Duration::from_millis(100))).ok();
+    ///     animation.push(AnimationFrame::new([' ', ' ', ' ', ' '], embassy_time::Duration::from_millis(100))).ok();
+    ///     display.animate_text(animation);
+    ///     Ok(())
+    /// }
     /// ```
     pub fn animate_text(&self, animation: Led4Animation) {
         self.0.signal(Led4Command::Animation(animation));
@@ -329,15 +329,17 @@ async fn run_animation_loop(
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// # use panic_probe as _;
-/// # use serials::led4::{Led4, circular_outline_animation};
-/// # async fn example(led4: &Led4<'_>) {
-/// // Animate clockwise
-/// led4.animate_text(circular_outline_animation(true));
+/// use serials::led4::{Led4, circular_outline_animation};
+/// # #[panic_handler]
+/// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 ///
-/// // Animate counter-clockwise
-/// led4.animate_text(circular_outline_animation(false));
-/// # }
+/// async fn example(led4: &Led4<'_>) {
+///     // Animate clockwise
+///     led4.animate_text(circular_outline_animation(true));
+///
+///     // Animate counter-clockwise
+///     led4.animate_text(circular_outline_animation(false));
+/// }
 /// ```
 #[must_use]
 pub fn circular_outline_animation(clockwise: bool) -> Led4Animation {

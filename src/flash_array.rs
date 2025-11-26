@@ -181,33 +181,32 @@ impl FlashArrayStatic {
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// use serde::{Serialize, Deserialize};
 /// use serials::flash_array::{FlashArray, FlashArrayStatic};
 ///
 /// // Define your configuration type
-/// #[derive(Serialize, Deserialize, Debug, Default)]
+/// #[derive(serde::Serialize, serde::Deserialize, Debug, Default)]
 /// struct DeviceConfig {
 ///     brightness: u8,
 ///     timezone_offset: i16,
 ///     display_mode: u8,
 /// }
 ///
-/// # async fn example(p: embassy_rp::Peripherals) -> serials::Result<()> {
-/// static FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
-/// let [mut device_config_block] = FlashArray::new(&FLASH_STATIC, p.FLASH)?;
+/// async fn example(p: embassy_rp::Peripherals) -> serials::Result<()> {
+///     static FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
+///     let [mut device_config_block] = FlashArray::new(&FLASH_STATIC, p.FLASH)?;
 ///
-/// // Load existing config if present.
-/// let mut device_config: DeviceConfig = device_config_block
-///     .load()?
-///     .unwrap_or_default();
+///     // Load existing config if present.
+///     let mut device_config: DeviceConfig = device_config_block
+///         .load()?
+///         .unwrap_or_default();
 ///
-/// // Modify and save
-/// device_config.brightness = 255;
-/// device_config_block.save(&device_config)?;
+///     // Modify and save
+///     device_config.brightness = 255;
+///     device_config_block.save(&device_config)?;
 ///
-/// // Can also clear storage with: device_config_block.clear()?;
-/// # Ok(())
-/// # }
+///     // Can also clear storage with: device_config_block.clear()?;
+///     Ok(())
+/// }
 /// ```
 ///
 /// ## Whiteboard semantics demonstration
@@ -216,19 +215,18 @@ impl FlashArrayStatic {
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// # use heapless::String;
-/// # use serials::flash_array::{FlashArray, FlashArrayStatic};
-/// # async fn example() -> serials::Result<()> {
-/// # let p = embassy_rp::init(Default::default());
-/// # static FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
-/// # let [mut string_block] = FlashArray::new(&FLASH_STATIC, p.FLASH)?;
-/// string_block.save(&String::<64>::try_from("Hello")?)?;
+/// use serials::flash_array::{FlashArray, FlashArrayStatic};
+/// async fn example() -> serials::Result<()> {
+///     let p = embassy_rp::init(Default::default());
+///     static FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
+///     let [mut string_block] = FlashArray::new(&FLASH_STATIC, p.FLASH)?;
+///     string_block.save(&heapless::String::<64>::try_from("Hello")?)?;
 ///
-/// // Reading with a different type returns None (whiteboard semantics)
-/// let result: Option<u64> = string_block.load()?;
-/// assert!(result.is_none());  // Different type (u64 vs String<64>)!
-/// # Ok(())
-/// # }
+///     // Reading with a different type returns None (whiteboard semantics)
+///     let result: Option<u64> = string_block.load()?;
+///     assert!(result.is_none());  // Different type (u64 vs String<64>)!
+///     Ok(())
+/// }
 /// ```
 /// Marker type used as a namespace for creating flash-backed arrays of length `N`.
 pub struct FlashArray<const N: usize>;

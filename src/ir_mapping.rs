@@ -35,30 +35,29 @@ impl IrMappingStatic {
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// # use panic_probe as _;
-/// # use core::prelude::rust_2024::derive;
-/// # use serials::ir_mapping::{IrMapping, IrMappingStatic};
-/// #
+/// use serials::ir_mapping::{IrMapping, IrMappingStatic};
+/// # #[panic_handler]
+/// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 /// #[derive(Debug, Clone, Copy)]
 /// enum RemoteButton { Power, Play, Stop }
-/// # async fn example(
-/// #     p: embassy_rp::Peripherals,
-/// #     spawner: embassy_executor::Spawner,
-/// # ) -> serials::Result<()> {
-/// let button_map = [
-///     (0x0000, 0x45, RemoteButton::Power),
-///     (0x0000, 0x0C, RemoteButton::Play),
-///     (0x0000, 0x08, RemoteButton::Stop),
-/// ];
+/// async fn example(
+///     p: embassy_rp::Peripherals,
+///     spawner: embassy_executor::Spawner,
+/// ) -> serials::Result<()> {
+///     let button_map = [
+///         (0x0000, 0x45, RemoteButton::Power),
+///         (0x0000, 0x0C, RemoteButton::Play),
+///         (0x0000, 0x08, RemoteButton::Stop),
+///     ];
 ///
-/// static IR_MAPPING_STATIC: IrMappingStatic = IrMapping::<RemoteButton, 3>::new_static();
-/// let ir_mapping: IrMapping<RemoteButton, 3> = IrMapping::new(&IR_MAPPING_STATIC, p.PIN_15, &button_map, spawner)?;
+///     static IR_MAPPING_STATIC: IrMappingStatic = IrMapping::<RemoteButton, 3>::new_static();
+///     let ir_mapping: IrMapping<RemoteButton, 3> = IrMapping::new(&IR_MAPPING_STATIC, p.PIN_15, &button_map, spawner)?;
 ///
-/// loop {
-///     let button = ir_mapping.wait().await;
-///     // Use button...
+///     loop {
+///         let button = ir_mapping.wait().await;
+///         // Use button...
+///     }
 /// }
-/// # }
 /// ```
 pub struct IrMapping<'a, B, const N: usize> {
     ir: Ir<'a>,

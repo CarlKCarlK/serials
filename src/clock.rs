@@ -107,13 +107,10 @@ impl ClockStatic {
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// # use core::panic::PanicInfo;
-/// # #[panic_handler]
-/// # fn panic(_info: &PanicInfo) -> ! {
-/// #     loop {}
-/// # }
 /// use serials::clock::{Clock, ClockStatic, ONE_SECOND, h12_m_s};
 /// use serials::time_sync::UnixSeconds;
+/// # #[panic_handler]
+/// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 ///
 /// async fn run_clock(spawner: embassy_executor::Spawner) {
 ///     static CLOCK_STATIC: ClockStatic = Clock::new_static();

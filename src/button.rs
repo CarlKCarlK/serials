@@ -56,9 +56,8 @@ pub enum PressDuration {
 /// # #![no_main]
 ///
 /// use serials::button::{Button, PressDuration};
-/// # use core::panic::PanicInfo;
 /// # #[panic_handler]
-/// # fn panic(_: &PanicInfo) -> ! { loop {} }
+/// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 ///
 /// async fn example(p: embassy_rp::Peripherals) {
 ///     let mut button = Button::new(p.PIN_15);

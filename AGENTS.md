@@ -82,6 +82,11 @@ Preserving comments: When changing code, generally don't remove TODO's and cmk's
 - Each module should have exactly one full, compilable example placed on the primary struct; keep other docs free of extra examples.
 - Other public items (constructors, helper methods, type aliases) should point back to the primary struct's example rather than adding new snippets.
 - Examples should use the module's real constructors (e.g., `new_static`, `new`) and follow the device/static pair pattern shown elsewhere in the repo.
+- Avoid unnecessary public type aliases; prefer private or newtype wrappers when exposing resources so internal types stay hidden.
+- In examples, prefer importing the types you need (`use crate::foo::{Device, DeviceStatic};`) instead of fully-qualified paths for statics.
+- Keep example shape consistent: show an async function that receives `Peripherals`/`Spawner` (or other handles) and constructs the device with `new_static`/`new`; avoid mixing inline examples without that pattern next to function-based ones.
+- Examples must show the actual `use` statements for the module being documented (bring types into scope explicitly rather than relying on hidden imports).
+- In examples, keep `use` statements limited to `serials::...` items; refer to other crates/modules with fully qualified paths inline.
 
 ### Precision Over Future‑Proofing
 
