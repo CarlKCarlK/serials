@@ -1,4 +1,6 @@
 //! A device abstraction for 4-character LED matrix displays (12x4 pixels).
+//!
+//! See [`Led24x4`] for the main usage example.
 
 use crate::{Result, led_strip::LedStrip};
 use smart_leds::RGB8;
@@ -32,6 +34,28 @@ pub const COLS: usize = 12;
 pub const ROWS: usize = 4;
 
 /// A device abstraction for a 4-character LED matrix display (12x4 pixels) built on LED strips.
+///
+/// ```no_run
+/// # #![no_std]
+/// # use panic_probe as _;
+/// # fn main() {}
+/// use serials::led24x4::Led24x4;
+/// use serials::led_strip::{LedStrip, LedStripStatic, Rgb};
+///
+/// async fn example() -> serials::Result<()> {
+///     static LED_STRIP_STATIC: LedStripStatic<{ serials::led24x4::COLS * serials::led24x4::ROWS }> =
+///         LedStrip::new_static();
+///     let strip = LedStrip::new(&LED_STRIP_STATIC)?;
+///     let mut display = Led24x4::new(strip);
+///
+///     let red = Rgb::new(32, 0, 0);
+///     let green = Rgb::new(0, 32, 0);
+///     let blue = Rgb::new(0, 0, 32);
+///     let yellow = Rgb::new(32, 32, 0);
+///     display.display(['1', '2', '3', '4'], [red, green, blue, yellow]).await?;
+///     Ok(())
+/// }
+/// ```
 pub struct Led24x4 {
     strip: LedStrip<{ COLS * ROWS }>,
 }

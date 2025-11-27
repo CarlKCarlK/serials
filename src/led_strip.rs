@@ -1,4 +1,6 @@
 //! A device abstraction for WS2812-style LED strips.
+//!
+//! See [`LedStripN`] for the main usage example.
 
 use core::cell::RefCell;
 use embassy_rp::pio::{Common, Instance};
@@ -84,6 +86,27 @@ impl<const N: usize> LedStripStatic<N> {
 }
 
 /// A device abstraction for WS2812-style LED strips with configurable length.
+///
+/// ```no_run
+/// # #![no_std]
+/// # use panic_probe as _;
+/// # fn main() {}
+/// use serials::led_strip::{LedStrip, LedStripStatic, Rgb};
+///
+/// async fn example() -> serials::Result<()> {
+///     static LED_STRIP_STATIC: LedStripStatic<8> = LedStrip::new_static();
+///     let mut strip: LedStrip<8> = LedStrip::new(&LED_STRIP_STATIC)?;
+///
+///     let red = Rgb::new(16, 0, 0);
+///     let green = Rgb::new(0, 16, 0);
+///     let blue = Rgb::new(0, 0, 16);
+///     let frame = [
+///         red, green, blue, red, green, blue, red, green,
+///     ];
+///     strip.update_pixels(&frame).await?;
+///     Ok(())
+/// }
+/// ```
 pub struct LedStripN<const N: usize> {
     commands: &'static LedStripCommands<N>,
 }

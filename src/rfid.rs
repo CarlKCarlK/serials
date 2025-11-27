@@ -1,4 +1,6 @@
 //! A device abstraction for RFID readers using the MFRC522 chip.
+//!
+//! See [`Rfid`] for the primary example; helper functions link back here.
 
 use defmt::info;
 use embassy_executor::Spawner;
@@ -35,6 +37,38 @@ pub type Mfrc522Device = MFRC522<
 pub type RfidStatic = EmbassyChannel<CriticalSectionRawMutex, RfidEvent, 4>;
 
 /// A device abstraction for an RFID reader using the MFRC522 chip.
+///
+/// ```no_run
+/// # #![no_std]
+/// # use panic_probe as _;
+/// # fn main() {}
+/// use serials::rfid::{Rfid, RfidEvent, RfidStatic};
+///
+/// async fn example(
+///     p: embassy_rp::Peripherals,
+///     spawner: embassy_executor::Spawner,
+/// ) -> serials::Result<()> {
+///     static RFID_STATIC: RfidStatic = Rfid::new_static();
+///     let rfid = Rfid::new(
+///         &RFID_STATIC,
+///         p.SPI0,
+///         p.PIN_2,
+///         p.PIN_3,
+///         p.PIN_0,
+///         p.DMA_CH0,
+///         p.DMA_CH1,
+///         p.PIN_1,
+///         p.PIN_4,
+///         spawner,
+///     )
+///     .await?;
+///
+///     loop {
+///         let RfidEvent::CardDetected { uid } = rfid.wait_for_tap().await;
+///         defmt::info!("RFID uid: {:?}", uid);
+///     }
+/// }
+/// ```
 pub struct Rfid<'a> {
     rfid_static: &'a RfidStatic,
 }

@@ -1,4 +1,6 @@
 //! A device abstraction for HD44780-compatible character LCDs (e.g., 16x2, 20x2, 20x4).
+//!
+//! See [`CharLcd`] for the primary usage example.
 
 use embassy_executor::Spawner;
 use embassy_rp::Peri;
@@ -39,6 +41,24 @@ impl CharLcdStatic {
 }
 
 /// A device abstraction for an HD44780-compatible character LCD.
+///
+/// ```no_run
+/// # #![no_std]
+/// # use panic_probe as _;
+/// # fn main() {}
+/// use serials::char_lcd::{CharLcd, CharLcdStatic};
+///
+/// async fn example(
+///     p: embassy_rp::Peripherals,
+///     spawner: embassy_executor::Spawner,
+/// ) -> serials::Result<()> {
+///     static CHAR_LCD_STATIC: CharLcdStatic = CharLcd::new_static();
+///     let lcd = CharLcd::new(&CHAR_LCD_STATIC, p.I2C0, p.PIN_1, p.PIN_0, spawner)?;
+///     let mut text: heapless::String<64> = "Hello!".try_into().unwrap();
+///     lcd.display(text, 1_000).await;
+///     Ok(())
+/// }
+/// ```
 pub struct CharLcd {
     char_lcd_static: &'static CharLcdStatic,
 }

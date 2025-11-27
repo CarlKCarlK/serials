@@ -4,6 +4,7 @@
 - Avoid introducing `unsafe` blocks. If a change truly requires `unsafe`, call it out explicitly and explain the justification so the user can review it carefully.
 - Avoid silent clamping; prefer asserts or typed ranges so out-of-range inputs fail fast.
 - Prefer `no_run` doctests; use `ignore` only when absolutely necessary (and call out why).
+- When adding docs for modules or public items, link readers to the primary struct and keep the single compilable example on that struct; other items should point back to it rather than duplicating examples.
 
 ## Module Structure Convention
 
