@@ -82,7 +82,7 @@ impl Rfid<'_> {
     }
 
     /// Wait for the next RFID event (card detection)
-    pub async fn wait(&self) -> RfidEvent {
+    pub async fn wait_for_tap(&self) -> RfidEvent {
         self.rfid_static.receive().await
     }
 }

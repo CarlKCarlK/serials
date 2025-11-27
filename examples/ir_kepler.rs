@@ -27,7 +27,7 @@ async fn inner_main(spawner: Spawner) -> serials::Result<!> {
     info!("Press buttons on the remote control...");
 
     loop {
-        let button = ir_kepler.wait().await;
+        let button = ir_kepler.wait_for_press().await;
         info!("Button pressed: {:?}", button);
     }
 }

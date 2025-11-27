@@ -34,9 +34,12 @@ pub mod fields;
 mod portal;
 mod stack;
 
-use credentials::WifiCredentials;
+use credentials::WifiCredentials as InnerWifiCredentials;
 use dns::dns_server_task;
-use stack::{Wifi, WifiEvent, WifiStartMode, WifiStatic};
+use stack::{WifiStartMode, WifiStatic as InnerWifiStatic};
+
+pub use stack::{Wifi, WifiEvent, WifiStatic};
+pub use credentials::WifiCredentials;
 
 pub use portal::WifiSetupField;
 
@@ -67,10 +70,10 @@ const MAX_WIFI_SETUP_FIELDS: usize = 8;
 /// Static for [`WifiSetup`]. See [`WifiSetup`] for usage example.
 pub struct WifiSetupStatic {
     events: WifiSetupEvents,
-    wifi: WifiStatic,
+    wifi: InnerWifiStatic,
     wifi_setup_cell: StaticCell<WifiSetup>,
     force_captive_portal: AtomicBool,
-    defaults: Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>>,
+    defaults: Mutex<CriticalSectionRawMutex, RefCell<Option<InnerWifiCredentials>>>,
     button: Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>>,
     fields_storage: StaticCell<Vec<&'static dyn WifiSetupField, MAX_WIFI_SETUP_FIELDS>>,
 }
@@ -160,7 +163,7 @@ pub struct WifiSetup {
     events: &'static WifiSetupEvents,
     wifi: &'static Wifi,
     force_captive_portal: &'static AtomicBool,
-    defaults: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>>,
+    defaults: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<InnerWifiCredentials>>>,
     button: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>>,
     fields: &'static [&'static dyn WifiSetupField],
 }
@@ -185,7 +188,7 @@ impl WifiSetupStatic {
 
     fn defaults(
         &'static self,
-    ) -> &'static Mutex<CriticalSectionRawMutex, RefCell<Option<WifiCredentials>>> {
+    ) -> &'static Mutex<CriticalSectionRawMutex, RefCell<Option<InnerWifiCredentials>>> {
         &self.defaults
     }
 
@@ -400,7 +403,7 @@ impl WifiSetup {
 
         let (result, ()) = embassy_futures::join::join(self.ensure_connected(spawner), ui).await;
         result?;
-        let stack = self.wifi.stack().await;
+        let stack = self.wifi.wait_for_stack().await;
         let button = self.take_button().ok_or(Error::StorageCorrupted)?;
         Ok((stack, button))
     }
@@ -468,7 +471,7 @@ impl WifiSetup {
     async fn wait_for_client_ready_with_timeout(&self, timeout: Duration) -> bool {
         with_timeout(timeout, async {
             loop {
-                match self.wifi.wait().await {
+                match self.wifi.wait_for_wifi_event().await {
                     WifiEvent::ClientReady => break,
                     WifiEvent::CaptivePortalReady => {
                         info!(
@@ -484,8 +487,8 @@ impl WifiSetup {
 
     #[allow(unreachable_code)]
     async fn run_captive_portal(&self, spawner: Spawner) -> Result<Infallible> {
-        self.wifi.wait().await;
-        let stack = self.wifi.stack().await;
+        self.wifi.wait_for_wifi_event().await;
+        let stack = self.wifi.wait_for_stack().await;
 
         let captive_portal_ip = Ipv4Address::new(192, 168, 4, 1);
         let dns_token = unwrap!(dns_server_task(stack, captive_portal_ip));

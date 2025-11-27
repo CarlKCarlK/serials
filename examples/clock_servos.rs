@@ -161,9 +161,9 @@ impl State {
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
         servo_display.show_hours_minutes(hours, minutes).await;
         clock.set_tick_interval(Some(ONE_MINUTE)).await;
-        let mut button_press = pin!(button.press_duration());
+        let mut button_press = pin!(button.wait_for_press_duration());
         loop {
-            match select(&mut button_press, select(clock.wait(), time_sync.wait())).await {
+            match select(&mut button_press, select(clock.wait_for_tick(), time_sync.wait_for_sync())).await {
                 // Button pushes
                 Either::First(press_duration) => match (press_duration, speed.to_bits()) {
                     (PressDuration::Short, bits) if bits == 1.0f32.to_bits() => {
@@ -209,8 +209,8 @@ impl State {
         clock.set_tick_interval(Some(ONE_SECOND)).await;
         loop {
             match select(
-                select(button.press_duration(), clock.wait()),
-                time_sync.wait(),
+                select(button.wait_for_press_duration(), clock.wait_for_tick()),
+                time_sync.wait_for_sync(),
             )
             .await
             {
@@ -278,7 +278,7 @@ impl State {
         clock.set_tick_interval(None).await; // Disable ticks in edit mode
         loop {
             info!("Waiting for button press in edit mode");
-            match button.press_duration().await {
+            match button.wait_for_press_duration().await {
                 PressDuration::Short => {
                     info!("Short press detected - incrementing offset");
                     // Increment the offset by 1 hour

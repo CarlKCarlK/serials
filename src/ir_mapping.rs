@@ -54,7 +54,7 @@ impl IrMappingStatic {
 ///     let ir_mapping: IrMapping<RemoteButton, 3> = IrMapping::new(&IR_MAPPING_STATIC, p.PIN_15, &button_map, spawner)?;
 ///
 ///     loop {
-///         let button = ir_mapping.wait().await;
+///         let button = ir_mapping.wait_for_press().await;
 ///         // Use button...
 ///     }
 /// }
@@ -113,9 +113,9 @@ where
     /// Ignores button presses that are not in the button map.
     ///
     /// See [`IrMapping`] for usage examples.
-    pub async fn wait(&self) -> B {
+    pub async fn wait_for_press(&self) -> B {
         loop {
-            let IrEvent::Press { addr, cmd } = self.ir.wait().await;
+            let IrEvent::Press { addr, cmd } = self.ir.wait_for_press().await;
             #[cfg(feature = "defmt")]
             defmt::info!("IR received - addr=0x{:04X} cmd=0x{:02X}", addr, cmd);
             if let Some(&button) = self.button_map.get(&(addr, cmd)) {

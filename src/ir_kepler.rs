@@ -99,7 +99,7 @@ const KEPLER_MAPPING: [(u16, u8, KeplerButton); 21] = [
 ///     let ir_kepler = IrKepler::new(&IR_KEPLER_STATIC, p.PIN_15, spawner)?;
 ///
 ///     loop {
-///         let button = ir_kepler.wait().await;
+///         let button = ir_kepler.wait_for_press().await;
 ///         defmt::info!("Button: {:?}", button);
 ///     }
 /// }
@@ -142,7 +142,7 @@ impl<'a> IrKepler<'a> {
     /// Ignores button presses that are not recognized by the Kepler remote.
     ///
     /// See [`IrKepler`] for usage examples.
-    pub async fn wait(&self) -> KeplerButton {
-        self.mapping.wait().await
+    pub async fn wait_for_press(&self) -> KeplerButton {
+        self.mapping.wait_for_press().await
     }
 }

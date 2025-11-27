@@ -175,8 +175,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
         // info!("Waiting for RFID/IR/clock/time-sync events");
         let event = select(
-            select(rfid_reader.wait(), ir.wait()),
-            select(clock.wait(), time_sync.wait()),
+            select(rfid_reader.wait_for_tap(), ir.wait_for_press()),
+            select(clock.wait_for_tick(), time_sync.wait_for_sync()),
         )
         .await;
 

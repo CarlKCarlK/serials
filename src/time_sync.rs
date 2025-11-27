@@ -104,7 +104,7 @@ mod wifi_impl {
     ///
     ///     // Wait for sync events
     ///     loop {
-    ///         match time_sync.wait().await {
+    ///         match time_sync.wait_for_sync().await {
     ///             TimeSyncEvent::Success { unix_seconds } => {
     ///                 defmt::info!("Time synced: {} seconds", unix_seconds.as_i64());
     ///             }
@@ -147,7 +147,7 @@ mod wifi_impl {
         }
 
         /// Wait for and return the next [`TimeSyncEvent`]. See [`TimeSync`] docs for an example.
-        pub async fn wait(&self) -> TimeSyncEvent {
+        pub async fn wait_for_sync(&self) -> TimeSyncEvent {
             self.events.wait().await
         }
     }
@@ -390,7 +390,7 @@ mod stub {
         }
 
         /// Wait for the next [`TimeSyncEvent`]. This stub never signals, so waits forever (disabling sync).
-        pub async fn wait(&self) -> TimeSyncEvent {
+        pub async fn wait_for_sync(&self) -> TimeSyncEvent {
             self.events.wait().await
         }
     }

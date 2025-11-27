@@ -60,6 +60,8 @@ pub mod servo_animate;
 #[cfg(not(feature = "host"))]
 pub mod time_sync;
 #[cfg(all(feature = "wifi", not(feature = "host")))]
+pub mod wifi;
+#[cfg(all(feature = "wifi", not(feature = "host")))]
 pub mod wifi_setup;
 
 // Re-export error types and result (used throughout)

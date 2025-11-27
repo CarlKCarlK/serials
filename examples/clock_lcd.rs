@@ -90,7 +90,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
     // Main orchestrator loop - owns LCD and displays clock/sync events
     loop {
-        match select(clock.wait(), time_sync.wait()).await {
+        match select(clock.wait_for_tick(), time_sync.wait_for_sync()).await {
             // On every tick event, update the LCD display
             Either::First(time_info) => {
                 let mut text = String::<64>::new();

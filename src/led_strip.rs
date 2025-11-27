@@ -164,8 +164,11 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
 /// per-strip brightness limiting based on current budget.
 ///
 /// # Example
-/// ```ignore
-/// // Requires target support and macro imports; ignored in doctests.
+/// ```no_run
+/// #![no_std]
+/// use panic_probe as _;
+/// // Requires target support and macro imports; no_run to avoid hardware access in doctests.
+/// # fn main() {}
 /// ```
 #[doc(hidden)]
 #[macro_export]

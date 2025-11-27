@@ -42,7 +42,7 @@ pub enum PressDuration {
 ///
 /// # Usage
 ///
-/// The [`press_duration()`](Self::press_duration) method returns as soon as it determines
+/// The [`wait_for_press_duration()`](Self::wait_for_press_duration) method returns as soon as it determines
 /// whether the press is short or long, without waiting for the button to be released.
 /// This allows for responsive UI feedback.
 ///
@@ -64,7 +64,7 @@ pub enum PressDuration {
 ///
 ///     // Measure press durations in a loop
 ///     loop {
-///         match button.press_duration().await {
+///         match button.wait_for_press_duration().await {
 ///             PressDuration::Short => {
 ///                 // Handle short press
 ///             }
@@ -110,7 +110,7 @@ impl<'a> Button<'a> {
     /// as long as necessary to determine whether the press was "short" or "long".
     ///
     /// See also: [`wait_for_press()`](Self::wait_for_press) for simple press detection.
-    pub async fn press_duration(&mut self) -> PressDuration {
+    pub async fn wait_for_press_duration(&mut self) -> PressDuration {
         self.wait_for_button_up().await;
         Timer::after(BUTTON_DEBOUNCE_DELAY).await;
         self.wait_for_button_down().await;
@@ -130,7 +130,7 @@ impl<'a> Button<'a> {
     /// without waiting for release or measuring duration.
     ///
     /// Use this when you only need to detect button presses. If you need to
-    /// distinguish between short and long presses, use [`press_duration()`](Self::press_duration) instead.
+    /// distinguish between short and long presses, use [`wait_for_press_duration()`](Self::wait_for_press_duration) instead.
     #[inline]
     pub async fn wait_for_press(&mut self) -> &mut Self {
         self.0.wait_for_rising_edge().await;

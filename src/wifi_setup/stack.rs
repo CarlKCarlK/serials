@@ -10,15 +10,15 @@
 //!
 //! ## Provisioning via captive portal
 //!
-//! ```ignore
+//! ```no_run
 //! # #![no_std]
-//! # #![no_main]
 //! # use panic_probe as _;
+//! # #[cfg(feature = "wifi")]
 //! use serials::flash_array::{FlashArray, FlashArrayStatic};
+//! # #[cfg(feature = "wifi")]
 //! use serials::wifi::{Wifi, WifiStatic};
-//! # #[panic_handler]
-//! # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
-//!
+//! # fn main() {}
+//! #[cfg(feature = "wifi")]
 //! async fn example(spawner: embassy_executor::Spawner) {
 //! let p = embassy_rp::init(core::default::Default::default());
 //!
@@ -40,26 +40,27 @@
 //! );
 //!
 //! // Wait for the captive portal to be ready
-//! wifi.wait().await;
+//! wifi.wait_for_wifi_event().await;
 //!
 //! // Get network stack for serving configuration interface
-//! let stack = wifi.stack().await;
+//! let stack = wifi.wait_for_stack().await;
 //! // ... serve web interface on 192.168.4.1 ...
 //! }
 //! ```
 //!
 //! ## Client mode with stored credentials
 //!
-//! ```ignore
+//! ```no_run
 //! # #![no_std]
-//! # #![no_main]
 //! # use panic_probe as _;
+//! # #[cfg(feature = "wifi")]
 //! use serials::flash_array::{FlashArray, FlashArrayStatic};
+//! # #[cfg(feature = "wifi")]
 //! use serials::wifi::{Wifi, WifiStatic};
-//! use serials::wifi_config::WifiCredentials;
-//! # #[panic_handler]
-//! # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
-//!
+//! # #[cfg(feature = "wifi")]
+//! use serials::wifi_setup::WifiCredentials;
+//! # fn main() {}
+//! #[cfg(feature = "wifi")]
 //! async fn example(spawner: embassy_executor::Spawner, credentials: WifiCredentials) {
 //! let p = embassy_rp::init(core::default::Default::default());
 //!
@@ -80,8 +81,8 @@
 //!     spawner,
 //! );
 //!
-//! wifi.wait().await;
-//! let stack = wifi.stack().await;
+//! wifi.wait_for_wifi_event().await;
+//! let stack = wifi.wait_for_stack().await;
 //! // ... use stack ...
 //! }
 //! ```
@@ -245,7 +246,7 @@ impl Wifi {
     /// - In client mode: DHCP-assigned IP
     ///
     /// See the [module-level documentation](crate::wifi) for usage examples.
-    pub async fn stack(&self) -> &'static Stack<'static> {
+    pub async fn wait_for_stack(&self) -> &'static Stack<'static> {
         self.stack.get().await
     }
 
@@ -256,7 +257,7 @@ impl Wifi {
     /// - [`WifiEvent::ClientReady`] when connected to WiFi and DHCP is configured
     ///
     /// See the [module-level documentation](crate::wifi) for usage examples.
-    pub async fn wait(&self) -> WifiEvent {
+    pub async fn wait_for_wifi_event(&self) -> WifiEvent {
         self.events.wait().await
     }
 

@@ -37,7 +37,7 @@ async fn run(spawner: Spawner) -> serials::Result<!> {
     info!("Local Time: {:02}:{:02}:{:02} PST", hour12, minute, second);
 
     loop {
-        let local_time = clock.wait().await;
+        let local_time = clock.wait_for_tick().await;
         let (hour12, minute, second) = h12_m_s(&local_time);
         info!("Tick: {:02}:{:02}:{:02}", hour12, minute, second);
     }

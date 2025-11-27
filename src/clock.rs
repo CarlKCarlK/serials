@@ -130,7 +130,7 @@ impl ClockStatic {
 ///     // Logs: Local time: 06:00:00 PST
 ///
 ///     loop {
-///         let tick = clock.wait().await;
+///         let tick = clock.wait_for_tick().await;
 ///         let (hour12, minute, second) = h12_m_s(&tick);
 ///         defmt::info!("Tick: {:02}:{:02}:{:02}", hour12, minute, second);
 ///         // Logs: Tick: 06:00:01, Tick: 06:00:02, ...
@@ -187,7 +187,7 @@ impl Clock {
     /// Wait for and return the next clock tick event. If constructed with `None` tick interval,
     /// ticks occur only when time or offset changes. Passing `Some(duration)` enables periodic
     /// ticks aligned to that interval. See [`Clock`] for usage.
-    pub async fn wait(&self) -> OffsetDateTime {
+    pub async fn wait_for_tick(&self) -> OffsetDateTime {
         self.ticks.wait().await;
         self.now_local()
     }

@@ -63,7 +63,7 @@ impl IrStatic {
 ///     let ir = Ir::new(&IR_STATIC, p.PIN_15, spawner)?;
 ///
 ///     loop {
-///         let IrEvent::Press { addr, cmd } = ir.wait().await;
+///         let IrEvent::Press { addr, cmd } = ir.wait_for_press().await;
 ///         defmt::info!("IR: addr=0x{:04X}, cmd=0x{:02X}", addr, cmd);
 ///     }
 /// }
@@ -103,7 +103,7 @@ impl Ir<'_> {
     /// Wait for the next IR event.
     ///
     /// See [`Ir`] for usage examples.
-    pub async fn wait(&self) -> IrEvent {
+    pub async fn wait_for_press(&self) -> IrEvent {
         self.ir_static.receive().await
     }
 }

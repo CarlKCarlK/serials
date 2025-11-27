@@ -102,7 +102,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
     // Main event loop - log time on every tick and handle sync events
     loop {
-        match select(clock.wait(), time_sync.wait()).await {
+        match select(clock.wait_for_tick(), time_sync.wait_for_sync()).await {
             // On every clock tick, log the current time
             Either::First(time_info) => {
                 info!(
