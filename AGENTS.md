@@ -5,6 +5,7 @@
 - Avoid silent clamping; prefer asserts or typed ranges so out-of-range inputs fail fast.
 - Prefer `no_run` doctests; use `ignore` only when absolutely necessary (and call out why).
 - When adding docs for modules or public items, link readers to the primary struct and keep the single compilable example on that struct; other items should point back to it rather than duplicating examples.
+- I often like `const` values defined in the local context (inside the function/example) rather than at module scope when they’re only used there.
 
 ## Module Structure Convention
 

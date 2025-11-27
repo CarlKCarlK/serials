@@ -1,4 +1,6 @@
-//! A device abstraction for a 4-digit, 7-segment LED display with blinking support.
+//! A device abstraction for a 4-digit, 7-segment LED display for text with optional animation and blinking.
+//!
+//! See [`Led4`] for the primary text/blinking example and [`Led4::animate_text`] for the animation example.
 //!
 //! This module provides hardware abstractions for controlling common-cathode
 //! 4-digit 7-segment LED displays. Supports displaying text and numbers with
@@ -64,14 +66,15 @@ pub enum BlinkState {
 }
 
 #[derive(Clone)]
-pub enum Led4Command {
+pub(crate) enum Led4Command {
     Text {
         blink_state: BlinkState,
         text: [char; CELL_COUNT],
     },
-    Animation(Led4Animation),
+    Animation(Vec<AnimationFrame, ANIMATION_MAX_FRAMES>),
 }
 
+/// Frame of animated text for [`Led4::animate_text`]. See that method's example for usage.
 #[derive(Clone, Copy, Debug)]
 pub struct AnimationFrame {
     pub text: [char; CELL_COUNT],
@@ -84,8 +87,6 @@ impl AnimationFrame {
         Self { text, duration }
     }
 }
-
-pub type Led4Animation = Vec<AnimationFrame, ANIMATION_MAX_FRAMES>;
 
 // ============================================================================
 // Led4 Virtual Device
@@ -193,6 +194,8 @@ impl Led4<'_> {
     }
 
     /// Sends text to the display with optional blinking.
+    ///
+    /// See the main [`Led4`] example for end-to-end usage.
     pub fn write_text(&self, blink_state: BlinkState, text: [char; CELL_COUNT]) {
         #[cfg(feature = "display-trace")]
         info!("blink_state: {:?}, text: {:?}", blink_state, text);
@@ -209,34 +212,38 @@ impl Led4<'_> {
     /// # use panic_probe as _;
     /// # use embassy_rp::gpio::{Level, Output};
     /// # use embassy_executor::Spawner;
-    /// # use serials::led4::{Led4, Led4Static, OutputArray, AnimationFrame, Led4Animation};
-    /// async fn demo(peripherals: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
+    /// # use serials::{Result, led4::{AnimationFrame, Led4, Led4Static, OutputArray}};
+    ///
+    /// async fn demo(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
     ///     let cells = OutputArray::new([
-    ///         Output::new(peripherals.PIN_1, Level::High),
-    ///         Output::new(peripherals.PIN_2, Level::High),
-    ///         Output::new(peripherals.PIN_3, Level::High),
-    ///         Output::new(peripherals.PIN_4, Level::High),
+    ///         Output::new(p.PIN_1, Level::High),
+    ///         Output::new(p.PIN_2, Level::High),
+    ///         Output::new(p.PIN_3, Level::High),
+    ///         Output::new(p.PIN_4, Level::High),
     ///     ]);
     ///     let segments = OutputArray::new([
-    ///         Output::new(peripherals.PIN_5, Level::Low),
-    ///         Output::new(peripherals.PIN_6, Level::Low),
-    ///         Output::new(peripherals.PIN_7, Level::Low),
-    ///         Output::new(peripherals.PIN_8, Level::Low),
-    ///         Output::new(peripherals.PIN_9, Level::Low),
-    ///         Output::new(peripherals.PIN_10, Level::Low),
-    ///         Output::new(peripherals.PIN_11, Level::Low),
-    ///         Output::new(peripherals.PIN_12, Level::Low),
+    ///         Output::new(p.PIN_5, Level::Low),
+    ///         Output::new(p.PIN_6, Level::Low),
+    ///         Output::new(p.PIN_7, Level::Low),
+    ///         Output::new(p.PIN_8, Level::Low),
+    ///         Output::new(p.PIN_9, Level::Low),
+    ///         Output::new(p.PIN_10, Level::Low),
+    ///         Output::new(p.PIN_11, Level::Low),
+    ///         Output::new(p.PIN_12, Level::Low),
     ///     ]);
     ///     static LED4_STATIC: Led4Static = Led4::new_static();
     ///     let display = Led4::new(&LED4_STATIC, cells, segments, spawner)?;
-    ///     let mut animation = Led4Animation::new();
-    ///     animation.push(AnimationFrame::new(['-', '-', '-', '-'], embassy_time::Duration::from_millis(100))).ok();
-    ///     animation.push(AnimationFrame::new([' ', ' ', ' ', ' '], embassy_time::Duration::from_millis(100))).ok();
+    ///     const FRAME_DURATION: embassy_time::Duration = embassy_time::Duration::from_millis(120);
+    ///     let mut animation: heapless::Vec<AnimationFrame, 16> = heapless::Vec::new();
+    ///     animation.push(AnimationFrame::new(['-', '-', '-', '-'], FRAME_DURATION)).unwrap();
+    ///     animation.push(AnimationFrame::new([' ', ' ', ' ', ' '], FRAME_DURATION)).unwrap();
+    ///     animation.push(AnimationFrame::new(['1', '2', '3', '4'], FRAME_DURATION)).unwrap();
     ///     display.animate_text(animation);
     ///     Ok(())
     /// }
     /// ```
-    pub fn animate_text(&self, animation: Led4Animation) {
+    /// See the example below for how to build animations.
+    pub fn animate_text(&self, animation: Vec<AnimationFrame, ANIMATION_MAX_FRAMES>) {
         self.0.signal(Led4Command::Animation(animation));
     }
 }
@@ -291,7 +298,7 @@ async fn run_text_loop(
 }
 
 async fn run_animation_loop(
-    animation: Led4Animation,
+    animation: Vec<AnimationFrame, ANIMATION_MAX_FRAMES>,
     outer_static: &'static Led4OuterStatic,
     display: &Led4Simple<'_>,
 ) -> Led4Command {
@@ -342,7 +349,9 @@ async fn run_animation_loop(
 /// }
 /// ```
 #[must_use]
-pub fn circular_outline_animation(clockwise: bool) -> Led4Animation {
+pub fn circular_outline_animation(
+    clockwise: bool,
+) -> Vec<AnimationFrame, ANIMATION_MAX_FRAMES> {
     const FRAME_DURATION: Duration = Duration::from_millis(120);
     const CLOCKWISE: [[char; 4]; 8] = [
         ['\'', '\'', '\'', '\''],
@@ -365,7 +374,7 @@ pub fn circular_outline_animation(clockwise: bool) -> Led4Animation {
         ['\'', '\'', '\'', '\''],
     ];
 
-    let mut animation = Led4Animation::new();
+    let mut animation = Vec::new();
     let frames = if clockwise { &CLOCKWISE } else { &COUNTER };
     for text in frames {
         animation

@@ -36,8 +36,7 @@ impl Led4SimpleStatic {
 
 /// A device abstraction for a non-blinking 4-digit 7-segment LED display.
 ///
-/// Users should use this if they don't need blinking.
-/// For blinking support, use [`Led4`](crate::led4::Led4) instead.
+/// Use this if you don't need animation or blinking. For blinking or animation support, use [`Led4`](crate::led4::Led4) instead.
 ///
 /// # Example
 ///

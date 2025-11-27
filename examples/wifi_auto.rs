@@ -21,7 +21,7 @@ use heapless::String;
 use panic_probe as _;
 use serials::Result;
 use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::led4::{AnimationFrame, BlinkState, Led4, Led4Animation, Led4Static, OutputArray};
+use serials::led4::{AnimationFrame, BlinkState, Led4, Led4Static, OutputArray};
 use serials::unix_seconds::UnixSeconds;
 use serials::wifi_setup::fields::{TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupEvent, WifiSetupStatic};
