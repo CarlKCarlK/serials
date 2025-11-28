@@ -1,7 +1,7 @@
 **/.idea/
 target/
 del.s
-all_code.txt
 .cargo-home/
 target-tmp/
 rustc-ice-*.txt
+all_code*.txt

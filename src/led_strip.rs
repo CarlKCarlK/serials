@@ -1,6 +1,7 @@
 //! A device abstraction for WS2812-style LED strips.
 //!
-//! See [`LedStripN`] for the main usage example.
+//! For simple single-strip setups, see the example on [`define_led_strips!`].
+//! For the core device API, see [`LedStripN`].
 
 use core::cell::RefCell;
 use embassy_rp::pio::{Common, Instance};
@@ -87,26 +88,12 @@ impl<const N: usize> LedStripStatic<N> {
 
 /// A device abstraction for WS2812-style LED strips with configurable length.
 ///
-/// ```no_run
-/// # #![no_std]
-/// # use panic_probe as _;
-/// # fn main() {}
-/// use serials::led_strip::{LedStrip, LedStripStatic, Rgb};
+/// Typically used via the [`define_led_strips!`] macro, which generates properly configured
+/// modules with type aliases and constructor functions. The macro handles PIO setup,
+/// interrupt bindings, and brightness limiting automatically.
 ///
-/// async fn example() -> serials::Result<()> {
-///     static LED_STRIP_STATIC: LedStripStatic<8> = LedStrip::new_static();
-///     let mut strip: LedStrip<8> = LedStrip::new(&LED_STRIP_STATIC)?;
-///
-///     let red = Rgb::new(16, 0, 0);
-///     let green = Rgb::new(0, 16, 0);
-///     let blue = Rgb::new(0, 0, 16);
-///     let frame = [
-///         red, green, blue, red, green, blue, red, green,
-///     ];
-///     strip.update_pixels(&frame).await?;
-///     Ok(())
-/// }
-/// ```
+/// For direct usage (advanced), you must manually set up the PIO bus, state machine,
+/// and driver task. See the [`define_led_strips!`] macro for the recommended approach.
 pub struct LedStripN<const N: usize> {
     commands: &'static LedStripCommands<N>,
 }
@@ -182,17 +169,70 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
 
 /// Creates PIO-based LED strip configurations with automatic brightness limiting.
 ///
-/// This macro generates all the necessary code to create multiple WS2812-style LED strips
+/// This macro generates all the necessary code to create WS2812-style LED strips
 /// using a single PIO peripheral. It handles interrupt bindings, PIO bus sharing, and
 /// per-strip brightness limiting based on current budget.
 ///
-/// # Example
+/// # Single Strip Example
+///
+/// For controlling one LED strip, define a single strip module:
+///
 /// ```no_run
-/// #![no_std]
-/// use panic_probe as _;
-/// // Requires target support and macro imports; no_run to avoid hardware access in doctests.
-/// # fn main() {}
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// use embassy_executor::Spawner;
+/// use serials::led_strip::{define_led_strips, Rgb};
+///
+/// define_led_strips! {
+///     pio: PIO0,
+///     strips: [
+///         my_strip {
+///             sm: 0,
+///             dma: DMA_CH0,
+///             pin: PIN_2,
+///             len: 8,
+///             max_current_ma: 480
+///         }
+///     ]
+/// }
+///
+/// #[embassy_executor::main]
+/// async fn main(spawner: Spawner) -> ! {
+///     let peripherals = embassy_rp::init(Default::default());
+///
+///     // Split PIO into bus and state machines
+///     let (pio_bus, sm0, _sm1, _sm2, _sm3) = pio0_split(peripherals.PIO0);
+///
+///     // Create and initialize the strip
+///     static STRIP_STATIC: my_strip::Static = my_strip::new_static();
+///     let mut strip = my_strip::new(
+///         spawner,
+///         &STRIP_STATIC,
+///         pio_bus,
+///         sm0,
+///         peripherals.DMA_CH0.into(),
+///         peripherals.PIN_2.into(),
+///     )
+///     .expect("Failed to start LED strip");
+///
+///     // Update pixels
+///     let red = Rgb::new(16, 0, 0);
+///     let frame = [red; my_strip::LEN];
+///     strip.update_pixels(&frame).await.expect("update failed");
+///     # loop {}
+/// }
 /// ```
+///
+/// # Parameters
+///
+/// * `pio` - The PIO peripheral to use (PIO0, PIO1, or PIO2 on RISC-V)
+/// * `sm` - State machine index (0-3)
+/// * `dma` - DMA channel peripheral name
+/// * `pin` - GPIO pin peripheral name for LED data line
+/// * `len` - Number of LEDs in the strip (up to [`MAX_LEDS`])
+/// * `max_current_ma` - Maximum current budget in milliamps; brightness is automatically
+///   scaled to stay within this limit (each LED draws ~60mA at full white)
 #[doc(hidden)]
 #[macro_export]
 macro_rules! define_led_strips {
