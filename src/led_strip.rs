@@ -288,6 +288,27 @@ macro_rules! define_led_strips {
                 use super::*;
                 use ::embassy_executor::Spawner;
 
+                // Validate SM index at compile time
+                const _: () = {
+                    const SM: usize = $sm_index;
+                    if SM > 3 {
+                        panic!("State machine index must be 0, 1, 2, or 3");
+                    }
+                };
+
+                // Validate PIO/pin compatibility on RP2350 (Pico 2)
+                #[cfg(feature = "pico2")]
+                const _: () = {
+                    const PIO_ID: u8 = $crate::led_strip::pio_id(stringify!($pio));
+                    const PIN_NUM: u8 = $crate::led_strip::pin_number(stringify!($pin));
+                    if !$crate::led_strip::pio_can_use_pin(PIO_ID, PIN_NUM) {
+                        panic!(concat!(
+                            "Pin ", stringify!($pin), " is incompatible with ",
+                            stringify!($pio), " on RP2350"
+                        ));
+                    }
+                };
+
                 pub const LEN: usize = $len;
                 pub type Strip = $crate::led_strip::LedStrip<LEN>;
                 pub type Static = $crate::led_strip::LedStripStatic<LEN>;
@@ -354,3 +375,63 @@ pub use crate::define_led_strips;
 
 /// Predefined RGB color constants (RED, GREEN, BLUE, etc.).
 pub use smart_leds::colors;
+
+// ============================================================================
+// Compile-time validation helpers
+// ============================================================================
+
+/// Extract PIO number from PIO peripheral name ("PIO0" -> 0, "PIO1" -> 1, "PIO2" -> 2).
+#[doc(hidden)]
+pub const fn pio_id(pio_name: &str) -> u8 {
+    let bytes = pio_name.as_bytes();
+    assert!(bytes.len() == 4, "PIO name must be PIO0, PIO1, or PIO2");
+    assert!(bytes[0] == b'P' && bytes[1] == b'I' && bytes[2] == b'O', "Invalid PIO name");
+    bytes[3] - b'0'
+}
+
+/// Extract pin number from PIN peripheral name ("PIN_2" -> 2, "PIN_16" -> 16).
+#[doc(hidden)]
+pub const fn pin_number(pin_name: &str) -> u8 {
+    let bytes = pin_name.as_bytes();
+    assert!(bytes.len() >= 5, "PIN name too short");
+    assert!(
+        bytes[0] == b'P' && bytes[1] == b'I' && bytes[2] == b'N' && bytes[3] == b'_',
+        "PIN name must start with PIN_"
+    );
+    
+    // Parse remaining digits
+    let mut num: u8 = 0;
+    let mut index = 4;
+    while index < bytes.len() {
+        let digit = bytes[index];
+        assert!(digit >= b'0' && digit <= b'9', "PIN name must end with digits");
+        num = num * 10 + (digit - b'0');
+        index += 1;
+    }
+    num
+}
+
+/// Check if a PIO can use a specific pin on RP2350.
+/// On RP2040, all pins work with all PIOs (returns true).
+/// On RP2350, PIO2 has restrictions.
+#[doc(hidden)]
+pub const fn pio_can_use_pin(pio_id: u8, pin_num: u8) -> bool {
+    #[cfg(not(feature = "pico2"))]
+    {
+        // RP2040: all PIOs can use all pins
+        let _ = (pio_id, pin_num);
+        true
+    }
+    
+    #[cfg(feature = "pico2")]
+    {
+        // RP2350 PIO2 restrictions (only on RISC-V, but we check for all pico2)
+        // PIO2 can only use pins 24-29 and 47
+        if pio_id == 2 {
+            matches!(pin_num, 24..=29 | 47)
+        } else {
+            // PIO0 and PIO1 can use any pin
+            true
+        }
+    }
+}

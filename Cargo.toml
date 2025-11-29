@@ -221,6 +221,9 @@ unused_must_use = "warn"
 #cargo = "warn"
 # restriction = "warn"
 
+[dev-dependencies]
+trybuild = "1"
+
 # BUGBUG cmk: Revisit if binaries get too large - debug symbols increase binary size
 # but are needed for defmt to show proper file locations instead of frame indexes
 [profile.release]
