@@ -18,7 +18,7 @@ define_led_strips! {
             dma: DMA_CH0,
             pin: PIN_2,
             len: 8,
-            max_current_ma: 480
+            max_current_ma: 50
         }
     ]
 }

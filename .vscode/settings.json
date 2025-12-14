@@ -4,6 +4,7 @@
     "rust-analyzer.cargo.features": [
         "wifi"
     ],
+    "rust-analyzer.server.path": "rust-analyzer",
     "rust-analyzer.check.overrideCommand": [
         "cargo",
         "check",
