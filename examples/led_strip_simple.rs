@@ -9,7 +9,8 @@ use embassy_time::Timer;
 use panic_probe as _;
 use serials::Result;
 use serials::led_strip_simple;
-use smart_leds::colors;
+
+use serials::led_strip_simple::colors;
 // cmk2ai If every PIO has a dedicated IRQ, why must IRQ be exposed to the user?
 // Answer: `led_strip_simple::init_pio0/init_pio1` bind the PIO IRQs internally, so the example never touches IRQ wiring.
 

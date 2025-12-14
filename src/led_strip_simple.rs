@@ -17,6 +17,7 @@ use embassy_sync::once_lock::OnceLock;
 use embassy_time::{Duration, Timer};
 use fixed::types::U24F8;
 use smart_leds::RGB8;
+pub use smart_leds::colors;
 use static_cell::StaticCell;
 
 use crate::Result;
