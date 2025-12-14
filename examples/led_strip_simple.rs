@@ -26,7 +26,6 @@ async fn main(spawner: Spawner) -> ! {
 async fn inner_main(_spawner: Spawner) -> Result<!> {
     let peripherals = embassy_rp::init(Default::default());
 
-    // cmk2ai can't we avoid listing the full type twice? It is very long and repetitive.
     static STRIP_STATIC: StripStatic = StripStatic::new_static();
     let mut simple_strip =
         new_simple_strip!(&STRIP_STATIC, PIN_2, peripherals.PIO2, MAX_CURRENT_MA);

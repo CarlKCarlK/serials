@@ -12,7 +12,6 @@ use embassy_rp::pio::{
 use embassy_rp::pio_programs::ws2812::{Grb, RgbColorOrder};
 use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::channel::Channel;
 use embassy_sync::once_lock::OnceLock;
 use embassy_time::{Duration, Timer};
 use fixed::types::U24F8;
@@ -25,27 +24,22 @@ use crate::Result;
 /// RGB color representation re-exported from `smart_leds`.
 pub type Rgb = RGB8;
 
-/// Commands channel for a fixed-length strip.
-pub type LedStripCommands<const N: usize> = Channel<CriticalSectionRawMutex, [Rgb; N], 2>;
-
 const T1: u8 = 2;
 const T2: u8 = 5;
 const T3: u8 = 3;
 const CYCLES_PER_BIT: u32 = (T1 + T2 + T3) as u32;
 const RESET_DELAY_US: u64 = 55;
-const WRITE_DELAY_PER_LED_US: u64 = 30;
-const WRITE_DELAY_PAD_US: u64 = 100;
 
-bind_interrupts!(pub struct Pio0Irqs {
+bind_interrupts!(pub(crate) struct Pio0Irqs {
     PIO0_IRQ_0 => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::PIO0>;
 });
 
-bind_interrupts!(pub struct Pio1Irqs {
+bind_interrupts!(pub(crate) struct Pio1Irqs {
     PIO1_IRQ_0 => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::PIO1>;
 });
 
 #[cfg(feature = "pico2")]
-bind_interrupts!(pub struct Pio2Irqs {
+bind_interrupts!(pub(crate) struct Pio2Irqs {
     PIO2_IRQ_0 => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::PIO2>;
 });
 
@@ -55,7 +49,7 @@ static PIO1_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO1>> = St
 static PIO2_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO2>> = StaticCell::new();
 
 /// Shared PIO bus that loads and reuses the WS2812 program.
-pub struct PioBus<'d, PIO: Instance> {
+pub(crate) struct PioBus<'d, PIO: Instance> {
     common: Mutex<CriticalSectionRawMutex, RefCell<Common<'d, PIO>>>,
     program: OnceLock<LoadedProgram<'d, PIO>>,
 }
@@ -89,7 +83,7 @@ impl<'d, PIO: Instance> PioBus<'d, PIO> {
 }
 
 /// Initializes PIO0 with its IRQ bound and returns the shared bus plus SM0.
-pub fn init_pio0(
+pub(crate) fn init_pio0(
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
 ) -> (
     &'static PioBus<'static, embassy_rp::peripherals::PIO0>,
@@ -101,7 +95,7 @@ pub fn init_pio0(
 }
 
 /// Initializes PIO1 with its IRQ bound and returns the shared bus plus SM0.
-pub fn init_pio1(
+pub(crate) fn init_pio1(
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
 ) -> (
     &'static PioBus<'static, embassy_rp::peripherals::PIO1>,
@@ -114,7 +108,7 @@ pub fn init_pio1(
 
 #[cfg(feature = "pico2")]
 /// Initializes PIO2 with its IRQ bound and returns the shared bus plus SM0.
-pub fn init_pio2(
+pub(crate) fn init_pio2(
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO2>,
 ) -> (
     &'static PioBus<'static, embassy_rp::peripherals::PIO2>,
@@ -146,7 +140,7 @@ fn load_ws2812_program<'d, PIO: Instance>(common: &mut Common<'d, PIO>) -> Loade
 }
 
 /// CPU-fed WS2812 driver for a single state machine.
-pub struct PioWs2812Cpu<'d, P: Instance, const S: usize, const N: usize, ORDER = Grb>
+pub(crate) struct PioWs2812Cpu<'d, P: Instance, const S: usize, const N: usize, ORDER = Grb>
 where
     ORDER: RgbColorOrder,
 {
@@ -210,146 +204,8 @@ where
     }
 }
 
-/// Static resources for an LED strip.
-pub struct LedStripStatic<const N: usize> {
-    commands: LedStripCommands<N>,
-}
-
-impl<const N: usize> LedStripStatic<N> {
-    /// Creates static resources.
-    #[must_use]
-    pub const fn new_static() -> Self {
-        Self {
-            commands: LedStripCommands::new(),
-        }
-    }
-
-    /// Access the underlying command channel.
-    pub fn commands(&'static self) -> &'static LedStripCommands<N> {
-        &self.commands
-    }
-}
-
-/// A device abstraction for WS2812-style LED strips driven by CPU-fed PIO.
-///
-/// # Example
-/// ```no_run
-/// #![no_std]
-/// #![no_main]
-/// use defmt::info;
-/// use embassy_executor::Spawner;
-/// use embassy_time::Timer;
-/// use serials::led_strip_simple::{self, Rgb};
-/// use serials::Result;
-///
-/// const LEN: usize = 8;
-/// const MAX_CURRENT_MA: u32 = 50;
-/// const MAX_BRIGHTNESS: u8 = led_strip_simple::max_brightness(LEN, MAX_CURRENT_MA);
-///
-/// #[embassy_executor::main]
-/// async fn main(_spawner: Spawner) -> ! {
-///     let peripherals = embassy_rp::init(Default::default());
-///     let (bus, sm0) = led_strip_simple::init_pio0(peripherals.PIO0);
-///     let mut driver =
-///         led_strip_simple::new_driver_grb::<embassy_rp::peripherals::PIO0, 0, LEN>(
-///             bus,
-///             sm0,
-///             peripherals.PIN_2,
-///         );
-///
-///     let mut hue: u8 = 0;
-///     loop {
-///         let mut pixels = [Rgb::new(16, 0, 0); LEN];
-///         for (idx, pixel) in pixels.iter_mut().enumerate() {
-///             let offset = hue.wrapping_add((idx as u8).wrapping_mul(16));
-///             *pixel = led_strip_simple::wheel(offset);
-///         }
-///         led_strip_simple::apply_max_brightness(&mut pixels, MAX_BRIGHTNESS);
-///         driver.write(&pixels).await;
-///         hue = hue.wrapping_add(3);
-///         Timer::after_millis(80).await;
-///         info!("frame sent");
-///     }
-/// }
-/// ```
-pub struct LedStrip<const N: usize> {
-    commands: &'static LedStripCommands<N>,
-}
-
-impl<const N: usize> LedStrip<N> {
-    const WRITE_DELAY_US: u64 = (N as u64 * WRITE_DELAY_PER_LED_US) + WRITE_DELAY_PAD_US;
-
-    /// Creates LED strip resources.
-    #[must_use]
-    pub const fn new_static() -> LedStripStatic<N> {
-        LedStripStatic::new_static()
-    }
-
-    /// Binds a strip to its static resources.
-    pub fn new(strip_static: &'static LedStripStatic<N>) -> Result<Self> {
-        Ok(Self {
-            commands: strip_static.commands(),
-        })
-    }
-
-    /// Updates all LEDs at once.
-    pub async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
-        self.commands.send(*pixels).await;
-        Timer::after(Duration::from_micros(Self::WRITE_DELAY_US)).await;
-        Ok(())
-    }
-
-    /// Access the command channel; useful for custom drivers.
-    pub fn commands(&'static self) -> &'static LedStripCommands<N> {
-        self.commands
-    }
-}
-
-/// Runs the driver loop with brightness scaling.
-pub async fn run_driver<PIO, const S: usize, const N: usize, ORDER>(
-    bus: &'static PioBus<'static, PIO>,
-    sm: StateMachine<'static, PIO, S>,
-    pin: embassy_rp::Peri<'static, impl PioPin>,
-    commands: &'static LedStripCommands<N>,
-    max_brightness: u8,
-) -> !
-where
-    PIO: Instance,
-    ORDER: RgbColorOrder,
-{
-    let program = bus.program();
-    let mut driver =
-        bus.with_common(|common| PioWs2812Cpu::<PIO, S, N, ORDER>::new(common, sm, pin, program));
-
-    loop {
-        let mut frame = commands.receive().await;
-        for color in frame.iter_mut() {
-            *color = Rgb::new(
-                scale_brightness(color.r, max_brightness),
-                scale_brightness(color.g, max_brightness),
-                scale_brightness(color.b, max_brightness),
-            );
-        }
-        driver.write(&frame).await;
-    }
-}
-
-/// GRB-order convenience wrapper around [`run_driver`].
-pub async fn run_driver_grb<PIO, const S: usize, const N: usize>(
-    bus: &'static PioBus<'static, PIO>,
-    sm: StateMachine<'static, PIO, S>,
-    pin: embassy_rp::Peri<'static, impl PioPin>,
-    commands: &'static LedStripCommands<N>,
-    max_brightness: u8,
-) -> !
-where
-    PIO: Instance,
-{
-    run_driver::<PIO, S, N, Grb>(bus, sm, pin, commands, max_brightness).await
-}
-
 /// Builds a GRB-order driver without spawning a task; caller drives frames directly.
-pub fn new_driver_grb<PIO, const S: usize, const N: usize>(
+pub(crate) fn new_driver_grb<PIO, const S: usize, const N: usize>(
     bus: &'static PioBus<'static, PIO>,
     sm: StateMachine<'static, PIO, S>,
     pin: embassy_rp::Peri<'static, impl PioPin>,
@@ -359,22 +215,6 @@ where
 {
     let program = bus.program();
     bus.with_common(|common| PioWs2812Cpu::<PIO, S, N, Grb>::new(common, sm, pin, program))
-}
-
-impl<PIO, const S: usize, const N: usize> PioWs2812Cpu<'static, PIO, S, N, Grb>
-where
-    PIO: Instance,
-{
-    /// Convenience helper that uses GRB order.
-    pub async fn run(
-        bus: &'static PioBus<'static, PIO>,
-        sm: StateMachine<'static, PIO, S>,
-        pin: embassy_rp::Peri<'static, impl PioPin>,
-        commands: &'static LedStripCommands<N>,
-        max_brightness: u8,
-    ) -> ! {
-        run_driver::<PIO, S, N, Grb>(bus, sm, pin, commands, max_brightness).await
-    }
 }
 
 /// Computes a max brightness value given a current budget (mA) and strip length.
@@ -440,7 +280,7 @@ pub struct SimpleStrip<'d, PIO: Instance, const N: usize> {
 
 impl<'d, PIO: Instance, const N: usize> SimpleStrip<'d, PIO, N> {
     /// Construct a new inline strip driver from shared bus/state machine and pin.
-    pub fn new(
+    pub(crate) fn new(
         strip_static: &'static SimpleStripStatic<N>,
         bus: &'static PioBus<'static, PIO>,
         sm: StateMachine<'static, PIO, 0>,
