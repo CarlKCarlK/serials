@@ -245,10 +245,10 @@ mod led_strip_simple {
     pub type Static = LedStripStatic;
 
     pub fn new(
-        spawner: Spawner,
         strip_static: &'static Static,
         pio: embassy_rp::Peri<'static, PioPeriph>,
         pin: embassy_rp::Peri<'static, DataPin>,
+        spawner: Spawner,
     ) -> serials::Result<Strip> {
         let (bus, sm) = super::init_pio_bus(pio);
         let token = super::led_strip0_driver(bus, sm, pin, strip_static.commands())
@@ -273,17 +273,17 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
     // Choose PIO and data pin here
     let pio = peripherals.PIO0;
-    let data_pin = peripherals.PIN_2;
+    let pin = peripherals.PIN_2;
 
     static LED_STRIP_STATIC: led_strip_simple::Static = led_strip_simple::new_static();
-    let mut led_strip_0 = led_strip_simple::new(spawner, &LED_STRIP_STATIC, pio, data_pin.into())?;
+    let mut led_strip_simple_0 = led_strip_simple::new(&LED_STRIP_STATIC, pio, pin, spawner)?;
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 
     let mut hue: u8 = 0;
 
     loop {
-        update_rainbow(&mut led_strip_0, hue).await?;
+        update_rainbow(&mut led_strip_simple_0, hue).await?;
 
         hue = hue.wrapping_add(3);
         Timer::after_millis(80).await;
