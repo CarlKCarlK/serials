@@ -33,13 +33,17 @@ async fn inner_main(_spawner: Spawner) -> Result<!> {
 
     // Choose PIO and data pin here
     // cmk2ai test that really works with other PIOs (and pins)
-    // Answer: swap to `init_pio1(peripherals.PIO1)` and a different GPIO to verify; the helper binds the right IRQ internally.
-    let (bus, sm) = led_strip_simple::init_pio0(peripherals.PIO0);
-    let pin = peripherals.PIN_2;
+    // Answer: swap to `new_simple_strip_pio1` and a different GPIO to verify; the helper binds the right IRQ internally.
 
-    // cmk2ai why do we need a task. If it is because of example is so complex we shoul simplify the example, to perhaps a white dot bounding back and forth.
-    // Answer: Driver runs inline here; no background task is spawned.
-    let mut driver = led_strip_simple::new_driver_grb::<PioPeriph, 0, LEN>(bus, sm, pin);
+    // Device/Static pair pattern: construct resources, then handle.
+    static STRIP_STATIC: led_strip_simple::SimpleStripStatic<LEN> =
+        led_strip_simple::SimpleStripStatic::new_static();
+    let mut strip = led_strip_simple::new_simple_strip_pio0(
+        &STRIP_STATIC,
+        peripherals.PIO0,
+        peripherals.PIN_2,
+        MAX_BRIGHTNESS,
+    );
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 
@@ -47,7 +51,7 @@ async fn inner_main(_spawner: Spawner) -> Result<!> {
     let mut direction: isize = 1;
 
     loop {
-        update_bounce(&mut driver, position as usize).await?;
+        update_bounce(&mut strip, position as usize).await?;
 
         position += direction;
         if position <= 0 {
@@ -63,13 +67,12 @@ async fn inner_main(_spawner: Spawner) -> Result<!> {
 }
 
 async fn update_bounce(
-    driver: &mut serials::led_strip_simple::PioWs2812Cpu<'static, PioPeriph, 0, LEN>,
+    strip: &mut led_strip_simple::SimpleStrip<'static, PioPeriph, 0, LEN>,
     position: usize,
 ) -> Result<()> {
     assert!(position < LEN);
     let mut pixels = [colors::BLACK; LEN];
     pixels[position] = colors::WHITE;
-    led_strip_simple::apply_max_brightness(&mut pixels, MAX_BRIGHTNESS);
-    driver.write(&pixels).await;
+    strip.update_pixels(&pixels).await?;
     Ok(())
 }

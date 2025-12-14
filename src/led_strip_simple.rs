@@ -399,3 +399,69 @@ pub fn apply_max_brightness<const N: usize>(frame: &mut [Rgb; N], max_brightness
         );
     }
 }
+
+/// Static resources for the inline (no-task) strip driver.
+pub struct SimpleStripStatic<const N: usize> {
+    _priv: (),
+}
+
+impl<const N: usize> SimpleStripStatic<N> {
+    #[must_use]
+    pub const fn new_static() -> Self {
+        Self { _priv: () }
+    }
+}
+
+/// Inline, no-task driver handle with LED-strip-like API.
+pub struct SimpleStrip<'d, PIO: Instance, const S: usize, const N: usize> {
+    driver: PioWs2812Cpu<'d, PIO, S, N, Grb>,
+    max_brightness: u8,
+}
+
+impl<'d, PIO: Instance, const S: usize, const N: usize> SimpleStrip<'d, PIO, S, N> {
+    /// Construct a new inline strip driver from shared bus/state machine and pin.
+    pub fn new(
+        strip_static: &'static SimpleStripStatic<N>,
+        bus: &'static PioBus<'static, PIO>,
+        sm: StateMachine<'static, PIO, S>,
+        pin: embassy_rp::Peri<'static, impl PioPin>,
+        max_brightness: u8,
+    ) -> Self {
+        let _ = strip_static; // marker to match Device/Static pattern
+        let driver = new_driver_grb::<PIO, S, N>(bus, sm, pin);
+        Self {
+            driver,
+            max_brightness,
+        }
+    }
+
+    /// Update all pixels at once, applying brightness cap.
+    pub async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
+        let mut frame = *pixels;
+        apply_max_brightness(&mut frame, self.max_brightness);
+        self.driver.write(&frame).await;
+        Ok(())
+    }
+}
+
+/// Convenience constructor that binds PIO0, SM0, and the pin using the internal IRQ helper.
+pub fn new_simple_strip_pio0<const N: usize>(
+    strip_static: &'static SimpleStripStatic<N>,
+    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
+    pin: embassy_rp::Peri<'static, impl PioPin>,
+    max_brightness: u8,
+) -> SimpleStrip<'static, embassy_rp::peripherals::PIO0, 0, N> {
+    let (bus, sm) = init_pio0(pio);
+    SimpleStrip::new(strip_static, bus, sm, pin, max_brightness)
+}
+
+/// Convenience constructor that binds PIO1, SM0, and the pin using the internal IRQ helper.
+pub fn new_simple_strip_pio1<const N: usize>(
+    strip_static: &'static SimpleStripStatic<N>,
+    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
+    pin: embassy_rp::Peri<'static, impl PioPin>,
+    max_brightness: u8,
+) -> SimpleStrip<'static, embassy_rp::peripherals::PIO1, 0, N> {
+    let (bus, sm) = init_pio1(pio);
+    SimpleStrip::new(strip_static, bus, sm, pin, max_brightness)
+}
