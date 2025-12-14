@@ -2,6 +2,7 @@
 //! See [`LedStrip`] for the main usage example.
 
 use core::cell::RefCell;
+use embassy_rp::bind_interrupts;
 use embassy_rp::clocks::clk_sys_freq;
 use embassy_rp::pio::program::{Assembler, JmpCondition, OutDestination, SetDestination, SideSet};
 use embassy_rp::pio::{
@@ -16,6 +17,7 @@ use embassy_sync::once_lock::OnceLock;
 use embassy_time::{Duration, Timer};
 use fixed::types::U24F8;
 use smart_leds::RGB8;
+use static_cell::StaticCell;
 
 use crate::Result;
 
@@ -32,6 +34,17 @@ const CYCLES_PER_BIT: u32 = (T1 + T2 + T3) as u32;
 const RESET_DELAY_US: u64 = 55;
 const WRITE_DELAY_PER_LED_US: u64 = 30;
 const WRITE_DELAY_PAD_US: u64 = 100;
+
+bind_interrupts!(pub struct Pio0Irqs {
+    PIO0_IRQ_0 => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::PIO0>;
+});
+
+bind_interrupts!(pub struct Pio1Irqs {
+    PIO1_IRQ_0 => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::PIO1>;
+});
+
+static PIO0_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO0>> = StaticCell::new();
+static PIO1_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO1>> = StaticCell::new();
 
 /// Shared PIO bus that loads and reuses the WS2812 program.
 pub struct PioBus<'d, PIO: Instance> {
@@ -65,6 +78,30 @@ impl<'d, PIO: Instance> PioBus<'d, PIO> {
             f(&mut *common)
         })
     }
+}
+
+/// Initializes PIO0 with its IRQ bound and returns the shared bus plus SM0.
+pub fn init_pio0(
+    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
+) -> (
+    &'static PioBus<'static, embassy_rp::peripherals::PIO0>,
+    StateMachine<'static, embassy_rp::peripherals::PIO0, 0>,
+) {
+    let embassy_rp::pio::Pio { common, sm0, .. } = embassy_rp::pio::Pio::new(pio, Pio0Irqs);
+    let bus = PIO0_BUS.init_with(|| PioBus::new(common));
+    (bus, sm0)
+}
+
+/// Initializes PIO1 with its IRQ bound and returns the shared bus plus SM0.
+pub fn init_pio1(
+    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
+) -> (
+    &'static PioBus<'static, embassy_rp::peripherals::PIO1>,
+    StateMachine<'static, embassy_rp::peripherals::PIO1, 0>,
+) {
+    let embassy_rp::pio::Pio { common, sm0, .. } = embassy_rp::pio::Pio::new(pio, Pio1Irqs);
+    let bus = PIO1_BUS.init_with(|| PioBus::new(common));
+    (bus, sm0)
 }
 
 fn load_ws2812_program<'d, PIO: Instance>(common: &mut Common<'d, PIO>) -> LoadedProgram<'d, PIO> {
@@ -180,44 +217,24 @@ impl<const N: usize> LedStripStatic<N> {
 /// #![no_main]
 /// use defmt::info;
 /// use embassy_executor::Spawner;
-/// use embassy_rp::bind_interrupts;
-/// use embassy_rp::pio::StateMachine;
 /// use embassy_time::Timer;
-/// use static_cell::StaticCell;
-/// use serials::led_strip_simple::{self, LedStrip, LedStripCommands, LedStripStatic, PioBus, Rgb};
+/// use serials::led_strip_simple::{self, Rgb};
 /// use serials::Result;
-///
-/// bind_interrupts!(struct Pio0Irqs {
-///     PIO0_IRQ_0 => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::PIO0>;
-/// });
 ///
 /// const LEN: usize = 8;
 /// const MAX_CURRENT_MA: u32 = 50;
 /// const MAX_BRIGHTNESS: u8 = led_strip_simple::max_brightness(LEN, MAX_CURRENT_MA);
 ///
-/// static PIO0_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO0>> = StaticCell::new();
-/// static LED_STRIP_STATIC: LedStripStatic<LEN> = LedStrip::new_static();
-///
-/// #[embassy_executor::task]
-/// async fn led_strip0_driver(
-///     bus: &'static PioBus<'static, embassy_rp::peripherals::PIO0>,
-///     sm: StateMachine<'static, embassy_rp::peripherals::PIO0, 0>,
-///     pin: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_2>,
-///     commands: &'static LedStripCommands<LEN>,
-/// ) -> ! {
-///     led_strip_simple::run_driver_grb::<_, 0, LEN>(bus, sm, pin, commands, MAX_BRIGHTNESS).await
-/// }
-///
 /// #[embassy_executor::main]
-/// async fn main(spawner: Spawner) -> ! {
+/// async fn main(_spawner: Spawner) -> ! {
 ///     let peripherals = embassy_rp::init(Default::default());
-///     let embassy_rp::pio::Pio { common, sm0, .. } = embassy_rp::pio::Pio::new(peripherals.PIO0, Pio0Irqs);
-///     let bus = PIO0_BUS.init_with(|| PioBus::new(common));
-///
-///     let mut strip = LedStrip::new(&LED_STRIP_STATIC)?;
-///     let token = led_strip0_driver(bus, sm0, peripherals.PIN_2, LED_STRIP_STATIC.commands())
-///         .map_err(serials::Error::TaskSpawn)?;
-///     spawner.spawn(token);
+///     let (bus, sm0) = led_strip_simple::init_pio0(peripherals.PIO0);
+///     let mut driver =
+///         led_strip_simple::new_driver_grb::<embassy_rp::peripherals::PIO0, 0, LEN>(
+///             bus,
+///             sm0,
+///             peripherals.PIN_2,
+///         );
 ///
 ///     let mut hue: u8 = 0;
 ///     loop {
@@ -226,7 +243,8 @@ impl<const N: usize> LedStripStatic<N> {
 ///             let offset = hue.wrapping_add((idx as u8).wrapping_mul(16));
 ///             *pixel = led_strip_simple::wheel(offset);
 ///         }
-///         strip.update_pixels(&pixels).await?;
+///         led_strip_simple::apply_max_brightness(&mut pixels, MAX_BRIGHTNESS);
+///         driver.write(&pixels).await;
 ///         hue = hue.wrapping_add(3);
 ///         Timer::after_millis(80).await;
 ///         info!("frame sent");
@@ -309,6 +327,19 @@ where
     run_driver::<PIO, S, N, Grb>(bus, sm, pin, commands, max_brightness).await
 }
 
+/// Builds a GRB-order driver without spawning a task; caller drives frames directly.
+pub fn new_driver_grb<PIO, const S: usize, const N: usize>(
+    bus: &'static PioBus<'static, PIO>,
+    sm: StateMachine<'static, PIO, S>,
+    pin: embassy_rp::Peri<'static, impl PioPin>,
+) -> PioWs2812Cpu<'static, PIO, S, N, Grb>
+where
+    PIO: Instance,
+{
+    let program = bus.program();
+    bus.with_common(|common| PioWs2812Cpu::<PIO, S, N, Grb>::new(common, sm, pin, program))
+}
+
 impl<PIO, const S: usize, const N: usize> PioWs2812Cpu<'static, PIO, S, N, Grb>
 where
     PIO: Instance,
@@ -355,4 +386,15 @@ const fn rgb(r: u8, g: u8, b: u8) -> Rgb {
 #[inline]
 fn scale_brightness(value: u8, brightness: u8) -> u8 {
     ((u16::from(value) * u16::from(brightness)) / 255) as u8
+}
+
+/// Applies a brightness cap to an entire frame in place.
+pub fn apply_max_brightness<const N: usize>(frame: &mut [Rgb; N], max_brightness: u8) {
+    for color in frame.iter_mut() {
+        *color = Rgb::new(
+            scale_brightness(color.r, max_brightness),
+            scale_brightness(color.g, max_brightness),
+            scale_brightness(color.b, max_brightness),
+        );
+    }
 }
