@@ -12,7 +12,7 @@ use serials::led_strip_simple;
 use serials::led_strip_simple::{SimpleStrip, SimpleStripStatic, colors};
 type PioPeriph = embassy_rp::peripherals::PIO0;
 type StripStatic = SimpleStripStatic<LEN>;
-type Strip = SimpleStrip<'static, PioPeriph, 0, LEN>;
+type Strip = SimpleStrip<'static, PioPeriph, LEN>;
 
 const LEN: usize = 8;
 const MAX_CURRENT_MA: u32 = 50;

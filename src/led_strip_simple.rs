@@ -413,22 +413,22 @@ impl<const N: usize> SimpleStripStatic<N> {
 }
 
 /// Inline, no-task driver handle with LED-strip-like API.
-pub struct SimpleStrip<'d, PIO: Instance, const S: usize, const N: usize> {
-    driver: PioWs2812Cpu<'d, PIO, S, N, Grb>,
+pub struct SimpleStrip<'d, PIO: Instance, const N: usize> {
+    driver: PioWs2812Cpu<'d, PIO, 0, N, Grb>,
     max_brightness: u8,
 }
 
-impl<'d, PIO: Instance, const S: usize, const N: usize> SimpleStrip<'d, PIO, S, N> {
+impl<'d, PIO: Instance, const N: usize> SimpleStrip<'d, PIO, N> {
     /// Construct a new inline strip driver from shared bus/state machine and pin.
     pub fn new(
         strip_static: &'static SimpleStripStatic<N>,
         bus: &'static PioBus<'static, PIO>,
-        sm: StateMachine<'static, PIO, S>,
+        sm: StateMachine<'static, PIO, 0>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_brightness: u8,
     ) -> Self {
         let _ = strip_static; // marker to match Device/Static pattern
-        let driver = new_driver_grb::<PIO, S, N>(bus, sm, pin);
+        let driver = new_driver_grb::<PIO, 0, N>(bus, sm, pin);
         Self {
             driver,
             max_brightness,
@@ -451,7 +451,7 @@ pub fn new_pio0<const N: usize>(
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
     pin: embassy_rp::Peri<'static, impl PioPin>,
     max_current_ma: u32,
-) -> SimpleStrip<'static, embassy_rp::peripherals::PIO0, 0, N> {
+) -> SimpleStrip<'static, embassy_rp::peripherals::PIO0, N> {
     let max_brightness = max_brightness(N, max_current_ma);
     new_pio0_with_brightness(strip_static, pio, pin, max_brightness)
 }
@@ -462,7 +462,7 @@ pub fn new_pio1<const N: usize>(
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
     pin: embassy_rp::Peri<'static, impl PioPin>,
     max_current_ma: u32,
-) -> SimpleStrip<'static, embassy_rp::peripherals::PIO1, 0, N> {
+) -> SimpleStrip<'static, embassy_rp::peripherals::PIO1, N> {
     let max_brightness = max_brightness(N, max_current_ma);
     new_pio1_with_brightness(strip_static, pio, pin, max_brightness)
 }
@@ -473,7 +473,7 @@ pub fn new_pio0_with_brightness<const N: usize>(
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
     pin: embassy_rp::Peri<'static, impl PioPin>,
     max_brightness: u8,
-) -> SimpleStrip<'static, embassy_rp::peripherals::PIO0, 0, N> {
+) -> SimpleStrip<'static, embassy_rp::peripherals::PIO0, N> {
     let (bus, sm) = init_pio0(pio);
     SimpleStrip::new(strip_static, bus, sm, pin, max_brightness)
 }
@@ -484,7 +484,7 @@ pub fn new_pio1_with_brightness<const N: usize>(
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
     pin: embassy_rp::Peri<'static, impl PioPin>,
     max_brightness: u8,
-) -> SimpleStrip<'static, embassy_rp::peripherals::PIO1, 0, N> {
+) -> SimpleStrip<'static, embassy_rp::peripherals::PIO1, N> {
     let (bus, sm) = init_pio1(pio);
     SimpleStrip::new(strip_static, bus, sm, pin, max_brightness)
 }
