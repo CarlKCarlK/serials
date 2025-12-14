@@ -5,13 +5,19 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
-use embassy_rp::pio::{Common, Instance, StateMachine};
-use embassy_rp::pio_programs::ws2812::{PioWs2812, PioWs2812Program};
+use embassy_rp::clocks::clk_sys_freq;
+use embassy_rp::pio::program::{Assembler, JmpCondition, OutDestination, SetDestination, SideSet};
+use embassy_rp::pio::{
+    Common, Config, FifoJoin, Instance, LoadedProgram, PioPin, ShiftConfig, ShiftDirection,
+    StateMachine,
+};
+use embassy_rp::pio_programs::ws2812::{Grb, RgbColorOrder};
 use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_sync::once_lock::OnceLock;
 use embassy_time::Timer;
+use fixed::types::U24F8;
 use panic_probe as _;
 use serials::Result;
 use smart_leds::{RGB8 as Rgb, colors};
@@ -23,7 +29,7 @@ bind_interrupts!(struct Pio0Irqs {
 
 struct PioBus<'d, PIO: Instance> {
     common: Mutex<CriticalSectionRawMutex, core::cell::RefCell<Common<'d, PIO>>>,
-    program: OnceLock<PioWs2812Program<'d, PIO>>,
+    program: OnceLock<LoadedProgram<'d, PIO>>,
 }
 
 impl<'d, PIO: Instance> PioBus<'d, PIO> {
@@ -34,11 +40,11 @@ impl<'d, PIO: Instance> PioBus<'d, PIO> {
         }
     }
 
-    fn program(&'static self) -> &'static PioWs2812Program<'d, PIO> {
+    fn program(&'static self) -> &'static LoadedProgram<'d, PIO> {
         self.program.get_or_init(|| {
             self.common.lock(|cell| {
                 let mut common = cell.borrow_mut();
-                PioWs2812Program::new(&mut *common)
+                load_ws2812_program(&mut *common)
             })
         })
     }
@@ -75,6 +81,10 @@ fn pio0_split(
 }
 
 const LEN: usize = 8;
+const T1: u8 = 2;
+const T2: u8 = 5;
+const T3: u8 = 3;
+const CYCLES_PER_BIT: u32 = (T1 + T2 + T3) as u32;
 const WORST_CASE_MA: u32 = (LEN as u32) * 60;
 const MAX_CURRENT_MA: u32 = 50;
 const MAX_BRIGHTNESS: u8 = {
@@ -82,7 +92,89 @@ const MAX_BRIGHTNESS: u8 = {
     if scaled > 255 { 255 } else { scaled as u8 }
 };
 
+fn load_ws2812_program<'d, PIO: Instance>(common: &mut Common<'d, PIO>) -> LoadedProgram<'d, PIO> {
+    let side_set = SideSet::new(false, 1, false);
+    let mut assembler: Assembler<32> = Assembler::new_with_side_set(side_set);
+
+    let mut wrap_target = assembler.label();
+    let mut wrap_source = assembler.label();
+    let mut do_zero = assembler.label();
+    assembler.set_with_side_set(SetDestination::PINDIRS, 1, 0);
+    assembler.bind(&mut wrap_target);
+    assembler.out_with_delay_and_side_set(OutDestination::X, 1, T3 - 1, 0);
+    assembler.jmp_with_delay_and_side_set(JmpCondition::XIsZero, &mut do_zero, T1 - 1, 1);
+    assembler.jmp_with_delay_and_side_set(JmpCondition::Always, &mut wrap_target, T2 - 1, 1);
+    assembler.bind(&mut do_zero);
+    assembler.nop_with_delay_and_side_set(T2 - 1, 0);
+    assembler.bind(&mut wrap_source);
+
+    let program = assembler.assemble_with_wrap(wrap_source, wrap_target);
+    common.load_program(&program)
+}
+
 type LedStripCommands = Channel<CriticalSectionRawMutex, [Rgb; LEN], 2>;
+
+struct PioWs2812Cpu<'d, P: Instance, const S: usize, const N: usize, ORDER = Grb>
+where
+    ORDER: RgbColorOrder,
+{
+    sm: StateMachine<'d, P, S>,
+    _order: core::marker::PhantomData<ORDER>,
+}
+
+impl<'d, P: Instance, const S: usize, const N: usize, ORDER> PioWs2812Cpu<'d, P, S, N, ORDER>
+where
+    ORDER: RgbColorOrder,
+{
+    fn new(
+        pio: &mut Common<'d, P>,
+        sm: StateMachine<'d, P, S>,
+        pin: embassy_rp::Peri<'d, impl PioPin>,
+        program: &LoadedProgram<'d, P>,
+    ) -> Self {
+        let mut cfg = Config::default();
+
+        let out_pin = pio.make_pio_pin(pin);
+        cfg.set_out_pins(&[&out_pin]);
+        cfg.set_set_pins(&[&out_pin]);
+        cfg.use_program(program, &[&out_pin]);
+
+        let clock_freq = U24F8::from_num(clk_sys_freq() / 1000);
+        let ws2812_freq = U24F8::from_num(800);
+        let bit_freq = ws2812_freq * CYCLES_PER_BIT;
+        cfg.clock_divider = clock_freq / bit_freq;
+
+        cfg.fifo_join = FifoJoin::TxOnly;
+        cfg.shift_out = ShiftConfig {
+            auto_fill: true,
+            threshold: 24,
+            direction: ShiftDirection::Left,
+        };
+
+        let mut sm = sm;
+        sm.set_config(&cfg);
+        sm.set_enable(true);
+
+        Self {
+            sm,
+            _order: core::marker::PhantomData,
+        }
+    }
+
+    async fn write(&mut self, colors: &[Rgb; N]) {
+        let mut words = [0u32; N];
+        for (idx, color) in colors.iter().enumerate() {
+            words[idx] = ORDER::pack(*color);
+        }
+
+        let tx = self.sm.tx();
+        for word in words {
+            tx.wait_push(word).await;
+        }
+
+        Timer::after_micros(55).await;
+    }
+}
 
 struct LedStripStatic {
     commands: LedStripCommands,
@@ -126,13 +218,12 @@ impl LedStrip {
 async fn led_strip0_driver(
     bus: &'static PioBus<'static, embassy_rp::peripherals::PIO0>,
     sm: StateMachine<'static, embassy_rp::peripherals::PIO0, 0>,
-    dma: embassy_rp::Peri<'static, embassy_rp::peripherals::DMA_CH0>,
     pin: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_2>,
     commands: &'static LedStripCommands,
 ) -> ! {
     let program = bus.program();
     let mut driver = bus.with_common(|common| {
-        PioWs2812::<embassy_rp::peripherals::PIO0, 0, LEN, _>::new(common, sm, dma, pin, program)
+        PioWs2812Cpu::<embassy_rp::peripherals::PIO0, 0, LEN>::new(common, sm, pin, program)
     });
 
     loop {
@@ -165,10 +256,9 @@ mod led_strip0 {
         strip_static: &'static Static,
         bus: &'static PioBus<'static, embassy_rp::peripherals::PIO0>,
         sm: StateMachine<'static, embassy_rp::peripherals::PIO0, 0>,
-        dma: embassy_rp::Peri<'static, embassy_rp::peripherals::DMA_CH0>,
         pin: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_2>,
     ) -> serials::Result<Strip> {
-        let token = super::led_strip0_driver(bus, sm, dma, pin, strip_static.commands())
+        let token = super::led_strip0_driver(bus, sm, pin, strip_static.commands())
             .map_err(serials::Error::TaskSpawn)?;
         spawner.spawn(token);
         Strip::new(strip_static)
@@ -192,7 +282,6 @@ async fn main(spawner: Spawner) -> ! {
         &LED_STRIP_STATIC,
         pio_bus,
         sm0,
-        peripherals.DMA_CH0.into(),
         peripherals.PIN_2.into(),
     )
     .expect("Failed to start LED strip");

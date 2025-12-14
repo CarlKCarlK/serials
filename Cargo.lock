@@ -1846,6 +1846,7 @@ dependencies = [
  "embedded-hal-bus",
  "embedded-io-async",
  "esp-hal-mfrc522",
+ "fixed",
  "hd44780-driver",
  "heapless",
  "itertools 0.13.0",

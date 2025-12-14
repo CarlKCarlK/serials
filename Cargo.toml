@@ -103,6 +103,7 @@ embedded-hal-bus = { version = "0.3.0", features = [
 portable-atomic = { version = "1.11.1", features = ["critical-section"] }
 hd44780-driver = "0.4.0"
 esp-hal-mfrc522 = "0.3.2"
+fixed = "1.28.0"
 cyw43 = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
     "defmt",
     "firmware-logs",
