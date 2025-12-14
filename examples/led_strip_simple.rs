@@ -8,11 +8,11 @@ use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
 use serials::Result;
-use serials::led_strip_simple::{SimpleStrip, SimpleStripStatic, colors};
+use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, colors};
 use serials::new_simple_strip;
 type PioPeriph = embassy_rp::peripherals::PIO2;
-type StripStatic = SimpleStripStatic<LEN>;
-type Strip = SimpleStrip<'static, PioPeriph, LEN>;
+type StripStatic = LedStripSimpleStatic<LEN>;
+type Strip = LedStripSimple<'static, PioPeriph, LEN>;
 
 const LEN: usize = 8;
 const MAX_CURRENT_MA: u32 = 50;
@@ -27,8 +27,12 @@ async fn inner_main(_spawner: Spawner) -> Result<!> {
     let peripherals = embassy_rp::init(Default::default());
 
     static STRIP_STATIC: StripStatic = StripStatic::new_static();
-    let mut simple_strip =
-        new_simple_strip!(&STRIP_STATIC, PIN_2, peripherals.PIO2, MAX_CURRENT_MA);
+    let mut simple_strip = new_simple_strip!(
+        &STRIP_STATIC,    // static resources
+        PIN_2,            // data pin
+        peripherals.PIO2, // PIO block
+        MAX_CURRENT_MA    // max current budget (mA)
+    );
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 
