@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![feature(never_type)]
 
 use defmt::info;
 use defmt_rtt as _;
@@ -263,26 +264,26 @@ mod led_strip_simple {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
+    let err = inner_main(spawner).await.unwrap_err();
+    core::panic!("{err}");
+}
+
+async fn inner_main(spawner: Spawner) -> Result<!> {
     let peripherals = embassy_rp::init(Default::default());
 
     // Choose PIO and data pin here
     let pio = peripherals.PIO0;
     let data_pin = peripherals.PIN_2;
 
-    // Initialize PIO0 bus
     static LED_STRIP_STATIC: led_strip_simple::Static = led_strip_simple::new_static();
-    let mut led_strip_simple =
-        led_strip_simple::new(spawner, &LED_STRIP_STATIC, pio, data_pin.into())
-            .expect("Failed to start LED strip");
+    let mut led_strip_0 = led_strip_simple::new(spawner, &LED_STRIP_STATIC, pio, data_pin.into())?;
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 
     let mut hue: u8 = 0;
 
     loop {
-        update_rainbow(&mut led_strip_0, hue)
-            .await
-            .expect("pattern update failed");
+        update_rainbow(&mut led_strip_0, hue).await?;
 
         hue = hue.wrapping_add(3);
         Timer::after_millis(80).await;
