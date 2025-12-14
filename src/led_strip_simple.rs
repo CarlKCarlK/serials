@@ -44,8 +44,15 @@ bind_interrupts!(pub struct Pio1Irqs {
     PIO1_IRQ_0 => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::PIO1>;
 });
 
+#[cfg(feature = "pico2")]
+bind_interrupts!(pub struct Pio2Irqs {
+    PIO2_IRQ_0 => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::PIO2>;
+});
+
 static PIO0_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO0>> = StaticCell::new();
 static PIO1_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO1>> = StaticCell::new();
+#[cfg(feature = "pico2")]
+static PIO2_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO2>> = StaticCell::new();
 
 /// Shared PIO bus that loads and reuses the WS2812 program.
 pub struct PioBus<'d, PIO: Instance> {
@@ -102,6 +109,19 @@ pub fn init_pio1(
 ) {
     let embassy_rp::pio::Pio { common, sm0, .. } = embassy_rp::pio::Pio::new(pio, Pio1Irqs);
     let bus = PIO1_BUS.init_with(|| PioBus::new(common));
+    (bus, sm0)
+}
+
+#[cfg(feature = "pico2")]
+/// Initializes PIO2 with its IRQ bound and returns the shared bus plus SM0.
+pub fn init_pio2(
+    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO2>,
+) -> (
+    &'static PioBus<'static, embassy_rp::peripherals::PIO2>,
+    StateMachine<'static, embassy_rp::peripherals::PIO2, 0>,
+) {
+    let embassy_rp::pio::Pio { common, sm0, .. } = embassy_rp::pio::Pio::new(pio, Pio2Irqs);
+    let bus = PIO2_BUS.init_with(|| PioBus::new(common));
     (bus, sm0)
 }
 
@@ -467,6 +487,18 @@ pub fn new_pio1<const N: usize>(
     new_pio1_with_brightness(strip_static, pio, pin, max_brightness)
 }
 
+#[cfg(feature = "pico2")]
+/// Convenience constructor that binds PIO2, SM0, and the pin; derives brightness from current budget.
+pub fn new_pio2<const N: usize>(
+    strip_static: &'static SimpleStripStatic<N>,
+    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO2>,
+    pin: embassy_rp::Peri<'static, impl PioPin>,
+    max_current_ma: u32,
+) -> SimpleStrip<'static, embassy_rp::peripherals::PIO2, N> {
+    let max_brightness = max_brightness(N, max_current_ma);
+    new_pio2_with_brightness(strip_static, pio, pin, max_brightness)
+}
+
 /// Variant that accepts an explicit brightness cap (0-255) for PIO0.
 pub fn new_pio0_with_brightness<const N: usize>(
     strip_static: &'static SimpleStripStatic<N>,
@@ -488,3 +520,53 @@ pub fn new_pio1_with_brightness<const N: usize>(
     let (bus, sm) = init_pio1(pio);
     SimpleStrip::new(strip_static, bus, sm, pin, max_brightness)
 }
+
+#[cfg(feature = "pico2")]
+/// Variant that accepts an explicit brightness cap (0-255) for PIO2.
+pub fn new_pio2_with_brightness<const N: usize>(
+    strip_static: &'static SimpleStripStatic<N>,
+    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO2>,
+    pin: embassy_rp::Peri<'static, impl PioPin>,
+    max_brightness: u8,
+) -> SimpleStrip<'static, embassy_rp::peripherals::PIO2, N> {
+    let (bus, sm) = init_pio2(pio);
+    SimpleStrip::new(strip_static, bus, sm, pin, max_brightness)
+}
+
+/// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and fails fast if PIO2 is used on Pico 1.
+#[macro_export]
+macro_rules! new_simple_strip {
+    ($strip_static:expr, $peripherals:ident . PIO0, $pin:ident, $max_current_ma:expr) => {
+        $crate::led_strip_simple::new_pio0(
+            $strip_static,
+            $peripherals.PIO0,
+            $peripherals.$pin,
+            $max_current_ma,
+        )
+    };
+    ($strip_static:expr, $peripherals:ident . PIO1, $pin:ident, $max_current_ma:expr) => {
+        $crate::led_strip_simple::new_pio1(
+            $strip_static,
+            $peripherals.PIO1,
+            $peripherals.$pin,
+            $max_current_ma,
+        )
+    };
+    ($strip_static:expr, $peripherals:ident . PIO2, $pin:ident, $max_current_ma:expr) => {{
+        #[cfg(feature = "pico2")]
+        {
+            $crate::led_strip_simple::new_pio2(
+                $strip_static,
+                $peripherals.PIO2,
+                $peripherals.$pin,
+                $max_current_ma,
+            )
+        }
+        #[cfg(not(feature = "pico2"))]
+        {
+            compile_error!("PIO2 is only available on Pico 2 (rp235x); enable the pico2 feature or choose PIO0/PIO1");
+        }
+    }};
+}
+
+pub use crate::new_simple_strip;

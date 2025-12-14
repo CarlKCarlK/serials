@@ -8,7 +8,6 @@ use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
 use serials::Result;
-use serials::led_strip_simple;
 use serials::led_strip_simple::{SimpleStrip, SimpleStripStatic, colors};
 type PioPeriph = embassy_rp::peripherals::PIO0;
 type StripStatic = SimpleStripStatic<LEN>;
@@ -31,12 +30,8 @@ async fn inner_main(_spawner: Spawner) -> Result<!> {
     // cmk2ai So, we don't need a spawner passed in?
     // cmk2ai we avoid IRQ code here by having 3 new functions, correct? I assume generic is impossible? what do we think of one macro instead?
     // cmk test other PIOs.
-    let mut strip = led_strip_simple::new_pio0(
-        &STRIP_STATIC,
-        peripherals.PIO0,
-        peripherals.PIN_2,
-        MAX_CURRENT_MA,
-    );
+    let mut strip =
+        serials::new_simple_strip!(&STRIP_STATIC, peripherals.PIO0, PIN_2, MAX_CURRENT_MA);
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 
