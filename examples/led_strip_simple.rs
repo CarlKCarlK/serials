@@ -235,8 +235,8 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
     ((u16::from(value) * u16::from(brightness)) / 255) as u8
 }
 
-mod led_strip0 {
-    use super::{DataPin, LedStrip, LedStripStatic, PioBus, PioPeriph, StateMachine};
+mod led_strip_simple {
+    use super::{DataPin, LedStrip, LedStripStatic, PioPeriph};
     use embassy_executor::Spawner;
 
     pub const LEN: usize = super::LEN;
@@ -246,10 +246,10 @@ mod led_strip0 {
     pub fn new(
         spawner: Spawner,
         strip_static: &'static Static,
-        bus: &'static PioBus<'static, PioPeriph>,
-        sm: StateMachine<'static, PioPeriph, 0>,
+        pio: embassy_rp::Peri<'static, PioPeriph>,
         pin: embassy_rp::Peri<'static, DataPin>,
     ) -> serials::Result<Strip> {
+        let (bus, sm) = super::init_pio_bus(pio);
         let token = super::led_strip0_driver(bus, sm, pin, strip_static.commands())
             .map_err(serials::Error::TaskSpawn)?;
         spawner.spawn(token);
@@ -270,11 +270,9 @@ async fn main(spawner: Spawner) -> ! {
     let data_pin = peripherals.PIN_2;
 
     // Initialize PIO0 bus
-    let (pio_bus, sm0) = init_pio_bus(pio);
-
-    static LED_STRIP_STATIC: led_strip0::Static = led_strip0::new_static();
-    let mut led_strip_0 =
-        led_strip0::new(spawner, &LED_STRIP_STATIC, pio_bus, sm0, data_pin.into())
+    static LED_STRIP_STATIC: led_strip_simple::Static = led_strip_simple::new_static();
+    let mut led_strip_simple =
+        led_strip_simple::new(spawner, &LED_STRIP_STATIC, pio, data_pin.into())
             .expect("Failed to start LED strip");
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
@@ -291,9 +289,9 @@ async fn main(spawner: Spawner) -> ! {
     }
 }
 
-async fn update_rainbow(strip: &mut led_strip0::Strip, base: u8) -> Result<()> {
-    let mut pixels = [colors::BLACK; led_strip0::LEN];
-    for idx in 0..led_strip0::LEN {
+async fn update_rainbow(strip: &mut led_strip_simple::Strip, base: u8) -> Result<()> {
+    let mut pixels = [colors::BLACK; led_strip_simple::LEN];
+    for idx in 0..led_strip_simple::LEN {
         let offset = base.wrapping_add((idx as u8).wrapping_mul(16));
         pixels[idx] = wheel(offset);
     }
