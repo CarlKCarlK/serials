@@ -57,27 +57,20 @@ impl<'d, PIO: Instance> PioBus<'d, PIO> {
     }
 }
 
-fn pio0_split(
-    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
-) -> (
-    &'static PioBus<'static, embassy_rp::peripherals::PIO0>,
-    StateMachine<'static, embassy_rp::peripherals::PIO0, 0>,
-    StateMachine<'static, embassy_rp::peripherals::PIO0, 1>,
-    StateMachine<'static, embassy_rp::peripherals::PIO0, 2>,
-    StateMachine<'static, embassy_rp::peripherals::PIO0, 3>,
-) {
-    static PIO0_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO0>> = StaticCell::new();
+type PioPeriph = embassy_rp::peripherals::PIO0;
+type DataPin = embassy_rp::peripherals::PIN_2;
 
-    let embassy_rp::pio::Pio {
-        common,
-        sm0,
-        sm1,
-        sm2,
-        sm3,
-        ..
-    } = embassy_rp::pio::Pio::new(pio, Pio0Irqs);
+fn init_pio_bus(
+    pio: embassy_rp::Peri<'static, PioPeriph>,
+) -> (
+    &'static PioBus<'static, PioPeriph>,
+    StateMachine<'static, PioPeriph, 0>,
+) {
+    static PIO0_BUS: StaticCell<PioBus<'static, PioPeriph>> = StaticCell::new();
+
+    let embassy_rp::pio::Pio { common, sm0, .. } = embassy_rp::pio::Pio::new(pio, Pio0Irqs);
     let bus = PIO0_BUS.init_with(|| PioBus::new(common));
-    (bus, sm0, sm1, sm2, sm3)
+    (bus, sm0)
 }
 
 const LEN: usize = 8;
@@ -216,15 +209,14 @@ impl LedStrip {
 
 #[embassy_executor::task]
 async fn led_strip0_driver(
-    bus: &'static PioBus<'static, embassy_rp::peripherals::PIO0>,
-    sm: StateMachine<'static, embassy_rp::peripherals::PIO0, 0>,
-    pin: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_2>,
+    bus: &'static PioBus<'static, PioPeriph>,
+    sm: StateMachine<'static, PioPeriph, 0>,
+    pin: embassy_rp::Peri<'static, DataPin>,
     commands: &'static LedStripCommands,
 ) -> ! {
     let program = bus.program();
-    let mut driver = bus.with_common(|common| {
-        PioWs2812Cpu::<embassy_rp::peripherals::PIO0, 0, LEN>::new(common, sm, pin, program)
-    });
+    let mut driver =
+        bus.with_common(|common| PioWs2812Cpu::<PioPeriph, 0, LEN>::new(common, sm, pin, program));
 
     loop {
         let mut frame = commands.receive().await;
@@ -244,7 +236,7 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
 }
 
 mod led_strip0 {
-    use super::{LedStrip, LedStripStatic, PioBus, StateMachine};
+    use super::{DataPin, LedStrip, LedStripStatic, PioBus, PioPeriph, StateMachine};
     use embassy_executor::Spawner;
 
     pub const LEN: usize = super::LEN;
@@ -254,9 +246,9 @@ mod led_strip0 {
     pub fn new(
         spawner: Spawner,
         strip_static: &'static Static,
-        bus: &'static PioBus<'static, embassy_rp::peripherals::PIO0>,
-        sm: StateMachine<'static, embassy_rp::peripherals::PIO0, 0>,
-        pin: embassy_rp::Peri<'static, embassy_rp::peripherals::PIN_2>,
+        bus: &'static PioBus<'static, PioPeriph>,
+        sm: StateMachine<'static, PioPeriph, 0>,
+        pin: embassy_rp::Peri<'static, DataPin>,
     ) -> serials::Result<Strip> {
         let token = super::led_strip0_driver(bus, sm, pin, strip_static.commands())
             .map_err(serials::Error::TaskSpawn)?;
@@ -273,18 +265,17 @@ mod led_strip0 {
 async fn main(spawner: Spawner) -> ! {
     let peripherals = embassy_rp::init(Default::default());
 
+    // Choose PIO and data pin here
+    let pio = peripherals.PIO0;
+    let data_pin = peripherals.PIN_2;
+
     // Initialize PIO0 bus
-    let (pio_bus, sm0, _sm1, _sm2, _sm3) = pio0_split(peripherals.PIO0);
+    let (pio_bus, sm0) = init_pio_bus(pio);
 
     static LED_STRIP_STATIC: led_strip0::Static = led_strip0::new_static();
-    let mut led_strip_0 = led_strip0::new(
-        spawner,
-        &LED_STRIP_STATIC,
-        pio_bus,
-        sm0,
-        peripherals.PIN_2.into(),
-    )
-    .expect("Failed to start LED strip");
+    let mut led_strip_0 =
+        led_strip0::new(spawner, &LED_STRIP_STATIC, pio_bus, sm0, data_pin.into())
+            .expect("Failed to start LED strip");
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 
