@@ -217,40 +217,29 @@ where
     bus.with_common(|common| PioWs2812Cpu::<PIO, S, N, Grb>::new(common, sm, pin, program))
 }
 
-/// Computes a max brightness value given a current budget (mA) and strip length.
-#[must_use]
-pub const fn max_brightness(len: usize, max_current_ma: u32) -> u8 {
-    let worst_case_ma = (len as u32) * 60;
-    let scaled = (max_current_ma * 255) / worst_case_ma;
-    if scaled > 255 { 255 } else { scaled as u8 }
-}
-
-/// Rainbow helper matching the example behavior.
-#[must_use]
-pub fn wheel(pos: u8) -> Rgb {
-    let pos = 255 - pos;
-    if pos < 85 {
-        rgb(255 - pos * 3, 0, pos * 3)
-    } else if pos < 170 {
-        let pos = pos - 85;
-        rgb(0, pos * 3, 255 - pos * 3)
-    } else {
-        let pos = pos - 170;
-        rgb(pos * 3, 255 - pos * 3, 0)
-    }
-}
-
-const fn rgb(r: u8, g: u8, b: u8) -> Rgb {
-    Rgb { r, g, b }
-}
-
 #[inline]
 fn scale_brightness(value: u8, brightness: u8) -> u8 {
     ((u16::from(value) * u16::from(brightness)) / 255) as u8
 }
 
+fn max_brightness_for<const N: usize>(max_current_ma: u32) -> u8 {
+    assert!(N > 0, "strip must contain at least one LED");
+    assert!(max_current_ma > 0, "max_current_ma must be positive");
+
+    let led_count = u64::try_from(N).expect("strip length fits in u64");
+    let numerator = u64::from(max_current_ma) * 255;
+    let denominator = led_count * 60; // 60mA per LED at full white.
+    let brightness = numerator / denominator;
+
+    if brightness >= 255 {
+        255
+    } else {
+        brightness as u8
+    }
+}
+
 /// Applies a brightness cap to an entire frame in place.
-pub fn apply_max_brightness<const N: usize>(frame: &mut [Rgb; N], max_brightness: u8) {
+fn apply_max_brightness<const N: usize>(frame: &mut [Rgb; N], max_brightness: u8) {
     for color in frame.iter_mut() {
         *color = Rgb::new(
             scale_brightness(color.r, max_brightness),
@@ -312,8 +301,9 @@ pub fn new_pio0<const N: usize>(
     pin: embassy_rp::Peri<'static, impl PioPin>,
     max_current_ma: u32,
 ) -> SimpleStrip<'static, embassy_rp::peripherals::PIO0, N> {
-    let max_brightness = max_brightness(N, max_current_ma);
-    new_pio0_with_brightness(strip_static, pio, pin, max_brightness)
+    let max_brightness = max_brightness_for::<N>(max_current_ma);
+    let (bus, sm) = init_pio0(pio);
+    SimpleStrip::new(strip_static, bus, sm, pin, max_brightness)
 }
 
 /// Convenience constructor that binds PIO1, SM0, and the pin; derives brightness from current budget.
@@ -323,8 +313,9 @@ pub fn new_pio1<const N: usize>(
     pin: embassy_rp::Peri<'static, impl PioPin>,
     max_current_ma: u32,
 ) -> SimpleStrip<'static, embassy_rp::peripherals::PIO1, N> {
-    let max_brightness = max_brightness(N, max_current_ma);
-    new_pio1_with_brightness(strip_static, pio, pin, max_brightness)
+    let max_brightness = max_brightness_for::<N>(max_current_ma);
+    let (bus, sm) = init_pio1(pio);
+    SimpleStrip::new(strip_static, bus, sm, pin, max_brightness)
 }
 
 #[cfg(feature = "pico2")]
@@ -335,40 +326,7 @@ pub fn new_pio2<const N: usize>(
     pin: embassy_rp::Peri<'static, impl PioPin>,
     max_current_ma: u32,
 ) -> SimpleStrip<'static, embassy_rp::peripherals::PIO2, N> {
-    let max_brightness = max_brightness(N, max_current_ma);
-    new_pio2_with_brightness(strip_static, pio, pin, max_brightness)
-}
-
-/// Variant that accepts an explicit brightness cap (0-255) for PIO0.
-pub fn new_pio0_with_brightness<const N: usize>(
-    strip_static: &'static SimpleStripStatic<N>,
-    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
-    pin: embassy_rp::Peri<'static, impl PioPin>,
-    max_brightness: u8,
-) -> SimpleStrip<'static, embassy_rp::peripherals::PIO0, N> {
-    let (bus, sm) = init_pio0(pio);
-    SimpleStrip::new(strip_static, bus, sm, pin, max_brightness)
-}
-
-/// Variant that accepts an explicit brightness cap (0-255) for PIO1.
-pub fn new_pio1_with_brightness<const N: usize>(
-    strip_static: &'static SimpleStripStatic<N>,
-    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
-    pin: embassy_rp::Peri<'static, impl PioPin>,
-    max_brightness: u8,
-) -> SimpleStrip<'static, embassy_rp::peripherals::PIO1, N> {
-    let (bus, sm) = init_pio1(pio);
-    SimpleStrip::new(strip_static, bus, sm, pin, max_brightness)
-}
-
-#[cfg(feature = "pico2")]
-/// Variant that accepts an explicit brightness cap (0-255) for PIO2.
-pub fn new_pio2_with_brightness<const N: usize>(
-    strip_static: &'static SimpleStripStatic<N>,
-    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO2>,
-    pin: embassy_rp::Peri<'static, impl PioPin>,
-    max_brightness: u8,
-) -> SimpleStrip<'static, embassy_rp::peripherals::PIO2, N> {
+    let max_brightness = max_brightness_for::<N>(max_current_ma);
     let (bus, sm) = init_pio2(pio);
     SimpleStrip::new(strip_static, bus, sm, pin, max_brightness)
 }
@@ -400,39 +358,6 @@ macro_rules! new_simple_strip {
                 $peripherals.PIO2,
                 $peripherals.$pin,
                 $max_current_ma,
-            )
-        }
-        #[cfg(not(feature = "pico2"))]
-        {
-            compile_error!("PIO2 is only available on Pico 2 (rp235x); enable the pico2 feature or choose PIO0/PIO1");
-        }
-    }};
-
-    // Optional max_current_ma: defaults to full brightness (255) via explicit brightness constructor.
-    ($strip_static:expr, $pin:ident, $peripherals:ident . PIO0) => {
-        $crate::led_strip_simple::new_pio0_with_brightness(
-            $strip_static,
-            $peripherals.PIO0,
-            $peripherals.$pin,
-            255,
-        )
-    };
-    ($strip_static:expr, $pin:ident, $peripherals:ident . PIO1) => {
-        $crate::led_strip_simple::new_pio1_with_brightness(
-            $strip_static,
-            $peripherals.PIO1,
-            $peripherals.$pin,
-            255,
-        )
-    };
-    ($strip_static:expr, $pin:ident, $peripherals:ident . PIO2) => {{
-        #[cfg(feature = "pico2")]
-        {
-            $crate::led_strip_simple::new_pio2_with_brightness(
-                $strip_static,
-                $peripherals.PIO2,
-                $peripherals.$pin,
-                255,
             )
         }
         #[cfg(not(feature = "pico2"))]
