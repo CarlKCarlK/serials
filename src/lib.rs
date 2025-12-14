@@ -52,6 +52,8 @@ pub mod led4_simple;
 #[cfg(not(feature = "host"))]
 pub mod led_strip;
 #[cfg(not(feature = "host"))]
+pub mod led_strip_simple;
+#[cfg(not(feature = "host"))]
 pub mod rfid;
 #[cfg(not(feature = "host"))]
 pub mod servo;
