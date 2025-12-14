@@ -536,7 +536,7 @@ pub fn new_pio2_with_brightness<const N: usize>(
 /// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and fails fast if PIO2 is used on Pico 1.
 #[macro_export]
 macro_rules! new_simple_strip {
-    ($strip_static:expr, $peripherals:ident . PIO0, $pin:ident, $max_current_ma:expr) => {
+    ($strip_static:expr, $pin:ident, $peripherals:ident . PIO0, $max_current_ma:expr) => {
         $crate::led_strip_simple::new_pio0(
             $strip_static,
             $peripherals.PIO0,
@@ -544,7 +544,7 @@ macro_rules! new_simple_strip {
             $max_current_ma,
         )
     };
-    ($strip_static:expr, $peripherals:ident . PIO1, $pin:ident, $max_current_ma:expr) => {
+    ($strip_static:expr, $pin:ident, $peripherals:ident . PIO1, $max_current_ma:expr) => {
         $crate::led_strip_simple::new_pio1(
             $strip_static,
             $peripherals.PIO1,
@@ -552,7 +552,7 @@ macro_rules! new_simple_strip {
             $max_current_ma,
         )
     };
-    ($strip_static:expr, $peripherals:ident . PIO2, $pin:ident, $max_current_ma:expr) => {{
+    ($strip_static:expr, $pin:ident, $peripherals:ident . PIO2, $max_current_ma:expr) => {{
         #[cfg(feature = "pico2")]
         {
             $crate::led_strip_simple::new_pio2(
@@ -560,6 +560,39 @@ macro_rules! new_simple_strip {
                 $peripherals.PIO2,
                 $peripherals.$pin,
                 $max_current_ma,
+            )
+        }
+        #[cfg(not(feature = "pico2"))]
+        {
+            compile_error!("PIO2 is only available on Pico 2 (rp235x); enable the pico2 feature or choose PIO0/PIO1");
+        }
+    }};
+
+    // Optional max_current_ma: defaults to full brightness (255) via explicit brightness constructor.
+    ($strip_static:expr, $pin:ident, $peripherals:ident . PIO0) => {
+        $crate::led_strip_simple::new_pio0_with_brightness(
+            $strip_static,
+            $peripherals.PIO0,
+            $peripherals.$pin,
+            255,
+        )
+    };
+    ($strip_static:expr, $pin:ident, $peripherals:ident . PIO1) => {
+        $crate::led_strip_simple::new_pio1_with_brightness(
+            $strip_static,
+            $peripherals.PIO1,
+            $peripherals.$pin,
+            255,
+        )
+    };
+    ($strip_static:expr, $pin:ident, $peripherals:ident . PIO2) => {{
+        #[cfg(feature = "pico2")]
+        {
+            $crate::led_strip_simple::new_pio2_with_brightness(
+                $strip_static,
+                $peripherals.PIO2,
+                $peripherals.$pin,
+                255,
             )
         }
         #[cfg(not(feature = "pico2"))]

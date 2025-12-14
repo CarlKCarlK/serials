@@ -9,7 +9,8 @@ use embassy_time::Timer;
 use panic_probe as _;
 use serials::Result;
 use serials::led_strip_simple::{SimpleStrip, SimpleStripStatic, colors};
-type PioPeriph = embassy_rp::peripherals::PIO0;
+use serials::new_simple_strip;
+type PioPeriph = embassy_rp::peripherals::PIO2;
 type StripStatic = SimpleStripStatic<LEN>;
 type Strip = SimpleStrip<'static, PioPeriph, LEN>;
 
@@ -27,11 +28,8 @@ async fn inner_main(_spawner: Spawner) -> Result<!> {
 
     // cmk2ai can't we avoid listing the full type twice? It is very long and repetitive.
     static STRIP_STATIC: StripStatic = StripStatic::new_static();
-    // cmk2ai So, we don't need a spawner passed in?
-    // cmk2ai we avoid IRQ code here by having 3 new functions, correct? I assume generic is impossible? what do we think of one macro instead?
-    // cmk test other PIOs.
-    let mut strip =
-        serials::new_simple_strip!(&STRIP_STATIC, peripherals.PIO0, PIN_2, MAX_CURRENT_MA);
+    let mut simple_strip =
+        new_simple_strip!(&STRIP_STATIC, PIN_2, peripherals.PIO2, MAX_CURRENT_MA);
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 
@@ -39,7 +37,7 @@ async fn inner_main(_spawner: Spawner) -> Result<!> {
     let mut direction: isize = 1;
 
     loop {
-        update_bounce(&mut strip, position as usize).await?;
+        update_bounce(&mut simple_strip, position as usize).await?;
 
         position += direction;
         if position <= 0 {
