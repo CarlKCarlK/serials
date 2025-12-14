@@ -445,7 +445,30 @@ impl<'d, PIO: Instance, const S: usize, const N: usize> SimpleStrip<'d, PIO, S, 
 }
 
 /// Convenience constructor that binds PIO0, SM0, and the pin using the internal IRQ helper.
-pub fn new_simple_strip_pio0<const N: usize>(
+/// Convenience constructor that binds PIO0, SM0, and the pin; derives brightness from current budget.
+pub fn new_pio0<const N: usize>(
+    strip_static: &'static SimpleStripStatic<N>,
+    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
+    pin: embassy_rp::Peri<'static, impl PioPin>,
+    max_current_ma: u32,
+) -> SimpleStrip<'static, embassy_rp::peripherals::PIO0, 0, N> {
+    let max_brightness = max_brightness(N, max_current_ma);
+    new_pio0_with_brightness(strip_static, pio, pin, max_brightness)
+}
+
+/// Convenience constructor that binds PIO1, SM0, and the pin; derives brightness from current budget.
+pub fn new_pio1<const N: usize>(
+    strip_static: &'static SimpleStripStatic<N>,
+    pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
+    pin: embassy_rp::Peri<'static, impl PioPin>,
+    max_current_ma: u32,
+) -> SimpleStrip<'static, embassy_rp::peripherals::PIO1, 0, N> {
+    let max_brightness = max_brightness(N, max_current_ma);
+    new_pio1_with_brightness(strip_static, pio, pin, max_brightness)
+}
+
+/// Variant that accepts an explicit brightness cap (0-255) for PIO0.
+pub fn new_pio0_with_brightness<const N: usize>(
     strip_static: &'static SimpleStripStatic<N>,
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
     pin: embassy_rp::Peri<'static, impl PioPin>,
@@ -455,8 +478,8 @@ pub fn new_simple_strip_pio0<const N: usize>(
     SimpleStrip::new(strip_static, bus, sm, pin, max_brightness)
 }
 
-/// Convenience constructor that binds PIO1, SM0, and the pin using the internal IRQ helper.
-pub fn new_simple_strip_pio1<const N: usize>(
+/// Variant that accepts an explicit brightness cap (0-255) for PIO1.
+pub fn new_pio1_with_brightness<const N: usize>(
     strip_static: &'static SimpleStripStatic<N>,
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
     pin: embassy_rp::Peri<'static, impl PioPin>,
