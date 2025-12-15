@@ -6,7 +6,7 @@
 
 use core::{cell::RefCell, convert::Infallible, future::Future};
 use cortex_m::peripheral::SCB;
-use defmt::{info, unwrap, warn};
+use defmt::{info, warn};
 use embassy_executor::Spawner;
 use embassy_net::{Ipv4Address, Stack};
 use embassy_rp::{
@@ -62,7 +62,8 @@ pub enum WifiSetupEvent {
 }
 
 const MAX_CONNECT_ATTEMPTS: u8 = 2;
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+// cmk0 reduced from 30s since WiFi join now fails immediately instead of retrying
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const RETRY_DELAY: Duration = Duration::from_secs(3);
 
 pub type WifiSetupEvents = Signal<CriticalSectionRawMutex, WifiSetupEvent>;
@@ -498,8 +499,14 @@ impl WifiSetup {
         let stack = self.wifi.wait_for_stack().await;
 
         let captive_portal_ip = Ipv4Address::new(192, 168, 4, 1);
-        let dns_token = unwrap!(dns_server_task(stack, captive_portal_ip));
-        spawner.spawn(dns_token);
+        match dns_server_task(stack, captive_portal_ip) {
+            Ok(dns_token) => {
+                spawner.spawn(dns_token);
+            }
+            Err(e) => {
+                info!("WifiSetup: DNS server task spawn failed: {:?}", e);
+            }
+        }
 
         let defaults_owned = self
             .defaults
