@@ -99,10 +99,10 @@ use cyw43_pio::{DEFAULT_CLOCK_DIVIDER, PioSpi};
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_net::{Config, Stack, StackResources};
+use embassy_rp::Peri;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0};
-use embassy_rp::pio::{InterruptHandler, Pio};
-use embassy_rp::{Peri, bind_interrupts};
+use embassy_rp::pio::Pio;
 use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
 use embassy_sync::signal::Signal;
 use embassy_time::Timer;
@@ -465,9 +465,8 @@ fn save_state_to_block(
         .map_err(|_| "Failed to save WiFi state to flash")
 }
 
-bind_interrupts!(struct Irqs {
-    PIO0_IRQ_0 => InterruptHandler<PIO0>;
-});
+// PIO interrupt bindings are provided by the crate root (lib.rs)
+use crate::Pio0Irqs as Irqs;
 
 #[embassy_executor::task]
 async fn wifi_device_loop(

@@ -10,7 +10,7 @@ use panic_probe as _;
 use serials::Result;
 use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, colors};
 use serials::new_simple_strip;
-type PioPeriph = embassy_rp::peripherals::PIO2;
+type PioPeriph = embassy_rp::peripherals::PIO1;
 type StripStatic = LedStripSimpleStatic<LEN>;
 type Strip = LedStripSimple<'static, PioPeriph, LEN>;
 
@@ -30,7 +30,7 @@ async fn inner_main(_spawner: Spawner) -> Result<!> {
     let mut simple_strip = new_simple_strip!(
         &STRIP_STATIC,    // static resources
         PIN_2,            // data pin
-        peripherals.PIO2, // PIO block
+        peripherals.PIO1, // PIO block
         MAX_CURRENT_MA    // max current budget (mA)
     );
 

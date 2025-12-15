@@ -2,7 +2,6 @@
 //! See [`LedStripSimple`] for the main usage example and [led_strip](crate::led_strip) for the fuller driver if you need more than a couple of strips.
 
 use core::cell::RefCell;
-use embassy_rp::bind_interrupts;
 use embassy_rp::clocks::clk_sys_freq;
 use embassy_rp::pio::program::{Assembler, JmpCondition, OutDestination, SetDestination, SideSet};
 use embassy_rp::pio::{
@@ -31,18 +30,10 @@ const T3: u8 = 3;
 const CYCLES_PER_BIT: u32 = (T1 + T2 + T3) as u32;
 const RESET_DELAY_US: u64 = 55;
 
-bind_interrupts!(pub(crate) struct Pio0Irqs {
-    PIO0_IRQ_0 => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::PIO0>;
-});
-
-bind_interrupts!(pub(crate) struct Pio1Irqs {
-    PIO1_IRQ_0 => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::PIO1>;
-});
-
+// PIO interrupt bindings are defined in lib.rs and imported via crate::Pio*Irqs
 #[cfg(feature = "pico2")]
-bind_interrupts!(pub(crate) struct Pio2Irqs {
-    PIO2_IRQ_0 => embassy_rp::pio::InterruptHandler<embassy_rp::peripherals::PIO2>;
-});
+use crate::Pio2Irqs;
+use crate::{Pio0Irqs, Pio1Irqs};
 
 static PIO0_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO0>> = StaticCell::new();
 static PIO1_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO1>> = StaticCell::new();
@@ -271,6 +262,9 @@ impl<const N: usize> LedStripSimpleStatic<N> {
 ///
 /// # Example
 /// ```no_run
+/// # #![no_std]
+/// # use panic_probe as _;
+/// # fn main() {}
 /// use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, colors};
 /// use serials::new_simple_strip;
 /// use serials::Result;

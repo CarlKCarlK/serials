@@ -1,6 +1,6 @@
 //! A device abstraction for WS2812-style LED strips.
 //!
-//! See [`LedStripN`] for the main usage example.
+//! See [`LedStrip`] for the main usage example.
 
 use core::cell::RefCell;
 use embassy_rp::pio::{Common, Instance};
@@ -107,11 +107,11 @@ impl<const N: usize> LedStripStatic<N> {
 ///     Ok(())
 /// }
 /// ```
-pub struct LedStripN<const N: usize> {
+pub struct LedStrip<const N: usize> {
     commands: &'static LedStripCommands<N>,
 }
 
-impl<const N: usize> LedStripN<N> {
+impl<const N: usize> LedStrip<N> {
     /// WS2812B timing: ~30µs per LED + 100µs safety margin
     const WRITE_DELAY_US: u64 = (N as u64 * 30) + 100;
 
@@ -139,9 +139,6 @@ impl<const N: usize> LedStripN<N> {
         Ok(())
     }
 }
-
-/// Convenience alias to access `LedStripN` with a const length parameter.
-pub type LedStrip<const N: usize> = LedStripN<N>;
 
 /// Driver loop with brightness scaling.
 /// Scales all RGB values by `max_brightness / 255` before writing to LEDs.
@@ -210,12 +207,8 @@ macro_rules! define_led_strips {
             ),+ $(,)?
         ]
     ) => {
-        // Generate interrupt binding struct name from PIO name (PIO0 -> Pio0Irqs, PIO1 -> Pio1Irqs)
+        // Use crate-level PIO interrupt bindings (Pio0Irqs, Pio1Irqs, Pio2Irqs)
         paste::paste! {
-            ::embassy_rp::bind_interrupts!(struct [<$pio:camel Irqs>] {
-                [<$pio _IRQ_0>] => ::embassy_rp::pio::InterruptHandler<::embassy_rp::peripherals::$pio>;
-            });
-
             // Create the PIO bus
             #[allow(non_upper_case_globals)]
             static [<$pio _BUS>]: ::static_cell::StaticCell<
@@ -233,7 +226,7 @@ macro_rules! define_led_strips {
                 ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, 2>,
                 ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, 3>,
             ) {
-                let ::embassy_rp::pio::Pio { common, sm0, sm1, sm2, sm3, .. } = ::embassy_rp::pio::Pio::new(pio, [<$pio:camel Irqs>]);
+                let ::embassy_rp::pio::Pio { common, sm0, sm1, sm2, sm3, .. } = ::embassy_rp::pio::Pio::new(pio, $crate::[<$pio:camel Irqs>]);
                 let pio_bus = [<$pio _BUS>].init_with(|| {
                     $crate::led_strip::PioBus::new(common)
                 });

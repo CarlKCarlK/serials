@@ -20,6 +20,26 @@ compile_error!("Cannot enable both 'arm' and 'riscv' features simultaneously");
 #[cfg(all(feature = "pico1", feature = "riscv"))]
 compile_error!("Pico 1 (RP2040) only supports ARM architecture, not RISC-V");
 
+// PIO interrupt bindings - shared by led_strip and led_strip_simple
+#[cfg(not(feature = "host"))]
+::embassy_rp::bind_interrupts! {
+    pub struct Pio0Irqs {
+        PIO0_IRQ_0 => ::embassy_rp::pio::InterruptHandler<::embassy_rp::peripherals::PIO0>;
+    }
+}
+#[cfg(not(feature = "host"))]
+::embassy_rp::bind_interrupts! {
+    pub struct Pio1Irqs {
+        PIO1_IRQ_0 => ::embassy_rp::pio::InterruptHandler<::embassy_rp::peripherals::PIO1>;
+    }
+}
+#[cfg(all(feature = "pico2", not(feature = "host")))]
+::embassy_rp::bind_interrupts! {
+    pub struct Pio2Irqs {
+        PIO2_IRQ_0 => ::embassy_rp::pio::InterruptHandler<::embassy_rp::peripherals::PIO2>;
+    }
+}
+
 // Only include modules that work without embassy when host feature is enabled
 #[cfg(feature = "host")]
 pub(crate) mod bit_matrix_led4;
