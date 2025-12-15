@@ -23,7 +23,7 @@ use heapless::Vec;
 use portable_atomic::{AtomicBool, Ordering};
 use static_cell::StaticCell;
 
-use crate::button::Button;
+use crate::button::{Button, ButtonConnection};
 use crate::flash_array::FlashBlock;
 use crate::{Error, Result};
 
@@ -38,8 +38,8 @@ use credentials::WifiCredentials as InnerWifiCredentials;
 use dns::dns_server_task;
 use stack::{WifiStartMode, WifiStatic as InnerWifiStatic};
 
-pub use stack::{Wifi, WifiEvent, WifiStatic};
 pub use credentials::WifiCredentials;
+pub use stack::{Wifi, WifiEvent, WifiStatic};
 
 pub use portal::WifiSetupField;
 
@@ -236,7 +236,7 @@ impl WifiSetup {
             }
         }
 
-        let button = Button::new(button_pin);
+        let button = Button::new(button_pin, ButtonConnection::ToGround);
         let force_captive_portal = button.is_pressed();
         if force_captive_portal {
             if let Some(creds) = stored_credentials.clone() {
@@ -347,9 +347,9 @@ impl WifiSetup {
     /// # use panic_probe as _;
     /// # use embassy_executor::Spawner;
     /// # use serials::wifi_setup::WifiSetup;
-/// # use serials::wifi_setup::WifiSetupEvent;
-/// # use serials::Result;
-/// async fn connect_sync(wifi_setup: &WifiSetup, spawner: embassy_executor::Spawner) -> Result<()> {
+    /// # use serials::wifi_setup::WifiSetupEvent;
+    /// # use serials::Result;
+    /// async fn connect_sync(wifi_setup: &WifiSetup, spawner: embassy_executor::Spawner) -> Result<()> {
     ///     wifi_setup.connect(spawner, |event| async move {
     ///         defmt::info!("Event: {:?}", event);
     ///     }).await?;
@@ -371,10 +371,10 @@ impl WifiSetup {
     ///     defmt::info!("Updated display: {:?}", event);
     /// }
     ///
-/// async fn connect_async(
-///     wifi_setup: &WifiSetup,
-///     spawner: embassy_executor::Spawner,
-/// ) -> Result<()> {
+    /// async fn connect_async(
+    ///     wifi_setup: &WifiSetup,
+    ///     spawner: embassy_executor::Spawner,
+    /// ) -> Result<()> {
     ///     wifi_setup.connect(spawner, |event| async move {
     ///         update_display(event).await;
     ///     }).await?;

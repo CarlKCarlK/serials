@@ -16,7 +16,7 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use panic_probe as _;
-use serials::button::{Button, PressDuration};
+use serials::button::{Button, ButtonConnection, PressDuration};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic};
@@ -189,17 +189,27 @@ impl State {
             .await
             {
                 // Button pushes
-                Either::First(press_duration) => match (press_duration, speed.to_bits()) {
-                    (PressDuration::Short, bits) if bits == 1.0f32.to_bits() => {
-                        return Ok(Self::MinutesSeconds);
+                Either::First(press_duration) => {
+                    info!(
+                        "HoursMinutes: Button press detected: {:?}, speed_bits={}",
+                        press_duration,
+                        speed.to_bits()
+                    );
+                    match (press_duration, speed.to_bits()) {
+                        (PressDuration::Short, bits) if bits == 1.0f32.to_bits() => {
+                            info!("HoursMinutes -> MinutesSeconds");
+                            return Ok(Self::MinutesSeconds);
+                        }
+                        (PressDuration::Short, _) => {
+                            info!("HoursMinutes: Resetting speed to 1.0");
+                            return Ok(Self::HoursMinutes { speed: 1.0 });
+                        }
+                        (PressDuration::Long, _) => {
+                            info!("HoursMinutes -> EditOffset");
+                            return Ok(Self::EditOffset);
+                        }
                     }
-                    (PressDuration::Short, _) => {
-                        return Ok(Self::HoursMinutes { speed: 1.0 });
-                    }
-                    (PressDuration::Long, _) => {
-                        return Ok(Self::EditOffset);
-                    }
-                },
+                }
                 // Clock tick
                 Either::Second(Either::First(time_event)) => {
                     let (hours, minutes, _) = h12_m_s(&time_event);
@@ -239,13 +249,23 @@ impl State {
             .await
             {
                 // Button pushes
-                Either::First(Either::First(PressDuration::Short)) => {
-                    return Ok(Self::HoursMinutes {
-                        speed: FAST_MODE_SPEED,
-                    });
-                }
-                Either::First(Either::First(PressDuration::Long)) => {
-                    return Ok(Self::EditOffset);
+                Either::First(Either::First(press_duration)) => {
+                    info!(
+                        "MinutesSeconds: Button press detected: {:?}",
+                        press_duration
+                    );
+                    match press_duration {
+                        PressDuration::Short => {
+                            info!("MinutesSeconds -> HoursMinutes (fast)");
+                            return Ok(Self::HoursMinutes {
+                                speed: FAST_MODE_SPEED,
+                            });
+                        }
+                        PressDuration::Long => {
+                            info!("MinutesSeconds -> EditOffset");
+                            return Ok(Self::EditOffset);
+                        }
+                    }
                 }
                 // Clock tick
                 Either::First(Either::Second(time_event)) => {

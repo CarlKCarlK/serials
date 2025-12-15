@@ -60,6 +60,7 @@ Use `cmk00`/`cmk0` prefix for TODO items (author's initials + priority):
 
 Preserving comments: When changing code, generally don't remove TODO's and cmk's in comments. Just move the comments if needed. If you think they no longer apply, add `(may no longer apply)` to the comment rather than deleting it.
 
+- **Debug code policy**: Do not remove debug/test code until the bug is proven fixed. Leave diagnostic code in place even after identifying issues so we can verify fixes work correctly.
 - **Commit messages**: Always suggest a concise 1-2 line commit message when completing work (no bullet points, just 1-2 lines maximum).
 - Preserve comments: keep `cmk00`/`cmk0`/`TODO` comments. If they seem obsolete, append `(may no longer apply)` rather than deleting.
 

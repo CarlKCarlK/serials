@@ -30,6 +30,8 @@ wifi-auto-w = "run --example wifi_auto --release --target thumbv6m-none-eabi --f
 wifi-auto-w-check = "check --example wifi_auto --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 clock_console_w = "run --example clock_console --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 clock_console_w_check = "check --example clock_console --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
+clock-led12x4-w = "run --example clock_led12x4 --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
+clock-led12x4-w-check = "check --example clock_led12x4 --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
 clock-simple = "run --example clock_simple --release --target thumbv6m-none-eabi --features pico1,arm"
 clock-simple-check = "check --example clock_simple --release --target thumbv6m-none-eabi --features pico1,arm"
 
