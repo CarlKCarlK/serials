@@ -30,10 +30,12 @@ use smart_leds::RGB8;
 const FAST_MODE_SPEED: f32 = 720.0;
 const PORTAL_COLOR: RGB8 = RGB8::new(0, 16, 80);
 const CONNECTING_COLOR: RGB8 = RGB8::new(64, 32, 0);
-const HOURS_COLOR: RGB8 = RGB8::new(0, 0, 64);
-const MINUTES_COLOR: RGB8 = RGB8::new(0, 96, 0);
-const SECONDS_COLOR: RGB8 = RGB8::new(0, 48, 96);
-const EDIT_COLOR: RGB8 = RGB8::new(96, 0, 0);
+const DIGIT1_COLOR: RGB8 = RGB8::new(0, 0, 64);
+const DIGIT2_COLOR: RGB8 = RGB8::new(0, 96, 0);
+const DIGIT3_COLOR: RGB8 = RGB8::new(0, 48, 96);
+const DIGIT4_COLOR: RGB8 = RGB8::new(96, 0, 0);
+const EDIT3_COLOR: RGB8 = RGB8::new(128, 32, 0);
+const EDIT4_COLOR: RGB8 = RGB8::new(128, 0, 96);
 
 // 4x12 panel (48 pixels) using PIO1, SM0, DMA_CH1, GPIO3
 define_led_strips! {
@@ -379,7 +381,7 @@ impl Led24x4ClockDisplay {
                     minutes_tens,
                     minutes_ones,
                 ],
-                [HOURS_COLOR, HOURS_COLOR, MINUTES_COLOR, MINUTES_COLOR],
+                [DIGIT1_COLOR, DIGIT2_COLOR, DIGIT3_COLOR, DIGIT4_COLOR],
             )
             .await
     }
@@ -395,7 +397,7 @@ impl Led24x4ClockDisplay {
                     minutes_tens,
                     minutes_ones,
                 ],
-                [HOURS_COLOR, HOURS_COLOR, EDIT_COLOR, EDIT_COLOR],
+                [DIGIT1_COLOR, DIGIT2_COLOR, EDIT3_COLOR, EDIT4_COLOR],
             )
             .await
     }
@@ -411,7 +413,7 @@ impl Led24x4ClockDisplay {
                     seconds_tens,
                     seconds_ones,
                 ],
-                [MINUTES_COLOR, MINUTES_COLOR, SECONDS_COLOR, SECONDS_COLOR],
+                [DIGIT1_COLOR, DIGIT2_COLOR, DIGIT3_COLOR, DIGIT4_COLOR],
             )
             .await
     }
