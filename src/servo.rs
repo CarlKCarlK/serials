@@ -94,18 +94,18 @@ impl<'d> Servo<'d> {
     /// Consider using the [`servo_even!`] or [`servo_odd!`] macros instead for simpler usage.
     ///
     /// # Examples
-/// ```no_run
-/// # #![no_std]
-/// # #![no_main]
-/// use serials::servo::{Servo, ServoChannel};
-/// # #[panic_handler]
-/// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
-/// async fn example(p: embassy_rp::Peripherals) {
-///     // GPIO 15 is odd, uses channel B. Calculate slice: (15 / 2) % 8 = 7
-///     let pwm = embassy_rp::pwm::Pwm::new_output_b(p.PWM_SLICE7, p.PIN_15, embassy_rp::pwm::Config::default());
-///     let mut servo = Servo::new(pwm, ServoChannel::B, 500, 2500);
-/// }
-/// ```
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
+    /// use serials::servo::{Servo, ServoChannel};
+    /// # #[panic_handler]
+    /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
+    /// async fn example(p: embassy_rp::Peripherals) {
+    ///     // GPIO 15 is odd, uses channel B. Calculate slice: (15 / 2) % 8 = 7
+    ///     let pwm = embassy_rp::pwm::Pwm::new_output_b(p.PWM_SLICE7, p.PIN_15, embassy_rp::pwm::Config::default());
+    ///     let mut servo = Servo::new(pwm, ServoChannel::B, 500, 2500);
+    /// }
+    /// ```
     pub fn new(pwm: Pwm<'d>, channel: ServoChannel, min_us: u16, max_us: u16) -> Self {
         Self::init(pwm, channel, min_us, max_us)
     }

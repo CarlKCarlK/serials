@@ -349,9 +349,7 @@ async fn run_animation_loop(
 /// }
 /// ```
 #[must_use]
-pub fn circular_outline_animation(
-    clockwise: bool,
-) -> Vec<AnimationFrame, ANIMATION_MAX_FRAMES> {
+pub fn circular_outline_animation(clockwise: bool) -> Vec<AnimationFrame, ANIMATION_MAX_FRAMES> {
     const FRAME_DURATION: Duration = Duration::from_millis(120);
     const CLOCKWISE: [[char; 4]; 8] = [
         ['\'', '\'', '\'', '\''],

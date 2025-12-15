@@ -16,12 +16,13 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
+use embassy_time::{Duration, Timer};
 use panic_probe as _;
-use serials::button::{Button, ButtonConnection, PressDuration};
+use serials::button::{Button, PressDuration};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, colors};
-use serials::led12x4::Led12x4;
+use serials::led12x4::{COLS, Led12x4, ROWS};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
@@ -33,7 +34,6 @@ use smart_leds::RGB8;
 // cmk should edit to blicking or colors
 
 const FAST_MODE_SPEED: f32 = 720.0;
-const PORTAL_COLOR: RGB8 = colors::NAVY;
 const CONNECTING_COLOR: RGB8 = colors::SADDLE_BROWN;
 const DIGIT_COLORS: [RGB8; 4] = [colors::NAVY, colors::GREEN, colors::TEAL, colors::MAROON];
 const EDIT_COLORS: [RGB8; 4] = [
@@ -42,6 +42,7 @@ const EDIT_COLORS: [RGB8; 4] = [
     colors::TEAL,
     colors::MAROON,
 ];
+const PERIMETER_LENGTH: usize = (COLS * 2) + ((ROWS - 2) * 2);
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -87,8 +88,9 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         peripherals.PIO1,
         peripherals.PIN_3,
         500, // 500mA budget allows ~22% brightness for 48 LEDs
-    );
-    let led_display = RefCell::new(Led12x4ClockDisplay::new(Led12x4::new(led_strip)));
+    )
+    .await;
+    let led_display = Led12x4ClockDisplay::new(led_strip);
 
     // Connect Wi-Fi, using the LED panel for status.
     let led_display_ref = &led_display;
@@ -98,34 +100,25 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
             async move {
                 use serials::wifi_setup::WifiSetupEvent;
                 match event {
-                    // cmk these message are not as expected
-                    WifiSetupEvent::CaptivePortalReady => {
-                        led_display_ref
-                            .borrow_mut()
-                            .show_portal_ready()
-                            .await
-                            .expect("LED display failed during portal-ready");
-                    }
+                    WifiSetupEvent::CaptivePortalReady => led_display_ref
+                        .show_portal_ready()
+                        .await
+                        .expect("LED display failed during portal-ready"),
                     WifiSetupEvent::Connecting {
                         try_index,
                         try_count,
-                    } => {
-                        led_display_ref
-                            .borrow_mut()
-                            .show_connecting(try_index, try_count)
-                            .await
-                            .expect("LED display failed during connecting");
-                    }
-                    WifiSetupEvent::Connected => {
-                        // No-op; main loop will immediately render real time.
-                    }
+                    } => led_display_ref
+                        .show_connecting(try_index, try_count)
+                        .await
+                        .expect("LED display failed during connecting"),
+                    WifiSetupEvent::Connected => led_display_ref
+                        .show_connected()
+                        .await
+                        .expect("LED display failed during connected"),
                 }
             }
         })
         .await?;
-
-    // Reclaim ownership of the display for the main clock loop.
-    let mut led_display = led_display.into_inner();
 
     info!("WiFi connected");
 
@@ -148,17 +141,17 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         state = match state {
             State::HoursMinutes { speed } => {
                 state
-                    .execute_hours_minutes(speed, &clock, &mut button, &time_sync, &mut led_display)
+                    .execute_hours_minutes(speed, &clock, &mut button, &time_sync, &led_display)
                     .await?
             }
             State::MinutesSeconds => {
                 state
-                    .execute_minutes_seconds(&clock, &mut button, &time_sync, &mut led_display)
+                    .execute_minutes_seconds(&clock, &mut button, &time_sync, &led_display)
                     .await?
             }
             State::EditOffset => {
                 state
-                    .execute_edit_offset(&clock, &mut button, &timezone_field, &mut led_display)
+                    .execute_edit_offset(&clock, &mut button, &timezone_field, &led_display)
                     .await?
             }
         };
@@ -182,7 +175,7 @@ impl State {
         clock: &Clock,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        led_display: &mut Led12x4ClockDisplay,
+        led_display: &Led12x4ClockDisplay,
     ) -> Result<Self> {
         clock.set_speed(speed).await;
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
@@ -243,7 +236,7 @@ impl State {
         clock: &Clock,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        led_display: &mut Led12x4ClockDisplay,
+        led_display: &Led12x4ClockDisplay,
     ) -> Result<Self> {
         clock.set_speed(1.0).await;
         let (_, minutes, seconds) = h12_m_s(&clock.now_local());
@@ -300,7 +293,7 @@ impl State {
         clock: &Clock,
         button: &mut Button<'_>,
         timezone_field: &TimezoneField,
-        led_display: &mut Led12x4ClockDisplay,
+        led_display: &Led12x4ClockDisplay,
     ) -> Result<Self> {
         info!("Entering edit offset mode");
         clock.set_speed(1.0).await;
@@ -353,36 +346,56 @@ impl State {
 }
 
 struct Led12x4ClockDisplay {
-    display: Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
+    display: RefCell<Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>>,
 }
 
 impl Led12x4ClockDisplay {
-    fn new(display: Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>) -> Self {
-        Self { display }
+    fn new(led_strip: LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>) -> Self {
+        Self {
+            display: RefCell::new(Led12x4::new(led_strip)),
+        }
     }
 
-    async fn show_portal_ready(&mut self) -> Result<()> {
+    async fn show_portal_ready(&self) -> Result<()> {
         self.display
-            .display(['0', '0', '0', '0'], [PORTAL_COLOR; 4])
+            .borrow_mut()
+            .display(['C', 'O', 'N', 'N'], DIGIT_COLORS)
             .await
     }
 
-    async fn show_connecting(&mut self, try_index: u8, try_count: u8) -> Result<()> {
-        let attempt = try_index + 1;
-        let (attempt_tens, attempt_ones) = two_digit_chars(attempt);
-        let (count_tens, count_ones) = two_digit_chars(try_count);
+    async fn show_connecting(&self, try_index: u8, _try_count: u8) -> Result<()> {
+        let clockwise = try_index % 2 == 0;
+        let perimeter_indices = perimeter_indices(clockwise);
+        const FRAME_DURATION: Duration = Duration::from_millis(90);
+        const LAP_COUNT: usize = 1;
+        let frame_count = perimeter_indices.len() * LAP_COUNT;
+        assert!(frame_count > 0);
+        let black = RGB8::new(0, 0, 0);
+        let mut frame = [black; COLS * ROWS];
+
+        for step_index in 0..frame_count {
+            frame.fill(black);
+            let perimeter_index = perimeter_indices[step_index % PERIMETER_LENGTH];
+            frame[perimeter_index] = CONNECTING_COLOR;
+            self.display.borrow_mut().display_frame(&frame).await?;
+            Timer::after(FRAME_DURATION).await;
+        }
+
+        Ok(())
+    }
+
+    async fn show_connected(&self) -> Result<()> {
         self.display
-            .display(
-                [attempt_tens, attempt_ones, count_tens, count_ones],
-                [CONNECTING_COLOR; 4],
-            )
+            .borrow_mut()
+            .display(['D', 'O', 'N', 'E'], DIGIT_COLORS)
             .await
     }
 
-    async fn show_hours_minutes(&mut self, hours: u8, minutes: u8) -> Result<()> {
+    async fn show_hours_minutes(&self, hours: u8, minutes: u8) -> Result<()> {
         let (hours_tens, hours_ones) = hours_digits(hours);
         let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
         self.display
+            .borrow_mut()
             .display(
                 [hours_tens, hours_ones, minutes_tens, minutes_ones],
                 DIGIT_COLORS,
@@ -390,10 +403,11 @@ impl Led12x4ClockDisplay {
             .await
     }
 
-    async fn show_hours_minutes_indicator(&mut self, hours: u8, minutes: u8) -> Result<()> {
+    async fn show_hours_minutes_indicator(&self, hours: u8, minutes: u8) -> Result<()> {
         let (hours_tens, hours_ones) = hours_digits(hours);
         let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
         self.display
+            .borrow_mut()
             .display(
                 [hours_tens, hours_ones, minutes_tens, minutes_ones],
                 EDIT_COLORS,
@@ -401,15 +415,59 @@ impl Led12x4ClockDisplay {
             .await
     }
 
-    async fn show_minutes_seconds(&mut self, minutes: u8, seconds: u8) -> Result<()> {
+    async fn show_minutes_seconds(&self, minutes: u8, seconds: u8) -> Result<()> {
         let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
         let (seconds_tens, seconds_ones) = two_digit_chars(seconds);
         self.display
+            .borrow_mut()
             .display(
                 [minutes_tens, minutes_ones, seconds_tens, seconds_ones],
                 DIGIT_COLORS,
             )
             .await
+    }
+}
+
+fn perimeter_indices(clockwise: bool) -> [usize; PERIMETER_LENGTH] {
+    let mut indices = [0usize; PERIMETER_LENGTH];
+    let mut write_index = 0;
+    let mut push_index = |column_index: usize, row_index: usize| {
+        indices[write_index] = xy_to_index(column_index, row_index);
+        write_index += 1;
+    };
+
+    for column_index in 0..COLS {
+        push_index(column_index, 0);
+    }
+    for row_index in 1..ROWS {
+        push_index(COLS - 1, row_index);
+    }
+    for column_index in (0..(COLS - 1)).rev() {
+        push_index(column_index, ROWS - 1);
+    }
+    for row_index in (1..(ROWS - 1)).rev() {
+        push_index(0, row_index);
+    }
+
+    debug_assert_eq!(write_index, PERIMETER_LENGTH);
+
+    if clockwise {
+        indices
+    } else {
+        let mut reversed = [0usize; PERIMETER_LENGTH];
+        for (write_index, &perimeter_index) in indices.iter().enumerate() {
+            reversed[PERIMETER_LENGTH - 1 - write_index] = perimeter_index;
+        }
+        reversed
+    }
+}
+
+#[inline]
+fn xy_to_index(column_index: usize, row_index: usize) -> usize {
+    if column_index % 2 == 0 {
+        column_index * ROWS + row_index
+    } else {
+        column_index * ROWS + (ROWS - 1 - row_index)
     }
 }
 

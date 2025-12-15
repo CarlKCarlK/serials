@@ -332,7 +332,7 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO0, N> {
     /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [led_strip](crate::led_strip) can drive up to four strips per PIO.
     ///
     /// See [`LedStripSimple`] for the usage example.
-    pub fn new_pio0(
+    pub async fn new_pio0(
         strip_static: &'static LedStripSimpleStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
@@ -340,7 +340,11 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO0, N> {
     ) -> Self {
         let max_brightness = max_brightness_for::<N>(max_current_ma);
         let (bus, sm) = init_pio0(pio);
-        LedStripSimple::new(strip_static, bus, sm, pin, max_brightness)
+        let mut strip = LedStripSimple::new(strip_static, bus, sm, pin, max_brightness);
+        // Initialize with blank frame to ensure LEDs are ready
+        let blank = [Rgb::new(0, 0, 0); N];
+        strip.update_pixels(&blank).await.ok();
+        strip
     }
 }
 
@@ -350,7 +354,7 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO1, N> {
     /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [led_strip](crate::led_strip) can drive up to four strips per PIO.
     ///
     /// See [`LedStripSimple`] for the usage example.
-    pub fn new_pio1(
+    pub async fn new_pio1(
         strip_static: &'static LedStripSimpleStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
@@ -358,7 +362,11 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO1, N> {
     ) -> Self {
         let max_brightness = max_brightness_for::<N>(max_current_ma);
         let (bus, sm) = init_pio1(pio);
-        LedStripSimple::new(strip_static, bus, sm, pin, max_brightness)
+        let mut strip = LedStripSimple::new(strip_static, bus, sm, pin, max_brightness);
+        // Initialize with blank frame to ensure LEDs are ready
+        let blank = [Rgb::new(0, 0, 0); N];
+        strip.update_pixels(&blank).await.ok();
+        strip
     }
 }
 
@@ -369,7 +377,7 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO2, N> {
     /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [led_strip](crate::led_strip) can drive up to four strips per PIO.
     ///
     /// See [`LedStripSimple`] for the usage example.
-    pub fn new_pio2(
+    pub async fn new_pio2(
         strip_static: &'static LedStripSimpleStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO2>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
@@ -377,7 +385,11 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO2, N> {
     ) -> Self {
         let max_brightness = max_brightness_for::<N>(max_current_ma);
         let (bus, sm) = init_pio2(pio);
-        LedStripSimple::new(strip_static, bus, sm, pin, max_brightness)
+        let mut strip = LedStripSimple::new(strip_static, bus, sm, pin, max_brightness);
+        // Initialize with blank frame to ensure LEDs are ready
+        let blank = [Rgb::new(0, 0, 0); N];
+        strip.update_pixels(&blank).await.ok();
+        strip
     }
 }
 

@@ -25,7 +25,11 @@ impl UnixSeconds {
     pub const fn from_ntp_seconds(ntp: u32) -> Option<Self> {
         const NTP_TO_UNIX_SECONDS: i64 = 2_208_988_800;
         let seconds = (ntp as i64) - NTP_TO_UNIX_SECONDS;
-        if seconds >= 0 { Some(Self(seconds)) } else { None }
+        if seconds >= 0 {
+            Some(Self(seconds))
+        } else {
+            None
+        }
     }
 
     /// Convert to [`OffsetDateTime`] with the given timezone offset.

@@ -166,9 +166,7 @@ impl ServoAnimate {
     /// Set the target angle (0..=180). See [`ServoAnimate`] for usage.
     pub async fn set(&self, degrees: u16) {
         assert!((0..=180).contains(&degrees));
-        self.commands
-            .send(AnimateCommand::Set { degrees })
-            .await;
+        self.commands.send(AnimateCommand::Set { degrees }).await;
     }
 
     /// Animate the servo through a sequence of angles with per-step hold durations.

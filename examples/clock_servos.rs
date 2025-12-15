@@ -20,7 +20,7 @@ use panic_probe as _;
 use serials::button::{Button, PressDuration};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::servo_animate::{self, linear, servo_even, ServoAnimate, ServoAnimateStatic, Step};
+use serials::servo_animate::{self, ServoAnimate, ServoAnimateStatic, Step, linear, servo_even};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
@@ -163,7 +163,12 @@ impl State {
         clock.set_tick_interval(Some(ONE_MINUTE)).await;
         let mut button_press = pin!(button.wait_for_press_duration());
         loop {
-            match select(&mut button_press, select(clock.wait_for_tick(), time_sync.wait_for_sync())).await {
+            match select(
+                &mut button_press,
+                select(clock.wait_for_tick(), time_sync.wait_for_sync()),
+            )
+            .await
+            {
                 // Button pushes
                 Either::First(press_duration) => match (press_duration, speed.to_bits()) {
                     (PressDuration::Short, bits) if bits == 1.0f32.to_bits() => {
