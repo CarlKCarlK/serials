@@ -2,6 +2,7 @@
 //!
 //! This example mirrors the WiFi/clock state machine from `clock_servos.rs` but drives a
 //! 12x4 LED panel on GPIO3 instead of servos. The reset button is on GPIO13.
+// cmk does the wifi device abstraction know about both kinds of buttons
 
 #![no_std]
 #![no_main]
@@ -27,6 +28,10 @@ use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
 use serials::{Error, Result};
 use smart_leds::RGB8;
 
+// cmk use the colors enum
+// cmk use an array of colors
+// cmk should edit to blicking or colors
+
 const FAST_MODE_SPEED: f32 = 720.0;
 const PORTAL_COLOR: RGB8 = RGB8::new(0, 16, 80);
 const CONNECTING_COLOR: RGB8 = RGB8::new(64, 32, 0);
@@ -34,8 +39,10 @@ const DIGIT1_COLOR: RGB8 = RGB8::new(0, 0, 64);
 const DIGIT2_COLOR: RGB8 = RGB8::new(0, 96, 0);
 const DIGIT3_COLOR: RGB8 = RGB8::new(0, 48, 96);
 const DIGIT4_COLOR: RGB8 = RGB8::new(96, 0, 0);
-const EDIT3_COLOR: RGB8 = RGB8::new(128, 32, 0);
-const EDIT4_COLOR: RGB8 = RGB8::new(128, 0, 96);
+const EDIT1_COLOR: RGB8 = RGB8::new(160, 32, 32);
+const EDIT2_COLOR: RGB8 = RGB8::new(192, 96, 0);
+const DIGIT_COLORS: [RGB8; 4] = [DIGIT1_COLOR, DIGIT2_COLOR, DIGIT3_COLOR, DIGIT4_COLOR];
+const EDIT_COLORS: [RGB8; 4] = [EDIT1_COLOR, EDIT2_COLOR, DIGIT3_COLOR, DIGIT4_COLOR];
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -72,6 +79,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         [timezone_field],    // Custom fields to ask for
         spawner,
     )?;
+    // cmk pico1 or pico2 button?
 
     // Set up the 12x4 LED display on GPIO3 using LedStripSimple on PIO1.
     static LED_STRIP_STATIC: LedStripSimpleStatic<48> = LedStripSimpleStatic::new_static();
@@ -91,6 +99,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
             async move {
                 use serials::wifi_setup::WifiSetupEvent;
                 match event {
+                    // cmk these message are not as expected
                     WifiSetupEvent::CaptivePortalReady => {
                         led_display_ref
                             .borrow_mut()
@@ -377,7 +386,7 @@ impl Led12x4ClockDisplay {
         self.display
             .display(
                 [hours_tens, hours_ones, minutes_tens, minutes_ones],
-                [DIGIT1_COLOR, DIGIT2_COLOR, DIGIT3_COLOR, DIGIT4_COLOR],
+                DIGIT_COLORS,
             )
             .await
     }
@@ -388,7 +397,7 @@ impl Led12x4ClockDisplay {
         self.display
             .display(
                 [hours_tens, hours_ones, minutes_tens, minutes_ones],
-                [DIGIT1_COLOR, DIGIT2_COLOR, EDIT3_COLOR, EDIT4_COLOR],
+                EDIT_COLORS,
             )
             .await
     }
@@ -399,7 +408,7 @@ impl Led12x4ClockDisplay {
         self.display
             .display(
                 [minutes_tens, minutes_ones, seconds_tens, seconds_ones],
-                [DIGIT1_COLOR, DIGIT2_COLOR, DIGIT3_COLOR, DIGIT4_COLOR],
+                DIGIT_COLORS,
             )
             .await
     }
