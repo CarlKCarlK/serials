@@ -20,7 +20,7 @@ use panic_probe as _;
 use serials::button::{Button, ButtonConnection, PressDuration};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic};
+use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, colors};
 use serials::led12x4::Led12x4;
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
@@ -33,16 +33,15 @@ use smart_leds::RGB8;
 // cmk should edit to blicking or colors
 
 const FAST_MODE_SPEED: f32 = 720.0;
-const PORTAL_COLOR: RGB8 = RGB8::new(0, 16, 80);
-const CONNECTING_COLOR: RGB8 = RGB8::new(64, 32, 0);
-const DIGIT1_COLOR: RGB8 = RGB8::new(0, 0, 64);
-const DIGIT2_COLOR: RGB8 = RGB8::new(0, 96, 0);
-const DIGIT3_COLOR: RGB8 = RGB8::new(0, 48, 96);
-const DIGIT4_COLOR: RGB8 = RGB8::new(96, 0, 0);
-const EDIT1_COLOR: RGB8 = RGB8::new(160, 32, 32);
-const EDIT2_COLOR: RGB8 = RGB8::new(192, 96, 0);
-const DIGIT_COLORS: [RGB8; 4] = [DIGIT1_COLOR, DIGIT2_COLOR, DIGIT3_COLOR, DIGIT4_COLOR];
-const EDIT_COLORS: [RGB8; 4] = [EDIT1_COLOR, EDIT2_COLOR, DIGIT3_COLOR, DIGIT4_COLOR];
+const PORTAL_COLOR: RGB8 = colors::NAVY;
+const CONNECTING_COLOR: RGB8 = colors::SADDLE_BROWN;
+const DIGIT_COLORS: [RGB8; 4] = [colors::NAVY, colors::GREEN, colors::TEAL, colors::MAROON];
+const EDIT_COLORS: [RGB8; 4] = [
+    colors::FIREBRICK,
+    colors::DARK_ORANGE,
+    colors::TEAL,
+    colors::MAROON,
+];
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
