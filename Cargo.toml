@@ -36,7 +36,6 @@ riscv = [
 ]
 host = [] # For testing on host platform without hardware dependencies
 wifi = [
-    # WiFi currently only works with pico1
     "dep:cyw43",
     "dep:cyw43-pio",
     "dep:cyw43-firmware",

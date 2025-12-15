@@ -58,9 +58,9 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         peripherals.PIN_29,  // CYW43 data pin
         peripherals.DMA_CH0, // CYW43 DMA channel
         wifi_credentials_flash_block,
-        peripherals.PIN_13, // Reset button pin
-        "PicoClock",        // Captive-portal SSID
-        [timezone_field],   // Custom fields to ask for
+        peripherals.PIN_13,  // Reset button pin
+        "www.picoclock.net", // Captive-portal SSID
+        [timezone_field],    // Custom fields to ask for
         spawner,
     )?;
 
@@ -176,7 +176,12 @@ impl State {
         clock.set_tick_interval(Some(ONE_MINUTE)).await;
         let mut button_press = pin!(button.wait_for_press_duration());
         loop {
-            match select(&mut button_press, select(clock.wait_for_tick(), time_sync.wait_for_sync())).await {
+            match select(
+                &mut button_press,
+                select(clock.wait_for_tick(), time_sync.wait_for_sync()),
+            )
+            .await
+            {
                 // Button pushes
                 Either::First(press_duration) => match (press_duration, speed.to_bits()) {
                     (PressDuration::Short, bits) if bits == 1.0f32.to_bits() => {

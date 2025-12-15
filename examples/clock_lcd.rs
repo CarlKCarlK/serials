@@ -13,13 +13,13 @@ use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use heapless::String;
 use panic_probe as _;
-use serials::{Error, Result};
 use serials::char_lcd::{CharLcd, CharLcdStatic};
 use serials::clock::{Clock, ClockStatic, ONE_SECOND};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
+use serials::{Error, Result};
 
 // ============================================================================
 // Main Orchestrator
@@ -63,7 +63,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         p.DMA_CH0, // CYW43 DMA channel
         wifi_credentials_flash_block,
         p.PIN_13, // Reset button pin
-        "PicoClock",
+        "www.picoclock.net",
         [timezone_field],
         spawner,
     )?;

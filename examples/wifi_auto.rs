@@ -75,7 +75,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         device_name_flash_block,
         "device_name",
         "Device Name",
-        "PicoClock",
+        "www.picoclock.net",
     );
 
     static LOCATION_FIELD_STATIC: TextFieldStatic<64> = TextField::new_static();
@@ -127,8 +127,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let timezone_offset_minutes = timezone_field.offset_minutes()?.unwrap_or(0);
     let device_name = device_name_field.text()?.unwrap_or_else(|| {
         let mut name = String::new();
-        name.push_str("PicoClock")
-            .expect("default name exceeds capacity");
+        name.push_str("").expect("default name exceeds capacity");
         name
     });
     let location = location_field.text()?.unwrap_or_else(|| {

@@ -55,7 +55,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         p.DMA_CH0, // CYW43 DMA channel
         wifi_credentials_flash_block,
         p.PIN_13, // Reset button pin
-        "PicoClock",
+        "www.picoclock.net",
         [timezone_field],
         spawner,
     )?;
