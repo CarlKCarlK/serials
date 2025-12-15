@@ -52,6 +52,10 @@ led-strip2-2 = "run --example led_strip2 --release --target thumbv8m.main-none-e
 led-strip2-2-check = "check --example led_strip2 --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 led-strip-simple-2 = "run --example led_strip_simple --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 led-strip-simple-2-check = "check --example led_strip_simple --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+led-strip-simple-two-2 = "run --example led_strip_simple_two --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+led-strip-simple-two-2-check = "check --example led_strip_simple_two --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+led-strip-two-2 = "run --example led_strip_simple_two --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+led-strip-two-2-check = "check --example led_strip_simple_two --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 led24x4-2 = "run --example led24x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 led24x4-2-check = "check --example led24x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 clock-led24x4-2 = "run --example clock_led24x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
@@ -82,6 +86,12 @@ ir-remote = "run --example ir_remote --release --target thumbv6m-none-eabi --fea
 ir-remote-check = "check --example ir_remote --release --target thumbv6m-none-eabi --features pico1,arm"
 led-strip = "run --example led_strip --release --target thumbv6m-none-eabi --features pico1,arm"
 led-strip-check = "check --example led_strip --release --target thumbv6m-none-eabi --features pico1,arm"
+led-strip-simple = "run --example led_strip_simple --release --target thumbv6m-none-eabi --features pico1,arm"
+led-strip-simple-check = "check --example led_strip_simple --release --target thumbv6m-none-eabi --features pico1,arm"
+led-strip-simple-two = "run --example led_strip_simple_two --release --target thumbv6m-none-eabi --features pico1,arm"
+led-strip-simple-two-check = "check --example led_strip_simple_two --release --target thumbv6m-none-eabi --features pico1,arm"
+led-strip-two = "run --example led_strip_simple_two --release --target thumbv6m-none-eabi --features pico1,arm"
+led-strip-two-check = "check --example led_strip_simple_two --release --target thumbv6m-none-eabi --features pico1,arm"
 flash = "run --example flash --release --target thumbv6m-none-eabi --features pico1,arm"
 flash-check = "check --example flash --release --target thumbv6m-none-eabi --features pico1,arm"
 blinky = "run --example blinky --release --target thumbv6m-none-eabi --features pico1,arm"
@@ -97,12 +107,7 @@ docdoc-check = "check --target thumbv8m.main-none-eabihf --no-deps --features pi
 
 [target.thumbv6m-none-eabi]
 runner = "probe-rs run --chip=RP2040"
-rustflags = [
-    "-C",
-    "link-arg=-Tlink.x",
-    "-C",
-    "link-arg=-Tdefmt.x",
-]
+rustflags = ["-C", "link-arg=-Tlink.x", "-C", "link-arg=-Tdefmt.x"]
 
 [target.thumbv8m.main-none-eabihf]
 runner = "probe-rs run --chip=RP235x"
@@ -117,9 +122,4 @@ rustflags = [
 
 [target.riscv32imac-unknown-none-elf]
 runner = "probe-rs run --chip=RP235x"
-rustflags = [
-    "-C",
-    "link-arg=-Tlink.x",
-    "-C",
-    "link-arg=-Tdefmt.x",
-]
+rustflags = ["-C", "link-arg=-Tlink.x", "-C", "link-arg=-Tdefmt.x"]
