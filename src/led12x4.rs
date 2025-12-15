@@ -39,6 +39,9 @@ const LETTER_B: [u8; 4] = [0b110, 0b111, 0b101, 0b110];
 const LETTER_C: [u8; 4] = [0b111, 0b100, 0b100, 0b111];
 const LETTER_D: [u8; 4] = [0b110, 0b101, 0b101, 0b110];
 const LETTER_E: [u8; 4] = [0b111, 0b110, 0b100, 0b111];
+const LETTER_F: [u8; 4] = [0b111, 0b110, 0b100, 0b100];
+const LETTER_I: [u8; 4] = [0b111, 0b010, 0b010, 0b111];
+const LETTER_L: [u8; 4] = [0b100, 0b100, 0b100, 0b111];
 const LETTER_N: [u8; 4] = [0b101, 0b111, 0b111, 0b101];
 const LETTER_O: [u8; 4] = [0b111, 0b101, 0b101, 0b111];
 
@@ -151,6 +154,9 @@ impl<T: LedStripDevice<{ COLS * ROWS }>> Led12x4<T> {
             'C' | 'c' => Some(LETTER_C),
             'D' | 'd' => Some(LETTER_D),
             'E' | 'e' => Some(LETTER_E),
+            'F' | 'f' => Some(LETTER_F),
+            'I' | 'i' => Some(LETTER_I),
+            'L' | 'l' => Some(LETTER_L),
             'N' | 'n' => Some(LETTER_N),
             'O' | 'o' => Some(LETTER_O),
             _ => None,

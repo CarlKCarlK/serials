@@ -100,21 +100,37 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
             async move {
                 use serials::wifi_setup::WifiSetupEvent;
                 match event {
-                    WifiSetupEvent::CaptivePortalReady => led_display_ref
-                        .show_portal_ready()
-                        .await
-                        .expect("LED display failed during portal-ready"),
+                    WifiSetupEvent::CaptivePortalReady => {
+                        info!("WiFi: captive portal ready, displaying CONN");
+                        led_display_ref
+                            .show_portal_ready()
+                            .await
+                            .expect("LED display failed during portal-ready");
+                    }
                     WifiSetupEvent::Connecting {
                         try_index,
                         try_count,
-                    } => led_display_ref
-                        .show_connecting(try_index, try_count)
-                        .await
-                        .expect("LED display failed during connecting"),
-                    WifiSetupEvent::Connected => led_display_ref
-                        .show_connected()
-                        .await
-                        .expect("LED display failed during connected"),
+                    } => {
+                        info!("WiFi: connecting (attempt {}/{})", try_index + 1, try_count);
+                        led_display_ref
+                            .show_connecting(try_index, try_count)
+                            .await
+                            .expect("LED display failed during connecting");
+                    }
+                    WifiSetupEvent::Connected => {
+                        info!("WiFi: connected successfully, displaying DONE");
+                        led_display_ref
+                            .show_connected()
+                            .await
+                            .expect("LED display failed during connected");
+                    }
+                    WifiSetupEvent::ConnectionFailed => {
+                        info!("WiFi: connection failed, displaying FAIL, device will reset");
+                        led_display_ref
+                            .show_connection_failed()
+                            .await
+                            .expect("LED display failed during connection-failed");
+                    }
                 }
             }
         })
@@ -388,6 +404,13 @@ impl Led12x4ClockDisplay {
         self.display
             .borrow_mut()
             .display(['D', 'O', 'N', 'E'], DIGIT_COLORS)
+            .await
+    }
+
+    async fn show_connection_failed(&self) -> Result<()> {
+        self.display
+            .borrow_mut()
+            .display(['F', 'A', 'I', 'L'], DIGIT_COLORS)
             .await
     }
 

@@ -57,6 +57,8 @@ pub enum WifiSetupEvent {
     },
     /// Successfully connected to WiFi network.
     Connected,
+    /// Connection failed after all attempts, device will reset.
+    ConnectionFailed,
 }
 
 const MAX_CONNECT_ATTEMPTS: u8 = 2;
@@ -455,15 +457,20 @@ impl WifiSetup {
                 "WifiSetup: failed to connect after {} attempts, returning to captive portal",
                 MAX_CONNECT_ATTEMPTS
             );
+            info!("WifiSetup: signaling ConnectionFailed event");
+            self.events.signal(WifiSetupEvent::ConnectionFailed);
             if let Some(creds) = self.wifi.load_persisted_credentials() {
                 self.defaults.lock(|cell| {
                     *cell.borrow_mut() = Some(creds);
                 });
             }
+            info!("WifiSetup: writing CaptivePortal mode to flash");
             self.wifi
                 .set_start_mode(WifiStartMode::CaptivePortal)
                 .map_err(|_| Error::StorageCorrupted)?;
-            Timer::after_millis(500).await;
+            info!("WifiSetup: flash write complete, waiting 1 second before reset");
+            Timer::after_secs(1).await;
+            info!("WifiSetup: resetting device now");
             SCB::sys_reset();
         }
     }

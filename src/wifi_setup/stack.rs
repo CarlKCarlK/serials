@@ -733,15 +733,23 @@ async fn wifi_device_loop_client_impl(
 
     // Connect to WiFi
     info!("Connecting to WiFi: {}", ssid_str);
-    loop {
-        match control
-            .join(ssid_str.as_str(), JoinOptions::new(password_str.as_bytes()))
-            .await
-        {
-            Ok(_) => break,
-            Err(err) => {
-                info!("Join failed: {}", err);
-                Timer::after_secs(1).await;
+    // cmk0 Pico2 WiFi driver has bugs - retrying after join failure causes IOCTL crashes
+    // Just try once and let the higher-level timeout in wait_for_client_ready_with_timeout
+    // handle retries by restarting the entire WiFi task
+    match control
+        .join(ssid_str.as_str(), JoinOptions::new(password_str.as_bytes()))
+        .await
+    {
+        Ok(_) => {
+            info!("WiFi join succeeded");
+        }
+        Err(err) => {
+            info!("WiFi join failed: {}", err);
+            info!("Not retrying - letting timeout handle this to avoid driver bugs");
+            // Don't signal ClientReady - let the timeout in wait_for_client_ready_with_timeout
+            // trigger and the higher-level retry logic will restart this entire task
+            loop {
+                Timer::after_secs(3600).await;
             }
         }
     }
