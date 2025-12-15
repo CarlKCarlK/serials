@@ -1,6 +1,7 @@
 //! Device abstractions for peripherals for Pico 1 and 2 (with and without WiFi).
 #![cfg_attr(not(feature = "host"), no_std)]
 #![cfg_attr(not(feature = "host"), no_main)]
+#![allow(async_fn_in_trait, reason = "single-threaded embedded")]
 
 // Compile-time checks: exactly one board must be selected (unless testing with host feature)
 #[cfg(all(not(any(feature = "pico1", feature = "pico2")), not(feature = "host")))]
@@ -64,7 +65,7 @@ pub mod ir_kepler;
 #[cfg(not(feature = "host"))]
 pub mod ir_mapping;
 #[cfg(not(feature = "host"))]
-pub mod led24x4;
+pub mod led12x4;
 #[cfg(not(feature = "host"))]
 pub mod led4;
 #[cfg(not(feature = "host"))]
@@ -89,3 +90,10 @@ pub mod wifi_setup;
 // Re-export error types and result (used throughout)
 #[cfg(not(feature = "host"))]
 pub use error::{Error, Result};
+
+/// Trait for LED strip devices that can update pixels.
+#[cfg(not(feature = "host"))]
+pub trait LedStripDevice<const N: usize> {
+    /// Update all pixels at once.
+    async fn update_pixels(&mut self, pixels: &[smart_leds::RGB8; N]) -> Result<()>;
+}

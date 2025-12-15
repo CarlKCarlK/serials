@@ -1,7 +1,7 @@
-//! Wi-Fi enabled 4-character LED matrix clock (24x4 pixels) with captive-portal setup.
+//! Wi-Fi enabled 4-character LED matrix clock (12x4 pixels) with captive-portal setup.
 //!
 //! This example mirrors the WiFi/clock state machine from `clock_servos.rs` but drives a
-//! 24x4 LED panel on GPIO3 instead of servos. The reset button is on GPIO13.
+//! 12x4 LED panel on GPIO3 instead of servos. The reset button is on GPIO13.
 
 #![no_std]
 #![no_main]
@@ -19,8 +19,8 @@ use panic_probe as _;
 use serials::button::{Button, PressDuration};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::led_strip::define_led_strips;
-use serials::led24x4::Led24x4;
+use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic};
+use serials::led12x4::Led12x4;
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
@@ -37,20 +37,6 @@ const DIGIT4_COLOR: RGB8 = RGB8::new(96, 0, 0);
 const EDIT3_COLOR: RGB8 = RGB8::new(128, 32, 0);
 const EDIT4_COLOR: RGB8 = RGB8::new(128, 0, 96);
 
-// 4x12 panel (48 pixels) using PIO1, SM0, DMA_CH1, GPIO3
-define_led_strips! {
-    pio: PIO1,
-    strips: [
-        led_strip24x4 {
-            sm: 0,
-            dma: DMA_CH1,
-            pin: PIN_3,
-            len: 48,
-            max_current_ma: 100
-        }
-    ]
-}
-
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
     let err = inner_main(spawner).await.unwrap_err();
@@ -58,7 +44,7 @@ pub async fn main(spawner: Spawner) -> ! {
 }
 
 async fn inner_main(spawner: Spawner) -> Result<!> {
-    info!("Starting Wi-Fi 24x4 LED clock (WifiSetup)");
+    info!("Starting Wi-Fi 12x4 LED clock (WifiSetup)");
     let peripherals = embassy_rp::init(Default::default());
 
     // Use two blocks of flash storage: Wi-Fi credentials + timezone
@@ -87,19 +73,15 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         spawner,
     )?;
 
-    // Set up the 24x4 LED display on GPIO3.
-    let (pio_bus, state_machine0, _state_machine1, _state_machine2, _state_machine3) =
-        pio1_split(peripherals.PIO1);
-    static LED_STRIP_STATIC: led_strip24x4::Static = led_strip24x4::new_static();
-    let led_strip = led_strip24x4::new(
-        spawner,
+    // Set up the 12x4 LED display on GPIO3 using LedStripSimple on PIO1.
+    static LED_STRIP_STATIC: LedStripSimpleStatic<48> = LedStripSimpleStatic::new_static();
+    let led_strip = LedStripSimple::new_pio1(
         &LED_STRIP_STATIC,
-        pio_bus,
-        state_machine0,
-        peripherals.DMA_CH1.into(),
-        peripherals.PIN_3.into(),
-    )?;
-    let led_display = RefCell::new(Led24x4ClockDisplay::new(Led24x4::new(led_strip)));
+        peripherals.PIO1,
+        peripherals.PIN_3,
+        500, // 500mA budget allows ~22% brightness for 48 LEDs
+    );
+    let led_display = RefCell::new(Led12x4ClockDisplay::new(Led12x4::new(led_strip)));
 
     // Connect Wi-Fi, using the LED panel for status.
     let led_display_ref = &led_display;
@@ -192,7 +174,7 @@ impl State {
         clock: &Clock,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        led_display: &mut Led24x4ClockDisplay,
+        led_display: &mut Led12x4ClockDisplay,
     ) -> Result<Self> {
         clock.set_speed(speed).await;
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
@@ -243,7 +225,7 @@ impl State {
         clock: &Clock,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        led_display: &mut Led24x4ClockDisplay,
+        led_display: &mut Led12x4ClockDisplay,
     ) -> Result<Self> {
         clock.set_speed(1.0).await;
         let (_, minutes, seconds) = h12_m_s(&clock.now_local());
@@ -290,7 +272,7 @@ impl State {
         clock: &Clock,
         button: &mut Button<'_>,
         timezone_field: &TimezoneField,
-        led_display: &mut Led24x4ClockDisplay,
+        led_display: &mut Led12x4ClockDisplay,
     ) -> Result<Self> {
         info!("Entering edit offset mode");
         clock.set_speed(1.0).await;
@@ -342,12 +324,12 @@ impl State {
     }
 }
 
-struct Led24x4ClockDisplay {
-    display: Led24x4,
+struct Led12x4ClockDisplay {
+    display: Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
 }
 
-impl Led24x4ClockDisplay {
-    fn new(display: Led24x4) -> Self {
+impl Led12x4ClockDisplay {
+    fn new(display: Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>) -> Self {
         Self { display }
     }
 

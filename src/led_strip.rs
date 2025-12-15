@@ -140,6 +140,12 @@ impl<const N: usize> LedStrip<N> {
     }
 }
 
+impl<const N: usize> crate::LedStripDevice<N> for LedStrip<N> {
+    async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
+        self.update_pixels(pixels).await
+    }
+}
+
 /// Driver loop with brightness scaling.
 /// Scales all RGB values by `max_brightness / 255` before writing to LEDs.
 pub async fn led_strip_driver_loop<PIO, const SM: usize, const N: usize, ORDER>(

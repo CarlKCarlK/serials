@@ -1,8 +1,8 @@
 //! A device abstraction for 4-character LED matrix displays (12x4 pixels).
 //!
-//! See [`Led24x4`] for the main usage example.
+//! See [`Led12x4`] for the main usage example.
 
-use crate::{Result, led_strip::LedStrip};
+use crate::{LedStripDevice, Result};
 use smart_leds::RGB8;
 
 /// 3×4 font for digits 0..9. Each entry is 4 rows of 3 bits (LSB = rightmost column).
@@ -39,14 +39,14 @@ pub const ROWS: usize = 4;
 /// # #![no_std]
 /// # use panic_probe as _;
 /// # fn main() {}
-/// use serials::led24x4::Led24x4;
+/// use serials::led12x4::Led12x4;
 /// use serials::led_strip::{LedStrip, LedStripStatic, Rgb};
 ///
 /// async fn example() -> serials::Result<()> {
-///     static LED_STRIP_STATIC: LedStripStatic<{ serials::led24x4::COLS * serials::led24x4::ROWS }> =
+///     static LED_STRIP_STATIC: LedStripStatic<{ serials::led12x4::COLS * serials::led12x4::ROWS }> =
 ///         LedStrip::new_static();
 ///     let strip = LedStrip::new(&LED_STRIP_STATIC)?;
-///     let mut display = Led24x4::new(strip);
+///     let mut display = Led12x4::new(strip);
 ///
 ///     let red = Rgb::new(32, 0, 0);
 ///     let green = Rgb::new(0, 32, 0);
@@ -56,13 +56,13 @@ pub const ROWS: usize = 4;
 ///     Ok(())
 /// }
 /// ```
-pub struct Led24x4 {
-    strip: LedStrip<{ COLS * ROWS }>,
+pub struct Led12x4<T: LedStripDevice<{ COLS * ROWS }>> {
+    strip: T,
 }
 
-impl Led24x4 {
-    /// Wrap an existing `LedStrip<12*4>` controller.
-    pub fn new(strip: LedStrip<{ COLS * ROWS }>) -> Self {
+impl<T: LedStripDevice<{ COLS * ROWS }>> Led12x4<T> {
+    /// Wrap an existing LED strip controller.
+    pub fn new(strip: T) -> Self {
         Self { strip }
     }
 
