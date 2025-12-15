@@ -35,12 +35,7 @@ riscv = [
     "critical-section/restore-state-bool",
 ]
 host = [] # For testing on host platform without hardware dependencies
-wifi = [
-    "dep:cyw43",
-    "dep:cyw43-pio",
-    "dep:cyw43-firmware",
-    "dep:embassy-net",
-]
+wifi = ["dep:cyw43", "dep:cyw43-pio", "dep:cyw43-firmware", "dep:embassy-net"]
 display-trace = []
 
 [dependencies]

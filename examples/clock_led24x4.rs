@@ -10,7 +10,7 @@ use serials::led_strip::define_led_strips;
 use serials::led24x4::Led24x4;
 use smart_leds::RGB8;
 
-// 4x12 panel (48 pixels) using PIO1, SM0, DMA_CH1, GPIO16
+// 4x12 panel (48 pixels) using PIO1, SM0, DMA_CH1, GPIO3
 // Max current 50 mA
 define_led_strips! {
     pio: PIO1,
@@ -18,7 +18,7 @@ define_led_strips! {
         led_strip2 {
             sm: 0,
             dma: DMA_CH1,
-            pin: PIN_16,
+            pin: PIN_3,
             len: 48,
             max_current_ma: 100
         }
@@ -40,7 +40,7 @@ async fn main(spawner: Spawner) -> ! {
         pio_bus,
         sm0,
         peripherals.DMA_CH1.into(),
-        peripherals.PIN_16.into(),
+        peripherals.PIN_3.into(),
     )
     .expect("Failed to start LED strip");
 

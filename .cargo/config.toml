@@ -72,6 +72,8 @@ wifi-web-2w = "run --example wifi_web --release --target thumbv8m.main-none-eabi
 wifi-web-2w-check = "check --example wifi_web --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
 clock-console-2w = "run --example clock_console --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
 clock-console-2w-check = "check --example clock_console --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
+clock-led24x4-wifi-2w = "run --example clock_led24x4_wifi --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
+clock-led24x4-wifi-2w-check = "check --example clock_led24x4_wifi --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
 
 # Pico 2 RISC-V alias (experimental - not fully working yet)
 blinky-2r = "run --example blinky --release --target riscv32imac-unknown-none-elf --features pico2,riscv --no-default-features"
