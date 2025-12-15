@@ -249,6 +249,9 @@ pub struct LedStripSimpleStatic<const N: usize> {
 }
 
 impl<const N: usize> LedStripSimpleStatic<N> {
+    /// Number of LEDs in the strip.
+    pub const LEN: usize = N;
+
     #[must_use]
     pub const fn new_static() -> Self {
         Self { _priv: () }
