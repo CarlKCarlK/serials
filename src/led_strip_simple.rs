@@ -310,6 +310,8 @@ impl<'d, PIO: Instance, const N: usize> LedStripSimple<'d, PIO, N> {
     }
 
     /// Update all pixels at once.
+    ///
+    /// See [`LedStripSimple`] for the usage example.
     pub async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
         let mut frame = *pixels;
         apply_max_brightness(&mut frame, self.max_brightness);

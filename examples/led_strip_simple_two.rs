@@ -12,46 +12,6 @@ use serials::Result;
 use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, colors};
 use serials::new_simple_strip;
 
-struct BounceState<const N: usize> {
-    position: usize,
-    direction: isize,
-}
-
-impl<const N: usize> BounceState<N> {
-    const fn new() -> Self {
-        Self {
-            position: 0,
-            direction: 1,
-        }
-    }
-
-    fn advance(&mut self) {
-        if self.direction > 0 {
-            if self.position >= N - 1 {
-                self.direction = -1;
-            } else {
-                self.position += 1;
-            }
-        } else if self.position == 0 {
-            self.direction = 1;
-        } else {
-            self.position -= 1;
-        }
-    }
-
-    async fn update<PIO: embassy_rp::pio::Instance>(
-        &mut self,
-        strip: &mut LedStripSimple<'static, PIO, N>,
-    ) -> Result<()> {
-        assert!(self.position < N);
-        let mut pixels = [colors::BLACK; N];
-        pixels[self.position] = colors::WHITE;
-        strip.update_pixels(&pixels).await?;
-        self.advance();
-        Ok(())
-    }
-}
-
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
     let err = inner_main(spawner).await.unwrap_err();
@@ -91,5 +51,45 @@ async fn inner_main(_spawner: Spawner) -> Result<!> {
         state1.update(&mut strip1).await?;
 
         Timer::after_millis(500).await;
+    }
+}
+
+struct BounceState<const N: usize> {
+    position: usize,
+    direction: isize,
+}
+
+impl<const N: usize> BounceState<N> {
+    const fn new() -> Self {
+        Self {
+            position: 0,
+            direction: 1,
+        }
+    }
+
+    fn advance(&mut self) {
+        if self.direction > 0 {
+            if self.position >= N - 1 {
+                self.direction = -1;
+            } else {
+                self.position += 1;
+            }
+        } else if self.position == 0 {
+            self.direction = 1;
+        } else {
+            self.position -= 1;
+        }
+    }
+
+    async fn update<PIO: embassy_rp::pio::Instance>(
+        &mut self,
+        strip: &mut LedStripSimple<'static, PIO, N>,
+    ) -> Result<()> {
+        assert!(self.position < N);
+        let mut pixels = [colors::BLACK; N];
+        pixels[self.position] = colors::WHITE;
+        strip.update_pixels(&pixels).await?;
+        self.advance();
+        Ok(())
     }
 }
