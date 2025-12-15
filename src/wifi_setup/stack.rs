@@ -740,7 +740,7 @@ async fn wifi_device_loop_client_impl(
         {
             Ok(_) => break,
             Err(err) => {
-                info!("Join failed: {}", err.status);
+                info!("Join failed: {}", err);
                 Timer::after_secs(1).await;
             }
         }
