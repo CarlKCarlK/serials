@@ -12,6 +12,9 @@ use smart_leds::RGB8;
 
 use crate::{LedStripDevice, Result, led_strip::LedStrip};
 
+/// Predefined RGB color constants (RED, GREEN, BLUE, etc.).
+pub use smart_leds::colors;
+
 /// 3×4 font for digits 0..9. Each entry is 4 rows of 3 bits (LSB = rightmost column).
 const FONT: [[u8; 4]; 10] = [
     // 0
@@ -36,10 +39,12 @@ const FONT: [[u8; 4]; 10] = [
     [0b111, 0b101, 0b111, 0b001],
 ];
 
+// cmk need to be public?
 /// Display size in pixels
 pub const COLS: usize = 12;
 pub const ROWS: usize = 4;
 /// Number of LEDs along the outer perimeter of the display.
+// cmk need to be public?
 pub const PERIMETER_LENGTH: usize = (COLS * 2) + ((ROWS - 2) * 2);
 // cmk isn't this font defined elsewhere?
 
@@ -54,12 +59,14 @@ const LETTER_L: [u8; 4] = [0b100, 0b100, 0b100, 0b111];
 const LETTER_N: [u8; 4] = [0b101, 0b111, 0b111, 0b101];
 const LETTER_O: [u8; 4] = [0b111, 0b101, 0b101, 0b111];
 
+// cmk does this need to be limited and public
 /// Maximum frames supported by [`Led12x4::animate_frames`].
 pub const ANIMATION_MAX_FRAMES: usize = 32;
 
 type Led12x4CommandSignal = Signal<CriticalSectionRawMutex, Command>;
 type Led12x4CompletionSignal = Signal<CriticalSectionRawMutex, ()>;
 
+// cmk why public?
 #[derive(Clone)]
 pub enum Command {
     DisplayStatic([RGB8; COLS * ROWS]),
@@ -115,20 +122,24 @@ impl Led12x4Static {
 /// # #![no_std]
 /// # use panic_probe as _;
 /// # async fn main(_spawner: embassy_executor::Spawner) {}
-/// use serials::led12x4::Led12x4;
-/// use serials::led_strip::{LedStrip, LedStripStatic, Rgb};
+/// use embassy_time::Duration;
+/// use serials::led12x4::{Led12x4, Led12x4Static, colors, perimeter_chase_animation};
+/// use serials::led_strip::{LedStrip, LedStripStatic};
 ///
 /// async fn example(spawner: embassy_executor::Spawner) -> serials::Result<()> {
-///     static LED_STRIP_STATIC: LedStripStatic<{ serials::led12x4::COLS * serials::led12x4::ROWS }> = LedStrip::new_static();
-///     static LED12X4_STATIC: serials::led12x4::Led12x4Static = serials::led12x4::Led12x4::new_static();
-///     let strip = LedStrip::new(&LED_STRIP_STATIC)?;
-///     let display = Led12x4::new(&LED12X4_STATIC, strip, spawner)?;
+///     static LED_STRIP_STATIC: LedStripStatic<48> = LedStrip::new_static();
+///     let led_strip = LedStrip::new(&LED_STRIP_STATIC)?;
 ///
-///     let red = Rgb::new(32, 0, 0);
-///     let green = Rgb::new(0, 32, 0);
-///     let blue = Rgb::new(0, 0, 32);
-///     let yellow = Rgb::new(32, 32, 0);
-///     display.display(['1', '2', '3', '4'], [red, green, blue, yellow])?;
+///     static LED12X4_STATIC: Led12x4Static = Led12x4::new_static();
+///     let led12x4 = Led12x4::new(&LED12X4_STATIC, led_strip, spawner)?;
+///
+///     led12x4.display(['1', '2', '3', '4'], [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW]).await?;
+///
+///     // cmk too complicated for this example.
+///     // Perimeter chase animation
+///     let frames = perimeter_chase_animation(true, colors::WHITE, Duration::from_millis(50));
+///     led12x4.animate_frames(frames).await?;
+///
 ///     Ok(())
 /// }
 /// ```
@@ -138,6 +149,7 @@ pub struct Led12x4<T: LedStripDevice<{ COLS * ROWS }>> {
     _marker: PhantomData<T>,
 }
 
+// cmk bad name for a trait
 pub trait Led12x4Spawn: LedStripDevice<{ COLS * ROWS }> + 'static {
     fn spawn_led12x4(
         self,
@@ -170,6 +182,7 @@ impl<T: LedStripDevice<{ COLS * ROWS }> + 'static> Led12x4<T> {
         })
     }
 
+    // cmk what is this?
     /// Render a fully defined frame to the display.
     pub async fn display_frame(&self, frame: [RGB8; COLS * ROWS]) -> Result<()> {
         self.command_signal.signal(Command::DisplayStatic(frame));
@@ -186,6 +199,8 @@ impl<T: LedStripDevice<{ COLS * ROWS }> + 'static> Led12x4<T> {
     /// - any other char = solid 3×4 block
     ///
     /// Builds the entire frame and updates all pixels at once.
+    // cmk should this be write_text?
+    // cmk why does led4 have state first and text 2nd and this has text first and colors second?
     pub async fn display(&self, chars: [char; 4], colors: [RGB8; 4]) -> Result<()> {
         self.command_signal
             .signal(Command::DisplayChars { chars, colors });
@@ -193,6 +208,7 @@ impl<T: LedStripDevice<{ COLS * ROWS }> + 'static> Led12x4<T> {
         Ok(())
     }
 
+    // cmk kill this!
     /// Display "1234" in red, green, blue, and yellow respectively.
     pub async fn display_1234(&self) -> Result<()> {
         let red = RGB8::new(32, 0, 0);
@@ -204,6 +220,7 @@ impl<T: LedStripDevice<{ COLS * ROWS }> + 'static> Led12x4<T> {
             .await
     }
 
+    // cmk what is this?
     /// Loop through a sequence of animation frames until interrupted by another command.
     pub async fn animate_frames(
         &self,
@@ -340,6 +357,7 @@ pub fn perimeter_chase_animation(
     animation
 }
 
+// cmk look at every function and decide if it's necessary
 /// Creates a blinking text animation that alternates between the given text and blank.
 #[must_use]
 pub fn blink_text_animation(

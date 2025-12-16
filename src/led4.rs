@@ -144,6 +144,7 @@ impl AnimationFrame {
 /// }
 /// ```
 ///
+/// cmk should the example include animation?
 /// Beyond simple text, the driver can loop animations via [`Led4::animate_text`].
 /// The struct owns the background task and signal wiring; create it once with
 /// [`Led4::new`] and use the returned handle for all display updates.

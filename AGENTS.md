@@ -151,6 +151,27 @@ Rust convention:
 Getters: offset_minutes(), text() (no prefix)
 Setters: set_offset_minutes(), set_text() (with set_ prefix)
 
+## Colors
+
+For RGB colors, use the predefined constants from `smart_leds::colors` (re-exported from `led_strip::colors` and `led12x4::colors`) rather than creating RGB values manually:
+
+✅ Good:
+
+```rust
+use serials::led_strip::colors;
+let frame = [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW];
+```
+
+❌ Bad:
+
+```rust
+use serials::led_strip::Rgb;
+let red = Rgb::new(255, 0, 0);
+let green = Rgb::new(0, 255, 0);
+```
+
+Common colors available: `RED`, `GREEN`, `BLUE`, `YELLOW`, `WHITE`, `BLACK`, `CYAN`, `MAGENTA`, `ORANGE`, `PURPLE`, etc.
+
 ## Device/Static Pair Pattern
 
 Many drivers expose a `new_static` constructor for resources plus a `new` constructor for the runtime handle. We call this the **Device/Static Pair Pattern** and use it consistently across the repo.
