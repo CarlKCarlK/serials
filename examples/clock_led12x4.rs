@@ -394,13 +394,13 @@ impl Led12x4ClockDisplay {
 
     async fn show_connected(&self) -> Result<()> {
         self.display
-            .display(['D', 'O', 'N', 'E'], DIGIT_COLORS)
+            .write_text(['D', 'O', 'N', 'E'], DIGIT_COLORS)
             .await
     }
 
     async fn show_connection_failed(&self) -> Result<()> {
         self.display
-            .display(['F', 'A', 'I', 'L'], DIGIT_COLORS)
+            .write_text(['F', 'A', 'I', 'L'], DIGIT_COLORS)
             .await
     }
 
@@ -408,7 +408,7 @@ impl Led12x4ClockDisplay {
         let (hours_tens, hours_ones) = hours_digits(hours);
         let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
         self.display
-            .display(
+            .write_text(
                 [hours_tens, hours_ones, minutes_tens, minutes_ones],
                 DIGIT_COLORS,
             )
@@ -419,7 +419,7 @@ impl Led12x4ClockDisplay {
         let (hours_tens, hours_ones) = hours_digits(hours);
         let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
         self.display
-            .display(
+            .write_text(
                 [hours_tens, hours_ones, minutes_tens, minutes_ones],
                 EDIT_COLORS,
             )
@@ -430,7 +430,7 @@ impl Led12x4ClockDisplay {
         let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
         let (seconds_tens, seconds_ones) = two_digit_chars(seconds);
         self.display
-            .display(
+            .write_text(
                 [minutes_tens, minutes_ones, seconds_tens, seconds_ones],
                 DIGIT_COLORS,
             )

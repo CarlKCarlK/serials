@@ -135,10 +135,10 @@ impl AnimationFrame {
 ///     let display = Led4::new(&LED4_STATIC, cells, segments, spawner)?;
 ///
 ///     // Display "1234" (solid)
-///     display.write_text(BlinkState::Solid, ['1', '2', '3', '4']);
+///     display.write_text(['1', '2', '3', '4'], BlinkState::Solid);
 ///     
 ///     // Display "rUSt" blinking
-///     display.write_text(BlinkState::BlinkingAndOn, ['r', 'U', 'S', 't']);
+///     display.write_text(['r', 'U', 'S', 't'], BlinkState::BlinkingAndOn);
 ///     
 ///     Ok(())
 /// }
@@ -197,7 +197,7 @@ impl Led4<'_> {
     /// Sends text to the display with optional blinking.
     ///
     /// See the main [`Led4`] example for end-to-end usage.
-    pub fn write_text(&self, blink_state: BlinkState, text: [char; CELL_COUNT]) {
+    pub fn write_text(&self, text: [char; CELL_COUNT], blink_state: BlinkState) {
         #[cfg(feature = "display-trace")]
         info!("blink_state: {:?}, text: {:?}", blink_state, text);
         self.0.signal(Led4Command::Text { blink_state, text });

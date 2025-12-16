@@ -99,13 +99,13 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     )?;
     let mut Led24x4 = Led24x4::new(led_strip1_device);
     Led24x4
-        .display(['0', '0', '0', '0'], [RED, GREEN, BLUE, YELLOW])
+        .write_text(['0', '0', '0', '0'], [RED, GREEN, BLUE, YELLOW])
         .await?;
 
     // Initialize LCD (GP4=SDA, GP5=SCL)
     static CHAR_LCD_CHANNEL: CharLcdStatic = CharLcd::new_static();
     let lcd = CharLcd::new(&CHAR_LCD_CHANNEL, p.I2C0, p.PIN_5, p.PIN_4, spawner)?;
-    lcd.display(String::<64>::try_from("Starting RFID...").unwrap(), 0)
+    lcd.write_text(String::<64>::try_from("Starting RFID...").unwrap(), 0)
         .await;
 
     info!("LCD initialized");
@@ -159,7 +159,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     )
     .await?;
 
-    lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0)
+    lcd.write_text(String::<64>::try_from("Scan card...").unwrap(), 0)
         .await;
 
     // Card tracking - map UID to assigned name (A-D for first 4 cards)
@@ -261,7 +261,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                         // Any other button: reset the card map
                         info!("IR button pressed, resetting card map");
                         card_map.clear();
-                        lcd.display(String::<64>::try_from("Map Reset").unwrap(), 500)
+                        lcd.write_text(String::<64>::try_from("Map Reset").unwrap(), 500)
                             .await; // 0.5 seconds
                     }
                 }
@@ -289,18 +289,18 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                 Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
                     info!("Time sync success: unix_seconds={}", unix_seconds.as_i64());
                     clock.set_utc_time(unix_seconds).await;
-                    lcd.display(String::<64>::try_from("Synced!").unwrap(), 800)
+                    lcd.write_text(String::<64>::try_from("Synced!").unwrap(), 800)
                         .await;
                 }
                 Either::Second(TimeSyncEvent::Failed(err)) => {
                     info!("Time sync failed: {}", err);
-                    lcd.display(String::<64>::try_from("Sync failed").unwrap(), 800)
+                    lcd.write_text(String::<64>::try_from("Sync failed").unwrap(), 800)
                         .await;
                 }
             },
         }
 
-        lcd.display(String::<64>::try_from("Scan card...").unwrap(), 0)
+        lcd.write_text(String::<64>::try_from("Scan card...").unwrap(), 0)
             .await; // 0 = until next message
     }
 }

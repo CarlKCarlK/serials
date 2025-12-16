@@ -55,7 +55,7 @@ impl CharLcdStatic {
 ///     static CHAR_LCD_STATIC: CharLcdStatic = CharLcd::new_static();
 ///     let lcd = CharLcd::new(&CHAR_LCD_STATIC, p.I2C0, p.PIN_1, p.PIN_0, spawner)?;
 ///     let mut text: heapless::String<64> = "Hello!".try_into().unwrap();
-///     lcd.display(text, 1_000).await;
+///     lcd.write_text(text, 1_000).await;
 ///     Ok(())
 /// }
 /// ```
@@ -93,7 +93,7 @@ impl CharLcd {
     }
 
     /// Send a message to the LCD (async, waits until queued)
-    pub async fn display(&self, text: String<64>, duration_ms: u32) {
+    pub async fn write_text(&self, text: String<64>, duration_ms: u32) {
         self.char_lcd_static
             .send(CharLcdMessage::Display { text, duration_ms })
             .await;

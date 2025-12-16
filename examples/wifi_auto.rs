@@ -108,7 +108,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         .connect(spawner, |event| async move {
             match event {
                 WifiSetupEvent::CaptivePortalReady => {
-                    led4_ref.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
+                    led4_ref.write_text(['C', 'O', 'N', 'N'], BlinkState::BlinkingAndOn);
                 }
 
                 WifiSetupEvent::Connecting { try_index, .. } => {
@@ -118,7 +118,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                 }
 
                 WifiSetupEvent::Connected => {
-                    led4_ref.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
+                    led4_ref.write_text(['D', 'O', 'N', 'E'], BlinkState::Solid);
                 }
             }
         })

@@ -121,7 +121,7 @@ impl Led12x4Static {
 /// ```no_run
 /// # #![no_std]
 /// # use panic_probe as _;
-/// # async fn main(_spawner: embassy_executor::Spawner) {}
+/// # fn main() {}
 /// use embassy_time::Duration;
 /// use serials::led12x4::{Led12x4, Led12x4Static, colors, perimeter_chase_animation};
 /// use serials::led_strip::{LedStrip, LedStripStatic};
@@ -133,7 +133,7 @@ impl Led12x4Static {
 ///     static LED12X4_STATIC: Led12x4Static = Led12x4::new_static();
 ///     let led12x4 = Led12x4::new(&LED12X4_STATIC, led_strip, spawner)?;
 ///
-///     led12x4.display(['1', '2', '3', '4'], [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW]).await?;
+///     led12x4.write_text(['1', '2', '3', '4'], [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW]).await?;
 ///
 ///     // cmk too complicated for this example.
 ///     // Perimeter chase animation
@@ -182,9 +182,8 @@ impl<T: LedStripDevice<{ COLS * ROWS }> + 'static> Led12x4<T> {
         })
     }
 
-    // cmk what is this?
     /// Render a fully defined frame to the display.
-    pub async fn display_frame(&self, frame: [RGB8; COLS * ROWS]) -> Result<()> {
+    pub async fn write_frame(&self, frame: [RGB8; COLS * ROWS]) -> Result<()> {
         self.command_signal.signal(Command::DisplayStatic(frame));
         self.completion_signal.wait().await;
         Ok(())
@@ -199,9 +198,7 @@ impl<T: LedStripDevice<{ COLS * ROWS }> + 'static> Led12x4<T> {
     /// - any other char = solid 3×4 block
     ///
     /// Builds the entire frame and updates all pixels at once.
-    // cmk should this be write_text?
-    // cmk why does led4 have state first and text 2nd and this has text first and colors second?
-    pub async fn display(&self, chars: [char; 4], colors: [RGB8; 4]) -> Result<()> {
+    pub async fn write_text(&self, chars: [char; 4], colors: [RGB8; 4]) -> Result<()> {
         self.command_signal
             .signal(Command::DisplayChars { chars, colors });
         self.completion_signal.wait().await;
@@ -216,7 +213,7 @@ impl<T: LedStripDevice<{ COLS * ROWS }> + 'static> Led12x4<T> {
         let blue = RGB8::new(0, 0, 32);
         let yellow = RGB8::new(32, 32, 0);
 
-        self.display(['1', '2', '3', '4'], [red, green, blue, yellow])
+        self.write_text(['1', '2', '3', '4'], [red, green, blue, yellow])
             .await
     }
 

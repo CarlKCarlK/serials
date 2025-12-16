@@ -120,7 +120,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
                     ),
                 )
                 .map_err(|_| Error::FormatError)?;
-                char_lcd.display(text, 0).await;
+                char_lcd.write_text(text, 0).await;
             }
 
             // On time sync events, set clock and display status
@@ -128,7 +128,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
                 info!("Sync successful: unix_seconds={}", unix_seconds.as_i64());
                 clock.set_utc_time(unix_seconds).await;
                 char_lcd
-                    .display(String::<64>::try_from("Synced!").unwrap(), 800)
+                    .write_text(String::<64>::try_from("Synced!").unwrap(), 800)
                     .await;
             }
 
@@ -136,7 +136,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
             Either::Second(TimeSyncEvent::Failed(err)) => {
                 info!("Sync failed: {}", err);
                 char_lcd
-                    .display(String::<64>::try_from("Sync failed").unwrap(), 800)
+                    .write_text(String::<64>::try_from("Sync failed").unwrap(), 800)
                     .await;
             }
         }

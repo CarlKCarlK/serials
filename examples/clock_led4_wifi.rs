@@ -93,13 +93,13 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
             use serials::wifi_setup::WifiSetupEvent;
             match event {
                 WifiSetupEvent::CaptivePortalReady => {
-                    led4_ref.write_text(BlinkState::BlinkingAndOn, ['C', 'O', 'N', 'N']);
+                    led4_ref.write_text(['C', 'O', 'N', 'N'], BlinkState::BlinkingAndOn);
                 }
                 WifiSetupEvent::Connecting { .. } => {
                     led4_ref.animate_text(circular_outline_animation(true));
                 }
                 WifiSetupEvent::Connected => {
-                    led4_ref.write_text(BlinkState::Solid, ['D', 'O', 'N', 'E']);
+                    led4_ref.write_text(['D', 'O', 'N', 'E'], BlinkState::Solid);
                 }
             }
         })
@@ -165,13 +165,13 @@ impl State {
         clock.set_speed(speed).await;
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
         led4.write_text(
-            BlinkState::Solid,
             [
                 tens_hours(hours),
                 ones_digit(hours),
                 tens_digit(minutes),
                 ones_digit(minutes),
             ],
+            BlinkState::Solid,
         );
         clock.set_tick_interval(Some(ONE_MINUTE)).await;
         let mut button_press = pin!(button.wait_for_press_duration());
@@ -198,13 +198,13 @@ impl State {
                 Either::Second(Either::First(time_event)) => {
                     let (hours, minutes, _) = h12_m_s(&time_event);
                     led4.write_text(
-                        BlinkState::Solid,
                         [
                             tens_hours(hours),
                             ones_digit(hours),
                             tens_digit(minutes),
                             ones_digit(minutes),
                         ],
+                        BlinkState::Solid,
                     );
                 }
                 // Time sync events
@@ -232,13 +232,13 @@ impl State {
         clock.set_speed(1.0).await;
         let (_, minutes, seconds) = h12_m_s(&clock.now_local());
         led4.write_text(
-            BlinkState::Solid,
             [
                 tens_digit(minutes),
                 ones_digit(minutes),
                 tens_digit(seconds),
                 ones_digit(seconds),
             ],
+            BlinkState::Solid,
         );
         clock.set_tick_interval(Some(ONE_SECOND)).await;
         loop {
@@ -261,13 +261,13 @@ impl State {
                 Either::First(Either::Second(time_event)) => {
                     let (_, minutes, seconds) = h12_m_s(&time_event);
                     led4.write_text(
-                        BlinkState::Solid,
                         [
                             tens_digit(minutes),
                             ones_digit(minutes),
                             tens_digit(seconds),
                             ones_digit(seconds),
                         ],
+                        BlinkState::Solid,
                     );
                 }
                 // Time sync events
@@ -297,13 +297,13 @@ impl State {
         // Blink current hours and minutes
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
         led4.write_text(
-            BlinkState::BlinkingAndOn,
             [
                 tens_hours(hours),
                 ones_digit(hours),
                 tens_digit(minutes),
                 ones_digit(minutes),
             ],
+            BlinkState::BlinkingAndOn,
         );
 
         // Get the current offset minutes from clock (source of truth)
@@ -333,13 +333,13 @@ impl State {
                         hours, minutes
                     );
                     led4.write_text(
-                        BlinkState::BlinkingAndOn,
                         [
                             tens_hours(hours),
                             ones_digit(hours),
                             tens_digit(minutes),
                             ones_digit(minutes),
                         ],
+                        BlinkState::BlinkingAndOn,
                     );
                 }
                 PressDuration::Long => {
