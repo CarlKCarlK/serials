@@ -106,12 +106,12 @@ pub struct WifiSetupStatic {
 /// use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 /// async fn example(
 ///     spawner: embassy_executor::Spawner,
-///     peripherals: embassy_rp::Peripherals,
+///     p: embassy_rp::Peripherals,
 /// ) -> Result<(), serials::Error> {
 ///     // Set up flash storage for WiFi credentials and timezone
 ///     static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
 ///     let [wifi_flash, timezone_flash] =
-///         FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
+///         FlashArray::new(&FLASH_STATIC, p.FLASH)?;
 ///
 ///     // Create a timezone field to collect during provisioning
 ///     static TIMEZONE_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
@@ -121,14 +121,14 @@ pub struct WifiSetupStatic {
 ///     static wifi_setup_STATIC: WifiSetupStatic = WifiSetup::new_static();
 ///     let wifi_setup = WifiSetup::new(
 ///         &wifi_setup_STATIC,
-///         peripherals.PIN_23,     // CYW43 power
-///         peripherals.PIN_25,     // CYW43 chip select
-///         peripherals.PIO0,       // CYW43 PIO interface
-///         peripherals.PIN_24,     // CYW43 clock
-///         peripherals.PIN_29,     // CYW43 data
-///         peripherals.DMA_CH0,    // CYW43 DMA
+///         p.PIN_23,               // CYW43 power
+///         p.PIN_25,               // CYW43 chip select
+///         p.PIO0,                 // CYW43 PIO interface
+///         p.PIN_24,               // CYW43 clock
+///         p.PIN_29,               // CYW43 data
+///         p.DMA_CH0,              // CYW43 DMA
 ///         wifi_flash,             // Flash for WiFi credentials
-///         peripherals.PIN_13,     // Button for forced reconfiguration
+///         p.PIN_13,               // Button for forced reconfiguration
 ///         "PicoAccess",           // Captive-portal SSID for provisioning
 ///         [timezone_field],       // Array of custom fields
 ///         spawner,

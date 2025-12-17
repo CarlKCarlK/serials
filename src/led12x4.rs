@@ -133,15 +133,14 @@ impl Led12x4Static {
 /// use serials::new_led12x4;
 ///
 /// async fn example(
-///     peripherals: embassy_rp::Peripherals,
+///     p: embassy_rp::Peripherals,
 ///     spawner: embassy_executor::Spawner,
 /// ) -> serials::Result<()> {
-///     static LED_12X4_STATIC: Led12x4Static = Led12x4Static::new_static();
-///
+///     static LED_12X4_STATIC: Led12x4Static = Led12x4Static::new_static();///
 ///     let led_12x4 = new_led12x4!(
 ///         &LED_12X4_STATIC,
 ///         PIN_3,
-///         peripherals.PIO1,
+///         p.PIO1,
 ///         500,
 ///         spawner
 ///     ).await?;

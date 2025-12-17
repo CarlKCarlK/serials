@@ -146,6 +146,7 @@ impl<const N: usize> crate::LedStrip<N> for LedStrip<N> {
     }
 }
 
+// cmk likely shouldn't be pub
 /// Driver loop with brightness scaling.
 /// Scales all RGB values by `max_brightness / 255` before writing to LEDs.
 pub async fn led_strip_driver_loop<PIO, const SM: usize, const N: usize, ORDER>(

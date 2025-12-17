@@ -38,12 +38,12 @@ use crate::{Error, Result};
 /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 /// async fn example(
 ///     spawner: embassy_executor::Spawner,
-///     peripherals: embassy_rp::Peripherals,
+///     p: embassy_rp::Peripherals,
 /// ) -> Result<(), serials::Error> {
 ///     // Set up flash storage
 ///     static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
 ///     let [wifi_flash, timezone_flash] =
-///         FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
+///         FlashArray::new(&FLASH_STATIC, p.FLASH)?;
 ///
 ///     // Create timezone field
 ///     static TIMEZONE_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
@@ -53,14 +53,14 @@ use crate::{Error, Result};
 ///     static wifi_setup_STATIC: WifiSetupStatic = WifiSetup::new_static();
 ///     let wifi_setup = WifiSetup::new(
 ///         &wifi_setup_STATIC,
-///         peripherals.PIN_23,
-///         peripherals.PIN_25,
-///         peripherals.PIO0,
-///         peripherals.PIN_24,
-///         peripherals.PIN_29,
-///         peripherals.DMA_CH0,
+///         p.PIN_23,
+///         p.PIN_25,
+///         p.PIO0,
+///         p.PIN_24,
+///         p.PIN_29,
+///         p.DMA_CH0,
 ///         wifi_flash,
-///         peripherals.PIN_13,
+///         p.PIN_13,
 ///         "ClockStation",
 ///         [timezone_field],  // Custom fields array
 ///         spawner,
@@ -389,12 +389,12 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 /// async fn example(
 ///     spawner: embassy_executor::Spawner,
-///     peripherals: embassy_rp::Peripherals,
+///     p: embassy_rp::Peripherals,
 /// ) -> Result<(), serials::Error> {
 ///     // Set up flash storage
 ///     static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
 ///     let [wifi_flash, device_name_flash] =
-///         FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
+///         FlashArray::new(&FLASH_STATIC, p.FLASH)?;
 ///
 ///     // Create device name field (max 32 chars)
 ///     static DEVICE_NAME_STATIC: TextFieldStatic<32> = TextField::new_static();
@@ -410,14 +410,14 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 ///     static wifi_setup_STATIC: WifiSetupStatic = WifiSetup::new_static();
 ///     let wifi_setup = WifiSetup::new(
 ///         &wifi_setup_STATIC,
-///         peripherals.PIN_23,
-///         peripherals.PIN_25,
-///         peripherals.PIO0,
-///         peripherals.PIN_24,
-///         peripherals.PIN_29,
-///         peripherals.DMA_CH0,
+///         p.PIN_23,
+///         p.PIN_25,
+///         p.PIO0,
+///         p.PIN_24,
+///         p.PIN_29,
+///         p.DMA_CH0,
 ///         wifi_flash,
-///         peripherals.PIN_13,
+///         p.PIN_13,
 ///         "Pico",
 ///         [device_name_field],  // Custom fields array
 ///         spawner,
