@@ -224,18 +224,6 @@ impl<T: LedStrip<{ COLS * ROWS }> + 'static> Led12x4<T> {
         Ok(())
     }
 
-    // cmk kill this!
-    /// Display "1234" in red, green, blue, and yellow respectively.
-    pub async fn display_1234(&self) -> Result<()> {
-        let red = RGB8::new(32, 0, 0);
-        let green = RGB8::new(0, 32, 0);
-        let blue = RGB8::new(0, 0, 32);
-        let yellow = RGB8::new(32, 32, 0);
-
-        self.write_text(['1', '2', '3', '4'], [red, green, blue, yellow])
-            .await
-    }
-
     // cmk what is this?
     /// Loop through a sequence of animation frames until interrupted by another command.
     pub async fn animate_frames(

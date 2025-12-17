@@ -69,7 +69,7 @@ pub mod led12x4;
 #[cfg(not(feature = "host"))]
 pub mod led4;
 #[cfg(not(feature = "host"))]
-pub mod led4_simple;
+pub(crate) mod led4_simple;
 #[cfg(not(feature = "host"))]
 pub mod led_strip;
 #[cfg(not(feature = "host"))]

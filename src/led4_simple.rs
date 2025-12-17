@@ -40,12 +40,14 @@ impl Led4SimpleStatic {
 /// Use this if you don't need animation or blinking. For blinking or animation support, use [`Led4`](crate::led4::Led4) instead.
 ///
 /// # Example
+/// 
+/// Ignored because this helper is crate-internal and not exported publicly.
 ///
-/// ```no_run
+/// ```ignore
 /// # #![no_std]
 /// # #![no_main]
-/// use serials::led4_simple::{Led4Simple, Led4SimpleStatic};
-/// use serials::led4::OutputArray;
+/// use crate::led4_simple::{Led4Simple, Led4SimpleStatic};
+/// use crate::led4::OutputArray;
 /// # #[panic_handler]
 /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 ///

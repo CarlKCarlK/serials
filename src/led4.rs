@@ -163,7 +163,7 @@ impl Led4Static {
     pub const fn new() -> Self {
         Self {
             outer: Signal::new(),
-            display: Led4SimpleStatic::new(),
+            display: Led4Simple::new_static(),
         }
     }
 
