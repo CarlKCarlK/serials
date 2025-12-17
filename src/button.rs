@@ -154,6 +154,7 @@ impl<'a> Button<'a> {
         self
     }
 
+    // cmk is it bad that this one waits for up but wait for press does not? At the very least should be documented.
     /// Measures the duration of a button press.
     ///
     /// This method does not wait for the button to be released. It only waits

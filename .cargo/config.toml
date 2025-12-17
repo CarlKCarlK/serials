@@ -60,6 +60,8 @@ led-strip-two-2 = "run --example led_strip_simple_two --release --target thumbv8
 led-strip-two-2-check = "check --example led_strip_simple_two --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 led24x4-2 = "run --example led24x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 led24x4-2-check = "check --example led24x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+led12x4-2 = "run --example led12x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+led12x4-2-check = "check --example led12x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 clock-led12x4-2 = "run --example clock_led12x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
 clock-led12x4-2-check = "check --example clock_led12x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
 clock-led12x4-2w = "run --example clock_led12x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
@@ -106,6 +108,8 @@ blinky = "run --example blinky --release --target thumbv6m-none-eabi --features 
 blinky-check = "check --example blinky --release --target thumbv6m-none-eabi --features pico1,arm"
 servos = "run --example servos --release --target thumbv6m-none-eabi --features pico1,arm"
 servos-check = "check --example servos --release --target thumbv6m-none-eabi --features pico1,arm"
+led12x4 = "run --example led12x4 --release --target thumbv6m-none-eabi --features pico1,arm"
+led12x4-check = "check --example led12x4 --release --target thumbv6m-none-eabi --features pico1,arm"
 
 # Documentation alias
 # Note: Using pico2,arm,wifi instead of pico1,arm,wifi because embassy-rp from git main

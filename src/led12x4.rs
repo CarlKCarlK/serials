@@ -58,6 +58,10 @@ const LETTER_I: [u8; 4] = [0b111, 0b010, 0b010, 0b111];
 const LETTER_L: [u8; 4] = [0b100, 0b100, 0b100, 0b111];
 const LETTER_N: [u8; 4] = [0b101, 0b111, 0b111, 0b101];
 const LETTER_O: [u8; 4] = [0b111, 0b101, 0b101, 0b111];
+const LETTER_R: [u8; 4] = [0b110, 0b111, 0b110, 0b101];
+const LETTER_S: [u8; 4] = [0b111, 0b110, 0b011, 0b111];
+const LETTER_T: [u8; 4] = [0b111, 0b010, 0b010, 0b010];
+const LETTER_U: [u8; 4] = [0b101, 0b101, 0b101, 0b111];
 
 // cmk does this need to be limited and public
 /// Maximum frames supported by [`Led12x4::animate_frames`].
@@ -213,7 +217,7 @@ impl<T: LedStrip<{ COLS * ROWS }> + 'static> Led12x4<T> {
     /// `chars` is an array of 4 characters. Supported:
     /// - `' '` (space) = blank
     /// - `'0'..'9'` = digits from FONT
-    /// - `'C'`, `'D'`, `'E'`, `'N'`, `'O'` (and lowercase) = letter glyphs
+    /// - `'A'`, `'B'`, `'C'`, `'D'`, `'E'`, `'F'`, `'I'`, `'L'`, `'N'`, `'O'`, `'R'`, `'S'`, `'T'`, `'U'` (and lowercase) = letter glyphs
     /// - any other char = solid 3×4 block
     ///
     /// Builds the entire frame and updates all pixels at once.
@@ -305,6 +309,10 @@ fn glyph_rows(character: char) -> Option<[u8; 4]> {
         'L' | 'l' => Some(LETTER_L),
         'N' | 'n' => Some(LETTER_N),
         'O' | 'o' => Some(LETTER_O),
+        'R' | 'r' => Some(LETTER_R),
+        'S' | 's' => Some(LETTER_S),
+        'T' | 't' => Some(LETTER_T),
+        'U' | 'u' => Some(LETTER_U),
         _ => None,
     }
 }

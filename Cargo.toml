@@ -140,6 +140,9 @@ embassy-net-driver-channel = { git = "https://github.com/embassy-rs/embassy", br
 cyw43 = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 cyw43-pio = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 
+[dev-dependencies]
+embedded-graphics = { version = "0.8", default-features = false }
+
 [lints.rust]
 # To use the `unsafe` keyword, do not remove the `unsafe_code = "forbid"` entry.
 # Instead, prefer to change it to `unsafe_code = "deny"` + opt-in with local use of
