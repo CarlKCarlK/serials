@@ -186,13 +186,7 @@ fn check_all() -> ExitCode {
         "\n{}",
         "==> Building examples (pico2, arm, no wifi)...".cyan()
     );
-    let examples_no_wifi = [
-        "blinky",
-        "ir",
-        "led_strip",
-        "led_strip_snake",
-        "clock_led24x4",
-    ];
+    let examples_no_wifi = ["blinky", "ir", "led_strip", "led_strip_snake"];
     for example in &examples_no_wifi {
         println!("  {}", format!("- {example}").bright_black());
         if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
@@ -213,7 +207,12 @@ fn check_all() -> ExitCode {
         "\n{}",
         "==> Building examples (pico2, arm, with wifi)...".cyan()
     );
-    let examples_wifi = ["clock_led4_wifi", "clock_lcd", "clock_console"];
+    let examples_wifi = [
+        "clock_led4_wifi",
+        "clock_lcd",
+        "clock_console",
+        "clock_led12x4",
+    ];
     for example in &examples_wifi {
         println!("  {}", format!("- {example}").bright_black());
         if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
@@ -244,6 +243,24 @@ fn check_all() -> ExitCode {
             target_pico1,
             "--features",
             features_wifi_pico1.as_str(),
+            "--no-default-features",
+        ])) {
+            return ExitCode::FAILURE;
+        }
+    }
+
+    println!("\n{}", "==> Building compile-only tests...".cyan());
+    let compile_tests = ["led12x4"];
+    for test in &compile_tests {
+        println!("  {}", format!("- {test}").bright_black());
+        if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
+            "check",
+            "--bin",
+            test,
+            "--target",
+            target_pico1,
+            "--features",
+            "pico1,arm,wifi",
             "--no-default-features",
         ])) {
             return ExitCode::FAILURE;

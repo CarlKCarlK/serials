@@ -279,7 +279,7 @@ impl<const N: usize> LedStripSimpleStatic<N> {
 ///         PIN_2,          // data pin
 ///         p.PIO0,         // PIO block
 ///         50              // max current budget (mA)
-///     );
+///     ).await;
 ///
 ///     let mut frame = [colors::BLACK; 8];
 ///     frame[0] = colors::WHITE;
@@ -320,7 +320,7 @@ impl<'d, PIO: Instance, const N: usize> LedStripSimple<'d, PIO, N> {
     }
 }
 
-impl<'d, PIO: Instance, const N: usize> crate::LedStripDevice<N> for LedStripSimple<'d, PIO, N> {
+impl<'d, PIO: Instance, const N: usize> crate::LedStrip<N> for LedStripSimple<'d, PIO, N> {
     async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
         self.update_pixels(pixels).await
     }

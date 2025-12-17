@@ -101,6 +101,9 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
                 WifiSetupEvent::Connected => {
                     led4_ref.write_text(['D', 'O', 'N', 'E'], BlinkState::Solid);
                 }
+                WifiSetupEvent::ConnectionFailed => {
+                    led4_ref.write_text(['F', 'A', 'I', 'L'], BlinkState::BlinkingButOff);
+                }
             }
         })
         .await?;

@@ -80,6 +80,9 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
                 WifiSetupEvent::Connected => {
                     info!("WiFi connected successfully!");
                 }
+                WifiSetupEvent::ConnectionFailed => {
+                    info!("WiFi connection failed!");
+                }
             }
         })
         .await?;

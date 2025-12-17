@@ -35,18 +35,43 @@ pub mod portal;
 
 ## Variable Naming Conventions
 
+Variables should generally match their type names converted to snake_case. This improves predictability and encourages better type names.
+
+**Type-based naming:**
+
+- `Led12x4` → `led_12x4` (preserves numeric separators)
+- `WifiSetup` → `wifi_setup`
+- `LedStripSimple` → `led_strip_simple`
+- `Led12x4ClockDisplay` → `led_12x4_clock_display`
+
+**When to deviate:**
+
+- Generic/contextual names are acceptable when the type is obvious and verbose naming would be redundant:
+  - ✅ `button` (not `button_pico2`) when only one button exists
+  - ✅ `clock` (not `clock_0`) when context is clear
+  - ✅ `spawner` (not `embassy_spawner`) - universally understood
+
+**Single-character variables:**
+
 Avoid single-character variables; use descriptive names:
 
 - ❌ `i`, `j`, `x`, `y`, `a`, `b`
 - ✅ `read_index`, `write_index`, `first_pixel`, `second_pixel`
 
-Project patterns:
+**Project-specific patterns:**
 
 - `x_goal`/`y_goal`: Target image dimensions
 - `x_stride`/`y_stride`: Sampling rates (must be `PowerOfTwo`)
 - `step_index`: Current machine step number
 - `tape_index`: Current head position (can be negative)
 - `select`: Which symbol to visualize (`NonZeroU8`)
+
+**Reference variables:**
+
+When capturing variables in closures or creating references, append `_ref`:
+
+- `led_12x4` → `led_12x4_ref`
+- `wifi_setup` → `wifi_setup_ref`
 
 ## Comment Conventions
 
@@ -179,6 +204,7 @@ Many drivers expose a `new_static` constructor for resources plus a `new` constr
 - Always declare the static resources with `Type::new_static()` and name them `FOO_STATIC` when global.
 - When implementing or calling `Type::new`, pass `&TypeStatic` (or equivalent) as the **first** argument and name that parameter `<type>_static` (e.g., `wifi_auto_static: &'static WifiAutoStatic`).
 - If `Spawner` is needed, place it as the **final** argument so everything else reads naturally between those bookends.
+- **Static placement**: Place the static constructor on the line directly before the struct constructor. Don't group all statics at the top and then all constructors below.
 
 Example:
 

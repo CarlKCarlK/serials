@@ -13,6 +13,11 @@ version = "0.0.1"
 name = "serials"
 path = "src/lib.rs"
 
+# Compile-only tests (not run, just type-checked)
+[[bin]]
+name = "led12x4"
+path = "tests-compile-only/led12x4.rs"
+
 [features]
 default = ["defmt", "pico1", "arm"]
 defmt = []

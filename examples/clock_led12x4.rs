@@ -20,8 +20,9 @@ use panic_probe as _;
 use serials::button::{Button, PressDuration};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, colors};
+use serials::led_strip_simple::{LedStripSimple, colors};
 use serials::led12x4::{Led12x4, Led12x4Static, perimeter_chase_animation};
+use serials::new_led12x4;
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
@@ -79,30 +80,28 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     )?;
     // cmk pico1 or pico2 button?
 
-    // Set up the 12x4 LED display on GPIO3 using LedStripSimple on PIO1.
-    static LED_STRIP_STATIC: LedStripSimpleStatic<48> = LedStripSimpleStatic::new_static();
-    static LED12X4_STATIC: Led12x4Static = Led12x4Static::new_static();
-    let led_strip = LedStripSimple::new_pio1(
-        &LED_STRIP_STATIC,
+    // Set up the 12x4 LED display on GPIO3.
+    static LED_12X4_STATIC: Led12x4Static = Led12x4Static::new_static();
+    let led_12x4 = new_led12x4!(
+        &LED_12X4_STATIC,
+        PIN_3,
         peripherals.PIO1,
-        peripherals.PIN_3,
         500, // 500mA budget allows ~22% brightness for 48 LEDs
+        spawner
     )
-    .await;
-    let led_display = Led12x4ClockDisplay::new(&LED12X4_STATIC, led_strip, spawner)?;
+    .await?;
 
     // Connect Wi-Fi, using the LED panel for status.
-    let led_display_ref = &led_display;
+    let led_12x4_ref = &led_12x4;
     let (stack, mut button) = wifi_setup
         .connect(spawner, move |event| {
-            let led_display_ref = led_display_ref;
+            let led_12x4_ref = led_12x4_ref;
             async move {
                 use serials::wifi_setup::WifiSetupEvent;
                 match event {
                     WifiSetupEvent::CaptivePortalReady => {
                         info!("WiFi: captive portal ready, displaying CONN");
-                        led_display_ref
-                            .show_portal_ready()
+                        show_portal_ready(led_12x4_ref)
                             .await
                             .expect("LED display failed during portal-ready");
                     }
@@ -111,22 +110,19 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
                         try_count,
                     } => {
                         info!("WiFi: connecting (attempt {}/{})", try_index + 1, try_count);
-                        led_display_ref
-                            .show_connecting(try_index, try_count)
+                        show_connecting(led_12x4_ref, try_index, try_count)
                             .await
                             .expect("LED display failed during connecting");
                     }
                     WifiSetupEvent::Connected => {
                         info!("WiFi: connected successfully, displaying DONE");
-                        led_display_ref
-                            .show_connected()
+                        show_connected(led_12x4_ref)
                             .await
                             .expect("LED display failed during connected");
                     }
                     WifiSetupEvent::ConnectionFailed => {
                         info!("WiFi: connection failed, displaying FAIL, device will reset");
-                        led_display_ref
-                            .show_connection_failed()
+                        show_connection_failed(led_12x4_ref)
                             .await
                             .expect("LED display failed during connection-failed");
                     }
@@ -156,17 +152,17 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
         state = match state {
             State::HoursMinutes { speed } => {
                 state
-                    .execute_hours_minutes(speed, &clock, &mut button, &time_sync, &led_display)
+                    .execute_hours_minutes(speed, &clock, &mut button, &time_sync, &led_12x4)
                     .await?
             }
             State::MinutesSeconds => {
                 state
-                    .execute_minutes_seconds(&clock, &mut button, &time_sync, &led_display)
+                    .execute_minutes_seconds(&clock, &mut button, &time_sync, &led_12x4)
                     .await?
             }
             State::EditOffset => {
                 state
-                    .execute_edit_offset(&clock, &mut button, &timezone_field, &led_display)
+                    .execute_edit_offset(&clock, &mut button, &timezone_field, &led_12x4)
                     .await?
             }
         };
@@ -190,11 +186,11 @@ impl State {
         clock: &Clock,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        led_display: &Led12x4ClockDisplay,
+        led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
     ) -> Result<Self> {
         clock.set_speed(speed).await;
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
-        led_display.show_hours_minutes(hours, minutes).await?;
+        show_hours_minutes(led_12x4, hours, minutes).await?;
         clock.set_tick_interval(Some(ONE_MINUTE)).await;
         let mut button_press = pin!(button.wait_for_press_duration());
         loop {
@@ -229,7 +225,7 @@ impl State {
                 // Clock tick
                 Either::Second(Either::First(time_event)) => {
                     let (hours, minutes, _) = h12_m_s(&time_event);
-                    led_display.show_hours_minutes(hours, minutes).await?;
+                    show_hours_minutes(led_12x4, hours, minutes).await?;
                 }
                 // Time sync events
                 Either::Second(Either::Second(TimeSyncEvent::Success { unix_seconds })) => {
@@ -251,11 +247,11 @@ impl State {
         clock: &Clock,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        led_display: &Led12x4ClockDisplay,
+        led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
     ) -> Result<Self> {
         clock.set_speed(1.0).await;
         let (_, minutes, seconds) = h12_m_s(&clock.now_local());
-        led_display.show_minutes_seconds(minutes, seconds).await?;
+        show_minutes_seconds(led_12x4, minutes, seconds).await?;
         clock.set_tick_interval(Some(ONE_SECOND)).await;
         loop {
             match select(
@@ -286,7 +282,7 @@ impl State {
                 // Clock tick
                 Either::First(Either::Second(time_event)) => {
                     let (_, minutes, seconds) = h12_m_s(&time_event);
-                    led_display.show_minutes_seconds(minutes, seconds).await?;
+                    show_minutes_seconds(led_12x4, minutes, seconds).await?;
                 }
                 // Time sync events
                 Either::Second(TimeSyncEvent::Success { unix_seconds }) => {
@@ -308,16 +304,14 @@ impl State {
         clock: &Clock,
         button: &mut Button<'_>,
         timezone_field: &TimezoneField,
-        led_display: &Led12x4ClockDisplay,
+        led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
     ) -> Result<Self> {
         info!("Entering edit offset mode");
         clock.set_speed(1.0).await;
 
         // Blink current hours and minutes with edit color accent.
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
-        led_display
-            .show_hours_minutes_indicator(hours, minutes)
-            .await?;
+        show_hours_minutes_indicator(led_12x4, hours, minutes).await?;
 
         // Get the current offset minutes from clock (source of truth)
         let mut offset_minutes = clock.offset_minutes();
@@ -344,9 +338,7 @@ impl State {
                         "Updated time after offset change: {:02}:{:02}",
                         hours, minutes
                     );
-                    led_display
-                        .show_hours_minutes_indicator(hours, minutes)
-                        .await?;
+                    show_hours_minutes_indicator(led_12x4, hours, minutes).await?;
                 }
                 PressDuration::Long => {
                     info!("Long press detected - saving and exiting edit mode");
@@ -360,82 +352,91 @@ impl State {
     }
 }
 
-struct Led12x4ClockDisplay {
-    display: Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
+// Display helper functions for the 12x4 LED clock
+
+async fn show_portal_ready(
+    led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
+) -> Result<()> {
+    use serials::led12x4::blink_text_animation;
+    let animation = blink_text_animation(
+        ['C', 'O', 'N', 'N'],
+        DIGIT_COLORS,
+        Duration::from_millis(700),
+        Duration::from_millis(300),
+    );
+    led_12x4.animate_frames(animation).await
 }
 
-impl Led12x4ClockDisplay {
-    fn new(
-        led12x4_static: &'static Led12x4Static,
-        led_strip: LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>,
-        spawner: Spawner,
-    ) -> Result<Self> {
-        let display = Led12x4::new(led12x4_static, led_strip, spawner)?;
-        Ok(Self { display })
-    }
+async fn show_connecting(
+    led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
+    try_index: u8,
+    _try_count: u8,
+) -> Result<()> {
+    let clockwise = try_index % 2 == 0;
+    const FRAME_DURATION: Duration = Duration::from_millis(90);
+    let animation = perimeter_chase_animation(clockwise, CONNECTING_COLOR, FRAME_DURATION);
+    led_12x4.animate_frames(animation).await
+}
 
-    async fn show_portal_ready(&self) -> Result<()> {
-        use serials::led12x4::blink_text_animation;
-        let animation = blink_text_animation(
-            ['C', 'O', 'N', 'N'],
+async fn show_connected(
+    led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
+) -> Result<()> {
+    led_12x4
+        .write_text(['D', 'O', 'N', 'E'], DIGIT_COLORS)
+        .await
+}
+
+async fn show_connection_failed(
+    led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
+) -> Result<()> {
+    led_12x4
+        .write_text(['F', 'A', 'I', 'L'], DIGIT_COLORS)
+        .await
+}
+
+async fn show_hours_minutes(
+    led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
+    hours: u8,
+    minutes: u8,
+) -> Result<()> {
+    let (hours_tens, hours_ones) = hours_digits(hours);
+    let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
+    led_12x4
+        .write_text(
+            [hours_tens, hours_ones, minutes_tens, minutes_ones],
             DIGIT_COLORS,
-            Duration::from_millis(700),
-            Duration::from_millis(300),
-        );
-        self.display.animate_frames(animation).await
-    }
+        )
+        .await
+}
 
-    async fn show_connecting(&self, try_index: u8, _try_count: u8) -> Result<()> {
-        let clockwise = try_index % 2 == 0;
-        const FRAME_DURATION: Duration = Duration::from_millis(90);
-        let animation = perimeter_chase_animation(clockwise, CONNECTING_COLOR, FRAME_DURATION);
-        self.display.animate_frames(animation).await
-    }
+async fn show_hours_minutes_indicator(
+    led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
+    hours: u8,
+    minutes: u8,
+) -> Result<()> {
+    let (hours_tens, hours_ones) = hours_digits(hours);
+    let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
+    led_12x4
+        .write_text(
+            [hours_tens, hours_ones, minutes_tens, minutes_ones],
+            EDIT_COLORS,
+        )
+        .await
+}
 
-    async fn show_connected(&self) -> Result<()> {
-        self.display
-            .write_text(['D', 'O', 'N', 'E'], DIGIT_COLORS)
-            .await
-    }
-
-    async fn show_connection_failed(&self) -> Result<()> {
-        self.display
-            .write_text(['F', 'A', 'I', 'L'], DIGIT_COLORS)
-            .await
-    }
-
-    async fn show_hours_minutes(&self, hours: u8, minutes: u8) -> Result<()> {
-        let (hours_tens, hours_ones) = hours_digits(hours);
-        let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
-        self.display
-            .write_text(
-                [hours_tens, hours_ones, minutes_tens, minutes_ones],
-                DIGIT_COLORS,
-            )
-            .await
-    }
-
-    async fn show_hours_minutes_indicator(&self, hours: u8, minutes: u8) -> Result<()> {
-        let (hours_tens, hours_ones) = hours_digits(hours);
-        let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
-        self.display
-            .write_text(
-                [hours_tens, hours_ones, minutes_tens, minutes_ones],
-                EDIT_COLORS,
-            )
-            .await
-    }
-
-    async fn show_minutes_seconds(&self, minutes: u8, seconds: u8) -> Result<()> {
-        let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
-        let (seconds_tens, seconds_ones) = two_digit_chars(seconds);
-        self.display
-            .write_text(
-                [minutes_tens, minutes_ones, seconds_tens, seconds_ones],
-                DIGIT_COLORS,
-            )
-            .await
-    }
+async fn show_minutes_seconds(
+    led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
+    minutes: u8,
+    seconds: u8,
+) -> Result<()> {
+    let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
+    let (seconds_tens, seconds_ones) = two_digit_chars(seconds);
+    led_12x4
+        .write_text(
+            [minutes_tens, minutes_ones, seconds_tens, seconds_ones],
+            DIGIT_COLORS,
+        )
+        .await
 }
 
 #[inline]

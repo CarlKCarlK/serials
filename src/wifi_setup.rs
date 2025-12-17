@@ -150,6 +150,9 @@ pub struct WifiSetupStatic {
 ///                 WifiSetupEvent::Connected => {
 ///                     defmt::info!("WiFi connected successfully!");
 ///                 }
+///                 WifiSetupEvent::ConnectionFailed => {
+///                     defmt::info!("WiFi connection failed - device will reset");
+///                 }
 ///             }
 ///         })
 ///         .await?;

@@ -93,7 +93,7 @@ pub use error::{Error, Result};
 
 /// Trait for LED strip devices that can update pixels.
 #[cfg(not(feature = "host"))]
-pub trait LedStripDevice<const N: usize> {
+pub trait LedStrip<const N: usize> {
     /// Update all pixels at once.
     async fn update_pixels(&mut self, pixels: &[smart_leds::RGB8; N]) -> Result<()>;
 }

@@ -95,6 +95,9 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
                     WifiSetupEvent::Connected => {
                         // No-op; main loop will immediately render real time.
                     }
+                    WifiSetupEvent::ConnectionFailed => {
+                        // No-op; portal remains visible on failure.
+                    }
                 }
             }
         })
