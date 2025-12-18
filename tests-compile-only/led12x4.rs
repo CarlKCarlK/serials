@@ -15,7 +15,7 @@ use embassy_executor::Spawner;
 use panic_probe as _;
 use serials::led_strip::define_led_strips;
 use serials::led_strip_simple::{LedStripSimpleStatic, Milliamps, new_simple_strip};
-use serials::led12x4::{Led12x4, Led12x4Static, Led12x4Strip, new_led12x4, Frame};
+use serials::led12x4::{Led12x4, Led12x4Static, Led12x4Strip, new_led12x4};
 
 /// Verify Led12x4 from PIO0 with write_text
 async fn test_led12x4_pio0_write_text(

@@ -16,15 +16,14 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_time::Duration;
-use heapless::Vec;
 use panic_probe as _;
 use serials::button::{Button, PressDuration, PressedTo};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led_strip_simple::colors;
 use serials::led12x4::{
-    AnimationFrame, COLS, Led12x4, Led12x4Static, Milliamps, ROWS, new_led12x4,
-    perimeter_chase_animation, text_frame,
+    COLS, Frame, Led12x4, Led12x4Static, Milliamps, ROWS, new_led12x4, perimeter_chase_animation,
+    text_frame,
 };
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
