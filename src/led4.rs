@@ -15,10 +15,16 @@ use embassy_time::{Duration, Timer};
 use heapless::Vec;
 
 use crate::Result;
-use crate::led4_simple::{Led4Simple, Led4SimpleStatic};
 
 #[cfg(feature = "display-trace")]
 use defmt::info;
+
+// ============================================================================
+// Led4Simple Submodule (internal helper)
+// ============================================================================
+
+mod led4_simple;
+use self::led4_simple::{Led4Simple, Led4SimpleStatic};
 
 // ============================================================================
 // OutputArray Submodule

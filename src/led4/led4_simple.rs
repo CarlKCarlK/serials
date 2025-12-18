@@ -8,8 +8,8 @@ use core::convert::Infallible;
 use crate::Result;
 use crate::bit_matrix_led4::BitMatrixLed4;
 use crate::bit_matrix_led4::BitsToIndexes;
-use crate::led4::OutputArray;
-use crate::led4::{CELL_COUNT, MULTIPLEX_SLEEP, SEGMENT_COUNT};
+use super::OutputArray;
+use super::{CELL_COUNT, MULTIPLEX_SLEEP, SEGMENT_COUNT};
 #[cfg(feature = "display-trace")]
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
@@ -46,7 +46,7 @@ impl Led4SimpleStatic {
 /// ```ignore
 /// # #![no_std]
 /// # #![no_main]
-/// use crate::led4_simple::{Led4Simple, Led4SimpleStatic};
+/// use crate::led4::led4_simple::{Led4Simple, Led4SimpleStatic};
 /// use crate::led4::OutputArray;
 /// # #[panic_handler]
 /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
