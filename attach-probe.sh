@@ -7,6 +7,10 @@ if ! command -v /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe >/
     exit 1
 fi
 
-SCRIPT_WIN_PATH="C:\\Users\\carlk\\programs\\pico\\serials\\probeusb.ps1"
+# Get the directory where this script lives
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Convert WSL path to Windows path
+SCRIPT_WIN_PATH="$(wslpath -w "$SCRIPT_DIR/probeusb.ps1")"
 
 /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -ExecutionPolicy Bypass -File "$SCRIPT_WIN_PATH" wsl
