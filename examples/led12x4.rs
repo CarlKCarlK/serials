@@ -18,8 +18,7 @@ use panic_probe as _;
 use serials::Result;
 use serials::button::{Button, PressedTo};
 use serials::led12x4::{
-    AnimationFrame, COLS, Led12x4Static, LedStrip, Milliamps, ROWS, blink_text_animation, colors,
-    new_led12x4,
+    AnimationFrame, COLS, Led12x4Static, Milliamps, ROWS, blink_text_animation, colors, new_led12x4,
 };
 use smart_leds::RGB8;
 
@@ -63,12 +62,9 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     }
 }
 
-// cmk why is there a generic T here?
+// cmk why is there a generic T here? (now resolved - using Led12x4Strip enum)
 /// Display "RUST" in 4 different colors using write_text.
-async fn demo_text_colors<T>(led_12x4: &serials::led12x4::Led12x4<T>) -> Result<()>
-where
-    T: LedStrip<{ COLS * ROWS }> + 'static,
-{
+async fn demo_text_colors(led_12x4: &serials::led12x4::Led12x4) -> Result<()> {
     led_12x4
         .write_text(
             ['r', 'u', 's', 't'],
@@ -78,10 +74,7 @@ where
 }
 
 /// Blink "RUST" using the blink_text_animation builder.
-async fn demo_blink_text<T>(led_12x4: &serials::led12x4::Led12x4<T>) -> Result<()>
-where
-    T: LedStrip<{ COLS * ROWS }> + 'static,
-{
+async fn demo_blink_text(led_12x4: &serials::led12x4::Led12x4) -> Result<()> {
     let frames = blink_text_animation(
         ['r', 'u', 's', 't'],
         [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
@@ -148,12 +141,9 @@ impl OriginDimensions for FrameBuilder {
 }
 
 /// Create a red rectangle border with blue diagonals using embedded-graphics.
-async fn demo_rectangle_diagonals_embedded_graphics<T>(
-    led_12x4: &serials::led12x4::Led12x4<T>,
-) -> Result<()>
-where
-    T: LedStrip<{ COLS * ROWS }> + 'static,
-{
+async fn demo_rectangle_diagonals_embedded_graphics(
+    led_12x4: &serials::led12x4::Led12x4,
+) -> Result<()> {
     let mut frame_builder = FrameBuilder::new();
 
     // Draw red rectangle border
@@ -184,10 +174,7 @@ where
 }
 
 /// Bouncing dot manually updating frames with write_frame in a loop.
-async fn demo_bouncing_dot_manual<T>(led_12x4: &serials::led12x4::Led12x4<T>) -> Result<()>
-where
-    T: LedStrip<{ COLS * ROWS }> + 'static,
-{
+async fn demo_bouncing_dot_manual(led_12x4: &serials::led12x4::Led12x4) -> Result<()> {
     const COLORS: [RGB8; 6] = [
         colors::RED,
         colors::GREEN,
@@ -240,10 +227,7 @@ where
 }
 
 /// Bouncing dot using pre-built animation frames.
-async fn demo_bouncing_dot_animation<T>(led_12x4: &serials::led12x4::Led12x4<T>) -> Result<()>
-where
-    T: LedStrip<{ COLS * ROWS }> + 'static,
-{
+async fn demo_bouncing_dot_animation(led_12x4: &serials::led12x4::Led12x4) -> Result<()> {
     const COLORS: [RGB8; 6] = [
         colors::RED,
         colors::GREEN,

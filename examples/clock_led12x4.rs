@@ -20,7 +20,7 @@ use panic_probe as _;
 use serials::button::{Button, PressDuration, PressedTo};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::led_strip_simple::{LedStripSimple, colors};
+use serials::led_strip_simple::colors;
 use serials::led12x4::{Led12x4, Led12x4Static, Milliamps, new_led12x4, perimeter_chase_animation};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
@@ -187,7 +187,7 @@ impl State {
         clock: &Clock,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
+        led_12x4: &Led12x4,
     ) -> Result<Self> {
         clock.set_speed(speed).await;
         let (hours, minutes, _) = h12_m_s(&clock.now_local());
@@ -248,7 +248,7 @@ impl State {
         clock: &Clock,
         button: &mut Button<'_>,
         time_sync: &TimeSync,
-        led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
+        led_12x4: &Led12x4,
     ) -> Result<Self> {
         clock.set_speed(1.0).await;
         let (_, minutes, seconds) = h12_m_s(&clock.now_local());
@@ -305,7 +305,7 @@ impl State {
         clock: &Clock,
         button: &mut Button<'_>,
         timezone_field: &TimezoneField,
-        led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
+        led_12x4: &Led12x4,
     ) -> Result<Self> {
         info!("Entering edit offset mode");
         clock.set_speed(1.0).await;
@@ -355,9 +355,7 @@ impl State {
 
 // Display helper functions for the 12x4 LED clock
 
-async fn show_portal_ready(
-    led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
-) -> Result<()> {
+async fn show_portal_ready(led_12x4: &Led12x4) -> Result<()> {
     use serials::led12x4::blink_text_animation;
     let animation = blink_text_animation(
         ['C', 'O', 'N', 'N'],
@@ -368,38 +366,26 @@ async fn show_portal_ready(
     led_12x4.animate_frames(animation).await
 }
 
-async fn show_connecting(
-    led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
-    try_index: u8,
-    _try_count: u8,
-) -> Result<()> {
+async fn show_connecting(led_12x4: &Led12x4, try_index: u8, _try_count: u8) -> Result<()> {
     let clockwise = try_index % 2 == 0;
     const FRAME_DURATION: Duration = Duration::from_millis(90);
     let animation = perimeter_chase_animation(clockwise, CONNECTING_COLOR, FRAME_DURATION);
     led_12x4.animate_frames(animation).await
 }
 
-async fn show_connected(
-    led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
-) -> Result<()> {
+async fn show_connected(led_12x4: &Led12x4) -> Result<()> {
     led_12x4
         .write_text(['D', 'O', 'N', 'E'], DIGIT_COLORS)
         .await
 }
 
-async fn show_connection_failed(
-    led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
-) -> Result<()> {
+async fn show_connection_failed(led_12x4: &Led12x4) -> Result<()> {
     led_12x4
         .write_text(['F', 'A', 'I', 'L'], DIGIT_COLORS)
         .await
 }
 
-async fn show_hours_minutes(
-    led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
-    hours: u8,
-    minutes: u8,
-) -> Result<()> {
+async fn show_hours_minutes(led_12x4: &Led12x4, hours: u8, minutes: u8) -> Result<()> {
     let (hours_tens, hours_ones) = hours_digits(hours);
     let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
     led_12x4
@@ -410,11 +396,7 @@ async fn show_hours_minutes(
         .await
 }
 
-async fn show_hours_minutes_indicator(
-    led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
-    hours: u8,
-    minutes: u8,
-) -> Result<()> {
+async fn show_hours_minutes_indicator(led_12x4: &Led12x4, hours: u8, minutes: u8) -> Result<()> {
     let (hours_tens, hours_ones) = hours_digits(hours);
     let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
     led_12x4
@@ -425,11 +407,7 @@ async fn show_hours_minutes_indicator(
         .await
 }
 
-async fn show_minutes_seconds(
-    led_12x4: &Led12x4<LedStripSimple<'static, embassy_rp::peripherals::PIO1, 48>>,
-    minutes: u8,
-    seconds: u8,
-) -> Result<()> {
+async fn show_minutes_seconds(led_12x4: &Led12x4, minutes: u8, seconds: u8) -> Result<()> {
     let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
     let (seconds_tens, seconds_ones) = two_digit_chars(seconds);
     led_12x4

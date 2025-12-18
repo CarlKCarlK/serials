@@ -2,7 +2,7 @@
 //!
 //! See [`Led12x4`] for the main usage example.
 
-use core::{convert::Infallible, marker::PhantomData};
+use core::convert::Infallible;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
@@ -67,6 +67,45 @@ pub trait LedStrip<const N: usize> {
     async fn update_pixels(&mut self, pixels: &[smart_leds::RGB8; N]) -> Result<()>;
 }
 
+/// Unified LED strip type supporting all backends for Led12x4.
+pub enum Led12x4Strip {
+    SimplePio0(
+        crate::led_strip_simple::LedStripSimple<
+            'static,
+            embassy_rp::peripherals::PIO0,
+            { COLS * ROWS },
+        >,
+    ),
+    SimplePio1(
+        crate::led_strip_simple::LedStripSimple<
+            'static,
+            embassy_rp::peripherals::PIO1,
+            { COLS * ROWS },
+        >,
+    ),
+    #[cfg(feature = "pico2")]
+    SimplePio2(
+        crate::led_strip_simple::LedStripSimple<
+            'static,
+            embassy_rp::peripherals::PIO2,
+            { COLS * ROWS },
+        >,
+    ),
+    Multi(crate::led_strip::LedStrip<{ COLS * ROWS }>),
+}
+
+impl LedStrip<{ COLS * ROWS }> for Led12x4Strip {
+    async fn update_pixels(&mut self, pixels: &[RGB8; COLS * ROWS]) -> Result<()> {
+        match self {
+            Self::SimplePio0(strip) => strip.update_pixels(pixels).await,
+            Self::SimplePio1(strip) => strip.update_pixels(pixels).await,
+            #[cfg(feature = "pico2")]
+            Self::SimplePio2(strip) => strip.update_pixels(pixels).await,
+            Self::Multi(strip) => strip.update_pixels(pixels).await,
+        }
+    }
+}
+
 impl Led12x4Static {
     pub const fn new() -> Self {
         Self {
@@ -125,24 +164,12 @@ impl Led12x4Static {
 ///     Ok(())
 /// }
 /// ```
-pub struct Led12x4<T: LedStrip<{ COLS * ROWS }>> {
+pub struct Led12x4 {
     command_signal: &'static Led12x4CommandSignal,
     completion_signal: &'static Led12x4CompletionSignal,
-    _marker: PhantomData<T>,
 }
 
-// cmk need to understand this better
-#[doc(hidden)]
-trait LedStripSpawnable: LedStrip<{ COLS * ROWS }> + 'static {
-    fn spawn_led12x4(
-        self,
-        command_signal: &'static Led12x4CommandSignal,
-        completion_signal: &'static Led12x4CompletionSignal,
-        spawner: Spawner,
-    ) -> Result<()>;
-}
-
-impl<T: LedStrip<{ COLS * ROWS }> + 'static> Led12x4<T> {
+impl Led12x4 {
     /// Creates static channel resources for the display.
     #[must_use]
     pub const fn new_static() -> Led12x4Static {
@@ -157,18 +184,18 @@ impl<T: LedStrip<{ COLS * ROWS }> + 'static> Led12x4<T> {
     ///
     /// # Example with multi-strip driver
     /// See the compile-only test `test_multi_strip_compiles` for usage.
-    #[allow(private_bounds)]
-    pub fn from(led12x4_static: &'static Led12x4Static, strip: T, spawner: Spawner) -> Result<Self>
-    where
-        T: LedStripSpawnable,
-    {
+    pub fn from(
+        led12x4_static: &'static Led12x4Static,
+        strip: Led12x4Strip,
+        spawner: Spawner,
+    ) -> Result<Self> {
         let command_signal = led12x4_static.command_signal();
         let completion_signal = led12x4_static.completion_signal();
-        strip.spawn_led12x4(command_signal, completion_signal, spawner)?;
+        let token = led12x4_device_loop(command_signal, completion_signal, strip)?;
+        spawner.spawn(token);
         Ok(Self {
             command_signal,
             completion_signal,
-            _marker: PhantomData,
         })
     }
 
@@ -413,79 +440,19 @@ async fn run_animation_loop(
     }
 }
 
-macro_rules! impl_led12x4_spawn {
-    ($task:ident, $ty:ty) => {
-        #[embassy_executor::task]
-        async fn $task(
-            command_signal: &'static Led12x4CommandSignal,
-            completion_signal: &'static Led12x4CompletionSignal,
-            strip: $ty,
-        ) -> ! {
-            let err = inner_device_loop(command_signal, completion_signal, strip)
-                .await
-                .unwrap_err();
-            panic!("{err}");
-        }
-
-        impl LedStripSpawnable for $ty {
-            fn spawn_led12x4(
-                self,
-                command_signal: &'static Led12x4CommandSignal,
-                completion_signal: &'static Led12x4CompletionSignal,
-                spawner: Spawner,
-            ) -> Result<()> {
-                let token = $task(command_signal, completion_signal, self)?;
-                spawner.spawn(token);
-                Ok(())
-            }
-        }
-    };
+#[embassy_executor::task]
+async fn led12x4_device_loop(
+    command_signal: &'static Led12x4CommandSignal,
+    completion_signal: &'static Led12x4CompletionSignal,
+    strip: Led12x4Strip,
+) -> ! {
+    let err = inner_device_loop(command_signal, completion_signal, strip)
+        .await
+        .unwrap_err();
+    panic!("{err}");
 }
 
-impl_led12x4_spawn!(
-    led12x4_device_loop_led_strip_simple_pio0,
-    crate::led_strip_simple::LedStripSimple<
-        'static,
-        embassy_rp::peripherals::PIO0,
-        { COLS * ROWS },
-    >
-);
-
-impl_led12x4_spawn!(
-    led12x4_device_loop_led_strip_simple_pio1,
-    crate::led_strip_simple::LedStripSimple<
-        'static,
-        embassy_rp::peripherals::PIO1,
-        { COLS * ROWS },
-    >
-);
-
-#[cfg(feature = "pico2")]
-impl_led12x4_spawn!(
-    led12x4_device_loop_led_strip_simple_pio2,
-    crate::led_strip_simple::LedStripSimple<
-        'static,
-        embassy_rp::peripherals::PIO2,
-        { COLS * ROWS },
-    >
-);
-
-// Implement spawning for multi-strip LedStrip<48> type
-impl_led12x4_spawn!(
-    led12x4_device_loop_led_strip_multi,
-    crate::led_strip::LedStrip<{ COLS * ROWS }>
-);
-
-// Self-contained constructors for Led12x4 with LedStripSimple
-impl
-    Led12x4<
-        crate::led_strip_simple::LedStripSimple<
-            'static,
-            embassy_rp::peripherals::PIO0,
-            { COLS * ROWS },
-        >,
-    >
-{
+impl Led12x4 {
     /// Create a `Led12x4` display using PIO0 with an internal `LedStripSimple`.
     ///
     /// This is a self-contained constructor that internally creates the LED strip.
@@ -512,19 +479,8 @@ impl
             max_current,
         )
         .await;
-        Self::from(led12x4_static, strip, spawner)
+        Self::from(led12x4_static, Led12x4Strip::SimplePio0(strip), spawner)
     }
-}
-
-impl
-    Led12x4<
-        crate::led_strip_simple::LedStripSimple<
-            'static,
-            embassy_rp::peripherals::PIO1,
-            { COLS * ROWS },
-        >,
-    >
-{
     /// Create a `Led12x4` display using PIO1 with an internal `LedStripSimple`.
     ///
     /// This is a self-contained constructor that internally creates the LED strip.
@@ -551,20 +507,10 @@ impl
             max_current,
         )
         .await;
-        Self::from(led12x4_static, strip, spawner)
+        Self::from(led12x4_static, Led12x4Strip::SimplePio1(strip), spawner)
     }
-}
 
-#[cfg(feature = "pico2")]
-impl
-    Led12x4<
-        crate::led_strip_simple::LedStripSimple<
-            'static,
-            embassy_rp::peripherals::PIO2,
-            { COLS * ROWS },
-        >,
-    >
-{
+    #[cfg(feature = "pico2")]
     /// Create a `Led12x4` display using PIO2 with an internal `LedStripSimple` (Pico 2 only).
     ///
     /// This is a self-contained constructor that internally creates the LED strip.
@@ -591,7 +537,7 @@ impl
             max_current,
         )
         .await;
-        Self::from(led12x4_static, strip, spawner)
+        Self::from(led12x4_static, Led12x4Strip::SimplePio2(strip), spawner)
     }
 }
 

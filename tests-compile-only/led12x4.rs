@@ -15,7 +15,7 @@ use embassy_executor::Spawner;
 use panic_probe as _;
 use serials::led_strip::define_led_strips;
 use serials::led_strip_simple::{LedStripSimpleStatic, Milliamps, new_simple_strip};
-use serials::led12x4::{Led12x4, Led12x4Static, new_led12x4};
+use serials::led12x4::{Led12x4, Led12x4Static, Led12x4Strip, new_led12x4};
 
 /// Verify Led12x4 from PIO0 with write_text
 async fn test_led12x4_pio0_write_text(
@@ -55,7 +55,7 @@ async fn test_led12x4_from_simple(
         new_simple_strip!(&LED_STRIP_SIMPLE_STATIC, PIN_3, p.PIO1, Milliamps(500)).await;
 
     static LED_12X4_STATIC: Led12x4Static = Led12x4Static::new_static();
-    let _led_12x4 = Led12x4::from(&LED_12X4_STATIC, led_strip_simple, spawner)?;
+    let _led_12x4 = Led12x4::from(&LED_12X4_STATIC, Led12x4Strip::SimplePio1(led_strip_simple), spawner)?;
 
     Ok(())
 }
@@ -91,7 +91,7 @@ async fn test_led12x4_from_multi(
     )?;
 
     static LED_12X4_STATIC: Led12x4Static = Led12x4Static::new_static();
-    let _led_12x4 = Led12x4::from(&LED_12X4_STATIC, led12x4_strip, spawner)?;
+    let _led_12x4 = Led12x4::from(&LED_12X4_STATIC, Led12x4Strip::Multi(led12x4_strip), spawner)?;
 
     Ok(())
 }
