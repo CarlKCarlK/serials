@@ -22,6 +22,8 @@ use serials::led12x4::{AnimationFrame, COLS, Led12x4Static, ROWS, blink_text_ani
 use serials::new_led12x4;
 use smart_leds::RGB8;
 
+// cmk00 make this demo better, including fixing font
+
 // Letter glyphs for "RUST" (3x4 pixels each)
 const LETTER_R: [u8; 4] = [0b110, 0b111, 0b110, 0b101];
 const LETTER_U: [u8; 4] = [0b101, 0b101, 0b101, 0b111];
@@ -66,6 +68,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     }
 }
 
+// cmk why is there a generic T here?
 /// Display "RUST" in 4 different colors using write_text.
 async fn demo_text_colors<T>(led_12x4: &serials::led12x4::Led12x4<T>) -> Result<()>
 where
