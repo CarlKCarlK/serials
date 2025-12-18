@@ -8,13 +8,15 @@ use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
 use serials::Result;
-use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, colors, new_simple_strip};
+use serials::led_strip_simple::{
+    LedStripSimple, LedStripSimpleStatic, Milliamps, colors, new_simple_strip,
+};
 type PioPeriph = embassy_rp::peripherals::PIO1;
 type StripStatic = LedStripSimpleStatic<LEN>;
 type Strip = LedStripSimple<'static, PioPeriph, LEN>;
 
 const LEN: usize = 8;
-const MAX_CURRENT_MA: u32 = 50;
+const MAX_CURRENT: Milliamps = Milliamps(50);
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
@@ -23,14 +25,14 @@ async fn main(spawner: Spawner) -> ! {
 }
 
 async fn inner_main(_spawner: Spawner) -> Result<!> {
-    let peripherals = embassy_rp::init(Default::default());
+    let p = embassy_rp::init(Default::default());
 
     static STRIP_STATIC: StripStatic = StripStatic::new_static();
     let mut simple_strip = new_simple_strip!(
-        &STRIP_STATIC,    // static resources
-        PIN_2,            // data pin
-        peripherals.PIO1, // PIO block
-        MAX_CURRENT_MA    // max current budget (mA)
+        &STRIP_STATIC, // static resources
+        PIN_2,         // data pin
+        p.PIO1,        // PIO block
+        MAX_CURRENT    // max current budget (mA)
     )
     .await;
 

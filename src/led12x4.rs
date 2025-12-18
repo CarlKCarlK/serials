@@ -12,6 +12,8 @@ use smart_leds::RGB8;
 
 use crate::{Result, bit_matrix3x4};
 
+pub use crate::led_strip_simple::Milliamps;
+
 /// Predefined RGB color constants (RED, GREEN, BLUE, etc.).
 pub use smart_leds::colors;
 
@@ -99,7 +101,7 @@ impl Led12x4Static {
 /// # use panic_probe as _;
 /// # fn main() {}
 /// use embassy_time::Duration;
-/// use serials::led12x4::{Led12x4Static, colors, new_led12x4, perimeter_chase_animation};
+/// use serials::led12x4::{Led12x4Static, Milliamps, colors, new_led12x4, perimeter_chase_animation};
 ///
 /// async fn example(
 ///     p: embassy_rp::Peripherals,
@@ -110,7 +112,7 @@ impl Led12x4Static {
 ///         &LED_12X4_STATIC,
 ///         PIN_3,
 ///         p.PIO1,
-///         500,
+///         Milliamps(500),
 ///         spawner
 ///     ).await?;
 ///
@@ -493,21 +495,21 @@ impl
     /// - `led12x4_static`: Static resources for the display
     /// - `pio`: PIO0 peripheral
     /// - `pin`: GPIO pin for LED data
-    /// - `max_current_ma`: Maximum current budget in milliamps
+    /// - `max_current`: Maximum current budget in milliamps
     /// - `spawner`: Task spawner for background device loop
     #[doc(hidden)]
     pub async fn new_pio0(
         led12x4_static: &'static Led12x4Static,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
         pin: embassy_rp::Peri<'static, impl embassy_rp::pio::PioPin>,
-        max_current_ma: u32,
+        max_current: Milliamps,
         spawner: Spawner,
     ) -> Result<Self> {
         let strip = crate::led_strip_simple::LedStripSimple::new_pio0(
             led12x4_static.led_strip_simple(),
             pio,
             pin,
-            max_current_ma,
+            max_current,
         )
         .await;
         Self::from(led12x4_static, strip, spawner)
@@ -532,21 +534,21 @@ impl
     /// - `led12x4_static`: Static resources for the display
     /// - `pio`: PIO1 peripheral
     /// - `pin`: GPIO pin for LED data
-    /// - `max_current_ma`: Maximum current budget in milliamps
+    /// - `max_current`: Maximum current budget in milliamps
     /// - `spawner`: Task spawner for background device loop
     #[doc(hidden)]
     pub async fn new_pio1(
         led12x4_static: &'static Led12x4Static,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
         pin: embassy_rp::Peri<'static, impl embassy_rp::pio::PioPin>,
-        max_current_ma: u32,
+        max_current: Milliamps,
         spawner: Spawner,
     ) -> Result<Self> {
         let strip = crate::led_strip_simple::LedStripSimple::new_pio1(
             led12x4_static.led_strip_simple(),
             pio,
             pin,
-            max_current_ma,
+            max_current,
         )
         .await;
         Self::from(led12x4_static, strip, spawner)
@@ -572,21 +574,21 @@ impl
     /// - `led12x4_static`: Static resources for the display
     /// - `pio`: PIO2 peripheral
     /// - `pin`: GPIO pin for LED data
-    /// - `max_current_ma`: Maximum current budget in milliamps
+    /// - `max_current`: Maximum current budget in milliamps
     /// - `spawner`: Task spawner for background device loop
     #[doc(hidden)]
     pub async fn new_pio2(
         led12x4_static: &'static Led12x4Static,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO2>,
         pin: embassy_rp::Peri<'static, impl embassy_rp::pio::PioPin>,
-        max_current_ma: u32,
+        max_current: Milliamps,
         spawner: Spawner,
     ) -> Result<Self> {
         let strip = crate::led_strip_simple::LedStripSimple::new_pio2(
             led12x4_static.led_strip_simple(),
             pio,
             pin,
-            max_current_ma,
+            max_current,
         )
         .await;
         Self::from(led12x4_static, strip, spawner)
@@ -602,14 +604,14 @@ pub macro new_led12x4 {
         $led12x4_static:expr,
         $pin:ident,
         $peripherals:ident . PIO0,
-        $max_current_ma:expr,
+        $max_current:expr,
         $spawner:expr
     ) => {
         $crate::led12x4::Led12x4::new_pio0(
             $led12x4_static,
             $peripherals.PIO0,
             $peripherals.$pin,
-            $max_current_ma,
+            $max_current,
             $spawner,
         )
     },
@@ -617,14 +619,14 @@ pub macro new_led12x4 {
         $led12x4_static:expr,
         $pin:ident,
         $peripherals:ident . PIO1,
-        $max_current_ma:expr,
+        $max_current:expr,
         $spawner:expr
     ) => {
         $crate::led12x4::Led12x4::new_pio1(
             $led12x4_static,
             $peripherals.PIO1,
             $peripherals.$pin,
-            $max_current_ma,
+            $max_current,
             $spawner,
         )
     },
@@ -632,7 +634,7 @@ pub macro new_led12x4 {
         $led12x4_static:expr,
         $pin:ident,
         $peripherals:ident . PIO2,
-        $max_current_ma:expr,
+        $max_current:expr,
         $spawner:expr
     ) => {{
         #[cfg(feature = "pico2")]
@@ -641,7 +643,7 @@ pub macro new_led12x4 {
                 $led12x4_static,
                 $peripherals.PIO2,
                 $peripherals.$pin,
-                $max_current_ma,
+                $max_current,
                 $spawner,
             )
         }

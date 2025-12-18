@@ -27,6 +27,7 @@ use serials::ir::{Ir, IrEvent, IrStatic};
 use serials::led_strip::Rgb;
 use serials::led_strip::colors;
 use serials::led_strip::define_led_strips;
+use serials::led_strip_simple::Milliamps;
 use serials::led24x4::Led24x4;
 use serials::rfid::{Rfid, RfidEvent, RfidStatic};
 use serials::servo::servo_a;
@@ -45,14 +46,14 @@ define_led_strips! {
             dma: DMA_CH1,
             pin: PIN_2,
             len: 8,
-            max_current_ma: 50
+            max_current: Milliamps(50)
         },
         led_strip1 {
             sm: 1,
             dma: DMA_CH4,
             pin: PIN_14,
             len: 48,
-            max_current_ma: 100
+            max_current: Milliamps(100)
         }
     ]
 }

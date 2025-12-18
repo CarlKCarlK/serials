@@ -209,7 +209,7 @@ macro_rules! define_led_strips {
                     dma: $dma:ident,
                     pin: $pin:ident,
                     len: $len:expr,
-                    max_current_ma: $max_current:expr
+                    max_current: $max_current:expr
                 }
             ),+ $(,)?
         ]
@@ -257,7 +257,7 @@ macro_rules! define_led_strips {
                 // Each WS2812B LED draws ~60mA at full brightness
                 const WORST_CASE_MA: u32 = (LEN as u32) * 60;
                 pub const MAX_BRIGHTNESS: u8 = {
-                    let scale = ($max_current as u32 * 255) / WORST_CASE_MA;
+                    let scale = ($max_current.as_u32() * 255) / WORST_CASE_MA;
                     if scale > 255 { 255 } else { scale as u8 }
                 };
 

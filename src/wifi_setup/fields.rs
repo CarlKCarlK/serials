@@ -31,6 +31,7 @@ use crate::{Error, Result};
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
+/// use serials::button::PressedTo;
 /// use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
 /// use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
 /// use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
@@ -61,6 +62,7 @@ use crate::{Error, Result};
 ///         p.DMA_CH0,
 ///         wifi_flash,
 ///         p.PIN_13,
+///         PressedTo::Ground,
 ///         "ClockStation",
 ///         [timezone_field],  // Custom fields array
 ///         spawner,
@@ -382,6 +384,7 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
+/// use serials::button::PressedTo;
 /// use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
 /// use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
 /// use serials::wifi_setup::fields::{TextField, TextFieldStatic};
@@ -418,6 +421,7 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 ///         p.DMA_CH0,
 ///         wifi_flash,
 ///         p.PIN_13,
+///         PressedTo::Ground,
 ///         "Pico",
 ///         [device_name_field],  // Custom fields array
 ///         spawner,

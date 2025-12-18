@@ -7,6 +7,7 @@ use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
 use serials::led_strip::define_led_strips;
+use serials::led_strip_simple::Milliamps;
 use smart_leds::RGB8;
 
 // WS2812B 4x12 LED matrix (48 pixels)
@@ -20,17 +21,17 @@ define_led_strips! {
             dma: DMA_CH1,
             pin: PIN_16,
             len: 48,
-            max_current_ma: 100
+            max_current: Milliamps(100)
         }
     ]
 }
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
-    let peripherals = embassy_rp::init(Default::default());
+    let p = embassy_rp::init(Default::default());
 
     // Initialize PIO1 bus
-    let (pio_bus, sm0, _sm1, _sm2, _sm3) = pio1_split(peripherals.PIO1);
+    let (pio_bus, sm0, _sm1, _sm2, _sm3) = pio1_split(p.PIO1);
 
     static LED_STRIP_STATIC: led_strip2::Static = led_strip2::new_static();
     let mut led_strip = led_strip2::new(
@@ -38,8 +39,8 @@ async fn main(spawner: Spawner) -> ! {
         &LED_STRIP_STATIC,
         pio_bus,
         sm0,
-        peripherals.DMA_CH1.into(),
-        peripherals.PIN_16.into(),
+        p.DMA_CH1.into(),
+        p.PIN_16.into(),
     )
     .expect("Failed to start LED strip");
 

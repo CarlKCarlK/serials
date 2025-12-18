@@ -20,23 +20,23 @@ const BUTTON_DEBOUNCE_DELAY: Duration = Duration::from_millis(10);
 const LONG_PRESS_DURATION: Duration = Duration::from_millis(500);
 
 // ============================================================================
-// ButtonConnection - How the button is wired
+// PressedTo - How the button is wired
 // ============================================================================
 
 /// Describes how the button is physically wired.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, defmt::Format)]
-pub enum ButtonConnection {
+pub enum PressedTo {
     /// Button connects pin to voltage (3.3V) when pressed.
     /// Uses internal pull-down resistor. Pin reads HIGH when pressed.
     ///
     /// Note: Pico 2 (RP2350) has a known silicon bug with pull-down resistors
     /// that can cause pins to stay HIGH after button release. Use ToGround instead.
-    ToVoltage,
+    Voltage,
 
     /// Button connects pin to ground (GND) when pressed.
     /// Uses internal pull-up resistor. Pin reads LOW when pressed.
     /// Recommended for Pico 2 due to pull-down resistor bug.
-    ToGround,
+    Ground,
 }
 
 // ============================================================================
@@ -59,11 +59,11 @@ pub enum PressDuration {
 /// # Hardware Requirements
 ///
 /// The button can be wired in two ways:
-/// - [`ButtonConnection::ToVoltage`]: Button connects pin to 3.3V when pressed (uses pull-down)
-/// - [`ButtonConnection::ToGround`]: Button connects pin to GND when pressed (uses pull-up)
+/// - [`PressedTo::Voltage`]: Button connects pin to 3.3V when pressed (uses pull-down)
+/// - [`PressedTo::Ground`]: Button connects pin to GND when pressed (uses pull-up)
 ///
 /// **Important**: Pico 2 (RP2350) has a known silicon bug with pull-down resistors.
-/// Use [`ButtonConnection::ToGround`] for Pico 2.
+/// Use [`PressedTo::Ground`] for Pico 2.
 ///
 /// # Usage
 ///
@@ -80,12 +80,12 @@ pub enum PressDuration {
 /// # #![no_std]
 /// # #![no_main]
 ///
-/// use serials::button::{Button, ButtonConnection, PressDuration};
+/// use serials::button::{Button, PressDuration, PressedTo};
 /// # #[panic_handler]
 /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 ///
 /// async fn example(p: embassy_rp::Peripherals) {
-///     let mut button = Button::new(p.PIN_15, ButtonConnection::ToGround);
+///     let mut button = Button::new(p.PIN_15, PressedTo::Ground);
 ///
 ///     // Measure press durations in a loop
 ///     loop {
@@ -102,33 +102,33 @@ pub enum PressDuration {
 /// ```
 pub struct Button<'a> {
     input: Input<'a>,
-    connection: ButtonConnection,
+    pressed_to: PressedTo,
 }
 
 impl<'a> Button<'a> {
     /// Creates a new `Button` instance from a pin.
     ///
     /// The pin is configured based on the connection type:
-    /// - [`ButtonConnection::ToVoltage`]: Uses internal pull-down (button to 3.3V)
-    /// - [`ButtonConnection::ToGround`]: Uses internal pull-up (button to GND)
+    /// - [`PressedTo::Voltage`]: Uses internal pull-down (button to 3.3V)
+    /// - [`PressedTo::Ground`]: Uses internal pull-up (button to GND)
     #[must_use]
-    pub fn new<P: embassy_rp::gpio::Pin>(pin: Peri<'a, P>, connection: ButtonConnection) -> Self {
-        let pull = match connection {
-            ButtonConnection::ToVoltage => Pull::Down,
-            ButtonConnection::ToGround => Pull::Up,
+    pub fn new<P: embassy_rp::gpio::Pin>(pin: Peri<'a, P>, pressed_to: PressedTo) -> Self {
+        let pull = match pressed_to {
+            PressedTo::Voltage => Pull::Down,
+            PressedTo::Ground => Pull::Up,
         };
         Self {
             input: Input::new(pin, pull),
-            connection,
+            pressed_to,
         }
     }
 
     /// Returns whether the button is currently pressed.
     #[must_use]
     pub fn is_pressed(&self) -> bool {
-        match self.connection {
-            ButtonConnection::ToVoltage => self.input.is_high(),
-            ButtonConnection::ToGround => self.input.is_low(),
+        match self.pressed_to {
+            PressedTo::Voltage => self.input.is_high(),
+            PressedTo::Ground => self.input.is_low(),
         }
     }
 

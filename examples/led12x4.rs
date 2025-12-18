@@ -16,9 +16,10 @@ use embedded_graphics::{
 use heapless::Vec;
 use panic_probe as _;
 use serials::Result;
-use serials::button::{Button, ButtonConnection};
+use serials::button::{Button, PressedTo};
 use serials::led12x4::{
-    AnimationFrame, COLS, Led12x4Static, LedStrip, ROWS, blink_text_animation, colors, new_led12x4,
+    AnimationFrame, COLS, Led12x4Static, LedStrip, Milliamps, ROWS, blink_text_animation, colors,
+    new_led12x4,
 };
 use smart_leds::RGB8;
 
@@ -32,12 +33,12 @@ pub async fn main(spawner: Spawner) -> ! {
 
 async fn inner_main(spawner: Spawner) -> Result<!> {
     info!("LED 12x4 API Exploration");
-    let peripherals = embassy_rp::init(Default::default());
+    let p = embassy_rp::init(Default::default());
 
     static LED_12X4_STATIC: Led12x4Static = Led12x4Static::new_static();
-    let led_12x4 = new_led12x4!(&LED_12X4_STATIC, PIN_3, peripherals.PIO1, 500, spawner).await?;
+    let led_12x4 = new_led12x4!(&LED_12X4_STATIC, PIN_3, p.PIO1, Milliamps(500), spawner).await?;
 
-    let mut button = Button::new(peripherals.PIN_13, ButtonConnection::ToGround);
+    let mut button = Button::new(p.PIN_13, PressedTo::Ground);
 
     loop {
         info!("Demo 1: Text colors");

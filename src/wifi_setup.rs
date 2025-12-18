@@ -25,7 +25,7 @@ use heapless::Vec;
 use portable_atomic::{AtomicBool, Ordering};
 use static_cell::StaticCell;
 
-use crate::button::{Button, ButtonConnection};
+use crate::button::{Button, PressedTo};
 use crate::flash_array::FlashBlock;
 use crate::{Error, Result};
 
@@ -103,6 +103,7 @@ pub struct WifiSetupStatic {
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
+/// use serials::button::PressedTo;
 /// use serials::flash_array::{FlashArray, FlashArrayStatic};
 /// use serials::wifi_setup::{WifiSetup, WifiSetupStatic, WifiSetupEvent};
 /// use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
@@ -131,6 +132,7 @@ pub struct WifiSetupStatic {
 ///         p.DMA_CH0,              // CYW43 DMA
 ///         wifi_flash,             // Flash for WiFi credentials
 ///         p.PIN_13,               // Button for forced reconfiguration
+///         PressedTo::Ground,      // Button wiring
 ///         "PicoAccess",           // Captive-portal SSID for provisioning
 ///         [timezone_field],       // Array of custom fields
 ///         spawner,
@@ -230,6 +232,7 @@ impl WifiSetup {
         dma_ch0: Peri<'static, DMA_CH0>,
         mut wifi_credentials_flash_block: FlashBlock,
         button_pin: Peri<'static, impl Pin>,
+        button_pressed_to: PressedTo,
         captive_portal_ssid: &'static str,
         custom_fields: [&'static dyn WifiSetupField; N],
         spawner: Spawner,
@@ -244,7 +247,7 @@ impl WifiSetup {
             }
         }
 
-        let button = Button::new(button_pin, ButtonConnection::ToGround);
+        let button = Button::new(button_pin, button_pressed_to);
         let force_captive_portal = button.is_pressed();
         if force_captive_portal {
             if let Some(creds) = stored_credentials.clone() {

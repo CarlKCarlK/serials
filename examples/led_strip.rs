@@ -9,6 +9,7 @@ use panic_probe as _;
 use serials::Result;
 use serials::led_strip::define_led_strips;
 use serials::led_strip::{Rgb, colors};
+use serials::led_strip_simple::Milliamps;
 
 define_led_strips! {
     pio: PIO0,
@@ -18,17 +19,17 @@ define_led_strips! {
             dma: DMA_CH0,
             pin: PIN_2,
             len: 8,
-            max_current_ma: 50
+            max_current: Milliamps(50)
         }
     ]
 }
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
-    let peripherals = embassy_rp::init(Default::default());
+    let p = embassy_rp::init(Default::default());
 
     // Initialize PIO0 bus
-    let (pio_bus, sm0, _sm1, _sm2, _sm3) = pio0_split(peripherals.PIO0);
+    let (pio_bus, sm0, _sm1, _sm2, _sm3) = pio0_split(p.PIO0);
 
     static LED_STRIP_STATIC: led_strip0::Static = led_strip0::new_static();
     let mut led_strip_0 = led_strip0::new(
@@ -36,8 +37,8 @@ async fn main(spawner: Spawner) -> ! {
         &LED_STRIP_STATIC,
         pio_bus,
         sm0,
-        peripherals.DMA_CH0.into(),
-        peripherals.PIN_2.into(),
+        p.DMA_CH0.into(),
+        p.PIN_2.into(),
     )
     .expect("Failed to start LED strip");
 

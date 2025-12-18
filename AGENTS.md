@@ -65,6 +65,7 @@ Avoid single-character variables; use descriptive names:
 - `step_index`: Current machine step number
 - `tape_index`: Current head position (can be negative)
 - `select`: Which symbol to visualize (`NonZeroU8`)
+- For the board peripherals handle from `embassy_rp::init`, always use the shorthand `let p = embassy_rp::init(...)` so examples stay consistent.
 
 **Reference variables:**
 

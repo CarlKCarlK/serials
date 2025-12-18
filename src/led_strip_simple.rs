@@ -24,6 +24,17 @@ use crate::Result;
 /// RGB color representation re-exported from `smart_leds`.
 pub type Rgb = RGB8;
 
+/// Current budget for LED strips, specified in milliamps.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub struct Milliamps(pub u16);
+
+impl Milliamps {
+    #[must_use]
+    pub const fn as_u32(self) -> u32 {
+        self.0 as u32
+    }
+}
+
 const T1: u8 = 2;
 const T2: u8 = 5;
 const T3: u8 = 3;
@@ -214,12 +225,12 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
     ((u16::from(value) * u16::from(brightness)) / 255) as u8
 }
 
-fn max_brightness_for<const N: usize>(max_current_ma: u32) -> u8 {
+fn max_brightness_for<const N: usize>(max_current: Milliamps) -> u8 {
     assert!(N > 0, "strip must contain at least one LED");
-    assert!(max_current_ma > 0, "max_current_ma must be positive");
+    assert!(max_current.0 > 0, "max_current must be positive");
 
     let led_count = u64::try_from(N).expect("strip length fits in u64");
-    let numerator = u64::from(max_current_ma) * 255;
+    let numerator = u64::from(max_current.as_u32()) * 255;
     let denominator = led_count * 60; // 60mA per LED at full white.
     let brightness = numerator / denominator;
 
@@ -268,7 +279,13 @@ impl<const N: usize> LedStripSimpleStatic<N> {
 /// # #![no_std]
 /// # use panic_probe as _;
 /// # fn main() {}
-/// use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, colors, new_simple_strip};
+/// use serials::led_strip_simple::{
+///     LedStripSimple,
+///     LedStripSimpleStatic,
+///     Milliamps,
+///     colors,
+///     new_simple_strip,
+/// };
 /// use serials::Result;
 ///
 /// async fn example(p: embassy_rp::Peripherals) -> Result<()> {
@@ -277,7 +294,7 @@ impl<const N: usize> LedStripSimpleStatic<N> {
 ///         &STRIP_STATIC,  // static resources
 ///         PIN_2,          // data pin
 ///         p.PIO0,         // PIO block
-///         50              // max current budget (mA)
+///         Milliamps(50)   // max current budget (mA)
 ///     ).await;
 ///
 ///     let mut frame = [colors::BLACK; 8];
@@ -335,9 +352,9 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO0, N> {
         strip_static: &'static LedStripSimpleStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
-        max_current_ma: u32,
+        max_current: Milliamps,
     ) -> Self {
-        let max_brightness = max_brightness_for::<N>(max_current_ma);
+        let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio0(pio);
         let mut strip = LedStripSimple::new(strip_static, bus, sm, pin, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
@@ -357,9 +374,9 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO1, N> {
         strip_static: &'static LedStripSimpleStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
-        max_current_ma: u32,
+        max_current: Milliamps,
     ) -> Self {
-        let max_brightness = max_brightness_for::<N>(max_current_ma);
+        let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio1(pio);
         let mut strip = LedStripSimple::new(strip_static, bus, sm, pin, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
@@ -380,9 +397,9 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO2, N> {
         strip_static: &'static LedStripSimpleStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO2>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
-        max_current_ma: u32,
+        max_current: Milliamps,
     ) -> Self {
-        let max_brightness = max_brightness_for::<N>(max_current_ma);
+        let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio2(pio);
         let mut strip = LedStripSimple::new(strip_static, bus, sm, pin, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
@@ -399,33 +416,33 @@ pub macro new_simple_strip {
         $strip_static:expr,
         $pin:ident,
         $peripherals:ident . PIO0,
-        $max_current_ma:expr
+        $max_current:expr
     ) => {
         $crate::led_strip_simple::LedStripSimple::new_pio0(
             $strip_static,
             $peripherals.PIO0,
             $peripherals.$pin,
-            $max_current_ma,
+            $max_current,
         )
     },
     (
         $strip_static:expr,
         $pin:ident,
         $peripherals:ident . PIO1,
-        $max_current_ma:expr
+        $max_current:expr
     ) => {
         $crate::led_strip_simple::LedStripSimple::new_pio1(
             $strip_static,
             $peripherals.PIO1,
             $peripherals.$pin,
-            $max_current_ma,
+            $max_current,
         )
     },
     (
         $strip_static:expr,
         $pin:ident,
         $peripherals:ident . PIO2,
-        $max_current_ma:expr
+        $max_current:expr
     ) => {{
         #[cfg(feature = "pico2")]
         {
@@ -433,7 +450,7 @@ pub macro new_simple_strip {
                 $strip_static,
                 $peripherals.PIO2,
                 $peripherals.$pin,
-                $max_current_ma,
+                $max_current,
             )
         }
         #[cfg(not(feature = "pico2"))]

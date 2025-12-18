@@ -21,6 +21,7 @@ use heapless::String;
 use panic_probe as _;
 use serials::Result;
 use serials::UnixSeconds;
+use serials::button::PressedTo;
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led4::{BlinkState, Led4, Led4Static, OutputArray};
 use serials::wifi_setup::fields::{TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic};
@@ -34,25 +35,25 @@ pub async fn main(spawner: Spawner) -> ! {
 
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("Starting wifi_setup example");
-    let peripherals = embassy_rp::init(Default::default());
+    let p = embassy_rp::init(Default::default());
 
     // Initialize LED4 display
     let cells = OutputArray::new([
-        gpio::Output::new(peripherals.PIN_1, Level::High),
-        gpio::Output::new(peripherals.PIN_2, Level::High),
-        gpio::Output::new(peripherals.PIN_3, Level::High),
-        gpio::Output::new(peripherals.PIN_4, Level::High),
+        gpio::Output::new(p.PIN_1, Level::High),
+        gpio::Output::new(p.PIN_2, Level::High),
+        gpio::Output::new(p.PIN_3, Level::High),
+        gpio::Output::new(p.PIN_4, Level::High),
     ]);
 
     let segments = OutputArray::new([
-        gpio::Output::new(peripherals.PIN_5, Level::Low),
-        gpio::Output::new(peripherals.PIN_6, Level::Low),
-        gpio::Output::new(peripherals.PIN_7, Level::Low),
-        gpio::Output::new(peripherals.PIN_8, Level::Low),
-        gpio::Output::new(peripherals.PIN_9, Level::Low),
-        gpio::Output::new(peripherals.PIN_10, Level::Low),
-        gpio::Output::new(peripherals.PIN_11, Level::Low),
-        gpio::Output::new(peripherals.PIN_12, Level::Low),
+        gpio::Output::new(p.PIN_5, Level::Low),
+        gpio::Output::new(p.PIN_6, Level::Low),
+        gpio::Output::new(p.PIN_7, Level::Low),
+        gpio::Output::new(p.PIN_8, Level::Low),
+        gpio::Output::new(p.PIN_9, Level::Low),
+        gpio::Output::new(p.PIN_10, Level::Low),
+        gpio::Output::new(p.PIN_11, Level::Low),
+        gpio::Output::new(p.PIN_12, Level::Low),
     ]);
 
     static LED4_STATIC: Led4Static = Led4::new_static();
@@ -64,7 +65,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         timezone_flash_block,
         device_name_flash_block,
         location_flash_block,
-    ] = FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
+    ] = FlashArray::new(&FLASH_STATIC, p.FLASH)?;
 
     static TIMEZONE_FIELD_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
@@ -90,14 +91,15 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static WIFI_SETUP_STATIC: WifiSetupStatic = WifiSetup::new_static();
     let wifi_setup = WifiSetup::new(
         &WIFI_SETUP_STATIC,
-        peripherals.PIN_23,           // CYW43 power
-        peripherals.PIN_25,           // CYW43 chip select
-        peripherals.PIO0,             // CYW43 PIO interface
-        peripherals.PIN_24,           // CYW43 clock
-        peripherals.PIN_29,           // CYW43 data pin
-        peripherals.DMA_CH0,          // CYW43 DMA channel
+        p.PIN_23,                     // CYW43 power
+        p.PIN_25,                     // CYW43 chip select
+        p.PIO0,                       // CYW43 PIO interface
+        p.PIN_24,                     // CYW43 clock
+        p.PIN_29,                     // CYW43 data pin
+        p.DMA_CH0,                    // CYW43 DMA channel
         wifi_credentials_flash_block, // Flash block storing Wi-Fi creds
-        peripherals.PIN_13,           // Reset button pin
+        p.PIN_13,                     // Reset button pin
+        PressedTo::Ground,            // Button wiring
         "Pico",                       // Captive portal SSID to display
         [timezone_field, device_name_field, location_field],
         spawner,

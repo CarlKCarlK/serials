@@ -18,7 +18,7 @@ use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_time::Duration;
 use panic_probe as _;
-use serials::button::{Button, PressDuration};
+use serials::button::{Button, PressDuration, PressedTo};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::servo_animate::{ServoAnimate, ServoAnimateStatic, Step, linear, servo_even};
@@ -37,12 +37,12 @@ pub async fn main(spawner: Spawner) -> ! {
 
 async fn inner_main(spawner: Spawner) -> Result<!> {
     info!("Starting Wi-Fi servo clock (WifiSetup)");
-    let peripherals = embassy_rp::init(Default::default());
+    let p = embassy_rp::init(Default::default());
 
     // Use two blocks of flash storage: Wi-Fi credentials + timezone
     static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
     let [wifi_credentials_flash_block, timezone_flash_block] =
-        FlashArray::new(&FLASH_STATIC, peripherals.FLASH)?;
+        FlashArray::new(&FLASH_STATIC, p.FLASH)?;
 
     // Define HTML to ask for timezone on the captive portal.
     static TIMEZONE_FIELD_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
@@ -52,15 +52,16 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     static WIFI_SETUP_STATIC: WifiSetupStatic = WifiSetup::new_static();
     let wifi_setup = WifiSetup::new(
         &WIFI_SETUP_STATIC,
-        peripherals.PIN_23,  // CYW43 power
-        peripherals.PIN_25,  // CYW43 chip select
-        peripherals.PIO0,    // CYW43 PIO interface
-        peripherals.PIN_24,  // CYW43 clock
-        peripherals.PIN_29,  // CYW43 data pin
-        peripherals.DMA_CH0, // CYW43 DMA channel
+        p.PIN_23,  // CYW43 power
+        p.PIN_25,  // CYW43 chip select
+        p.PIO0,    // CYW43 PIO interface
+        p.PIN_24,  // CYW43 clock
+        p.PIN_29,  // CYW43 data pin
+        p.DMA_CH0, // CYW43 DMA channel
         wifi_credentials_flash_block,
-        peripherals.PIN_13, // Reset button pin
-        "PicoServoClock",   // Captive-portal SSID
+        p.PIN_13, // Reset button pin
+        PressedTo::Ground,
+        "PicoServoClock", // Captive-portal SSID
         [timezone_field],
         spawner,
     )?;
@@ -71,12 +72,12 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     let servo_display = ServoClockDisplay::new(
         ServoAnimate::new(
             &LEFT_SERVO_ANIMATE_STATIC,
-            servo_even!(peripherals.PIN_0, peripherals.PWM_SLICE0, 500, 2500),
+            servo_even!(p.PIN_0, p.PWM_SLICE0, 500, 2500),
             spawner,
         )?,
         ServoAnimate::new(
             &RIGHT_SERVO_ANIMATE_STATIC,
-            servo_even!(peripherals.PIN_2, peripherals.PWM_SLICE1, 500, 2500),
+            servo_even!(p.PIN_2, p.PWM_SLICE1, 500, 2500),
             spawner,
         )?,
     );
