@@ -36,5 +36,6 @@
         "refdiv",
         "reqa",
         "syncer"
-    ]
+    ],
+    "terminal.integrated.shellIntegration.enabled": true
 }

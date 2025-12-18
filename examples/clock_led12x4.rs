@@ -91,6 +91,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
     )
     .await?;
 
+    // cmk sometimes I use "led12x4" and sometimes "led_12x4" which is it?
     // Connect Wi-Fi, using the LED panel for status.
     let led_12x4_ref = &led_12x4;
     let (stack, mut button) = wifi_setup
