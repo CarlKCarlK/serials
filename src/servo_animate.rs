@@ -18,6 +18,7 @@ enum AnimateCommand {
     Animate { steps: AnimateSequence },
 }
 
+// cmk should this be Frame?
 /// A single animation step: hold `degrees` for `duration`.
 ///
 /// See [`ServoAnimate`] for a full example.

@@ -18,7 +18,7 @@ use panic_probe as _;
 use serials::Result;
 use serials::button::{Button, PressedTo};
 use serials::led12x4::{
-    AnimationFrame, COLS, Led12x4Static, Milliamps, ROWS, blink_text_animation, colors, new_led12x4,
+    COLS, Frame, Led12x4, Led12x4Static, Milliamps, ROWS, colors, new_led12x4, text_frame,
 };
 use smart_leds::RGB8;
 
@@ -64,7 +64,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
 // cmk why is there a generic T here? (now resolved - using Led12x4Strip enum)
 /// Display "RUST" in 4 different colors using write_text.
-async fn demo_text_colors(led_12x4: &serials::led12x4::Led12x4) -> Result<()> {
+async fn demo_text_colors(led_12x4: &Led12x4) -> Result<()> {
     led_12x4
         .write_text(
             ['r', 'u', 's', 't'],
@@ -73,16 +73,18 @@ async fn demo_text_colors(led_12x4: &serials::led12x4::Led12x4) -> Result<()> {
         .await
 }
 
-/// Blink "RUST" using the blink_text_animation builder.
-async fn demo_blink_text(led_12x4: &serials::led12x4::Led12x4) -> Result<()> {
-    let frames = blink_text_animation(
+/// Blink "RUST" by constructing frames explicitly.
+async fn demo_blink_text(led_12x4: &Led12x4) -> Result<()> {
+    let on_frame = text_frame(
         ['r', 'u', 's', 't'],
         [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
-        Duration::from_millis(500),
-        Duration::from_millis(500),
     );
-
-    led_12x4.animate_frames(frames).await
+    let off_frame = [colors::BLACK; COLS * ROWS];
+    let frames = [
+        Frame::new(on_frame, Duration::from_millis(500)),
+        Frame::new(off_frame, Duration::from_millis(500)),
+    ];
+    led_12x4.animate(&frames).await
 }
 
 /// Frame builder that implements DrawTarget for embedded-graphics.
@@ -141,9 +143,7 @@ impl OriginDimensions for FrameBuilder {
 }
 
 /// Create a red rectangle border with blue diagonals using embedded-graphics.
-async fn demo_rectangle_diagonals_embedded_graphics(
-    led_12x4: &serials::led12x4::Led12x4,
-) -> Result<()> {
+async fn demo_rectangle_diagonals_embedded_graphics(led_12x4: &Led12x4) -> Result<()> {
     let mut frame_builder = FrameBuilder::new();
 
     // Draw red rectangle border
@@ -174,7 +174,7 @@ async fn demo_rectangle_diagonals_embedded_graphics(
 }
 
 /// Bouncing dot manually updating frames with write_frame in a loop.
-async fn demo_bouncing_dot_manual(led_12x4: &serials::led12x4::Led12x4) -> Result<()> {
+async fn demo_bouncing_dot_manual(led_12x4: &Led12x4) -> Result<()> {
     const COLORS: [RGB8; 6] = [
         colors::RED,
         colors::GREEN,
@@ -227,7 +227,7 @@ async fn demo_bouncing_dot_manual(led_12x4: &serials::led12x4::Led12x4) -> Resul
 }
 
 /// Bouncing dot using pre-built animation frames.
-async fn demo_bouncing_dot_animation(led_12x4: &serials::led12x4::Led12x4) -> Result<()> {
+async fn demo_bouncing_dot_animation(led_12x4: &Led12x4) -> Result<()> {
     const COLORS: [RGB8; 6] = [
         colors::RED,
         colors::GREEN,
@@ -238,7 +238,7 @@ async fn demo_bouncing_dot_animation(led_12x4: &serials::led12x4::Led12x4) -> Re
     ];
 
     let black = RGB8::new(0, 0, 0);
-    let mut frames = Vec::<AnimationFrame, 32>::new();
+    let mut frames = Vec::<Frame, 32>::new();
     let mut column_index: isize = 0;
     let mut row_index: isize = 0;
     let mut delta_column: isize = 1;
@@ -250,7 +250,7 @@ async fn demo_bouncing_dot_animation(led_12x4: &serials::led12x4::Led12x4) -> Re
         frame[serials::led12x4::xy_to_index(column_index as usize, row_index as usize)] =
             COLORS[color_index];
         frames
-            .push(AnimationFrame::new(frame, Duration::from_millis(50)))
+            .push(Frame::new(frame, Duration::from_millis(50)))
             .map_err(|_| serials::Error::FormatError)?;
 
         column_index = column_index + delta_column;
@@ -277,5 +277,5 @@ async fn demo_bouncing_dot_animation(led_12x4: &serials::led12x4::Led12x4) -> Re
         }
     }
 
-    led_12x4.animate_frames(frames).await
+    led_12x4.animate(&frames).await
 }

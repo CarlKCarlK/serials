@@ -16,12 +16,16 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_time::Duration;
+use heapless::Vec;
 use panic_probe as _;
 use serials::button::{Button, PressDuration, PressedTo};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led_strip_simple::colors;
-use serials::led12x4::{Led12x4, Led12x4Static, Milliamps, new_led12x4, perimeter_chase_animation};
+use serials::led12x4::{
+    AnimationFrame, COLS, Led12x4, Led12x4Static, Milliamps, ROWS, new_led12x4,
+    perimeter_chase_animation, text_frame,
+};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
@@ -356,21 +360,20 @@ impl State {
 // Display helper functions for the 12x4 LED clock
 
 async fn show_portal_ready(led_12x4: &Led12x4) -> Result<()> {
-    use serials::led12x4::blink_text_animation;
-    let animation = blink_text_animation(
-        ['C', 'O', 'N', 'N'],
-        DIGIT_COLORS,
-        Duration::from_millis(700),
-        Duration::from_millis(300),
-    );
-    led_12x4.animate_frames(animation).await
+    let on_frame = text_frame(['C', 'O', 'N', 'N'], DIGIT_COLORS);
+    let off_frame = [colors::BLACK; COLS * ROWS];
+    let frames = [
+        Frame::new(on_frame, Duration::from_millis(700)),
+        Frame::new(off_frame, Duration::from_millis(300)),
+    ];
+    led_12x4.animate(&frames).await
 }
 
 async fn show_connecting(led_12x4: &Led12x4, try_index: u8, _try_count: u8) -> Result<()> {
     let clockwise = try_index % 2 == 0;
     const FRAME_DURATION: Duration = Duration::from_millis(90);
     let animation = perimeter_chase_animation(clockwise, CONNECTING_COLOR, FRAME_DURATION);
-    led_12x4.animate_frames(animation).await
+    led_12x4.animate(&animation).await
 }
 
 async fn show_connected(led_12x4: &Led12x4) -> Result<()> {

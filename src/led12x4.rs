@@ -26,7 +26,7 @@ pub const PERIMETER_LENGTH: usize = (COLS * 2) + ((ROWS - 2) * 2);
 // cmk isn't this font defined elsewhere?
 
 // cmk does this need to be limited and public
-/// Maximum frames supported by [`Led12x4::animate_frames`].
+/// Maximum frames supported by [`Led12x4::animate`].
 pub const ANIMATION_MAX_FRAMES: usize = 32;
 
 type Led12x4CommandSignal = Signal<CriticalSectionRawMutex, Command>;
@@ -37,17 +37,17 @@ type Led12x4CompletionSignal = Signal<CriticalSectionRawMutex, ()>;
 pub enum Command {
     DisplayStatic([RGB8; COLS * ROWS]),
     DisplayChars { chars: [char; 4], colors: [RGB8; 4] },
-    Animate(Vec<AnimationFrame, ANIMATION_MAX_FRAMES>),
+    Animate(Vec<Frame, ANIMATION_MAX_FRAMES>),
 }
 
-/// Frame of animation for [`Led12x4::animate_frames`]. See [`Led12x4`] for usage.
+/// Frame of animation for [`Led12x4::animate`]. See [`Led12x4`] for usage.
 #[derive(Clone, Copy, Debug)]
-pub struct AnimationFrame {
+pub struct Frame {
     pub frame: [RGB8; COLS * ROWS],
     pub duration: Duration,
 }
 
-impl AnimationFrame {
+impl Frame {
     #[must_use]
     pub const fn new(frame: [RGB8; COLS * ROWS], duration: Duration) -> Self {
         Self { frame, duration }
@@ -159,7 +159,7 @@ impl Led12x4Static {
 ///
 ///     // Perimeter chase animation
 ///     let frames = perimeter_chase_animation(true, colors::WHITE, Duration::from_millis(50));
-///     led_12x4.animate_frames(frames).await?;
+///     led_12x4.animate(&frames).await?;
 ///
 ///     Ok(())
 /// }
@@ -225,18 +225,17 @@ impl Led12x4 {
 
     // cmk what is this?
     /// Loop through a sequence of animation frames until interrupted by another command.
-    pub async fn animate_frames(
-        &self,
-        frames: Vec<AnimationFrame, ANIMATION_MAX_FRAMES>,
-    ) -> Result<()> {
+    pub async fn animate(&self, frames: &[Frame]) -> Result<()> {
         assert!(!frames.is_empty(), "animation requires at least one frame");
-        for frame in frames.iter() {
+        let mut sequence: Vec<Frame, ANIMATION_MAX_FRAMES> = Vec::new();
+        for frame in frames {
             assert!(
                 frame.duration.as_micros() > 0,
                 "animation frame duration must be positive"
             );
+            sequence.push(*frame).expect("animation sequence fits");
         }
-        self.command_signal.signal(Command::Animate(frames));
+        self.command_signal.signal(Command::Animate(sequence));
         self.completion_signal.wait().await;
         Ok(())
     }
@@ -255,7 +254,12 @@ pub const fn xy_to_index(column_index: usize, row_index: usize) -> usize {
     }
 }
 
-fn build_frame(chars: [char; 4], colors: [RGB8; 4]) -> [RGB8; COLS * ROWS] {
+/// Build a full display frame for the provided 4-character text and colors.
+///
+/// This is useful when constructing custom animations manually. See the `led12x4`
+/// example for usage.
+#[must_use]
+pub fn text_frame(chars: [char; 4], colors: [RGB8; 4]) -> [RGB8; COLS * ROWS] {
     let black = RGB8::new(0, 0, 0);
     let mut frame = [black; COLS * ROWS];
 
@@ -293,64 +297,27 @@ fn render_glyph(
 
 /// Creates a single-dot perimeter chase animation around the display edges.
 ///
-/// Use the returned frames with [`Led12x4::animate_frames`] to run the loop.
+/// Use the returned frames with [`Led12x4::animate`] to run the loop.
 #[must_use]
 pub fn perimeter_chase_animation(
     clockwise: bool,
     color: RGB8,
     duration: Duration,
-) -> Vec<AnimationFrame, ANIMATION_MAX_FRAMES> {
+) -> [Frame; PERIMETER_LENGTH] {
     assert!(
         duration.as_micros() > 0,
         "perimeter animation duration must be positive"
     );
-    assert!(
-        PERIMETER_LENGTH <= ANIMATION_MAX_FRAMES,
-        "perimeter animation exceeds frame capacity"
-    );
     let perimeter_indices = perimeter_indices(clockwise);
     let black = RGB8::new(0, 0, 0);
-    let mut animation = Vec::new();
-    for perimeter_index in perimeter_indices {
+    core::array::from_fn(|frame_index| {
         let mut frame = [black; COLS * ROWS];
-        frame[perimeter_index] = color;
-        animation
-            .push(AnimationFrame::new(frame, duration))
-            .expect("perimeter animation fits");
-    }
-    animation
+        frame[perimeter_indices[frame_index]] = color;
+        Frame::new(frame, duration)
+    })
 }
 
 // cmk look at every function and decide if it's necessary
-/// Creates a blinking text animation that alternates between the given text and blank.
-#[must_use]
-pub fn blink_text_animation(
-    chars: [char; 4],
-    colors: [RGB8; 4],
-    on_duration: Duration,
-    off_duration: Duration,
-) -> Vec<AnimationFrame, ANIMATION_MAX_FRAMES> {
-    assert!(
-        on_duration.as_micros() > 0,
-        "blink on_duration must be positive"
-    );
-    assert!(
-        off_duration.as_micros() > 0,
-        "blink off_duration must be positive"
-    );
-    let black = RGB8::new(0, 0, 0);
-    let on_frame = build_frame(chars, colors);
-    let off_frame = [black; COLS * ROWS];
-    let mut animation = Vec::new();
-    animation
-        .push(AnimationFrame::new(on_frame, on_duration))
-        .expect("blink animation fits");
-    animation
-        .push(AnimationFrame::new(off_frame, off_duration))
-        .expect("blink animation fits");
-    animation
-}
-
 #[must_use]
 /// Returns the LED indexes around the perimeter, starting at the top-left corner.
 pub fn perimeter_indices(clockwise: bool) -> [usize; PERIMETER_LENGTH] {
@@ -403,7 +370,7 @@ async fn inner_device_loop(
                 command_signal.wait().await
             }
             Command::DisplayChars { chars, colors } => {
-                let frame = build_frame(chars, colors);
+                let frame = text_frame(chars, colors);
                 strip.update_pixels(&frame).await?;
                 completion_signal.signal(());
                 command_signal.wait().await
@@ -416,7 +383,7 @@ async fn inner_device_loop(
 }
 
 async fn run_animation_loop(
-    frames: Vec<AnimationFrame, ANIMATION_MAX_FRAMES>,
+    frames: Vec<Frame, ANIMATION_MAX_FRAMES>,
     command_signal: &'static Led12x4CommandSignal,
     completion_signal: &'static Led12x4CompletionSignal,
     strip: &mut impl LedStrip<{ COLS * ROWS }>,
