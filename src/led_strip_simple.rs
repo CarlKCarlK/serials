@@ -30,10 +30,10 @@ const T3: u8 = 3;
 const CYCLES_PER_BIT: u32 = (T1 + T2 + T3) as u32;
 const RESET_DELAY_US: u64 = 55;
 
-// PIO interrupt bindings are defined in lib.rs and imported via crate::Pio*Irqs
+// PIO interrupt bindings are defined in lib.rs and imported via crate::pio_irqs
 #[cfg(feature = "pico2")]
-use crate::Pio2Irqs;
-use crate::{Pio0Irqs, Pio1Irqs};
+use crate::pio_irqs::Pio2Irqs;
+use crate::pio_irqs::{Pio0Irqs, Pio1Irqs};
 
 static PIO0_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO0>> = StaticCell::new();
 static PIO1_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO1>> = StaticCell::new();
@@ -268,8 +268,7 @@ impl<const N: usize> LedStripSimpleStatic<N> {
 /// # #![no_std]
 /// # use panic_probe as _;
 /// # fn main() {}
-/// use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, colors};
-/// use serials::new_simple_strip;
+/// use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, colors, new_simple_strip};
 /// use serials::Result;
 ///
 /// async fn example(p: embassy_rp::Peripherals) -> Result<()> {
@@ -320,7 +319,7 @@ impl<'d, PIO: Instance, const N: usize> LedStripSimple<'d, PIO, N> {
     }
 }
 
-impl<'d, PIO: Instance, const N: usize> crate::LedStrip<N> for LedStripSimple<'d, PIO, N> {
+impl<'d, PIO: Instance, const N: usize> crate::led12x4::LedStrip<N> for LedStripSimple<'d, PIO, N> {
     async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
         self.update_pixels(pixels).await
     }
@@ -395,25 +394,39 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO2, N> {
 
 /// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and fails fast if PIO2 is used on Pico 1.
 /// See the usage example on [`LedStripSimple`].
-#[macro_export]
-macro_rules! new_simple_strip {
-    ($strip_static:expr, $pin:ident, $peripherals:ident . PIO0, $max_current_ma:expr) => {
+pub macro new_simple_strip {
+    (
+        $strip_static:expr,
+        $pin:ident,
+        $peripherals:ident . PIO0,
+        $max_current_ma:expr
+    ) => {
         $crate::led_strip_simple::LedStripSimple::new_pio0(
             $strip_static,
             $peripherals.PIO0,
             $peripherals.$pin,
             $max_current_ma,
         )
-    };
-    ($strip_static:expr, $pin:ident, $peripherals:ident . PIO1, $max_current_ma:expr) => {
+    },
+    (
+        $strip_static:expr,
+        $pin:ident,
+        $peripherals:ident . PIO1,
+        $max_current_ma:expr
+    ) => {
         $crate::led_strip_simple::LedStripSimple::new_pio1(
             $strip_static,
             $peripherals.PIO1,
             $peripherals.$pin,
             $max_current_ma,
         )
-    };
-    ($strip_static:expr, $pin:ident, $peripherals:ident . PIO2, $max_current_ma:expr) => {{
+    },
+    (
+        $strip_static:expr,
+        $pin:ident,
+        $peripherals:ident . PIO2,
+        $max_current_ma:expr
+    ) => {{
         #[cfg(feature = "pico2")]
         {
             $crate::led_strip_simple::LedStripSimple::new_pio2(
@@ -427,7 +440,5 @@ macro_rules! new_simple_strip {
         {
             compile_error!("PIO2 is only available on Pico 2 (rp235x); enable the pico2 feature or choose PIO0/PIO1");
         }
-    }};
+    }}
 }
-
-pub use crate::new_simple_strip;

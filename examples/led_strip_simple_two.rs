@@ -8,8 +8,7 @@ use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
 use serials::Result;
-use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, colors};
-use serials::new_simple_strip;
+use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, colors, new_simple_strip};
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {

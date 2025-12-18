@@ -1,6 +1,8 @@
 //! A device abstraction for WiFi auto-provisioning with captive portal fallback.
 //!
 //! See [`WifiSetup`] for the main struct and usage examples.
+// cmk we we really need both wifi and wifi_setup modules? If so, give better names and descriptions.
+// cmk understand all top-level files and folder in the gitproject (is barlink there)
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 

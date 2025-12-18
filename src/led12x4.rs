@@ -10,7 +10,7 @@ use embassy_time::{Duration, Timer};
 use heapless::Vec;
 use smart_leds::RGB8;
 
-use crate::{LedStrip, Result, bit_matrix3x4};
+use crate::{Result, bit_matrix3x4};
 
 /// Predefined RGB color constants (RED, GREEN, BLUE, etc.).
 pub use smart_leds::colors;
@@ -59,6 +59,12 @@ pub struct Led12x4Static {
     led_strip_simple: crate::led_strip_simple::LedStripSimpleStatic<{ COLS * ROWS }>,
 }
 
+/// Trait for LED strip drivers that can render a full 48-pixel frame.
+pub trait LedStrip<const N: usize> {
+    /// Update all pixels at once.
+    async fn update_pixels(&mut self, pixels: &[smart_leds::RGB8; N]) -> Result<()>;
+}
+
 impl Led12x4Static {
     pub const fn new() -> Self {
         Self {
@@ -93,14 +99,13 @@ impl Led12x4Static {
 /// # use panic_probe as _;
 /// # fn main() {}
 /// use embassy_time::Duration;
-/// use serials::led12x4::{Led12x4Static, colors, perimeter_chase_animation};
-/// use serials::new_led12x4;
+/// use serials::led12x4::{Led12x4Static, colors, new_led12x4, perimeter_chase_animation};
 ///
 /// async fn example(
 ///     p: embassy_rp::Peripherals,
 ///     spawner: embassy_executor::Spawner,
 /// ) -> serials::Result<()> {
-///     static LED_12X4_STATIC: Led12x4Static = Led12x4Static::new_static();///
+///     static LED_12X4_STATIC: Led12x4Static = Led12x4Static::new_static();
 ///     let led_12x4 = new_led12x4!(
 ///         &LED_12X4_STATIC,
 ///         PIN_3,
@@ -146,7 +151,7 @@ impl<T: LedStrip<{ COLS * ROWS }> + 'static> Led12x4<T> {
     ///
     /// This is useful when you need to create the strip separately, such as when using
     /// the multi-strip driver. For simple cases with `LedStripSimple`, prefer the
-    /// [`new_led12x4!`] macro.
+    /// [`new_led12x4!`](crate::led12x4::new_led12x4) macro.
     ///
     /// # Example with multi-strip driver
     /// See the compile-only test `test_multi_strip_compiles` for usage.
@@ -592,9 +597,14 @@ impl
 
 /// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and fails fast if PIO2 is used on Pico 1.
 /// See the usage example on [`Led12x4`].
-#[macro_export]
-macro_rules! new_led12x4 {
-    ($led12x4_static:expr, $pin:ident, $peripherals:ident . PIO0, $max_current_ma:expr, $spawner:expr) => {
+pub macro new_led12x4 {
+    (
+        $led12x4_static:expr,
+        $pin:ident,
+        $peripherals:ident . PIO0,
+        $max_current_ma:expr,
+        $spawner:expr
+    ) => {
         $crate::led12x4::Led12x4::new_pio0(
             $led12x4_static,
             $peripherals.PIO0,
@@ -602,8 +612,14 @@ macro_rules! new_led12x4 {
             $max_current_ma,
             $spawner,
         )
-    };
-    ($led12x4_static:expr, $pin:ident, $peripherals:ident . PIO1, $max_current_ma:expr, $spawner:expr) => {
+    },
+    (
+        $led12x4_static:expr,
+        $pin:ident,
+        $peripherals:ident . PIO1,
+        $max_current_ma:expr,
+        $spawner:expr
+    ) => {
         $crate::led12x4::Led12x4::new_pio1(
             $led12x4_static,
             $peripherals.PIO1,
@@ -611,8 +627,14 @@ macro_rules! new_led12x4 {
             $max_current_ma,
             $spawner,
         )
-    };
-    ($led12x4_static:expr, $pin:ident, $peripherals:ident . PIO2, $max_current_ma:expr, $spawner:expr) => {{
+    },
+    (
+        $led12x4_static:expr,
+        $pin:ident,
+        $peripherals:ident . PIO2,
+        $max_current_ma:expr,
+        $spawner:expr
+    ) => {{
         #[cfg(feature = "pico2")]
         {
             $crate::led12x4::Led12x4::new_pio2(
@@ -627,7 +649,5 @@ macro_rules! new_led12x4 {
         {
             compile_error!("PIO2 is only available on Pico 2 (rp235x); enable the pico2 feature or choose PIO0/PIO1");
         }
-    }};
+    }}
 }
-
-pub use crate::new_led12x4;

@@ -466,7 +466,7 @@ fn save_state_to_block(
 }
 
 // PIO interrupt bindings are provided by the crate root (lib.rs)
-use crate::Pio0Irqs as Irqs;
+use crate::pio_irqs::Pio0Irqs as Irqs;
 
 #[embassy_executor::task]
 async fn wifi_device_loop(

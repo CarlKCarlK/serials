@@ -140,7 +140,7 @@ impl<const N: usize> LedStrip<N> {
     }
 }
 
-impl<const N: usize> crate::LedStrip<N> for LedStrip<N> {
+impl<const N: usize> crate::led12x4::LedStrip<N> for LedStrip<N> {
     async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
         self.update_pixels(pixels).await
     }
@@ -233,7 +233,8 @@ macro_rules! define_led_strips {
                 ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, 2>,
                 ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, 3>,
             ) {
-                let ::embassy_rp::pio::Pio { common, sm0, sm1, sm2, sm3, .. } = ::embassy_rp::pio::Pio::new(pio, $crate::[<$pio:camel Irqs>]);
+                let ::embassy_rp::pio::Pio { common, sm0, sm1, sm2, sm3, .. } =
+                    ::embassy_rp::pio::Pio::new(pio, $crate::pio_irqs::[<$pio:camel Irqs>]);
                 let pio_bus = [<$pio _BUS>].init_with(|| {
                     $crate::led_strip::PioBus::new(common)
                 });

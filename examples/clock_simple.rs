@@ -8,8 +8,8 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use panic_probe as _;
+use serials::UnixSeconds;
 use serials::clock::{Clock, ClockStatic, ONE_SECOND, h12_m_s};
-use serials::unix_seconds::UnixSeconds;
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {

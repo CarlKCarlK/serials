@@ -1,4 +1,5 @@
 //! Device abstractions for peripherals for Pico 1 and 2 (with and without WiFi).
+#![cfg_attr(not(feature = "host"), feature(decl_macro))]
 #![cfg_attr(not(feature = "host"), no_std)]
 #![cfg_attr(not(feature = "host"), no_main)]
 #![allow(async_fn_in_trait, reason = "single-threaded embedded")]
@@ -23,23 +24,8 @@ compile_error!("Pico 1 (RP2040) only supports ARM architecture, not RISC-V");
 
 // PIO interrupt bindings - shared by led_strip and led_strip_simple
 #[cfg(not(feature = "host"))]
-::embassy_rp::bind_interrupts! {
-    pub struct Pio0Irqs {
-        PIO0_IRQ_0 => ::embassy_rp::pio::InterruptHandler<::embassy_rp::peripherals::PIO0>;
-    }
-}
-#[cfg(not(feature = "host"))]
-::embassy_rp::bind_interrupts! {
-    pub struct Pio1Irqs {
-        PIO1_IRQ_0 => ::embassy_rp::pio::InterruptHandler<::embassy_rp::peripherals::PIO1>;
-    }
-}
-#[cfg(all(feature = "pico2", not(feature = "host")))]
-::embassy_rp::bind_interrupts! {
-    pub struct Pio2Irqs {
-        PIO2_IRQ_0 => ::embassy_rp::pio::InterruptHandler<::embassy_rp::peripherals::PIO2>;
-    }
-}
+#[doc(hidden)]
+pub mod pio_irqs;
 
 // Only include modules that work without embassy when host feature is enabled
 #[cfg(feature = "host")]
@@ -81,8 +67,6 @@ pub mod servo;
 pub mod servo_animate;
 #[cfg(not(feature = "host"))]
 pub mod time_sync;
-#[cfg(not(feature = "host"))]
-pub mod unix_seconds;
 #[cfg(all(feature = "wifi", not(feature = "host")))]
 pub mod wifi;
 #[cfg(all(feature = "wifi", not(feature = "host")))]
@@ -91,10 +75,5 @@ pub mod wifi_setup;
 // Re-export error types and result (used throughout)
 #[cfg(not(feature = "host"))]
 pub use error::{Error, Result};
-
-/// Trait for LED strip devices that can update pixels.
 #[cfg(not(feature = "host"))]
-pub trait LedStrip<const N: usize> {
-    /// Update all pixels at once.
-    async fn update_pixels(&mut self, pixels: &[smart_leds::RGB8; N]) -> Result<()>;
-}
+pub use time_sync::UnixSeconds;

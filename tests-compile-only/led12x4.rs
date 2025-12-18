@@ -14,9 +14,8 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use panic_probe as _;
 use serials::led_strip::define_led_strips;
-use serials::led_strip_simple::LedStripSimpleStatic;
-use serials::led12x4::{Led12x4, Led12x4Static};
-use serials::{new_led12x4, new_simple_strip};
+use serials::led_strip_simple::{LedStripSimpleStatic, new_simple_strip};
+use serials::led12x4::{Led12x4, Led12x4Static, new_led12x4};
 
 /// Verify Led12x4 from PIO0 with write_text
 async fn test_led12x4_pio0_write_text(
