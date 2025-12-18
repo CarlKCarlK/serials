@@ -5,7 +5,6 @@
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_futures::join::join;
 use embassy_time::Timer;
 use panic_probe as _;
 use serials::Result;
@@ -30,7 +29,8 @@ async fn inner_main(_spawner: Spawner) -> Result<!> {
         PIN_2,               // data pin
         peripherals.PIO0,    // PIO block
         MAX_CURRENT_MA_EACH  // max current budget (mA)
-    );
+    )
+    .await;
 
     type StripStatic1 = LedStripSimpleStatic<48>;
     static STRIP_STATIC_1: StripStatic1 = StripStatic1::new_static();
@@ -39,7 +39,8 @@ async fn inner_main(_spawner: Spawner) -> Result<!> {
         PIN_3,               // data pin
         peripherals.PIO1,    // PIO block
         MAX_CURRENT_MA_EACH  // max current budget (mA)
-    );
+    )
+    .await;
 
     info!("LED strip demo starting (GPIO2 & GPIO3, VSYS power)");
 

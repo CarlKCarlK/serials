@@ -124,17 +124,17 @@ See `ARCHITECTURE.md` for detailed information about board and architecture feat
 
 ## Windows/WSL Debug Probe Helper
 
-`probeusb.ps1` automates moving the CMSIS-DAP probe between Windows and WSL:
+`scripts/probeusb.ps1` automates moving the CMSIS-DAP probe between Windows and WSL:
 
 ```powershell
 # Show current owner ("Windows" vs "WSL")
-powershell -ExecutionPolicy Bypass -File .\probeusb.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\probeusb.ps1
 
 # Give WSL exclusive access (Windows COM port disappears)
-powershell -ExecutionPolicy Bypass -File .\probeusb.ps1 wsl
+powershell -ExecutionPolicy Bypass -File .\scripts\probeusb.ps1 wsl
 
 # Return the probe to Windows
-powershell -ExecutionPolicy Bypass -File .\probeusb.ps1 win
+powershell -ExecutionPolicy Bypass -File .\scripts\probeusb.ps1 win
 ```
 
 It detects the bus ID automatically (assumes a single probe is connected). If you

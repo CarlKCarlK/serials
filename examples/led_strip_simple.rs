@@ -32,7 +32,8 @@ async fn inner_main(_spawner: Spawner) -> Result<!> {
         PIN_2,            // data pin
         peripherals.PIO1, // PIO block
         MAX_CURRENT_MA    // max current budget (mA)
-    );
+    )
+    .await;
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 

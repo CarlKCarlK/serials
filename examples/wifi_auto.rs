@@ -21,7 +21,7 @@ use heapless::String;
 use panic_probe as _;
 use serials::Result;
 use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::led4::{AnimationFrame, BlinkState, Led4, Led4Static, OutputArray};
+use serials::led4::{BlinkState, Led4, Led4Static, OutputArray};
 use serials::unix_seconds::UnixSeconds;
 use serials::wifi_setup::fields::{TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupEvent, WifiSetupStatic};
@@ -89,7 +89,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     static WIFI_SETUP_STATIC: WifiSetupStatic = WifiSetup::new_static();
     let wifi_setup = WifiSetup::new(
-        &wifi_setup_STATIC,
+        &WIFI_SETUP_STATIC,
         peripherals.PIN_23,           // CYW43 power
         peripherals.PIN_25,           // CYW43 chip select
         peripherals.PIO0,             // CYW43 PIO interface

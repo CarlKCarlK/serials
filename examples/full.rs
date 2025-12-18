@@ -5,6 +5,7 @@
 //! - LCD displays current status with two-line support
 //!
 //! Run with: cargo full
+// check-all: skip (legacy example awaiting Led24x4 replacement) //cmk
 #![no_std]
 #![no_main]
 #![allow(clippy::future_not_send, reason = "Single-threaded")]

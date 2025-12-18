@@ -3,3 +3,6 @@ open-docs:
 
 gather:
 	./scripts/gather.sh
+
+attach-probe:
+	./scripts/attach-probe.sh

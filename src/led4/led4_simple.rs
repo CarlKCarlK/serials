@@ -5,11 +5,11 @@
 
 use core::convert::Infallible;
 
+use super::OutputArray;
+use super::{CELL_COUNT, MULTIPLEX_SLEEP, SEGMENT_COUNT};
 use crate::Result;
 use crate::bit_matrix_led4::BitMatrixLed4;
 use crate::bit_matrix_led4::BitsToIndexes;
-use super::OutputArray;
-use super::{CELL_COUNT, MULTIPLEX_SLEEP, SEGMENT_COUNT};
 #[cfg(feature = "display-trace")]
 use defmt::info;
 use embassy_executor::{SpawnError, Spawner};
@@ -40,7 +40,7 @@ impl Led4SimpleStatic {
 /// Use this if you don't need animation or blinking. For blinking or animation support, use [`Led4`](crate::led4::Led4) instead.
 ///
 /// # Example
-/// 
+///
 /// Ignored because this helper is crate-internal and not exported publicly.
 ///
 /// ```ignore

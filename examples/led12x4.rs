@@ -6,7 +6,6 @@
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_futures::select::{Either, select};
 use embassy_time::{Duration, Timer};
 use embedded_graphics::{
     Drawable,
@@ -23,12 +22,6 @@ use serials::new_led12x4;
 use smart_leds::RGB8;
 
 // cmk00 make this demo better, including fixing font
-
-// Letter glyphs for "RUST" (3x4 pixels each)
-const LETTER_R: [u8; 4] = [0b110, 0b111, 0b110, 0b101];
-const LETTER_U: [u8; 4] = [0b101, 0b101, 0b101, 0b111];
-const LETTER_S: [u8; 4] = [0b111, 0b110, 0b011, 0b111];
-const LETTER_T: [u8; 4] = [0b111, 0b010, 0b010, 0b010];
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {

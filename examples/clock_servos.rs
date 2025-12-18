@@ -10,6 +10,7 @@
 #![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
+use core::convert::TryFrom;
 use core::pin::pin;
 use defmt::info;
 use defmt_rtt as _;
@@ -20,7 +21,7 @@ use panic_probe as _;
 use serials::button::{Button, PressDuration};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::servo_animate::{self, ServoAnimate, ServoAnimateStatic, Step, linear, servo_even};
+use serials::servo_animate::{ServoAnimate, ServoAnimateStatic, Step, linear, servo_even};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
@@ -371,8 +372,12 @@ impl ServoClockDisplay {
         // Swap servos and reflect angles for physical orientation.
         let physical_left = reflect_degrees(right_degrees);
         let physical_right = reflect_degrees(left_degrees);
-        self.bottom.set(physical_left).await;
-        self.top.set(physical_right).await;
+        let left_angle =
+            u16::try_from(physical_left).expect("servo angles must be between 0 and 180 degrees");
+        let right_angle =
+            u16::try_from(physical_right).expect("servo angles must be between 0 and 180 degrees");
+        self.bottom.set(left_angle).await;
+        self.top.set(right_angle).await;
     }
 }
 

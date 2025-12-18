@@ -10,36 +10,11 @@ use embassy_time::{Duration, Timer};
 use heapless::Vec;
 use smart_leds::RGB8;
 
-use crate::{LedStrip, Result};
+use crate::{LedStrip, Result, bit_matrix3x4};
 
 /// Predefined RGB color constants (RED, GREEN, BLUE, etc.).
 pub use smart_leds::colors;
 
-/// 3×4 font for digits 0..9. Each entry is 4 rows of 3 bits (LSB = rightmost column).
-const FONT: [[u8; 4]; 10] = [
-    // 0
-    [0b111, 0b101, 0b101, 0b111],
-    // 1
-    [0b010, 0b110, 0b010, 0b111],
-    // 2
-    [0b110, 0b001, 0b010, 0b111],
-    // 3
-    [0b111, 0b001, 0b011, 0b111],
-    // 4
-    [0b101, 0b101, 0b111, 0b001],
-    // 5
-    [0b111, 0b100, 0b011, 0b111],
-    // 6
-    [0b100, 0b111, 0b101, 0b111],
-    // 7
-    [0b111, 0b001, 0b010, 0b100],
-    // 8
-    [0b111, 0b101, 0b010, 0b111],
-    // 9
-    [0b111, 0b101, 0b111, 0b001],
-];
-
-// cmk need to be public?
 /// Display size in pixels
 pub const COLS: usize = 12;
 pub const ROWS: usize = 4;
@@ -47,21 +22,6 @@ pub const ROWS: usize = 4;
 // cmk need to be public?
 pub const PERIMETER_LENGTH: usize = (COLS * 2) + ((ROWS - 2) * 2);
 // cmk isn't this font defined elsewhere?
-
-const LETTER_A: [u8; 4] = [0b111, 0b101, 0b111, 0b101];
-const LETTER_B: [u8; 4] = [0b110, 0b111, 0b101, 0b110];
-const LETTER_C: [u8; 4] = [0b111, 0b100, 0b100, 0b111];
-const LETTER_D: [u8; 4] = [0b110, 0b101, 0b101, 0b110];
-const LETTER_E: [u8; 4] = [0b111, 0b110, 0b100, 0b111];
-const LETTER_F: [u8; 4] = [0b111, 0b110, 0b100, 0b100];
-const LETTER_I: [u8; 4] = [0b111, 0b010, 0b010, 0b111];
-const LETTER_L: [u8; 4] = [0b100, 0b100, 0b100, 0b111];
-const LETTER_N: [u8; 4] = [0b101, 0b111, 0b111, 0b101];
-const LETTER_O: [u8; 4] = [0b111, 0b101, 0b101, 0b111];
-const LETTER_R: [u8; 4] = [0b110, 0b111, 0b110, 0b101];
-const LETTER_S: [u8; 4] = [0b111, 0b110, 0b011, 0b111];
-const LETTER_T: [u8; 4] = [0b111, 0b010, 0b010, 0b010];
-const LETTER_U: [u8; 4] = [0b101, 0b101, 0b101, 0b111];
 
 // cmk does this need to be limited and public
 /// Maximum frames supported by [`Led12x4::animate_frames`].
@@ -212,11 +172,12 @@ impl<T: LedStrip<{ COLS * ROWS }> + 'static> Led12x4<T> {
         Ok(())
     }
 
+    // cmk update comment
     /// Render four characters with four colors.
     ///
     /// `chars` is an array of 4 characters. Supported:
     /// - `' '` (space) = blank
-    /// - `'0'..'9'` = digits from FONT
+    /// - `'0'..'9'` = digits from the built-in font
     /// - `'A'`, `'B'`, `'C'`, `'D'`, `'E'`, `'F'`, `'I'`, `'L'`, `'N'`, `'O'`, `'R'`, `'S'`, `'T'`, `'U'` (and lowercase) = letter glyphs
     /// - any other char = solid 3×4 block
     ///
@@ -267,54 +228,11 @@ fn build_frame(chars: [char; 4], colors: [RGB8; 4]) -> [RGB8; COLS * ROWS] {
     for (character_index, &character) in chars.iter().enumerate() {
         let color = colors[character_index];
         let base_column_index = character_index * 3;
-
-        match glyph_rows(character) {
-            Some(rows) => render_glyph(rows, color, base_column_index, &mut frame, black),
-            None => match character {
-                ' ' => {
-                    for row_index in 0..ROWS {
-                        for column_offset in 0..3 {
-                            let pixel_index =
-                                xy_to_index(base_column_index + column_offset, row_index);
-                            frame[pixel_index] = black;
-                        }
-                    }
-                }
-                _ => {
-                    for row_index in 0..ROWS {
-                        for column_offset in 0..3 {
-                            let pixel_index =
-                                xy_to_index(base_column_index + column_offset, row_index);
-                            frame[pixel_index] = color;
-                        }
-                    }
-                }
-            },
-        }
+        let rows = bit_matrix3x4::glyph_rows(character);
+        render_glyph(rows, color, base_column_index, &mut frame, black);
     }
 
     frame
-}
-
-fn glyph_rows(character: char) -> Option<[u8; 4]> {
-    match character {
-        '0'..='9' => Some(FONT[(character as u8 - b'0') as usize]),
-        'A' | 'a' => Some(LETTER_A),
-        'B' | 'b' => Some(LETTER_B),
-        'C' | 'c' => Some(LETTER_C),
-        'D' | 'd' => Some(LETTER_D),
-        'E' | 'e' => Some(LETTER_E),
-        'F' | 'f' => Some(LETTER_F),
-        'I' | 'i' => Some(LETTER_I),
-        'L' | 'l' => Some(LETTER_L),
-        'N' | 'n' => Some(LETTER_N),
-        'O' | 'o' => Some(LETTER_O),
-        'R' | 'r' => Some(LETTER_R),
-        'S' | 's' => Some(LETTER_S),
-        'T' | 't' => Some(LETTER_T),
-        'U' | 'u' => Some(LETTER_U),
-        _ => None,
-    }
 }
 
 fn render_glyph(

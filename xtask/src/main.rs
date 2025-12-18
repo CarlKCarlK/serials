@@ -4,6 +4,8 @@
 
 use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
 #[derive(Parser)]
@@ -115,6 +117,11 @@ fn main() -> ExitCode {
 
 fn check_all() -> ExitCode {
     let workspace_root = workspace_root();
+    let examples = discover_examples(&workspace_root);
+    let no_wifi_examples: Vec<_> = examples
+        .iter()
+        .filter(|example| !example.wifi_required)
+        .collect();
     let arch = Arch::Arm;
     let board_pico2 = Board::Pico2;
     let board_pico1 = Board::Pico1;
@@ -186,13 +193,12 @@ fn check_all() -> ExitCode {
         "\n{}",
         "==> Building examples (pico2, arm, no wifi)...".cyan()
     );
-    let examples_no_wifi = ["blinky", "ir", "led_strip", "led_strip_snake"];
-    for example in &examples_no_wifi {
-        println!("  {}", format!("- {example}").bright_black());
+    for example in &no_wifi_examples {
+        println!("  {}", format!("- {}", example.name).bright_black());
         if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
             "build",
             "--example",
-            example,
+            &example.name,
             "--target",
             target_pico2,
             "--features",
@@ -207,18 +213,12 @@ fn check_all() -> ExitCode {
         "\n{}",
         "==> Building examples (pico2, arm, with wifi)...".cyan()
     );
-    let examples_wifi = [
-        "clock_led4_wifi",
-        "clock_lcd",
-        "clock_console",
-        "clock_led12x4",
-    ];
-    for example in &examples_wifi {
-        println!("  {}", format!("- {example}").bright_black());
+    for example in &examples {
+        println!("  {}", format!("- {}", example.name).bright_black());
         if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
             "build",
             "--example",
-            example,
+            &example.name,
             "--target",
             target_pico2,
             "--features",
@@ -233,12 +233,12 @@ fn check_all() -> ExitCode {
         "\n{}",
         "==> Building examples (pico1, arm, with wifi)...".cyan()
     );
-    for example in &examples_wifi {
-        println!("  {}", format!("- {example}").bright_black());
+    for example in &examples {
+        println!("  {}", format!("- {}", example.name).bright_black());
         if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
             "build",
             "--example",
-            example,
+            &example.name,
             "--target",
             target_pico1,
             "--features",
@@ -385,6 +385,44 @@ fn build_uf2(name: &str, board: Board, arch: Arch, wifi: bool) -> ExitCode {
     }
 }
 
+#[derive(Debug, Clone)]
+struct ExampleInfo {
+    name: String,
+    wifi_required: bool,
+}
+
+fn discover_examples(workspace_root: &Path) -> Vec<ExampleInfo> {
+    let examples_dir = workspace_root.join("examples");
+    let mut examples = Vec::new();
+    for entry in fs::read_dir(&examples_dir).expect("Failed to read examples directory") {
+        let entry = entry.expect("Failed to read directory entry");
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+            continue;
+        }
+        let name = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .expect("Example file must have valid UTF-8 name")
+            .to_string();
+        let source = fs::read_to_string(&path).expect("Failed to read example source");
+        if source.contains("check-all: skip") {
+            println!(
+                "{}",
+                format!("Skipping example '{}' (opt-out)", name).bright_black()
+            );
+            continue;
+        }
+        let wifi_required = source.contains("#![cfg(feature = \"wifi\")]");
+        examples.push(ExampleInfo {
+            name,
+            wifi_required,
+        });
+    }
+    examples.sort_by(|a, b| a.name.cmp(&b.name));
+    examples
+}
+
 fn build_features(board: Board, arch: Arch, wifi: bool) -> String {
     let mut features = vec![board.to_string(), arch.to_string()];
     if wifi {
@@ -393,7 +431,7 @@ fn build_features(board: Board, arch: Arch, wifi: bool) -> String {
     features.join(",")
 }
 
-fn workspace_root() -> std::path::PathBuf {
+fn workspace_root() -> PathBuf {
     // The xtask binary is in target/x86_64-pc-windows-msvc/debug/ or similar
     // We need to find the workspace root (parent of xtask directory)
     std::env::current_dir().expect("Failed to get current directory")

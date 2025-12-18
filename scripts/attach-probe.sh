@@ -10,7 +10,7 @@ fi
 # Get the directory where this script lives
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Convert WSL path to Windows path
+# Locate probeusb.ps1 inside scripts/
 SCRIPT_WIN_PATH="$(wslpath -w "$SCRIPT_DIR/probeusb.ps1")"
 
 /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -ExecutionPolicy Bypass -File "$SCRIPT_WIN_PATH" wsl
