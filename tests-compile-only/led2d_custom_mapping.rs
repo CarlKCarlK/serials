@@ -35,8 +35,7 @@ async fn test_led2x3_custom_mapping(p: embassy_rp::Peripherals, spawner: Spawner
     let led2x3 = Led2x3::new(&LED2X3_STATIC, p.PIO0, p.PIN_3, Milliamps(100), spawner).await?;
 
     // Verify write_frame works
-    let black = colors::BLACK;
-    let mut frame = [[black; Led2x3::COLS]; Led2x3::ROWS];
+    let mut frame = [[colors::BLACK; Led2x3::COLS]; Led2x3::ROWS];
     frame[0][0] = colors::RED;
     frame[0][Led2x3::COLS - 1] = colors::GREEN;
     frame[Led2x3::ROWS - 1][0] = colors::BLUE;
@@ -47,7 +46,7 @@ async fn test_led2x3_custom_mapping(p: embassy_rp::Peripherals, spawner: Spawner
     let mut frames = heapless::Vec::<Frame<{ Led2x3::ROWS }, { Led2x3::COLS }>, 6>::new();
     for row_index in 0..Led2x3::ROWS {
         for column_index in 0..Led2x3::COLS {
-            let mut frame = [[black; Led2x3::COLS]; Led2x3::ROWS];
+            let mut frame = [[colors::BLACK; Led2x3::COLS]; Led2x3::ROWS];
             frame[row_index][column_index] = colors::CYAN;
             frames
                 .push(Frame::new(frame, Duration::from_millis(200)))

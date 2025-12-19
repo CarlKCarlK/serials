@@ -71,8 +71,7 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
 /// Display colored corners to demonstrate coordinate mapping.
 async fn demo_colored_corners(led4x12: &Led4x12) -> Result<()> {
-    let black = colors::BLACK;
-    let mut frame = [[black; Led4x12::COLS]; Led4x12::ROWS];
+    let mut frame = [[colors::BLACK; Led4x12::COLS]; Led4x12::ROWS];
 
     // Four corners with different colors
     frame[0][0] = colors::RED; // Top-left
@@ -87,10 +86,8 @@ async fn demo_colored_corners(led4x12: &Led4x12) -> Result<()> {
 
 /// Blink a pattern by constructing frames explicitly.
 async fn demo_blink_pattern(led4x12: &Led4x12) -> Result<()> {
-    let black = colors::BLACK;
-
     // Create checkerboard pattern
-    let mut on_frame = [[black; Led4x12::COLS]; Led4x12::ROWS];
+    let mut on_frame = [[colors::BLACK; Led4x12::COLS]; Led4x12::ROWS];
     for row_index in 0..Led4x12::ROWS {
         for column_index in 0..Led4x12::COLS {
             if (row_index + column_index) % 2 == 0 {
@@ -99,7 +96,7 @@ async fn demo_blink_pattern(led4x12: &Led4x12) -> Result<()> {
         }
     }
 
-    let off_frame = [[black; Led4x12::COLS]; Led4x12::ROWS];
+    let off_frame = [[colors::BLACK; Led4x12::COLS]; Led4x12::ROWS];
     let frames = [
         Frame::new(on_frame, Duration::from_millis(500)),
         Frame::new(off_frame, Duration::from_millis(500)),
