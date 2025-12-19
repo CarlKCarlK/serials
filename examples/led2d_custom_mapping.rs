@@ -50,13 +50,13 @@ async fn inner_main(spawner: Spawner) -> Result<!> {
 
 async fn demo_corners(led2x3: &Led2x3) -> Result<()> {
     let black = colors::BLACK;
-    let mut frame = [black; N];
+    let mut frame = [[black; COLS]; ROWS];
 
     // Light the four corners
-    frame[led2x3.xy_to_index(0, 0)] = colors::RED; // Top-left
-    frame[led2x3.xy_to_index(COLS - 1, 0)] = colors::GREEN; // Top-right
-    frame[led2x3.xy_to_index(0, ROWS - 1)] = colors::BLUE; // Bottom-left
-    frame[led2x3.xy_to_index(COLS - 1, ROWS - 1)] = colors::YELLOW; // Bottom-right
+    frame[0][0] = colors::RED; // Top-left
+    frame[0][COLS - 1] = colors::GREEN; // Top-right
+    frame[ROWS - 1][0] = colors::BLUE; // Bottom-left
+    frame[ROWS - 1][COLS - 1] = colors::YELLOW; // Bottom-right
 
     led2x3.write_frame(frame).await?;
     Ok(())
@@ -65,13 +65,17 @@ async fn demo_corners(led2x3: &Led2x3) -> Result<()> {
 async fn demo_chase(led2x3: &Led2x3) -> Result<()> {
     let black = colors::BLACK;
 
-    // Create frames for each LED position
-    let mut frames: [Frame<N>; N] = [Frame::new([black; N], Duration::from_millis(200)); N];
+    // Create frames for each position in row-major order
+    let mut frames = heapless::Vec::<Frame<ROWS, COLS>, 6>::new();
 
-    for led_index in 0..N {
-        let mut frame = [black; N];
-        frame[led_index] = colors::CYAN;
-        frames[led_index] = Frame::new(frame, Duration::from_millis(200));
+    for row_index in 0..ROWS {
+        for column_index in 0..COLS {
+            let mut frame = [[black; COLS]; ROWS];
+            frame[row_index][column_index] = colors::CYAN;
+            frames
+                .push(Frame::new(frame, Duration::from_millis(200)))
+                .ok();
+        }
     }
 
     led2x3.animate(&frames).await

@@ -21,22 +21,32 @@ pub const ANIMATION_MAX_FRAMES: usize = 32;
 pub type Led2dCommandSignal<const N: usize> = Signal<CriticalSectionRawMutex, Command<N>>;
 pub type Led2dCompletionSignal = Signal<CriticalSectionRawMutex, ()>;
 
+/// Command for the LED device loop.
 #[derive(Clone)]
 pub enum Command<const N: usize> {
     DisplayStatic([RGB8; N]),
-    Animate(Vec<Frame<N>, ANIMATION_MAX_FRAMES>),
+    Animate(Vec<Frame1d<N>, ANIMATION_MAX_FRAMES>),
+}
+
+/// Internal frame type with 1D array for device loop.
+#[derive(Clone, Copy, Debug)]
+pub struct Frame1d<const N: usize> {
+    pub(crate) frame: [RGB8; N],
+    pub(crate) duration: Duration,
 }
 
 /// Frame of animation for [`Led2d::animate`].
+///
+/// Uses row-major 2D array layout where `frame[row][col]` accesses the pixel at (col, row).
 #[derive(Clone, Copy, Debug)]
-pub struct Frame<const N: usize> {
-    pub frame: [RGB8; N],
+pub struct Frame<const ROWS: usize, const COLS: usize> {
+    pub frame: [[RGB8; COLS]; ROWS],
     pub duration: Duration,
 }
 
-impl<const N: usize> Frame<N> {
+impl<const ROWS: usize, const COLS: usize> Frame<ROWS, COLS> {
     #[must_use]
-    pub const fn new(frame: [RGB8; N], duration: Duration) -> Self {
+    pub const fn new(frame: [[RGB8; COLS]; ROWS], duration: Duration) -> Self {
         Self { frame, duration }
     }
 }
@@ -95,27 +105,59 @@ impl<'a, const N: usize> Led2d<'a, N> {
 
     /// Convert (column, row) coordinates to LED strip index using the stored mapping.
     #[must_use]
-    pub fn xy_to_index(&self, column_index: usize, row_index: usize) -> usize {
+    fn xy_to_index(&self, column_index: usize, row_index: usize) -> usize {
         self.mapping[row_index * self.cols + column_index] as usize
     }
 
+    /// Convert 2D frame to 1D array using the mapping.
+    fn convert_frame<const ROWS: usize, const COLS: usize>(
+        &self,
+        frame_2d: [[RGB8; COLS]; ROWS],
+    ) -> [RGB8; N] {
+        let mut frame_1d = [RGB8::new(0, 0, 0); N];
+        for row_index in 0..ROWS {
+            for column_index in 0..COLS {
+                let led_index = self.xy_to_index(column_index, row_index);
+                frame_1d[led_index] = frame_2d[row_index][column_index];
+            }
+        }
+        frame_1d
+    }
+
     /// Render a fully defined frame to the display.
-    pub async fn write_frame(&self, frame: [RGB8; N]) -> Result<()> {
-        self.command_signal.signal(Command::DisplayStatic(frame));
+    ///
+    /// Frame is a 2D array in row-major order where `frame[row][col]` is the pixel at (col, row).
+    pub async fn write_frame<const ROWS: usize, const COLS: usize>(
+        &self,
+        frame: [[RGB8; COLS]; ROWS],
+    ) -> Result<()> {
+        let frame_1d = self.convert_frame(frame);
+        self.command_signal.signal(Command::DisplayStatic(frame_1d));
         self.completion_signal.wait().await;
         Ok(())
     }
 
     /// Loop through a sequence of animation frames until interrupted by another command.
-    pub async fn animate(&self, frames: &[Frame<N>]) -> Result<()> {
+    ///
+    /// Each frame is a 2D array in row-major order where `frame[row][col]` is the pixel at (col, row).
+    pub async fn animate<const ROWS: usize, const COLS: usize>(
+        &self,
+        frames: &[Frame<ROWS, COLS>],
+    ) -> Result<()> {
         assert!(!frames.is_empty(), "animation requires at least one frame");
-        let mut sequence: Vec<Frame<N>, ANIMATION_MAX_FRAMES> = Vec::new();
+        let mut sequence: Vec<Frame1d<N>, ANIMATION_MAX_FRAMES> = Vec::new();
         for frame in frames {
             assert!(
                 frame.duration.as_micros() > 0,
                 "animation frame duration must be positive"
             );
-            sequence.push(*frame).expect("animation sequence fits");
+            let frame_1d = self.convert_frame(frame.frame);
+            sequence
+                .push(Frame1d {
+                    frame: frame_1d,
+                    duration: frame.duration,
+                })
+                .expect("animation sequence fits");
         }
         self.command_signal.signal(Command::Animate(sequence));
         self.completion_signal.wait().await;
@@ -193,7 +235,7 @@ pub async fn led2d_device_loop<const N: usize, S: LedStrip<N>>(
 }
 
 async fn run_animation_loop<const N: usize, S: LedStrip<N>>(
-    frames: Vec<Frame<N>, ANIMATION_MAX_FRAMES>,
+    frames: Vec<Frame1d<N>, ANIMATION_MAX_FRAMES>,
     command_signal: &'static Led2dCommandSignal<N>,
     completion_signal: &'static Led2dCompletionSignal,
     strip: &mut S,
@@ -519,19 +561,17 @@ macro_rules! led2d_device_simple {
                 }
 
                 /// Render a fully defined frame to the display.
-                $vis async fn write_frame(&self, frame: [::smart_leds::RGB8; N]) -> $crate::Result<()> {
+                ///
+                /// Frame is a 2D array in row-major order where `frame[row][col]` is the pixel at (col, row).
+                $vis async fn write_frame(&self, frame: [[::smart_leds::RGB8; COLS]; ROWS]) -> $crate::Result<()> {
                     self.led2d.write_frame(frame).await
                 }
 
                 /// Loop through a sequence of animation frames.
-                $vis async fn animate(&self, frames: &[$crate::led2d::Frame<N>]) -> $crate::Result<()> {
+                ///
+                /// Each frame is a 2D array in row-major order where `frame[row][col]` is the pixel at (col, row).
+                $vis async fn animate(&self, frames: &[$crate::led2d::Frame<ROWS, COLS>]) -> $crate::Result<()> {
                     self.led2d.animate(frames).await
-                }
-
-                /// Convert (column, row) coordinates to LED strip index.
-                #[must_use]
-                $vis fn xy_to_index(&self, column_index: usize, row_index: usize) -> usize {
-                    self.led2d.xy_to_index(column_index, row_index)
                 }
             }
 

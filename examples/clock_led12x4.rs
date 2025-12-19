@@ -360,7 +360,7 @@ impl State {
 
 async fn show_portal_ready(led_12x4: &Led12x4) -> Result<()> {
     let on_frame = text_frame(['C', 'O', 'N', 'N'], DIGIT_COLORS);
-    let off_frame = [colors::BLACK; COLS * ROWS];
+    let off_frame = [[colors::BLACK; COLS]; ROWS];
     let frames = [
         Frame::new(on_frame, Duration::from_millis(700)),
         Frame::new(off_frame, Duration::from_millis(300)),

@@ -45,7 +45,7 @@ pub enum Command {
 }
 
 /// Frame of animation for [`Led12x4::animate`]. See [`Led12x4`] for usage.
-pub type Frame = led2d::Frame<N>;
+pub type Frame = led2d::Frame<ROWS, COLS>;
 
 /// Signal resources for [`Led12x4`].
 pub struct Led12x4Static {
@@ -185,8 +185,18 @@ impl Led12x4 {
     }
 
     /// Render a fully defined frame to the display.
-    pub async fn write_frame(&self, frame: [RGB8; N]) -> Result<()> {
-        self.command_signal.signal(Command::DisplayStatic(frame));
+    ///
+    /// Frame is a 2D array in row-major order where `frame[row][col]` is the pixel at (col, row).
+    pub async fn write_frame(&self, frame: [[RGB8; COLS]; ROWS]) -> Result<()> {
+        // Convert 2D to 1D using mapping
+        let mut frame_1d = [RGB8::new(0, 0, 0); N];
+        for row_index in 0..ROWS {
+            for column_index in 0..COLS {
+                let led_index = xy_to_index(column_index, row_index);
+                frame_1d[led_index] = frame[row_index][column_index];
+            }
+        }
+        self.command_signal.signal(Command::DisplayStatic(frame_1d));
         self.completion_signal.wait().await;
         Ok(())
     }
@@ -237,18 +247,27 @@ pub fn xy_to_index(column_index: usize, row_index: usize) -> usize {
 /// This is useful when constructing custom animations manually. See the `led12x4`
 /// example for usage.
 #[must_use]
-pub fn text_frame(chars: [char; 4], colors: [RGB8; 4]) -> [RGB8; N] {
+pub fn text_frame(chars: [char; 4], colors: [RGB8; 4]) -> [[RGB8; COLS]; ROWS] {
     let black = RGB8::new(0, 0, 0);
-    let mut frame = [black; N];
+    let mut frame_1d = [black; N];
 
     for (character_index, &character) in chars.iter().enumerate() {
         let color = colors[character_index];
         let base_column_index = character_index * 3;
         let rows = bit_matrix3x4::glyph_rows(character);
-        render_glyph(rows, color, base_column_index, &mut frame, black);
+        render_glyph(rows, color, base_column_index, &mut frame_1d, black);
     }
 
-    frame
+    // Convert 1D to 2D
+    let mut frame_2d = [[black; COLS]; ROWS];
+    for row_index in 0..ROWS {
+        for column_index in 0..COLS {
+            let led_index = xy_to_index(column_index, row_index);
+            frame_2d[row_index][column_index] = frame_1d[led_index];
+        }
+    }
+
+    frame_2d
 }
 
 fn render_glyph(
@@ -289,8 +308,17 @@ pub fn perimeter_chase_animation(
     let perimeter_indices = perimeter_indices(clockwise);
     let black = RGB8::new(0, 0, 0);
     core::array::from_fn(|frame_index| {
-        let mut frame = [black; N];
-        frame[perimeter_indices[frame_index]] = color;
+        let mut frame = [[black; COLS]; ROWS];
+        let led_index = perimeter_indices[frame_index];
+        // Convert 1D index back to 2D coordinates
+        for row_index in 0..ROWS {
+            for column_index in 0..COLS {
+                if xy_to_index(column_index, row_index) == led_index {
+                    frame[row_index][column_index] = color;
+                    break;
+                }
+            }
+        }
         led2d::Frame::new(frame, duration)
     })
 }
@@ -348,8 +376,16 @@ async fn inner_device_loop(
                 command_signal.wait().await
             }
             Command::DisplayChars { chars, colors } => {
-                let frame = text_frame(chars, colors);
-                strip.update_pixels(&frame).await?;
+                let frame_2d = text_frame(chars, colors);
+                // Convert 2D to 1D
+                let mut frame_1d = [RGB8::new(0, 0, 0); N];
+                for row_index in 0..ROWS {
+                    for column_index in 0..COLS {
+                        let led_index = xy_to_index(column_index, row_index);
+                        frame_1d[led_index] = frame_2d[row_index][column_index];
+                    }
+                }
+                strip.update_pixels(&frame_1d).await?;
                 completion_signal.signal(());
                 command_signal.wait().await
             }
@@ -372,7 +408,15 @@ async fn run_animation_loop(
 
     loop {
         let frame = frames[frame_index];
-        strip.update_pixels(&frame.frame).await?;
+        // Convert 2D frame to 1D using the mapping
+        let mut frame_1d = [RGB8::new(0, 0, 0); N];
+        for row_index in 0..ROWS {
+            for column_index in 0..COLS {
+                let led_index = xy_to_index(column_index, row_index);
+                frame_1d[led_index] = frame.frame[row_index][column_index];
+            }
+        }
+        strip.update_pixels(&frame_1d).await?;
         if frame_index == 0 {
             completion_signal.signal(());
         }

@@ -79,7 +79,7 @@ async fn demo_blink_text(led_12x4: &Led12x4) -> Result<()> {
         ['r', 'u', 's', 't'],
         [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
     );
-    let off_frame = [colors::BLACK; COLS * ROWS];
+    let off_frame = [[colors::BLACK; COLS]; ROWS];
     let frames = [
         Frame::new(on_frame, Duration::from_millis(500)),
         Frame::new(off_frame, Duration::from_millis(500)),
@@ -100,15 +100,8 @@ impl FrameBuilder {
         }
     }
 
-    fn build(&self) -> [RGB8; COLS * ROWS] {
-        let mut frame = [RGB8::new(0, 0, 0); COLS * ROWS];
-        for row_index in 0..ROWS {
-            for column_index in 0..COLS {
-                frame[serials::led12x4::xy_to_index(column_index, row_index)] =
-                    self.image[row_index][column_index];
-            }
-        }
-        frame
+    fn build(&self) -> [[RGB8; COLS]; ROWS] {
+        self.image
     }
 }
 
@@ -192,9 +185,8 @@ async fn demo_bouncing_dot_manual(led_12x4: &Led12x4) -> Result<()> {
     let mut color_index: usize = 0;
 
     for _ in 0..100 {
-        let mut frame = [black; COLS * ROWS];
-        frame[serials::led12x4::xy_to_index(column_index as usize, row_index as usize)] =
-            COLORS[color_index];
+        let mut frame = [[black; COLS]; ROWS];
+        frame[row_index as usize][column_index as usize] = COLORS[color_index];
         led_12x4.write_frame(frame).await?;
 
         column_index = column_index + delta_column;
@@ -246,9 +238,8 @@ async fn demo_bouncing_dot_animation(led_12x4: &Led12x4) -> Result<()> {
     let mut color_index: usize = 0;
 
     for _ in 0..32 {
-        let mut frame = [black; COLS * ROWS];
-        frame[serials::led12x4::xy_to_index(column_index as usize, row_index as usize)] =
-            COLORS[color_index];
+        let mut frame = [[black; COLS]; ROWS];
+        frame[row_index as usize][column_index as usize] = COLORS[color_index];
         frames
             .push(Frame::new(frame, Duration::from_millis(50)))
             .map_err(|_| serials::Error::FormatError)?;
