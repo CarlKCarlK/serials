@@ -7,6 +7,7 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
+use embassy_futures::select::{Either, select};
 use embassy_rp::init;
 use embassy_time::{Duration, Timer};
 use heapless::Vec;
@@ -15,7 +16,7 @@ use serials::button::{Button, PressedTo};
 use serials::led_strip_simple::Milliamps;
 use serials::led2d::led2d_device_simple;
 use serials::{Error, Result};
-use smart_leds::{RGB8, colors};
+use smart_leds::colors;
 
 // Create the led2d device using the macro
 led2d_device_simple! {
@@ -55,8 +56,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         button.wait_for_press_duration().await;
 
         info!("Demo 4: Bouncing dot (manual frames)");
-        demo_bouncing_dot_manual(&led4x12).await?;
-        button.wait_for_press_duration().await;
+        demo_bouncing_dot_manual(&led4x12, &mut button).await?;
 
         info!("Demo 5: Bouncing dot (animation)");
         demo_bouncing_dot_animation(&led4x12).await?;
@@ -128,7 +128,7 @@ async fn demo_rectangle_diagonals_embedded_graphics(led4x12: &Led4x12) -> Result
     led4x12.write_frame(frame).await
 }
 
-async fn demo_bouncing_dot_manual(led4x12: &Led4x12) -> Result<()> {
+async fn demo_bouncing_dot_manual(led4x12: &Led4x12, button: &mut Button<'_>) -> Result<()> {
     let mut color_cycle = [colors::RED, colors::GREEN, colors::BLUE].iter().cycle();
 
     // Steps one position coordinate and reports if it hit an edge.
@@ -147,7 +147,7 @@ async fn demo_bouncing_dot_manual(led4x12: &Led4x12) -> Result<()> {
     let (x_limit, y_limit) = (Led4x12::COLS as isize, Led4x12::ROWS as isize);
     let mut color = *color_cycle.next().unwrap();
 
-    for _ in 0..100 {
+    loop {
         let mut frame = Led4x12::new_frame();
         frame[y as usize][x as usize] = color;
         led4x12.write_frame(frame).await?;
@@ -156,7 +156,9 @@ async fn demo_bouncing_dot_manual(led4x12: &Led4x12) -> Result<()> {
             color = *color_cycle.next().unwrap();
         }
 
-        Timer::after_millis(50).await;
+        if let Either::Second(_) = select(Timer::after_millis(50), button.wait_for_press()).await {
+            break;
+        }
     }
 
     Ok(())

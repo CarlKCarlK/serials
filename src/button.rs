@@ -154,6 +154,7 @@ impl<'a> Button<'a> {
         self
     }
 
+    // cmk should there be a wait_for_press that is the same with a length
     // cmk is it bad that this one waits for up but wait for press does not? At the very least should be documented.
     /// Measures the duration of a button press.
     ///
