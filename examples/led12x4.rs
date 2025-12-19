@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 #![feature(never_type)]
-#![feature(inherent_associated_types)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
 use defmt::info;

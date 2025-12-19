@@ -6,7 +6,6 @@
 
 #![no_std]
 #![no_main]
-#![feature(inherent_associated_types)]
 #![allow(dead_code, reason = "Compile-time verification only")]
 
 use defmt_rtt as _;
