@@ -128,49 +128,32 @@ async fn demo_rectangle_diagonals_embedded_graphics(led4x12: &Led4x12) -> Result
     led4x12.write_frame(frame).await
 }
 
-/// Bouncing dot manually updating frames with write_frame in a loop.
 async fn demo_bouncing_dot_manual(led4x12: &Led4x12) -> Result<()> {
-    const COLORS: [RGB8; 6] = [
-        colors::RED,
-        colors::GREEN,
-        colors::BLUE,
-        colors::YELLOW,
-        colors::CYAN,
-        colors::MAGENTA,
-    ];
+    let mut color_cycle = [colors::RED, colors::GREEN, colors::BLUE].iter().cycle();
 
-    let mut column_index: isize = 0;
-    let mut row_index: isize = 0;
-    let mut delta_column: isize = 1;
-    let mut delta_row: isize = 1;
-    let mut color_index: usize = 0;
+    // Steps one position coordinate and reports if it hit an edge.
+    fn step_and_hit(position: &mut isize, velocity: &mut isize, limit: isize) -> bool {
+        *position += *velocity;
+        if (0..limit).contains(position) {
+            return false;
+        }
+        *velocity = -*velocity;
+        *position += *velocity; // step back inside
+        true
+    }
+
+    let (mut x, mut y) = (0isize, 0isize);
+    let (mut vx, mut vy) = (1isize, 1isize);
+    let (x_limit, y_limit) = (Led4x12::COLS as isize, Led4x12::ROWS as isize);
+    let mut color = *color_cycle.next().unwrap();
 
     for _ in 0..100 {
         let mut frame = Led4x12::new_frame();
-        frame[row_index as usize][column_index as usize] = COLORS[color_index];
+        frame[y as usize][x as usize] = color;
         led4x12.write_frame(frame).await?;
 
-        column_index = column_index + delta_column;
-        row_index = row_index + delta_row;
-
-        if column_index >= Led4x12::COLS as isize {
-            column_index = (Led4x12::COLS as isize) - 2;
-            delta_column = -1;
-            color_index = (color_index + 1) % COLORS.len();
-        } else if column_index < 0 {
-            column_index = 1;
-            delta_column = 1;
-            color_index = (color_index + 1) % COLORS.len();
-        }
-
-        if row_index >= Led4x12::ROWS as isize {
-            row_index = (Led4x12::ROWS as isize) - 2;
-            delta_row = -1;
-            color_index = (color_index + 1) % COLORS.len();
-        } else if row_index < 0 {
-            row_index = 1;
-            delta_row = 1;
-            color_index = (color_index + 1) % COLORS.len();
+        if step_and_hit(&mut x, &mut vx, x_limit) | step_and_hit(&mut y, &mut vy, y_limit) {
+            color = *color_cycle.next().unwrap();
         }
 
         Timer::after_millis(50).await;
@@ -181,50 +164,36 @@ async fn demo_bouncing_dot_manual(led4x12: &Led4x12) -> Result<()> {
 
 /// Bouncing dot using pre-built animation frames.
 async fn demo_bouncing_dot_animation(led4x12: &Led4x12) -> Result<()> {
-    const COLORS: [RGB8; 6] = [
-        colors::RED,
-        colors::GREEN,
-        colors::BLUE,
-        colors::YELLOW,
-        colors::CYAN,
-        colors::MAGENTA,
-    ];
+    use serials::led2d::ANIMATION_MAX_FRAMES;
 
-    let mut frames = Vec::<_, 32>::new();
-    let mut column_index: isize = 0;
-    let mut row_index: isize = 0;
-    let mut delta_column: isize = 1;
-    let mut delta_row: isize = 1;
-    let mut color_index: usize = 0;
+    let mut color_cycle = [colors::CYAN, colors::YELLOW, colors::LIME].iter().cycle();
 
-    for _ in 0..32 {
+    // Steps one position coordinate and reports if it hit an edge.
+    fn step_and_hit(position: &mut isize, velocity: &mut isize, limit: isize) -> bool {
+        *position += *velocity;
+        if (0..limit).contains(position) {
+            return false;
+        }
+        *velocity = -*velocity;
+        *position += *velocity; // step back inside
+        true
+    }
+
+    let mut frames = Vec::<_, ANIMATION_MAX_FRAMES>::new();
+    let (mut x, mut y) = (0isize, 0isize);
+    let (mut vx, mut vy) = (1isize, 1isize);
+    let (x_limit, y_limit) = (Led4x12::COLS as isize, Led4x12::ROWS as isize);
+    let mut color = *color_cycle.next().unwrap();
+
+    for _ in 0..ANIMATION_MAX_FRAMES {
         let mut frame = Led4x12::new_frame();
-        frame[row_index as usize][column_index as usize] = COLORS[color_index];
+        frame[y as usize][x as usize] = color;
         frames
             .push((frame, Duration::from_millis(50)))
             .map_err(|_| Error::FormatError)?;
 
-        column_index = column_index + delta_column;
-        row_index = row_index + delta_row;
-
-        if column_index >= Led4x12::COLS as isize {
-            column_index = (Led4x12::COLS as isize) - 2;
-            delta_column = -1;
-            color_index = (color_index + 1) % COLORS.len();
-        } else if column_index < 0 {
-            column_index = 1;
-            delta_column = 1;
-            color_index = (color_index + 1) % COLORS.len();
-        }
-
-        if row_index >= Led4x12::ROWS as isize {
-            row_index = (Led4x12::ROWS as isize) - 2;
-            delta_row = -1;
-            color_index = (color_index + 1) % COLORS.len();
-        } else if row_index < 0 {
-            row_index = 1;
-            delta_row = 1;
-            color_index = (color_index + 1) % COLORS.len();
+        if step_and_hit(&mut x, &mut vx, x_limit) | step_and_hit(&mut y, &mut vy, y_limit) {
+            color = *color_cycle.next().unwrap();
         }
     }
 

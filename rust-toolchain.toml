@@ -2,7 +2,7 @@
 # https://rust-lang.github.io/rustup-components-history
 [toolchain]
 channel = "stable"
-components = [ "rustfmt" ]
+components = [ "rustfmt", "rust-analyzer" ]
 targets = [
     "thumbv6m-none-eabi",       # Pico 1 (ARM Cortex-M0+)
     "thumbv8m.main-none-eabihf", # Pico 2 ARM (Cortex-M33)
