@@ -54,6 +54,8 @@ pub mod ir_mapping;
 #[cfg(not(feature = "host"))]
 pub mod led12x4;
 #[cfg(not(feature = "host"))]
+pub mod led2d;
+#[cfg(not(feature = "host"))]
 pub mod led4;
 #[cfg(not(feature = "host"))]
 pub mod led_strip;
