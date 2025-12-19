@@ -110,11 +110,7 @@ async fn main(_spawner: Spawner) {
     // The actual verification happens at compile time via the functions above.
 }
 
-#[cfg(not(any(
-    target_arch = "arm",
-    target_arch = "riscv32",
-    target_arch = "riscv64"
-)))]
+#[cfg(not(any(target_arch = "arm", target_arch = "riscv32", target_arch = "riscv64")))]
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
     loop {}

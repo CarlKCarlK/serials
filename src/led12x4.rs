@@ -252,6 +252,7 @@ impl Led12x4 {
     }
 }
 
+// cmk delete?
 #[inline]
 /// Converts a column/row pair into the serpentine LED index for this display.
 pub fn xy_to_index(column_index: usize, row_index: usize) -> usize {

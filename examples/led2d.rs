@@ -15,6 +15,7 @@ use panic_probe as _;
 use serials::button::{Button, PressedTo};
 use serials::led_strip_simple::Milliamps;
 use serials::led2d::led2d_device_simple;
+use serials::led12x4::text_frame;
 use serials::{Error, Result};
 use smart_leds::colors;
 
@@ -43,25 +44,38 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let mut button = Button::new(p.PIN_13, PressedTo::Ground);
 
     loop {
-        info!("Demo 1: Colored corners");
+        info!("Demo 1: 3x4 font (\"RUST\" in four colors)");
+        demo_rust_text(&led4x12).await?;
+        button.wait_for_press_duration().await;
+
+        info!("Demo 2: Colored corners");
         demo_colored_corners(&led4x12).await?;
         button.wait_for_press_duration().await;
 
-        info!("Demo 2: Blink pattern");
+        info!("Demo 3: Blink pattern");
         demo_blink_pattern(&led4x12).await?;
         button.wait_for_press_duration().await;
 
-        info!("Demo 3: Rectangle with diagonals (embedded-graphics)");
+        info!("Demo 4: Rectangle with diagonals (embedded-graphics)");
         demo_rectangle_diagonals_embedded_graphics(&led4x12).await?;
         button.wait_for_press_duration().await;
 
-        info!("Demo 4: Bouncing dot (manual frames)");
+        info!("Demo 5: Bouncing dot (manual frames)");
         demo_bouncing_dot_manual(&led4x12, &mut button).await?;
 
-        info!("Demo 5: Bouncing dot (animation)");
+        info!("Demo 6: Bouncing dot (animation)");
         demo_bouncing_dot_animation(&led4x12).await?;
         button.wait_for_press_duration().await;
     }
+}
+
+/// Display "RUST" using the built-in 3x4 font helpers from led12x4.
+async fn demo_rust_text(led4x12: &Led4x12) -> Result<()> {
+    let frame = text_frame(
+        ['R', 'U', 'S', 'T'],
+        [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
+    );
+    led4x12.write_frame(frame).await
 }
 
 /// Display colored corners to demonstrate coordinate mapping.
@@ -145,7 +159,7 @@ async fn demo_bouncing_dot_manual(led4x12: &Led4x12, button: &mut Button<'_>) ->
     let (mut x, mut y) = (0isize, 0isize);
     let (mut vx, mut vy) = (1isize, 1isize);
     let (x_limit, y_limit) = (Led4x12::COLS as isize, Led4x12::ROWS as isize);
-    let mut color = *color_cycle.next().unwrap();
+    let mut color = *color_cycle.next().unwrap(); // Safe: cycle() over a non-empty array never returns None
 
     loop {
         let mut frame = Led4x12::new_frame();
