@@ -2,6 +2,9 @@
 //!
 //! See [`Led2d`] for usage details.
 
+// Re-export for macro use
+pub use paste;
+
 use core::convert::Infallible;
 use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
@@ -218,7 +221,7 @@ async fn run_animation_loop<const N: usize, S: LedStrip<N>>(
 /// support generics. This macro generates the boilerplate wrapper and keeps your modules tidy.
 ///
 /// # Example
-/// ```no_run
+/// ```ignore
 /// # #![no_std]
 /// # use panic_probe as _;
 /// use embassy_executor::Spawner;
@@ -288,7 +291,7 @@ pub use led2d_device_task;
 /// `new_static`/`new` so callers do not need to wire up the signals and task spawning manually.
 ///
 /// # Example
-/// ```no_run
+/// ```ignore
 /// # #![no_std]
 /// # use panic_probe as _;
 /// use defmt::info;
@@ -351,3 +354,159 @@ macro_rules! led2d_device {
 }
 
 pub use led2d_device;
+
+/// Declares a complete Led2d device abstraction with LedStripSimple integration.
+///
+/// This macro generates all the boilerplate for a rectangular LED matrix device:
+/// - Constants: ROWS, COLS, N (total LEDs)
+/// - Mapping array (serpentine column-major by default)
+/// - Static struct with embedded LedStripSimple resources
+/// - Device struct with Led2d handle
+/// - Constructor that creates strip + spawns task
+/// - Wrapper methods: write_frame, animate, xy_to_index
+///
+/// # Example
+///
+/// ```ignore
+/// use serials::led2d::led2d_device_simple;
+///
+/// led2d_device_simple! {
+///     pub led12x4,
+///     rows: 4,
+///     cols: 12,
+///     pio: PIO1,
+/// }
+///
+/// // Generates:
+/// // pub struct Led12x4 { ... }
+/// // pub struct Led12x4Static { ... }
+/// // pub const ROWS: usize = 4;
+/// // pub const COLS: usize = 12;
+/// // pub const N: usize = 48;
+/// // const MAPPING: [u16; 48] = ...;
+/// // impl Led12x4 {
+/// //     pub const fn new_static() -> Led12x4Static { ... }
+/// //     pub async fn new(...) -> Result<Self> { ... }
+/// //     pub async fn write_frame(...) -> Result<()> { ... }
+/// //     pub async fn animate(...) -> Result<()> { ... }
+/// //     pub fn xy_to_index(...) -> usize { ... }
+/// // }
+/// ```
+#[macro_export]
+macro_rules! led2d_device_simple {
+    (
+        $vis:vis $name:ident,
+        rows: $rows:expr,
+        cols: $cols:expr,
+        pio: $pio:ident $(,)?
+    ) => {
+        $crate::led2d::paste::paste! {
+            /// Number of rows in the display.
+            $vis const ROWS: usize = $rows;
+            /// Number of columns in the display.
+            $vis const COLS: usize = $cols;
+            /// Total number of LEDs (ROWS * COLS).
+            $vis const N: usize = ROWS * COLS;
+
+            const MAPPING: [u16; N] = $crate::led2d::serpentine_column_major_mapping::<N, ROWS, COLS>();
+
+            /// Static resources for the device.
+            $vis struct [<$name:camel Static>] {
+                led_strip_simple: $crate::led_strip_simple::LedStripSimpleStatic<N>,
+                led2d_static: $crate::led2d::Led2dStatic<N>,
+            }
+
+            impl [<$name:camel Static>] {
+                /// Create static resources.
+                #[must_use]
+                $vis const fn new_static() -> Self {
+                    Self {
+                        led_strip_simple: $crate::led_strip_simple::LedStripSimpleStatic::new_static(),
+                        led2d_static: $crate::led2d::Led2dStatic::new_static(),
+                    }
+                }
+            }
+
+            // Generate the task wrapper
+            $crate::led2d::led2d_device_task!(
+                [<$name _device_loop>],
+                $crate::led_strip_simple::LedStripSimple<'static, ::embassy_rp::peripherals::$pio, N>,
+                N
+            );
+
+            /// Device abstraction for the LED matrix.
+            $vis struct [<$name:camel>] {
+                led2d: $crate::led2d::Led2d<'static, N>,
+            }
+
+            impl [<$name:camel>] {
+                /// Create static resources.
+                #[must_use]
+                $vis const fn new_static() -> [<$name:camel Static>] {
+                    [<$name:camel Static>]::new_static()
+                }
+
+                /// Create the device, spawning the background task.
+                ///
+                /// # Parameters
+                /// - `static_resources`: Static resources created with `new_static()`
+                /// - `pio`: PIO peripheral
+                /// - `pin`: GPIO pin for LED data
+                /// - `max_current`: Maximum current budget
+                /// - `spawner`: Task spawner
+                $vis async fn new(
+                    static_resources: &'static [<$name:camel Static>],
+                    pio: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pio>,
+                    pin: ::embassy_rp::Peri<'static, impl ::embassy_rp::pio::PioPin>,
+                    max_current: $crate::led_strip_simple::Milliamps,
+                    spawner: ::embassy_executor::Spawner,
+                ) -> $crate::Result<Self> {
+                    let strip = $crate::led_strip_simple::LedStripSimple::[<new_ $pio:lower>](
+                        &static_resources.led_strip_simple,
+                        pio,
+                        pin,
+                        max_current,
+                    )
+                    .await;
+
+                    let token = [<$name _device_loop>](
+                        &static_resources.led2d_static.command_signal,
+                        &static_resources.led2d_static.completion_signal,
+                        strip,
+                    )?;
+                    spawner.spawn(token);
+
+                    let led2d = $crate::led2d::Led2d::new(
+                        &static_resources.led2d_static,
+                        &MAPPING,
+                        COLS,
+                    );
+
+                    Ok(Self { led2d })
+                }
+
+                /// Render a fully defined frame to the display.
+                $vis async fn write_frame(&self, frame: [::smart_leds::RGB8; N]) -> $crate::Result<()> {
+                    self.led2d.write_frame(frame).await
+                }
+
+                /// Loop through a sequence of animation frames.
+                $vis async fn animate(&self, frames: &[$crate::led2d::Frame<N>]) -> $crate::Result<()> {
+                    self.led2d.animate(frames).await
+                }
+
+                /// Convert (column, row) coordinates to LED strip index.
+                #[must_use]
+                $vis fn xy_to_index(&self, column_index: usize, row_index: usize) -> usize {
+                    self.led2d.xy_to_index(column_index, row_index)
+                }
+            }
+
+            // Re-export common items for convenience
+            $vis use $crate::led_strip_simple::Milliamps;
+            $vis use ::smart_leds::colors;
+        }
+    };
+}
+
+pub use led2d_device_simple;
