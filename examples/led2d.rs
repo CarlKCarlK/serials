@@ -9,12 +9,6 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::init;
 use embassy_time::{Duration, Timer};
-use embedded_graphics::{
-    Drawable,
-    pixelcolor::Rgb888,
-    prelude::*,
-    primitives::{Line, PrimitiveStyle, Rectangle},
-};
 use heapless::Vec;
 use panic_probe as _;
 use serials::button::{Button, PressedTo};
@@ -105,7 +99,16 @@ async fn demo_blink_pattern(led4x12: &Led4x12) -> Result<()> {
 
 /// Create a red rectangle border with blue diagonals using embedded-graphics.
 async fn demo_rectangle_diagonals_embedded_graphics(led4x12: &Led4x12) -> Result<()> {
+    use embedded_graphics::{
+        Drawable,
+        pixelcolor::Rgb888,
+        prelude::*,
+        primitives::{Line, PrimitiveStyle, Rectangle},
+    };
+
     let mut frame = Led4x12::new_frame();
+
+    // Use the embedded_graphics crate to draw an image.
 
     // Draw red rectangle border
     Rectangle::new(
@@ -113,8 +116,7 @@ async fn demo_rectangle_diagonals_embedded_graphics(led4x12: &Led4x12) -> Result
         Size::new(Led4x12::COLS as u32, Led4x12::ROWS as u32),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::RED, 1))
-    .draw(&mut frame)
-    .map_err(|_| Error::FormatError)?;
+    .draw(&mut frame)?;
 
     // Draw blue diagonal lines from corner to corner
     Line::new(
@@ -122,16 +124,14 @@ async fn demo_rectangle_diagonals_embedded_graphics(led4x12: &Led4x12) -> Result
         Point::new((Led4x12::COLS - 1) as i32, (Led4x12::ROWS - 1) as i32),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
-    .draw(&mut frame)
-    .map_err(|_| Error::FormatError)?;
+    .draw(&mut frame)?;
 
     Line::new(
         Point::new(0, (Led4x12::ROWS - 1) as i32),
         Point::new((Led4x12::COLS - 1) as i32, 0),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
-    .draw(&mut frame)
-    .map_err(|_| Error::FormatError)?;
+    .draw(&mut frame)?;
 
     led4x12.write_frame(frame).await
 }

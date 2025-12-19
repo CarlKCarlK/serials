@@ -46,15 +46,16 @@ pub enum Error {
     StorageCorrupted,
 }
 
-impl From<Infallible> for Error {
-    fn from(_: Infallible) -> Self {
-        Self::CannotSetOutputState
-    }
-}
-
 impl From<()> for Error {
     fn from(_: ()) -> Self {
         Self::FormatError
+    }
+}
+
+#[cfg(not(feature = "host"))]
+impl From<Infallible> for Error {
+    fn from(value: Infallible) -> Self {
+        match value {}
     }
 }
 

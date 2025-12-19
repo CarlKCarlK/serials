@@ -97,8 +97,7 @@ async fn demo_rectangle_diagonals_embedded_graphics(led_12x4: &Led12x4) -> Resul
         Size::new(Led12x4::COLS as u32, Led12x4::ROWS as u32),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::RED, 1))
-    .draw(&mut frame)
-    .map_err(|_| serials::Error::FormatError)?;
+    .draw(&mut frame)?;
 
     // Draw blue diagonal lines from corner to corner
     Line::new(
@@ -106,16 +105,14 @@ async fn demo_rectangle_diagonals_embedded_graphics(led_12x4: &Led12x4) -> Resul
         Point::new((Led12x4::COLS - 1) as i32, (Led12x4::ROWS - 1) as i32),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
-    .draw(&mut frame)
-    .map_err(|_| serials::Error::FormatError)?;
+    .draw(&mut frame)?;
 
     Line::new(
         Point::new(0, (Led12x4::ROWS - 1) as i32),
         Point::new((Led12x4::COLS - 1) as i32, 0),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
-    .draw(&mut frame)
-    .map_err(|_| serials::Error::FormatError)?;
+    .draw(&mut frame)?;
 
     led_12x4.write_frame(frame).await
 }
