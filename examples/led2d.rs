@@ -6,6 +6,7 @@
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
+use embassy_rp::{init, peripherals::PIO1};
 use embassy_time::{Duration, Timer};
 use embedded_graphics::{
     Drawable,
@@ -15,10 +16,10 @@ use embedded_graphics::{
 };
 use heapless::Vec;
 use panic_probe as _;
-use serials::Result;
 use serials::button::{Button, PressedTo};
-use serials::led_strip_simple::{LedStripSimple, Milliamps, colors};
-use serials::led2d::{Frame, Led2d, Led2dStatic, serpentine_column_major_mapping};
+use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, Milliamps, colors};
+use serials::led2d::{Frame, Led2d, led2d_device, serpentine_column_major_mapping};
+use serials::{Error, Result};
 use smart_leds::RGB8;
 
 const COLS: usize = 12;
@@ -28,17 +29,14 @@ const N: usize = COLS * ROWS;
 // Serpentine column-major mapping for 12x4 display
 const MAPPING: [u16; N] = serpentine_column_major_mapping::<N, ROWS, COLS>();
 
-#[embassy_executor::task]
-async fn led2d_device_loop_task(
-    command_signal: &'static serials::led2d::Led2dCommandSignal<N>,
-    completion_signal: &'static serials::led2d::Led2dCompletionSignal,
-    strip: LedStripSimple<'static, embassy_rp::peripherals::PIO1, N>,
-) {
-    let err = serials::led2d::led2d_device_loop(command_signal, completion_signal, strip)
-        .await
-        .unwrap_err();
-    panic!("{err}");
-}
+led2d_device!(
+    struct Led2dDeviceResources,
+    task: run_led2d_device_loop,
+    strip: LedStripSimple<'static, PIO1, N>,
+    leds: N,
+    mapping: &MAPPING,
+    cols: COLS,
+);
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -48,23 +46,15 @@ pub async fn main(spawner: Spawner) -> ! {
 
 async fn inner_main(spawner: Spawner) -> Result<!> {
     info!("LED 2D API Exploration (12x4 display)");
-    let p = embassy_rp::init(Default::default());
+    let p = init(Default::default());
 
     // Create LED strip
-    static LED_STRIP_STATIC: serials::led_strip_simple::LedStripSimpleStatic<N> =
-        serials::led_strip_simple::LedStripSimpleStatic::new_static();
+    static LED_STRIP_STATIC: LedStripSimpleStatic<N> = LedStripSimpleStatic::new_static();
     let led_strip =
         LedStripSimple::new_pio1(&LED_STRIP_STATIC, p.PIO1, p.PIN_3, Milliamps(500)).await;
 
-    // Create Led2d with mapping and spawn device loop
-    static LED2D_STATIC: Led2dStatic<N> = Led2dStatic::new_static();
-    let token = led2d_device_loop_task(
-        &LED2D_STATIC.command_signal,
-        &LED2D_STATIC.completion_signal,
-        led_strip,
-    )?;
-    spawner.spawn(token);
-    let led2d = Led2d::new(&LED2D_STATIC, &MAPPING, COLS);
+    static LED2D_DEVICE_RESOURCES_STATIC: Led2dDeviceResources = Led2dDeviceResources::new_static();
+    let led2d = LED2D_DEVICE_RESOURCES_STATIC.new(led_strip, spawner)?;
 
     let mut button = Button::new(p.PIN_13, PressedTo::Ground);
 
@@ -194,7 +184,7 @@ async fn demo_rectangle_diagonals_embedded_graphics(led2d: &Led2d<'_, N>) -> Res
     Rectangle::new(Point::new(0, 0), Size::new(COLS as u32, ROWS as u32))
         .into_styled(PrimitiveStyle::with_stroke(Rgb888::RED, 1))
         .draw(&mut frame_builder)
-        .map_err(|_| serials::Error::FormatError)?;
+        .map_err(|_| Error::FormatError)?;
 
     // Draw blue diagonal lines from corner to corner
     Line::new(
@@ -203,7 +193,7 @@ async fn demo_rectangle_diagonals_embedded_graphics(led2d: &Led2d<'_, N>) -> Res
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
     .draw(&mut frame_builder)
-    .map_err(|_| serials::Error::FormatError)?;
+    .map_err(|_| Error::FormatError)?;
 
     Line::new(
         Point::new(0, (ROWS - 1) as i32),
@@ -211,7 +201,7 @@ async fn demo_rectangle_diagonals_embedded_graphics(led2d: &Led2d<'_, N>) -> Res
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
     .draw(&mut frame_builder)
-    .map_err(|_| serials::Error::FormatError)?;
+    .map_err(|_| Error::FormatError)?;
 
     let frame = frame_builder.build();
     led2d.write_frame(frame).await
@@ -293,7 +283,7 @@ async fn demo_bouncing_dot_animation(led2d: &Led2d<'_, N>) -> Result<()> {
         frame[led2d.xy_to_index(column_index as usize, row_index as usize)] = COLORS[color_index];
         frames
             .push(Frame::new(frame, Duration::from_millis(50)))
-            .map_err(|_| serials::Error::FormatError)?;
+            .map_err(|_| Error::FormatError)?;
 
         column_index = column_index + delta_column;
         row_index = row_index + delta_row;

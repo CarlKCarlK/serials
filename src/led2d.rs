@@ -211,3 +211,143 @@ async fn run_animation_loop<const N: usize, S: LedStrip<N>>(
         }
     }
 }
+
+/// Declares an Embassy task that runs [`led2d_device_loop`] for a concrete LED strip type.
+///
+/// Each `Led2d` device needs a monomorphic task because `#[embassy_executor::task]` does not
+/// support generics. This macro generates the boilerplate wrapper and keeps your modules tidy.
+///
+/// # Example
+/// ```no_run
+/// # #![no_std]
+/// # use panic_probe as _;
+/// use embassy_executor::Spawner;
+/// use embassy_rp::{init, peripherals::PIO1};
+/// use serials::Result;
+/// use serials::led2d::{Led2dStatic, led2d_device_task};
+/// use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, Milliamps};
+///
+/// const COLS: usize = 12;
+/// const ROWS: usize = 4;
+/// const N: usize = COLS * ROWS;
+///
+#[macro_export]
+macro_rules! led2d_device_task {
+    (
+        $task_name:ident,
+        $strip_ty:ty,
+        $n:expr $(,)?
+    ) => {
+        $crate::led2d::led2d_device_task!(
+            @inner
+            ()
+            $task_name,
+            $strip_ty,
+            $n
+        );
+    };
+    (
+        $vis:vis $task_name:ident,
+        $strip_ty:ty,
+        $n:expr $(,)?
+    ) => {
+        $crate::led2d::led2d_device_task!(
+            @inner
+            ($vis)
+            $task_name,
+            $strip_ty,
+            $n
+        );
+    };
+    (
+        @inner
+        ($($vis:tt)*)
+        $task_name:ident,
+        $strip_ty:ty,
+        $n:expr $(,)?
+    ) => {
+        #[embassy_executor::task]
+        $($vis)* async fn $task_name(
+            command_signal: &'static $crate::led2d::Led2dCommandSignal<$n>,
+            completion_signal: &'static $crate::led2d::Led2dCompletionSignal,
+            strip: $strip_ty,
+        ) {
+            let err = $crate::led2d::led2d_device_loop(command_signal, completion_signal, strip)
+                .await
+                .unwrap_err();
+            panic!("{err}");
+        }
+    };
+}
+
+pub use led2d_device_task;
+
+/// Declares the full Led2d device/static pair plus the background task wrapper.
+///
+/// This extends [`led2d_device_task!`] by also generating a static resource holder with
+/// `new_static`/`new` so callers do not need to wire up the signals and task spawning manually.
+///
+/// # Example
+/// ```no_run
+/// # #![no_std]
+/// # use panic_probe as _;
+/// use defmt::info;
+/// use embassy_executor::Spawner;
+/// use embassy_rp::{init, peripherals::PIO1};
+/// use serials::Result;
+/// use serials::led2d::{Led2d, led2d_device};
+/// use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, Milliamps};
+///
+/// const COLS: usize = 12;
+/// const ROWS: usize = 4;
+/// const N: usize = COLS * ROWS;
+/// const MAPPING: [u16; N] = serials::led2d::serpentine_column_major_mapping::<N, ROWS, COLS>();
+///
+#[macro_export]
+macro_rules! led2d_device {
+    (
+        $vis:vis struct $resources_name:ident,
+        task: $task_vis:vis $task_name:ident,
+        strip: $strip_ty:ty,
+        leds: $n:expr,
+        mapping: $mapping:expr,
+        cols: $cols:expr $(,)?
+    ) => {
+        $crate::led2d::led2d_device_task!($task_vis $task_name, $strip_ty, $n);
+
+        $vis struct $resources_name {
+            led2d_static: $crate::led2d::Led2dStatic<$n>,
+        }
+
+        impl $resources_name {
+            /// Create the static resources for this Led2d instance.
+            #[must_use]
+            pub const fn new_static() -> Self {
+                Self {
+                    led2d_static: $crate::led2d::Led2dStatic::new_static(),
+                }
+            }
+
+            /// Construct the `Led2d` handle, spawning the background task automatically.
+            pub fn new(
+                &'static self,
+                strip: $strip_ty,
+                spawner: ::embassy_executor::Spawner,
+            ) -> $crate::Result<$crate::led2d::Led2d<'static, $n>> {
+                let token = $task_name(
+                    &self.led2d_static.command_signal,
+                    &self.led2d_static.completion_signal,
+                    strip,
+                )?;
+                spawner.spawn(token);
+                Ok($crate::led2d::Led2d::new(
+                    &self.led2d_static,
+                    $mapping,
+                    $cols,
+                ))
+            }
+        }
+    };
+}
+
+pub use led2d_device;
