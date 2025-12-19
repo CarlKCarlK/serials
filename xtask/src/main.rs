@@ -4,9 +4,11 @@
 
 use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
+use rayon::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
+use std::sync::Mutex;
 
 #[derive(Parser)]
 #[command(name = "xtask")]
@@ -193,8 +195,8 @@ fn check_all() -> ExitCode {
         "\n{}",
         "==> Building examples (pico2, arm, no wifi)...".cyan()
     );
-    for example in &no_wifi_examples {
-        println!("  {}", format!("- {}", example.name).bright_black());
+    let failed = Mutex::new(Vec::new());
+    no_wifi_examples.par_iter().for_each(|example| {
         if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
             "build",
             "--example",
@@ -205,16 +207,20 @@ fn check_all() -> ExitCode {
             features_no_wifi.as_str(),
             "--no-default-features",
         ])) {
-            return ExitCode::FAILURE;
+            failed.lock().unwrap().push(example.name.clone());
         }
+    });
+    if !failed.lock().unwrap().is_empty() {
+        eprintln!("Failed examples: {:?}", failed.lock().unwrap());
+        return ExitCode::FAILURE;
     }
 
     println!(
         "\n{}",
         "==> Building examples (pico2, arm, with wifi)...".cyan()
     );
-    for example in &examples {
-        println!("  {}", format!("- {}", example.name).bright_black());
+    let failed = Mutex::new(Vec::new());
+    examples.par_iter().for_each(|example| {
         if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
             "build",
             "--example",
@@ -225,16 +231,20 @@ fn check_all() -> ExitCode {
             features_wifi_pico2.as_str(),
             "--no-default-features",
         ])) {
-            return ExitCode::FAILURE;
+            failed.lock().unwrap().push(example.name.clone());
         }
+    });
+    if !failed.lock().unwrap().is_empty() {
+        eprintln!("Failed examples: {:?}", failed.lock().unwrap());
+        return ExitCode::FAILURE;
     }
 
     println!(
         "\n{}",
         "==> Building examples (pico1, arm, with wifi)...".cyan()
     );
-    for example in &examples {
-        println!("  {}", format!("- {}", example.name).bright_black());
+    let failed = Mutex::new(Vec::new());
+    examples.par_iter().for_each(|example| {
         if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
             "build",
             "--example",
@@ -245,8 +255,12 @@ fn check_all() -> ExitCode {
             features_wifi_pico1.as_str(),
             "--no-default-features",
         ])) {
-            return ExitCode::FAILURE;
+            failed.lock().unwrap().push(example.name.clone());
         }
+    });
+    if !failed.lock().unwrap().is_empty() {
+        eprintln!("Failed examples: {:?}", failed.lock().unwrap());
+        return ExitCode::FAILURE;
     }
 
     println!("\n{}", "==> Building compile-only tests...".cyan());
@@ -264,8 +278,8 @@ fn check_all() -> ExitCode {
             }
         }
         compile_tests.sort();
-        for test in &compile_tests {
-            println!("  {}", format!("- {test}").bright_black());
+        let failed = Mutex::new(Vec::new());
+        compile_tests.par_iter().for_each(|test| {
             if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
                 "check",
                 "--bin",
@@ -276,8 +290,12 @@ fn check_all() -> ExitCode {
                 "pico1,arm,wifi",
                 "--no-default-features",
             ])) {
-                return ExitCode::FAILURE;
+                failed.lock().unwrap().push(test.clone());
             }
+        });
+        if !failed.lock().unwrap().is_empty() {
+            eprintln!("Failed compile tests: {:?}", failed.lock().unwrap());
+            return ExitCode::FAILURE;
         }
     }
 

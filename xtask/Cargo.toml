@@ -7,3 +7,4 @@ publish = false
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 owo-colors = "4.1"
+rayon = "1.10"
