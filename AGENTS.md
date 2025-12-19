@@ -220,6 +220,46 @@ Don't ignore errors by assigning results to an ignored variable. Don't do this:
 let _ = something_that_returns_a_result()
 ```
 
+## API Design Patterns
+
+**Avoid the builder pattern.** Users find builder patterns hard to discover. Instead:
+
+- Use direct constructors with named parameters
+- Take slices instead of requiring users to construct collections
+- Return arrays/fixed-size types when possible rather than requiring users to build them
+
+❌ Bad (builder pattern):
+
+```rust
+let display = DisplayBuilder::new()
+    .width(12)
+    .height(4)
+    .brightness(100)
+    .build()?;
+```
+
+✅ Good (direct construction):
+
+```rust
+let display = Display::new(12, 4, brightness_percent(100))?;
+```
+
+❌ Bad (forcing users to build collections):
+
+```rust
+let mut frames = Vec::new();
+frames.push(frame1);
+frames.push(frame2);
+led.animate_frames(frames);
+```
+
+✅ Good (accept slices):
+
+```rust
+let frames = [frame1, frame2];
+led.animate(&frames);
+```
+
 ## Async Coordination
 
 **Never use delays/timers to "fix" async coordination issues.** Delays like `Timer::after(Duration::from_millis(1))` to "let something finish" are evil - they're unreliable, hide the real problem, and make code fragile.
