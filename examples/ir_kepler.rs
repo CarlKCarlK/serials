@@ -1,7 +1,7 @@
 //! Example showing how to use the SunFounder Kepler Kit IR remote.
 #![no_std]
 #![no_main]
-#![feature(never_type)]
+use core::convert::Infallible;
 
 use defmt::info;
 use defmt_rtt as _;
@@ -15,7 +15,7 @@ async fn main(spawner: Spawner) -> ! {
     panic!("{err}");
 }
 
-async fn inner_main(spawner: Spawner) -> serials::Result<!> {
+async fn inner_main(spawner: Spawner) -> serials::Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     info!("Starting Kepler IR Remote Example");

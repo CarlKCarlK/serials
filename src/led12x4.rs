@@ -549,7 +549,8 @@ impl Led12x4 {
 
 /// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and fails fast if PIO2 is used on Pico 1.
 /// See the usage example on [`Led12x4`].
-pub macro new_led12x4 {
+#[macro_export]
+macro_rules! new_led12x4 {
     (
         $led12x4_static:expr,
         $pin:ident,
@@ -564,7 +565,7 @@ pub macro new_led12x4 {
             $max_current,
             $spawner,
         )
-    },
+    };
     (
         $led12x4_static:expr,
         $pin:ident,
@@ -579,7 +580,7 @@ pub macro new_led12x4 {
             $max_current,
             $spawner,
         )
-    },
+    };
     (
         $led12x4_static:expr,
         $pin:ident,
@@ -601,5 +602,7 @@ pub macro new_led12x4 {
         {
             compile_error!("PIO2 is only available on Pico 2 (rp235x); enable the pico2 feature or choose PIO0/PIO1");
         }
-    }}
+    }};
 }
+
+pub use crate::new_led12x4;

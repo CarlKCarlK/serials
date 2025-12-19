@@ -1,5 +1,4 @@
 //! Device abstractions for peripherals for Pico 1 and 2 (with and without WiFi).
-#![cfg_attr(not(feature = "host"), feature(decl_macro))]
 #![cfg_attr(not(feature = "host"), no_std)]
 #![cfg_attr(not(feature = "host"), no_main)]
 #![allow(async_fn_in_trait, reason = "single-threaded embedded")]

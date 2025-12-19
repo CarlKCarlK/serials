@@ -7,11 +7,12 @@
 #![no_std]
 #![no_main]
 #![cfg(feature = "wifi")]
-#![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
-use core::convert::TryFrom;
-use core::pin::pin;
+use core::{
+    convert::{Infallible, TryFrom},
+    pin::pin,
+};
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
@@ -35,7 +36,7 @@ pub async fn main(spawner: Spawner) -> ! {
     core::panic!("{err}");
 }
 
-async fn inner_main(spawner: Spawner) -> Result<!> {
+async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("Starting Wi-Fi servo clock (WifiSetup)");
     let p = embassy_rp::init(Default::default());
 

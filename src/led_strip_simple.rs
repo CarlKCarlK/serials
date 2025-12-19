@@ -417,7 +417,8 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO2, N> {
 
 /// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and fails fast if PIO2 is used on Pico 1.
 /// See the usage example on [`LedStripSimple`].
-pub macro new_simple_strip {
+#[macro_export]
+macro_rules! new_simple_strip {
     (
         $strip_static:expr,
         $pin:ident,
@@ -430,7 +431,7 @@ pub macro new_simple_strip {
             $peripherals.$pin,
             $max_current,
         )
-    },
+    };
     (
         $strip_static:expr,
         $pin:ident,
@@ -443,7 +444,7 @@ pub macro new_simple_strip {
             $peripherals.$pin,
             $max_current,
         )
-    },
+    };
     (
         $strip_static:expr,
         $pin:ident,
@@ -463,5 +464,7 @@ pub macro new_simple_strip {
         {
             compile_error!("PIO2 is only available on Pico 2 (rp235x); enable the pico2 feature or choose PIO0/PIO1");
         }
-    }}
+    }};
 }
+
+pub use crate::new_simple_strip;

@@ -1,8 +1,9 @@
 //! Minimal clock example: set an initial UTC time, apply a PDT offset, and log ticks.
 #![no_std]
 #![no_main]
-#![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
+
+use core::convert::Infallible;
 
 use defmt::info;
 use defmt_rtt as _;
@@ -17,7 +18,7 @@ pub async fn main(spawner: Spawner) -> ! {
     core::panic!("{err}");
 }
 
-async fn run(spawner: Spawner) -> serials::Result<!> {
+async fn run(spawner: Spawner) -> serials::Result<Infallible> {
     // Initialize RP2040 peripherals to start the time driver.
     let _p = embassy_rp::init(Default::default());
 

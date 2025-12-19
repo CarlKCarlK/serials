@@ -6,9 +6,9 @@
 #![cfg(feature = "wifi")]
 #![no_std]
 #![no_main]
-#![feature(never_type)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
+use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
@@ -29,7 +29,7 @@ pub async fn main(spawner: Spawner) -> ! {
     core::panic!("{err}");
 }
 
-async fn inner_main(spawner: Spawner) -> Result<!> {
+async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("Starting Console Clock with WiFi");
 
     // Initialize RP2040 peripherals

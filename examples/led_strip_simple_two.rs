@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(never_type)]
+use core::convert::Infallible;
 
 use defmt::info;
 use defmt_rtt as _;
@@ -18,7 +18,7 @@ async fn main(spawner: Spawner) -> ! {
     core::panic!("{err}");
 }
 
-async fn inner_main(_spawner: Spawner) -> Result<!> {
+async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     const MAX_CURRENT: Milliamps = Milliamps(500);
