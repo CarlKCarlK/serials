@@ -10,7 +10,7 @@ use embassy_time::{Duration, Timer};
 use heapless::Vec;
 use smart_leds::RGB8;
 
-use crate::{Result, bit_matrix3x4};
+use crate::{Result, bit_matrix3x4, led2d};
 
 pub use crate::led_strip_simple::Milliamps;
 
@@ -20,6 +20,10 @@ pub use smart_leds::colors;
 /// Display size in pixels
 pub const COLS: usize = 12;
 pub const ROWS: usize = 4;
+const N: usize = COLS * ROWS;
+
+/// Serpentine column-major mapping for 12x4 displays.
+const MAPPING: [u16; N] = led2d::serpentine_column_major_mapping::<N, ROWS, COLS>();
 /// Number of LEDs along the outer perimeter of the display.
 // cmk need to be public?
 pub const PERIMETER_LENGTH: usize = (COLS * 2) + ((ROWS - 2) * 2);
@@ -35,30 +39,20 @@ type Led12x4CompletionSignal = Signal<CriticalSectionRawMutex, ()>;
 // cmk why public?
 #[derive(Clone)]
 pub enum Command {
-    DisplayStatic([RGB8; COLS * ROWS]),
+    DisplayStatic([RGB8; N]),
     DisplayChars { chars: [char; 4], colors: [RGB8; 4] },
     Animate(Vec<Frame, ANIMATION_MAX_FRAMES>),
 }
 
 /// Frame of animation for [`Led12x4::animate`]. See [`Led12x4`] for usage.
-#[derive(Clone, Copy, Debug)]
-pub struct Frame {
-    pub frame: [RGB8; COLS * ROWS],
-    pub duration: Duration,
-}
-
-impl Frame {
-    #[must_use]
-    pub const fn new(frame: [RGB8; COLS * ROWS], duration: Duration) -> Self {
-        Self { frame, duration }
-    }
-}
+pub type Frame = led2d::Frame<N>;
 
 /// Signal resources for [`Led12x4`].
 pub struct Led12x4Static {
     command_signal: Led12x4CommandSignal,
     completion_signal: Led12x4CompletionSignal,
-    led_strip_simple: crate::led_strip_simple::LedStripSimpleStatic<{ COLS * ROWS }>,
+    led_strip_simple: crate::led_strip_simple::LedStripSimpleStatic<N>,
+    led2d_static: led2d::Led2dStatic<N>,
 }
 
 /// Trait for LED strip drivers that can render a full 48-pixel frame.
@@ -69,33 +63,15 @@ pub trait LedStrip<const N: usize> {
 
 /// Unified LED strip type supporting all backends for Led12x4.
 pub enum Led12x4Strip {
-    SimplePio0(
-        crate::led_strip_simple::LedStripSimple<
-            'static,
-            embassy_rp::peripherals::PIO0,
-            { COLS * ROWS },
-        >,
-    ),
-    SimplePio1(
-        crate::led_strip_simple::LedStripSimple<
-            'static,
-            embassy_rp::peripherals::PIO1,
-            { COLS * ROWS },
-        >,
-    ),
+    SimplePio0(crate::led_strip_simple::LedStripSimple<'static, embassy_rp::peripherals::PIO0, N>),
+    SimplePio1(crate::led_strip_simple::LedStripSimple<'static, embassy_rp::peripherals::PIO1, N>),
     #[cfg(feature = "pico2")]
-    SimplePio2(
-        crate::led_strip_simple::LedStripSimple<
-            'static,
-            embassy_rp::peripherals::PIO2,
-            { COLS * ROWS },
-        >,
-    ),
-    Multi(crate::led_strip::LedStrip<{ COLS * ROWS }>),
+    SimplePio2(crate::led_strip_simple::LedStripSimple<'static, embassy_rp::peripherals::PIO2, N>),
+    Multi(crate::led_strip::LedStrip<N>),
 }
 
-impl LedStrip<{ COLS * ROWS }> for Led12x4Strip {
-    async fn update_pixels(&mut self, pixels: &[RGB8; COLS * ROWS]) -> Result<()> {
+impl LedStrip<N> for Led12x4Strip {
+    async fn update_pixels(&mut self, pixels: &[RGB8; N]) -> Result<()> {
         match self {
             Self::SimplePio0(strip) => strip.update_pixels(pixels).await,
             Self::SimplePio1(strip) => strip.update_pixels(pixels).await,
@@ -112,6 +88,7 @@ impl Led12x4Static {
             command_signal: Signal::new(),
             completion_signal: Signal::new(),
             led_strip_simple: crate::led_strip_simple::LedStripSimpleStatic::new_static(),
+            led2d_static: led2d::Led2dStatic::new_static(),
         }
     }
 
@@ -128,8 +105,12 @@ impl Led12x4Static {
         &self.completion_signal
     }
 
-    fn led_strip_simple(&self) -> &crate::led_strip_simple::LedStripSimpleStatic<{ COLS * ROWS }> {
+    fn led_strip_simple(&self) -> &crate::led_strip_simple::LedStripSimpleStatic<N> {
         &self.led_strip_simple
+    }
+
+    fn led2d_static(&self) -> &led2d::Led2dStatic<N> {
+        &self.led2d_static
     }
 }
 
@@ -165,6 +146,8 @@ impl Led12x4Static {
 /// }
 /// ```
 pub struct Led12x4 {
+    #[allow(dead_code)]
+    led2d: led2d::Led2d<'static, N>,
     command_signal: &'static Led12x4CommandSignal,
     completion_signal: &'static Led12x4CompletionSignal,
 }
@@ -193,14 +176,16 @@ impl Led12x4 {
         let completion_signal = led12x4_static.completion_signal();
         let token = led12x4_device_loop(command_signal, completion_signal, strip)?;
         spawner.spawn(token);
+        let led2d = led2d::Led2d::new(led12x4_static.led2d_static(), &MAPPING, COLS);
         Ok(Self {
+            led2d,
             command_signal,
             completion_signal,
         })
     }
 
     /// Render a fully defined frame to the display.
-    pub async fn write_frame(&self, frame: [RGB8; COLS * ROWS]) -> Result<()> {
+    pub async fn write_frame(&self, frame: [RGB8; N]) -> Result<()> {
         self.command_signal.signal(Command::DisplayStatic(frame));
         self.completion_signal.wait().await;
         Ok(())
@@ -243,15 +228,8 @@ impl Led12x4 {
 
 #[inline]
 /// Converts a column/row pair into the serpentine LED index for this display.
-pub const fn xy_to_index(column_index: usize, row_index: usize) -> usize {
-    // Column-major with serpentine: even columns go down (top-to-bottom), odd columns go up (bottom-to-top)
-    if column_index % 2 == 0 {
-        // Even column: top-to-bottom
-        column_index * ROWS + row_index
-    } else {
-        // Odd column: bottom-to-top (reverse y)
-        column_index * ROWS + (ROWS - 1 - row_index)
-    }
+pub fn xy_to_index(column_index: usize, row_index: usize) -> usize {
+    MAPPING[row_index * COLS + column_index] as usize
 }
 
 /// Build a full display frame for the provided 4-character text and colors.
@@ -259,9 +237,9 @@ pub const fn xy_to_index(column_index: usize, row_index: usize) -> usize {
 /// This is useful when constructing custom animations manually. See the `led12x4`
 /// example for usage.
 #[must_use]
-pub fn text_frame(chars: [char; 4], colors: [RGB8; 4]) -> [RGB8; COLS * ROWS] {
+pub fn text_frame(chars: [char; 4], colors: [RGB8; 4]) -> [RGB8; N] {
     let black = RGB8::new(0, 0, 0);
-    let mut frame = [black; COLS * ROWS];
+    let mut frame = [black; N];
 
     for (character_index, &character) in chars.iter().enumerate() {
         let color = colors[character_index];
@@ -277,7 +255,7 @@ fn render_glyph(
     rows: [u8; 4],
     glyph_color: RGB8,
     base_column_index: usize,
-    frame: &mut [RGB8; COLS * ROWS],
+    frame: &mut [RGB8; N],
     background_color: RGB8,
 ) {
     for row_index in 0..ROWS {
@@ -311,9 +289,9 @@ pub fn perimeter_chase_animation(
     let perimeter_indices = perimeter_indices(clockwise);
     let black = RGB8::new(0, 0, 0);
     core::array::from_fn(|frame_index| {
-        let mut frame = [black; COLS * ROWS];
+        let mut frame = [black; N];
         frame[perimeter_indices[frame_index]] = color;
-        Frame::new(frame, duration)
+        led2d::Frame::new(frame, duration)
     })
 }
 

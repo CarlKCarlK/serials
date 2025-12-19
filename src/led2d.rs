@@ -15,8 +15,8 @@ use crate::Result;
 /// Maximum frames supported by [`Led2d::animate`].
 pub const ANIMATION_MAX_FRAMES: usize = 32;
 
-type Led2dCommandSignal<const N: usize> = Signal<CriticalSectionRawMutex, Command<N>>;
-type Led2dCompletionSignal = Signal<CriticalSectionRawMutex, ()>;
+pub type Led2dCommandSignal<const N: usize> = Signal<CriticalSectionRawMutex, Command<N>>;
+pub type Led2dCompletionSignal = Signal<CriticalSectionRawMutex, ()>;
 
 #[derive(Clone)]
 pub enum Command<const N: usize> {
@@ -40,8 +40,8 @@ impl<const N: usize> Frame<N> {
 
 /// Signal resources for [`Led2d`].
 pub struct Led2dStatic<const N: usize> {
-    command_signal: Led2dCommandSignal<N>,
-    completion_signal: Led2dCompletionSignal,
+    pub command_signal: Led2dCommandSignal<N>,
+    pub completion_signal: Led2dCompletionSignal,
 }
 
 impl<const N: usize> Led2dStatic<N> {

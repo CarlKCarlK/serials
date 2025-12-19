@@ -23,7 +23,7 @@ use defmt::info;
 // Led4Simple Submodule (internal helper)
 // ============================================================================
 
-mod led4_simple;
+pub(crate) mod led4_simple;
 use self::led4_simple::{Led4Simple, Led4SimpleStatic};
 
 // ============================================================================

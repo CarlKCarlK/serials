@@ -41,13 +41,13 @@ impl Led4SimpleStatic {
 ///
 /// # Example
 ///
-/// Ignored because this helper is crate-internal and not exported publicly.
+/// This example is ignored because `Led4Simple` is crate-internal. Users should use [`Led4`](crate::led4::Led4) instead.
 ///
 /// ```ignore
 /// # #![no_std]
 /// # #![no_main]
-/// use crate::led4::led4_simple::{Led4Simple, Led4SimpleStatic};
-/// use crate::led4::OutputArray;
+/// use serials::led4::led4_simple::{Led4Simple, Led4SimpleStatic};
+/// use serials::led4::OutputArray;
 /// # #[panic_handler]
 /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 ///
