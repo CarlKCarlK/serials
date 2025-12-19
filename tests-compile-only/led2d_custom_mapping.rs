@@ -13,7 +13,7 @@ use embassy_time::Duration;
 use panic_probe as _;
 use serials::Result;
 use serials::led_strip_simple::Milliamps;
-use serials::led2d::{Frame, led2d_device_simple};
+use serials::led2d::led2d_device_simple;
 use smart_leds::colors;
 
 // Example with a custom arbitrary mapping for a 2x3 display (6 LEDs total)
@@ -43,14 +43,18 @@ async fn test_led2x3_custom_mapping(p: embassy_rp::Peripherals, spawner: Spawner
     led2x3.write_frame(frame).await?;
 
     // Verify animate works
-    let mut frames = heapless::Vec::<Frame<{ Led2x3::ROWS }, { Led2x3::COLS }>, 6>::new();
+    let mut frames = heapless::Vec::<
+        (
+            [[smart_leds::RGB8; Led2x3::COLS]; Led2x3::ROWS],
+            embassy_time::Duration,
+        ),
+        6,
+    >::new();
     for row_index in 0..Led2x3::ROWS {
         for column_index in 0..Led2x3::COLS {
             let mut frame = [[colors::BLACK; Led2x3::COLS]; Led2x3::ROWS];
             frame[row_index][column_index] = colors::CYAN;
-            frames
-                .push(Frame::new(frame, Duration::from_millis(200)))
-                .ok();
+            frames.push((frame, Duration::from_millis(200))).ok();
         }
     }
     led2x3.animate(&frames).await?;

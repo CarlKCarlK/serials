@@ -79,8 +79,8 @@ async fn demo_blink_text(led_12x4: &Led12x4) -> Result<()> {
     );
     let off_frame = [[colors::BLACK; Led12x4::COLS]; Led12x4::ROWS];
     let frames = [
-        Frame::new(on_frame, Duration::from_millis(500)),
-        Frame::new(off_frame, Duration::from_millis(500)),
+        (on_frame, Duration::from_millis(500)),
+        (off_frame, Duration::from_millis(500)),
     ];
     led_12x4.animate(&frames).await
 }
@@ -242,7 +242,7 @@ async fn demo_bouncing_dot_animation(led_12x4: &Led12x4) -> Result<()> {
         let mut frame = [[black; Led12x4::COLS]; Led12x4::ROWS];
         frame[row_index as usize][column_index as usize] = COLORS[color_index];
         frames
-            .push(Frame::new(frame, Duration::from_millis(50)))
+            .push((frame, Duration::from_millis(50)))
             .map_err(|_| serials::Error::FormatError)?;
 
         column_index = column_index + delta_column;

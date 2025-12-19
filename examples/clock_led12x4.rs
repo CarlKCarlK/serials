@@ -22,7 +22,7 @@ use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led_strip_simple::colors;
 use serials::led12x4::{
-    Frame, Led12x4, Led12x4Static, Milliamps, new_led12x4, perimeter_chase_animation, text_frame,
+    Led12x4, Led12x4Static, Milliamps, new_led12x4, perimeter_chase_animation, text_frame,
 };
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
@@ -361,8 +361,8 @@ async fn show_portal_ready(led_12x4: &Led12x4) -> Result<()> {
     let on_frame = text_frame(['C', 'O', 'N', 'N'], DIGIT_COLORS);
     let off_frame = [[colors::BLACK; Led12x4::COLS]; Led12x4::ROWS];
     let frames = [
-        Frame::new(on_frame, Duration::from_millis(700)),
-        Frame::new(off_frame, Duration::from_millis(300)),
+        (on_frame, Duration::from_millis(700)),
+        (off_frame, Duration::from_millis(300)),
     ];
     led_12x4.animate(&frames).await
 }

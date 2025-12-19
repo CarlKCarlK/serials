@@ -45,7 +45,9 @@ pub enum Command {
 }
 
 /// Frame of animation for [`Led12x4::animate`]. See [`Led12x4`] for usage.
-pub type Frame = led2d::Frame<ROWS, COLS>;
+///
+/// A frame is a tuple of (pixels, duration) where pixels is a 2D array in row-major order.
+pub type Frame = ([[RGB8; COLS]; ROWS], Duration);
 
 /// Signal resources for [`Led12x4`].
 pub struct Led12x4Static {
@@ -230,12 +232,14 @@ impl Led12x4 {
     pub async fn animate(&self, frames: &[Frame]) -> Result<()> {
         assert!(!frames.is_empty(), "animation requires at least one frame");
         let mut sequence: Vec<Frame, ANIMATION_MAX_FRAMES> = Vec::new();
-        for frame in frames {
+        for (pixels, duration) in frames {
             assert!(
-                frame.duration.as_micros() > 0,
+                duration.as_micros() > 0,
                 "animation frame duration must be positive"
             );
-            sequence.push(*frame).expect("animation sequence fits");
+            sequence
+                .push((*pixels, *duration))
+                .expect("animation sequence fits");
         }
         self.command_signal.signal(Command::Animate(sequence));
         self.completion_signal.wait().await;
@@ -326,7 +330,7 @@ pub fn perimeter_chase_animation(
                 }
             }
         }
-        led2d::Frame::new(frame, duration)
+        (frame, duration)
     })
 }
 
@@ -414,20 +418,20 @@ async fn run_animation_loop(
     let mut frame_index = 0;
 
     loop {
-        let frame = frames[frame_index];
+        let (pixels, duration) = frames[frame_index];
         // Convert 2D frame to 1D using the mapping
         let mut frame_1d = [RGB8::new(0, 0, 0); N];
         for row_index in 0..ROWS {
             for column_index in 0..COLS {
                 let led_index = xy_to_index(column_index, row_index);
-                frame_1d[led_index] = frame.frame[row_index][column_index];
+                frame_1d[led_index] = pixels[row_index][column_index];
             }
         }
         strip.update_pixels(&frame_1d).await?;
         if frame_index == 0 {
             completion_signal.signal(());
         }
-        match select(command_signal.wait(), Timer::after(frame.duration)).await {
+        match select(command_signal.wait(), Timer::after(duration)).await {
             Either::First(command) => return Ok(command),
             Either::Second(()) => {
                 frame_index = (frame_index + 1) % frame_count;

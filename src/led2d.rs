@@ -25,30 +25,7 @@ pub type Led2dCompletionSignal = Signal<CriticalSectionRawMutex, ()>;
 #[derive(Clone)]
 pub enum Command<const N: usize> {
     DisplayStatic([RGB8; N]),
-    Animate(Vec<Frame1d<N>, ANIMATION_MAX_FRAMES>),
-}
-
-/// Internal frame type with 1D array for device loop.
-#[derive(Clone, Copy, Debug)]
-pub struct Frame1d<const N: usize> {
-    pub(crate) frame: [RGB8; N],
-    pub(crate) duration: Duration,
-}
-
-/// Frame of animation for [`Led2d::animate`].
-///
-/// Uses row-major 2D array layout where `frame[row][col]` accesses the pixel at (col, row).
-#[derive(Clone, Copy, Debug)]
-pub struct Frame<const ROWS: usize, const COLS: usize> {
-    pub frame: [[RGB8; COLS]; ROWS],
-    pub duration: Duration,
-}
-
-impl<const ROWS: usize, const COLS: usize> Frame<ROWS, COLS> {
-    #[must_use]
-    pub const fn new(frame: [[RGB8; COLS]; ROWS], duration: Duration) -> Self {
-        Self { frame, duration }
-    }
+    Animate(Vec<([RGB8; N], Duration), ANIMATION_MAX_FRAMES>),
 }
 
 /// Signal resources for [`Led2d`].
@@ -139,24 +116,21 @@ impl<'a, const N: usize> Led2d<'a, N> {
 
     /// Loop through a sequence of animation frames until interrupted by another command.
     ///
-    /// Each frame is a 2D array in row-major order where `frame[row][col]` is the pixel at (col, row).
+    /// Each frame is a tuple of (pixels, duration) where pixels is a 2D array in row-major order.
     pub async fn animate<const ROWS: usize, const COLS: usize>(
         &self,
-        frames: &[Frame<ROWS, COLS>],
+        frames: &[([[RGB8; COLS]; ROWS], Duration)],
     ) -> Result<()> {
         assert!(!frames.is_empty(), "animation requires at least one frame");
-        let mut sequence: Vec<Frame1d<N>, ANIMATION_MAX_FRAMES> = Vec::new();
-        for frame in frames {
+        let mut sequence: Vec<([RGB8; N], Duration), ANIMATION_MAX_FRAMES> = Vec::new();
+        for (pixels, duration) in frames {
             assert!(
-                frame.duration.as_micros() > 0,
+                duration.as_micros() > 0,
                 "animation frame duration must be positive"
             );
-            let frame_1d = self.convert_frame(frame.frame);
+            let frame_1d = self.convert_frame(*pixels);
             sequence
-                .push(Frame1d {
-                    frame: frame_1d,
-                    duration: frame.duration,
-                })
+                .push((frame_1d, *duration))
                 .expect("animation sequence fits");
         }
         self.command_signal.signal(Command::Animate(sequence));
@@ -235,7 +209,7 @@ pub async fn led2d_device_loop<const N: usize, S: LedStrip<N>>(
 }
 
 async fn run_animation_loop<const N: usize, S: LedStrip<N>>(
-    frames: Vec<Frame1d<N>, ANIMATION_MAX_FRAMES>,
+    frames: Vec<([RGB8; N], Duration), ANIMATION_MAX_FRAMES>,
     command_signal: &'static Led2dCommandSignal<N>,
     completion_signal: &'static Led2dCompletionSignal,
     strip: &mut S,
@@ -243,10 +217,10 @@ async fn run_animation_loop<const N: usize, S: LedStrip<N>>(
     completion_signal.signal(());
 
     loop {
-        for frame in &frames {
-            strip.update_pixels(&frame.frame).await?;
+        for (pixels, duration) in &frames {
+            strip.update_pixels(pixels).await?;
 
-            match select(command_signal.wait(), Timer::after(frame.duration)).await {
+            match select(command_signal.wait(), Timer::after(*duration)).await {
                 Either::First(new_command) => {
                     command_signal.reset();
                     return Ok(new_command);
@@ -572,8 +546,8 @@ macro_rules! led2d_device_simple {
 
                 /// Loop through a sequence of animation frames.
                 ///
-                /// Each frame is a 2D array in row-major order where `frame[row][col]` is the pixel at (col, row).
-                $vis async fn animate(&self, frames: &[$crate::led2d::Frame<$rows_const, $cols_const>]) -> $crate::Result<()> {
+                /// Each frame is a tuple of (pixels, duration) where pixels is a 2D array in row-major order.
+                $vis async fn animate(&self, frames: &[([[::smart_leds::RGB8; $cols_const]; $rows_const], ::embassy_time::Duration)]) -> $crate::Result<()> {
                     self.led2d.animate(frames).await
                 }
             }

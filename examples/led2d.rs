@@ -18,7 +18,7 @@ use heapless::Vec;
 use panic_probe as _;
 use serials::button::{Button, PressedTo};
 use serials::led_strip_simple::Milliamps;
-use serials::led2d::{Frame, led2d_device_simple};
+use serials::led2d::led2d_device_simple;
 use serials::{Error, Result};
 use smart_leds::{RGB8, colors};
 
@@ -98,8 +98,8 @@ async fn demo_blink_pattern(led4x12: &Led4x12) -> Result<()> {
 
     let off_frame = [[colors::BLACK; Led4x12::COLS]; Led4x12::ROWS];
     let frames = [
-        Frame::new(on_frame, Duration::from_millis(500)),
-        Frame::new(off_frame, Duration::from_millis(500)),
+        (on_frame, Duration::from_millis(500)),
+        (off_frame, Duration::from_millis(500)),
     ];
     led4x12.animate(&frames).await
 }
@@ -250,7 +250,7 @@ async fn demo_bouncing_dot_animation(led4x12: &Led4x12) -> Result<()> {
     ];
 
     let black = RGB8::new(0, 0, 0);
-    let mut frames = Vec::<Frame<{ Led4x12::ROWS }, { Led4x12::COLS }>, 32>::new();
+    let mut frames = Vec::<([[RGB8; Led4x12::COLS]; Led4x12::ROWS], Duration), 32>::new();
     let mut column_index: isize = 0;
     let mut row_index: isize = 0;
     let mut delta_column: isize = 1;
@@ -261,7 +261,7 @@ async fn demo_bouncing_dot_animation(led4x12: &Led4x12) -> Result<()> {
         let mut frame = [[black; Led4x12::COLS]; Led4x12::ROWS];
         frame[row_index as usize][column_index as usize] = COLORS[color_index];
         frames
-            .push(Frame::new(frame, Duration::from_millis(50)))
+            .push((frame, Duration::from_millis(50)))
             .map_err(|_| Error::FormatError)?;
 
         column_index = column_index + delta_column;

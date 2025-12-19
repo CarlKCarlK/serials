@@ -14,7 +14,7 @@ use embassy_time::Duration;
 use panic_probe as _;
 use serials::Result;
 use serials::led_strip_simple::Milliamps;
-use serials::led2d::{Frame, led2d_device_simple};
+use serials::led2d::led2d_device_simple;
 use smart_leds::colors;
 
 // First device: 4x12 display
@@ -59,10 +59,10 @@ async fn test_multiple_devices(p: embassy_rp::Peripherals, spawner: Spawner) -> 
     led8x8.write_frame(frame_8x8).await?;
 
     // Verify animations work with both
-    let frames_4x12 = [Frame::new(frame_4x12, Duration::from_millis(100))];
+    let frames_4x12 = [(frame_4x12, Duration::from_millis(100))];
     led4x12.animate(&frames_4x12).await?;
 
-    let frames_8x8 = [Frame::new(frame_8x8, Duration::from_millis(100))];
+    let frames_8x8 = [(frame_8x8, Duration::from_millis(100))];
     led8x8.animate(&frames_8x8).await?;
 
     // Verify N constant is correct for each
