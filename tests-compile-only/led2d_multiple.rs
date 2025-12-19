@@ -47,13 +47,13 @@ async fn test_multiple_devices(p: embassy_rp::Peripherals, spawner: Spawner) -> 
 
     // Verify associated constants don't collide
     // Create frame for 4x12 display
-    let mut frame_4x12 = [[colors::BLACK; Led4x12::COLS]; Led4x12::ROWS];
+    let mut frame_4x12 = Led4x12::new_frame();
     frame_4x12[0][0] = colors::RED;
     frame_4x12[Led4x12::ROWS - 1][Led4x12::COLS - 1] = colors::BLUE;
     led4x12.write_frame(frame_4x12).await?;
 
     // Create frame for 8x8 display (different dimensions)
-    let mut frame_8x8 = [[colors::BLACK; Led8x8::COLS]; Led8x8::ROWS];
+    let mut frame_8x8 = Led8x8::new_frame();
     frame_8x8[0][0] = colors::GREEN;
     frame_8x8[Led8x8::ROWS - 1][Led8x8::COLS - 1] = colors::YELLOW;
     led8x8.write_frame(frame_8x8).await?;

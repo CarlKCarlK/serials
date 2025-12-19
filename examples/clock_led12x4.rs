@@ -359,12 +359,12 @@ impl State {
 
 async fn show_portal_ready(led_12x4: &Led12x4) -> Result<()> {
     let on_frame = text_frame(['C', 'O', 'N', 'N'], DIGIT_COLORS);
-    let off_frame = [[colors::BLACK; Led12x4::COLS]; Led12x4::ROWS];
-    let frames = [
-        (on_frame, Duration::from_millis(700)),
-        (off_frame, Duration::from_millis(300)),
-    ];
-    led_12x4.animate(&frames).await
+    led_12x4
+        .animate(&[
+            (on_frame, Duration::from_millis(700)),
+            (Led12x4::new_frame(), Duration::from_millis(300)),
+        ])
+        .await
 }
 
 async fn show_connecting(led_12x4: &Led12x4, try_index: u8, _try_count: u8) -> Result<()> {

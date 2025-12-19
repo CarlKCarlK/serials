@@ -162,6 +162,12 @@ impl Led12x4 {
     /// Total number of LEDs (ROWS * COLS).
     pub const N: usize = N;
 
+    /// Create a new blank (all black) frame.
+    #[must_use]
+    pub const fn new_frame() -> [[RGB8; COLS]; ROWS] {
+        [[RGB8::new(0, 0, 0); COLS]; ROWS]
+    }
+
     /// Creates static channel resources for the display.
     #[must_use]
     pub const fn new_static() -> Led12x4Static {

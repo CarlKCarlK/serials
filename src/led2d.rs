@@ -498,6 +498,12 @@ macro_rules! led2d_device_simple {
                     }
                 }
 
+                /// Create a new blank (all black) frame.
+                #[must_use]
+                $vis const fn new_frame() -> [[::smart_leds::RGB8; $cols_const]; $rows_const] {
+                    [[::smart_leds::RGB8::new(0, 0, 0); $cols_const]; $rows_const]
+                }
+
                 /// Create the device, spawning the background task.
                 ///
                 /// # Parameters

@@ -77,12 +77,12 @@ async fn demo_blink_text(led_12x4: &Led12x4) -> Result<()> {
         ['r', 'u', 's', 't'],
         [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
     );
-    let off_frame = [[colors::BLACK; Led12x4::COLS]; Led12x4::ROWS];
-    let frames = [
-        (on_frame, Duration::from_millis(500)),
-        (off_frame, Duration::from_millis(500)),
-    ];
-    led_12x4.animate(&frames).await
+    led_12x4
+        .animate(&[
+            (on_frame, Duration::from_millis(500)),
+            (Led12x4::new_frame(), Duration::from_millis(500)),
+        ])
+        .await
 }
 
 /// Frame builder that implements DrawTarget for embedded-graphics.
