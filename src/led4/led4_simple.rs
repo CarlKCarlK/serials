@@ -80,6 +80,9 @@ impl Led4SimpleStatic {
 ///     
 ///     Ok(())
 /// }
+/// #
+/// # #[embassy_executor::main]
+/// # async fn main(_spawner: embassy_executor::Spawner) { loop {} }
 /// ```
 pub struct Led4Simple<'a>(&'a Led4SimpleStatic);
 

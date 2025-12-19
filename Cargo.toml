@@ -130,6 +130,7 @@ embassy-net = { git = "https://github.com/embassy-rs/embassy", branch = "main", 
 static_cell = "2.1.0"
 embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy", branch = "main", default-features = false, optional = true }
 paste = "1.0"
+embedded-graphics = { version = "0.8", default-features = false }
 
 [patch.crates-io]
 embassy-executor = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
@@ -147,9 +148,6 @@ embassy-net-driver = { git = "https://github.com/embassy-rs/embassy", branch = "
 embassy-net-driver-channel = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 cyw43 = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
 cyw43-pio = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
-
-[dev-dependencies]
-embedded-graphics = { version = "0.8", default-features = false }
 
 [lints.rust]
 # To use the `unsafe` keyword, do not remove the `unsafe_code = "forbid"` entry.

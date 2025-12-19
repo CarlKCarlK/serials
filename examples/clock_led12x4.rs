@@ -8,6 +8,7 @@
 #![no_main]
 #![cfg(feature = "wifi")]
 #![feature(never_type)]
+#![feature(inherent_associated_types)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
 use core::pin::pin;
@@ -22,7 +23,7 @@ use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led_strip_simple::colors;
 use serials::led12x4::{
-    Led12x4, Led12x4Static, Milliamps, new_led12x4, perimeter_chase_animation, text_frame,
+    Frame, Led12x4, Led12x4Static, Milliamps, new_led12x4, perimeter_chase_animation, text_frame,
 };
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};

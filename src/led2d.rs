@@ -9,6 +9,7 @@ use core::convert::Infallible;
 use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Timer};
+use embedded_graphics::{draw_target::DrawTarget, pixelcolor::Rgb888, prelude::*};
 use heapless::Vec;
 use smart_leds::RGB8;
 
@@ -17,6 +18,82 @@ use crate::Result;
 // cmk does this need to be limited and public
 /// Maximum frames supported by [`Led2d::animate`].
 pub const ANIMATION_MAX_FRAMES: usize = 32;
+
+/// Pixel frame for LED matrix displays.
+///
+/// Wraps a 2D array of RGB pixels with support for indexing and embedded-graphics.
+#[derive(Clone, Copy, Debug)]
+pub struct Frame<const ROWS: usize, const COLS: usize>(pub [[RGB8; COLS]; ROWS]);
+
+impl<const ROWS: usize, const COLS: usize> Frame<ROWS, COLS> {
+    /// Create a new blank (all black) frame.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self([[RGB8::new(0, 0, 0); COLS]; ROWS])
+    }
+
+    /// Create a frame filled with a single color.
+    #[must_use]
+    pub const fn filled(color: RGB8) -> Self {
+        Self([[color; COLS]; ROWS])
+    }
+}
+
+impl<const ROWS: usize, const COLS: usize> core::ops::Deref for Frame<ROWS, COLS> {
+    type Target = [[RGB8; COLS]; ROWS];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<const ROWS: usize, const COLS: usize> core::ops::DerefMut for Frame<ROWS, COLS> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<const ROWS: usize, const COLS: usize> From<[[RGB8; COLS]; ROWS]> for Frame<ROWS, COLS> {
+    fn from(array: [[RGB8; COLS]; ROWS]) -> Self {
+        Self(array)
+    }
+}
+
+impl<const ROWS: usize, const COLS: usize> From<Frame<ROWS, COLS>> for [[RGB8; COLS]; ROWS] {
+    fn from(frame: Frame<ROWS, COLS>) -> Self {
+        frame.0
+    }
+}
+
+impl<const ROWS: usize, const COLS: usize> OriginDimensions for Frame<ROWS, COLS> {
+    fn size(&self) -> Size {
+        Size::new(COLS as u32, ROWS as u32)
+    }
+}
+
+impl<const ROWS: usize, const COLS: usize> DrawTarget for Frame<ROWS, COLS> {
+    type Color = Rgb888;
+    type Error = core::convert::Infallible;
+
+    fn draw_iter<I>(&mut self, pixels: I) -> core::result::Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        for Pixel(coord, color) in pixels {
+            let column_index = coord.x;
+            let row_index = coord.y;
+            if column_index >= 0
+                && column_index < COLS as i32
+                && row_index >= 0
+                && row_index < ROWS as i32
+            {
+                self.0[row_index as usize][column_index as usize] =
+                    RGB8::new(color.r(), color.g(), color.b());
+            }
+        }
+        Ok(())
+    }
+}
 
 pub type Led2dCommandSignal<const N: usize> = Signal<CriticalSectionRawMutex, Command<N>>;
 pub type Led2dCompletionSignal = Signal<CriticalSectionRawMutex, ()>;
@@ -89,7 +166,7 @@ impl<'a, const N: usize> Led2d<'a, N> {
     /// Convert 2D frame to 1D array using the mapping.
     fn convert_frame<const ROWS: usize, const COLS: usize>(
         &self,
-        frame_2d: [[RGB8; COLS]; ROWS],
+        frame_2d: Frame<ROWS, COLS>,
     ) -> [RGB8; N] {
         let mut frame_1d = [RGB8::new(0, 0, 0); N];
         for row_index in 0..ROWS {
@@ -106,7 +183,7 @@ impl<'a, const N: usize> Led2d<'a, N> {
     /// Frame is a 2D array in row-major order where `frame[row][col]` is the pixel at (col, row).
     pub async fn write_frame<const ROWS: usize, const COLS: usize>(
         &self,
-        frame: [[RGB8; COLS]; ROWS],
+        frame: Frame<ROWS, COLS>,
     ) -> Result<()> {
         let frame_1d = self.convert_frame(frame);
         self.command_signal.signal(Command::DisplayStatic(frame_1d));
@@ -116,19 +193,19 @@ impl<'a, const N: usize> Led2d<'a, N> {
 
     /// Loop through a sequence of animation frames until interrupted by another command.
     ///
-    /// Each frame is a tuple of (pixels, duration) where pixels is a 2D array in row-major order.
+    /// Each frame is a tuple of (Frame, duration).
     pub async fn animate<const ROWS: usize, const COLS: usize>(
         &self,
-        frames: &[([[RGB8; COLS]; ROWS], Duration)],
+        frames: &[(Frame<ROWS, COLS>, Duration)],
     ) -> Result<()> {
         assert!(!frames.is_empty(), "animation requires at least one frame");
         let mut sequence: Vec<([RGB8; N], Duration), ANIMATION_MAX_FRAMES> = Vec::new();
-        for (pixels, duration) in frames {
+        for (frame, duration) in frames {
             assert!(
                 duration.as_micros() > 0,
                 "animation frame duration must be positive"
             );
-            let frame_1d = self.convert_frame(*pixels);
+            let frame_1d = self.convert_frame(*frame);
             sequence
                 .push((frame_1d, *duration))
                 .expect("animation sequence fits");
@@ -237,8 +314,9 @@ async fn run_animation_loop<const N: usize, S: LedStrip<N>>(
 /// support generics. This macro generates the boilerplate wrapper and keeps your modules tidy.
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
 /// # #![no_std]
+/// # #![no_main]
 /// # use panic_probe as _;
 /// use embassy_executor::Spawner;
 /// use embassy_rp::{init, peripherals::PIO1};
@@ -249,6 +327,9 @@ async fn run_animation_loop<const N: usize, S: LedStrip<N>>(
 /// const COLS: usize = 12;
 /// const ROWS: usize = 4;
 /// const N: usize = COLS * ROWS;
+/// #
+/// # #[embassy_executor::main]
+/// # async fn main(_spawner: Spawner) { loop {} }
 ///
 #[macro_export]
 macro_rules! led2d_device_task {
@@ -307,8 +388,9 @@ pub use led2d_device_task;
 /// `new_static`/`new` so callers do not need to wire up the signals and task spawning manually.
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
 /// # #![no_std]
+/// # #![no_main]
 /// # use panic_probe as _;
 /// use defmt::info;
 /// use embassy_executor::Spawner;
@@ -321,6 +403,9 @@ pub use led2d_device_task;
 /// const ROWS: usize = 4;
 /// const N: usize = COLS * ROWS;
 /// const MAPPING: [u16; N] = serials::led2d::serpentine_column_major_mapping::<N, ROWS, COLS>();
+/// #
+/// # #[embassy_executor::main]
+/// # async fn main(_spawner: Spawner) { loop {} }
 ///
 #[macro_export]
 macro_rules! led2d_device {
@@ -389,7 +474,10 @@ pub use led2d_device;
 /// # Examples
 ///
 /// With serpentine mapping:
-/// ```ignore
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
 /// use serials::led2d::led2d_device_simple;
 ///
 /// led2d_device_simple! {
@@ -399,10 +487,18 @@ pub use led2d_device;
 ///     pio: PIO1,
 ///     mapping: serpentine_column_major,
 /// }
+/// # use embassy_executor::Spawner;
+/// # #[embassy_executor::main]
+/// # async fn main(_spawner: Spawner) { loop {} }
 /// ```
 ///
 /// With custom mapping:
-/// ```ignore
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// use serials::led2d::led2d_device_simple;
+///
 /// led2d_device_simple! {
 ///     pub led4x4,
 ///     rows: 4,
@@ -415,6 +511,9 @@ pub use led2d_device;
 ///         12, 13, 14, 15
 ///     ]),
 /// }
+/// # use embassy_executor::Spawner;
+/// # #[embassy_executor::main]
+/// # async fn main(_spawner: Spawner) { loop {} }
 /// ```
 #[macro_export]
 macro_rules! led2d_device_simple {
@@ -500,8 +599,8 @@ macro_rules! led2d_device_simple {
 
                 /// Create a new blank (all black) frame.
                 #[must_use]
-                $vis const fn new_frame() -> [[::smart_leds::RGB8; $cols_const]; $rows_const] {
-                    [[::smart_leds::RGB8::new(0, 0, 0); $cols_const]; $rows_const]
+                $vis const fn new_frame() -> $crate::led2d::Frame<$rows_const, $cols_const> {
+                    $crate::led2d::Frame::new()
                 }
 
                 /// Create the device, spawning the background task.
@@ -546,14 +645,14 @@ macro_rules! led2d_device_simple {
                 /// Render a fully defined frame to the display.
                 ///
                 /// Frame is a 2D array in row-major order where `frame[row][col]` is the pixel at (col, row).
-                $vis async fn write_frame(&self, frame: [[::smart_leds::RGB8; $cols_const]; $rows_const]) -> $crate::Result<()> {
+                $vis async fn write_frame(&self, frame: $crate::led2d::Frame<$rows_const, $cols_const>) -> $crate::Result<()> {
                     self.led2d.write_frame(frame).await
                 }
 
                 /// Loop through a sequence of animation frames.
                 ///
-                /// Each frame is a tuple of (pixels, duration) where pixels is a 2D array in row-major order.
-                $vis async fn animate(&self, frames: &[([[::smart_leds::RGB8; $cols_const]; $rows_const], ::embassy_time::Duration)]) -> $crate::Result<()> {
+                /// Each frame is a tuple of (Frame, duration).
+                $vis async fn animate(&self, frames: &[($crate::led2d::Frame<$rows_const, $cols_const>, ::embassy_time::Duration)]) -> $crate::Result<()> {
                     self.led2d.animate(frames).await
                 }
             }

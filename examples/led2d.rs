@@ -102,56 +102,9 @@ async fn demo_blink_pattern(led4x12: &Led4x12) -> Result<()> {
         .await
 }
 
-/// Frame builder that implements DrawTarget for embedded-graphics.
-struct FrameBuilder {
-    image: [[RGB8; Led4x12::COLS]; Led4x12::ROWS],
-}
-
-impl FrameBuilder {
-    fn new() -> Self {
-        Self {
-            image: Led4x12::new_frame(),
-        }
-    }
-
-    fn build(&self) -> [[RGB8; Led4x12::COLS]; Led4x12::ROWS] {
-        self.image
-    }
-}
-
-impl DrawTarget for FrameBuilder {
-    type Color = Rgb888;
-    type Error = core::convert::Infallible;
-
-    fn draw_iter<I>(&mut self, pixels: I) -> core::result::Result<(), Self::Error>
-    where
-        I: IntoIterator<Item = Pixel<Self::Color>>,
-    {
-        for Pixel(coord, color) in pixels {
-            let column_index = coord.x;
-            let row_index = coord.y;
-            if column_index >= 0
-                && column_index < Led4x12::COLS as i32
-                && row_index >= 0
-                && row_index < Led4x12::ROWS as i32
-            {
-                self.image[row_index as usize][column_index as usize] =
-                    RGB8::new(color.r(), color.g(), color.b());
-            }
-        }
-        Ok(())
-    }
-}
-
-impl OriginDimensions for FrameBuilder {
-    fn size(&self) -> Size {
-        Size::new(Led4x12::COLS as u32, Led4x12::ROWS as u32)
-    }
-}
-
 /// Create a red rectangle border with blue diagonals using embedded-graphics.
 async fn demo_rectangle_diagonals_embedded_graphics(led4x12: &Led4x12) -> Result<()> {
-    let mut frame_builder = FrameBuilder::new();
+    let mut frame = Led4x12::new_frame();
 
     // Draw red rectangle border
     Rectangle::new(
@@ -159,7 +112,7 @@ async fn demo_rectangle_diagonals_embedded_graphics(led4x12: &Led4x12) -> Result
         Size::new(Led4x12::COLS as u32, Led4x12::ROWS as u32),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::RED, 1))
-    .draw(&mut frame_builder)
+    .draw(&mut frame)
     .map_err(|_| Error::FormatError)?;
 
     // Draw blue diagonal lines from corner to corner
@@ -168,7 +121,7 @@ async fn demo_rectangle_diagonals_embedded_graphics(led4x12: &Led4x12) -> Result
         Point::new((Led4x12::COLS - 1) as i32, (Led4x12::ROWS - 1) as i32),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
-    .draw(&mut frame_builder)
+    .draw(&mut frame)
     .map_err(|_| Error::FormatError)?;
 
     Line::new(
@@ -176,10 +129,9 @@ async fn demo_rectangle_diagonals_embedded_graphics(led4x12: &Led4x12) -> Result
         Point::new((Led4x12::COLS - 1) as i32, 0),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
-    .draw(&mut frame_builder)
+    .draw(&mut frame)
     .map_err(|_| Error::FormatError)?;
 
-    let frame = frame_builder.build();
     led4x12.write_frame(frame).await
 }
 
@@ -245,7 +197,7 @@ async fn demo_bouncing_dot_animation(led4x12: &Led4x12) -> Result<()> {
         colors::MAGENTA,
     ];
 
-    let mut frames = Vec::<([[RGB8; Led4x12::COLS]; Led4x12::ROWS], Duration), 32>::new();
+    let mut frames = Vec::<_, 32>::new();
     let mut column_index: isize = 0;
     let mut row_index: isize = 0;
     let mut delta_column: isize = 1;

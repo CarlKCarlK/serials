@@ -4,6 +4,8 @@
 #![cfg_attr(not(feature = "host"), no_main)]
 #![allow(async_fn_in_trait, reason = "single-threaded embedded")]
 
+// cmk make stable?
+
 // Compile-time checks: exactly one board must be selected (unless testing with host feature)
 #[cfg(all(not(any(feature = "pico1", feature = "pico2")), not(feature = "host")))]
 compile_error!("Must enable exactly one board feature: 'pico1' or 'pico2'");

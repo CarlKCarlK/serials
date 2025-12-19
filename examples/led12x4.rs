@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(never_type)]
+#![feature(inherent_associated_types)]
 #![allow(clippy::future_not_send, reason = "single-threaded")]
 
 use defmt::info;
@@ -86,56 +87,9 @@ async fn demo_blink_text(led_12x4: &Led12x4) -> Result<()> {
 }
 
 /// Frame builder that implements DrawTarget for embedded-graphics.
-struct FrameBuilder {
-    image: [[RGB8; Led12x4::COLS]; Led12x4::ROWS],
-}
-
-impl FrameBuilder {
-    fn new() -> Self {
-        let black = RGB8::new(0, 0, 0);
-        Self {
-            image: [[black; Led12x4::COLS]; Led12x4::ROWS],
-        }
-    }
-
-    fn build(&self) -> [[RGB8; Led12x4::COLS]; Led12x4::ROWS] {
-        self.image
-    }
-}
-
-impl DrawTarget for FrameBuilder {
-    type Color = Rgb888;
-    type Error = core::convert::Infallible;
-
-    fn draw_iter<I>(&mut self, pixels: I) -> core::result::Result<(), Self::Error>
-    where
-        I: IntoIterator<Item = Pixel<Self::Color>>,
-    {
-        for Pixel(coord, color) in pixels {
-            let column_index = coord.x;
-            let row_index = coord.y;
-            if column_index >= 0
-                && column_index < Led12x4::COLS as i32
-                && row_index >= 0
-                && row_index < Led12x4::ROWS as i32
-            {
-                self.image[row_index as usize][column_index as usize] =
-                    RGB8::new(color.r(), color.g(), color.b());
-            }
-        }
-        Ok(())
-    }
-}
-
-impl OriginDimensions for FrameBuilder {
-    fn size(&self) -> Size {
-        Size::new(Led12x4::COLS as u32, Led12x4::ROWS as u32)
-    }
-}
-
 /// Create a red rectangle border with blue diagonals using embedded-graphics.
 async fn demo_rectangle_diagonals_embedded_graphics(led_12x4: &Led12x4) -> Result<()> {
-    let mut frame_builder = FrameBuilder::new();
+    let mut frame = Led12x4::new_frame();
 
     // Draw red rectangle border
     Rectangle::new(
@@ -143,7 +97,7 @@ async fn demo_rectangle_diagonals_embedded_graphics(led_12x4: &Led12x4) -> Resul
         Size::new(Led12x4::COLS as u32, Led12x4::ROWS as u32),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::RED, 1))
-    .draw(&mut frame_builder)
+    .draw(&mut frame)
     .map_err(|_| serials::Error::FormatError)?;
 
     // Draw blue diagonal lines from corner to corner
@@ -152,7 +106,7 @@ async fn demo_rectangle_diagonals_embedded_graphics(led_12x4: &Led12x4) -> Resul
         Point::new((Led12x4::COLS - 1) as i32, (Led12x4::ROWS - 1) as i32),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
-    .draw(&mut frame_builder)
+    .draw(&mut frame)
     .map_err(|_| serials::Error::FormatError)?;
 
     Line::new(
@@ -160,10 +114,9 @@ async fn demo_rectangle_diagonals_embedded_graphics(led_12x4: &Led12x4) -> Resul
         Point::new((Led12x4::COLS - 1) as i32, 0),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
-    .draw(&mut frame_builder)
+    .draw(&mut frame)
     .map_err(|_| serials::Error::FormatError)?;
 
-    let frame = frame_builder.build();
     led_12x4.write_frame(frame).await
 }
 
@@ -178,7 +131,6 @@ async fn demo_bouncing_dot_manual(led_12x4: &Led12x4) -> Result<()> {
         colors::MAGENTA,
     ];
 
-    let black = RGB8::new(0, 0, 0);
     let mut column_index: isize = 0;
     let mut row_index: isize = 0;
     let mut delta_column: isize = 1;
@@ -186,7 +138,7 @@ async fn demo_bouncing_dot_manual(led_12x4: &Led12x4) -> Result<()> {
     let mut color_index: usize = 0;
 
     for _ in 0..100 {
-        let mut frame = [[black; Led12x4::COLS]; Led12x4::ROWS];
+        let mut frame = Led12x4::new_frame();
         frame[row_index as usize][column_index as usize] = COLORS[color_index];
         led_12x4.write_frame(frame).await?;
 
@@ -230,8 +182,7 @@ async fn demo_bouncing_dot_animation(led_12x4: &Led12x4) -> Result<()> {
         colors::MAGENTA,
     ];
 
-    let black = RGB8::new(0, 0, 0);
-    let mut frames = Vec::<Frame, 32>::new();
+    let mut frames = Vec::<(Frame, Duration), 32>::new();
     let mut column_index: isize = 0;
     let mut row_index: isize = 0;
     let mut delta_column: isize = 1;
@@ -239,7 +190,7 @@ async fn demo_bouncing_dot_animation(led_12x4: &Led12x4) -> Result<()> {
     let mut color_index: usize = 0;
 
     for _ in 0..32 {
-        let mut frame = [[black; Led12x4::COLS]; Led12x4::ROWS];
+        let mut frame = Led12x4::new_frame();
         frame[row_index as usize][column_index as usize] = COLORS[color_index];
         frames
             .push((frame, Duration::from_millis(50)))

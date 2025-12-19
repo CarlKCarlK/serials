@@ -41,13 +41,14 @@ type Led12x4CompletionSignal = Signal<CriticalSectionRawMutex, ()>;
 pub enum Command {
     DisplayStatic([RGB8; N]),
     DisplayChars { chars: [char; 4], colors: [RGB8; 4] },
-    Animate(Vec<Frame, ANIMATION_MAX_FRAMES>),
+    Animate(Vec<AnimFrame, ANIMATION_MAX_FRAMES>),
 }
 
-/// Frame of animation for [`Led12x4::animate`]. See [`Led12x4`] for usage.
-///
-/// A frame is a tuple of (pixels, duration) where pixels is a 2D array in row-major order.
-pub type Frame = ([[RGB8; COLS]; ROWS], Duration);
+/// Frame type for [`Led12x4`]. See [`Led12x4`] for usage.
+pub type Frame = led2d::Frame<ROWS, COLS>;
+
+/// Animation frame type (Frame + duration) for [`Led12x4::animate`].
+pub type AnimFrame = (Frame, Duration);
 
 /// Signal resources for [`Led12x4`].
 pub struct Led12x4Static {
@@ -164,8 +165,8 @@ impl Led12x4 {
 
     /// Create a new blank (all black) frame.
     #[must_use]
-    pub const fn new_frame() -> [[RGB8; COLS]; ROWS] {
-        [[RGB8::new(0, 0, 0); COLS]; ROWS]
+    pub const fn new_frame() -> Frame {
+        Frame::new()
     }
 
     /// Creates static channel resources for the display.
@@ -202,7 +203,7 @@ impl Led12x4 {
     /// Render a fully defined frame to the display.
     ///
     /// Frame is a 2D array in row-major order where `frame[row][col]` is the pixel at (col, row).
-    pub async fn write_frame(&self, frame: [[RGB8; COLS]; ROWS]) -> Result<()> {
+    pub async fn write_frame(&self, frame: Frame) -> Result<()> {
         // Convert 2D to 1D using mapping
         let mut frame_1d = [RGB8::new(0, 0, 0); N];
         for row_index in 0..ROWS {
@@ -235,17 +236,15 @@ impl Led12x4 {
 
     // cmk what is this?
     /// Loop through a sequence of animation frames until interrupted by another command.
-    pub async fn animate(&self, frames: &[Frame]) -> Result<()> {
+    pub async fn animate(&self, frames: &[AnimFrame]) -> Result<()> {
         assert!(!frames.is_empty(), "animation requires at least one frame");
-        let mut sequence: Vec<Frame, ANIMATION_MAX_FRAMES> = Vec::new();
-        for (pixels, duration) in frames {
+        let mut sequence: Vec<AnimFrame, ANIMATION_MAX_FRAMES> = Vec::new();
+        for anim_frame in frames {
             assert!(
-                duration.as_micros() > 0,
+                anim_frame.1.as_micros() > 0,
                 "animation frame duration must be positive"
             );
-            sequence
-                .push((*pixels, *duration))
-                .expect("animation sequence fits");
+            sequence.push(*anim_frame).expect("animation sequence fits");
         }
         self.command_signal.signal(Command::Animate(sequence));
         self.completion_signal.wait().await;
@@ -264,7 +263,7 @@ pub fn xy_to_index(column_index: usize, row_index: usize) -> usize {
 /// This is useful when constructing custom animations manually. See the `led12x4`
 /// example for usage.
 #[must_use]
-pub fn text_frame(chars: [char; 4], colors: [RGB8; 4]) -> [[RGB8; COLS]; ROWS] {
+pub fn text_frame(chars: [char; 4], colors: [RGB8; 4]) -> Frame {
     let black = RGB8::new(0, 0, 0);
     let mut frame_1d = [black; N];
 
@@ -276,15 +275,15 @@ pub fn text_frame(chars: [char; 4], colors: [RGB8; 4]) -> [[RGB8; COLS]; ROWS] {
     }
 
     // Convert 1D to 2D
-    let mut frame_2d = [[black; COLS]; ROWS];
+    let mut frame = Frame::new();
     for row_index in 0..ROWS {
         for column_index in 0..COLS {
             let led_index = xy_to_index(column_index, row_index);
-            frame_2d[row_index][column_index] = frame_1d[led_index];
+            frame[row_index][column_index] = frame_1d[led_index];
         }
     }
 
-    frame_2d
+    frame
 }
 
 fn render_glyph(
@@ -317,15 +316,14 @@ pub fn perimeter_chase_animation(
     clockwise: bool,
     color: RGB8,
     duration: Duration,
-) -> [Frame; PERIMETER_LENGTH] {
+) -> [AnimFrame; PERIMETER_LENGTH] {
     assert!(
         duration.as_micros() > 0,
         "perimeter animation duration must be positive"
     );
     let perimeter_indices = perimeter_indices(clockwise);
-    let black = RGB8::new(0, 0, 0);
     core::array::from_fn(|frame_index| {
-        let mut frame = [[black; COLS]; ROWS];
+        let mut frame = Frame::new();
         let led_index = perimeter_indices[frame_index];
         // Convert 1D index back to 2D coordinates
         for row_index in 0..ROWS {
@@ -414,7 +412,7 @@ async fn inner_device_loop(
 }
 
 async fn run_animation_loop(
-    frames: Vec<Frame, ANIMATION_MAX_FRAMES>,
+    frames: Vec<AnimFrame, ANIMATION_MAX_FRAMES>,
     command_signal: &'static Led12x4CommandSignal,
     completion_signal: &'static Led12x4CompletionSignal,
     strip: &mut impl LedStrip<{ COLS * ROWS }>,
@@ -424,13 +422,13 @@ async fn run_animation_loop(
     let mut frame_index = 0;
 
     loop {
-        let (pixels, duration) = frames[frame_index];
+        let (frame, duration) = frames[frame_index];
         // Convert 2D frame to 1D using the mapping
         let mut frame_1d = [RGB8::new(0, 0, 0); N];
         for row_index in 0..ROWS {
             for column_index in 0..COLS {
                 let led_index = xy_to_index(column_index, row_index);
-                frame_1d[led_index] = pixels[row_index][column_index];
+                frame_1d[led_index] = frame[row_index][column_index];
             }
         }
         strip.update_pixels(&frame_1d).await?;

@@ -43,13 +43,7 @@ async fn test_led2x3_custom_mapping(p: embassy_rp::Peripherals, spawner: Spawner
     led2x3.write_frame(frame).await?;
 
     // Verify animate works
-    let mut frames = heapless::Vec::<
-        (
-            [[smart_leds::RGB8; Led2x3::COLS]; Led2x3::ROWS],
-            embassy_time::Duration,
-        ),
-        6,
-    >::new();
+    let mut frames = heapless::Vec::<_, 6>::new();
     for row_index in 0..Led2x3::ROWS {
         for column_index in 0..Led2x3::COLS {
             let mut frame = Led2x3::new_frame();
