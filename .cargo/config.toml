@@ -60,6 +60,8 @@ led12x4-2 = "run --example led12x4 --release --target thumbv8m.main-none-eabihf 
 led12x4-2-check = "check --example led12x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 led2d-2 = "run --example led2d --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 led2d-2-check = "check --example led2d --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+led2d-custom-2 = "run --example led2d_custom_mapping --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+led2d-custom-2-check = "check --example led2d_custom_mapping --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 clock-led12x4-2 = "run --example clock_led12x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
 clock-led12x4-2-check = "check --example clock_led12x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
 clock-led12x4-2w = "run --example clock_led12x4 --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
@@ -110,6 +112,8 @@ led12x4 = "run --example led12x4 --release --target thumbv6m-none-eabi --feature
 led12x4-check = "check --example led12x4 --release --target thumbv6m-none-eabi --features pico1,arm"
 led2d = "run --example led2d --release --target thumbv6m-none-eabi --features pico1,arm"
 led2d-check = "check --example led2d --release --target thumbv6m-none-eabi --features pico1,arm"
+led2d-custom = "run --example led2d_custom_mapping --release --target thumbv6m-none-eabi --features pico1,arm"
+led2d-custom-check = "check --example led2d_custom_mapping --release --target thumbv6m-none-eabi --features pico1,arm"
 
 # Documentation alias
 # Note: Using pico2,arm,wifi instead of pico1,arm,wifi because embassy-rp from git main

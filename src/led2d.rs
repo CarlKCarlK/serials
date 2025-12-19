@@ -359,14 +359,20 @@ pub use led2d_device;
 ///
 /// This macro generates all the boilerplate for a rectangular LED matrix device:
 /// - Constants: ROWS, COLS, N (total LEDs)
-/// - Mapping array (serpentine column-major by default)
+/// - Mapping array (serpentine column-major or custom)
 /// - Static struct with embedded LedStripSimple resources
 /// - Device struct with Led2d handle
 /// - Constructor that creates strip + spawns task
 /// - Wrapper methods: write_frame, animate, xy_to_index
 ///
-/// # Example
+/// # Mapping Variants
 ///
+/// - `serpentine_column_major`: Built-in serpentine column-major wiring pattern
+/// - `arbitrary([...])`: Custom mapping array (must have exactly N elements)
+///
+/// # Examples
+///
+/// With serpentine mapping:
 /// ```ignore
 /// use serials::led2d::led2d_device_simple;
 ///
@@ -375,30 +381,34 @@ pub use led2d_device;
 ///     rows: 4,
 ///     cols: 12,
 ///     pio: PIO1,
+///     mapping: serpentine_column_major,
 /// }
+/// ```
 ///
-/// // Generates:
-/// // pub struct Led12x4 { ... }
-/// // pub struct Led12x4Static { ... }
-/// // pub const ROWS: usize = 4;
-/// // pub const COLS: usize = 12;
-/// // pub const N: usize = 48;
-/// // const MAPPING: [u16; 48] = ...;
-/// // impl Led12x4 {
-/// //     pub const fn new_static() -> Led12x4Static { ... }
-/// //     pub async fn new(...) -> Result<Self> { ... }
-/// //     pub async fn write_frame(...) -> Result<()> { ... }
-/// //     pub async fn animate(...) -> Result<()> { ... }
-/// //     pub fn xy_to_index(...) -> usize { ... }
-/// // }
+/// With custom mapping:
+/// ```ignore
+/// led2d_device_simple! {
+///     pub led4x4,
+///     rows: 4,
+///     cols: 4,
+///     pio: PIO0,
+///     mapping: arbitrary([
+///         0, 1, 2, 3,
+///         4, 5, 6, 7,
+///         8, 9, 10, 11,
+///         12, 13, 14, 15
+///     ]),
+/// }
 /// ```
 #[macro_export]
 macro_rules! led2d_device_simple {
+    // Serpentine column-major mapping variant
     (
         $vis:vis $name:ident,
         rows: $rows:expr,
         cols: $cols:expr,
-        pio: $pio:ident $(,)?
+        pio: $pio:ident,
+        mapping: serpentine_column_major $(,)?
     ) => {
         $crate::led2d::paste::paste! {
             /// Number of rows in the display.
@@ -410,21 +420,41 @@ macro_rules! led2d_device_simple {
 
             const MAPPING: [u16; N] = $crate::led2d::serpentine_column_major_mapping::<N, ROWS, COLS>();
 
+            $crate::led2d::led2d_device_simple!(@common $vis, $name, $pio);
+        }
+    };
+    // Arbitrary custom mapping variant
+    (
+        $vis:vis $name:ident,
+        rows: $rows:expr,
+        cols: $cols:expr,
+        pio: $pio:ident,
+        mapping: arbitrary([$($index:expr),* $(,)?]) $(,)?
+    ) => {
+        $crate::led2d::paste::paste! {
+            /// Number of rows in the display.
+            $vis const ROWS: usize = $rows;
+            /// Number of columns in the display.
+            $vis const COLS: usize = $cols;
+            /// Total number of LEDs (ROWS * COLS).
+            $vis const N: usize = ROWS * COLS;
+
+            const MAPPING: [u16; N] = [$($index),*];
+
+            $crate::led2d::led2d_device_simple!(@common $vis, $name, $pio);
+        }
+    };
+    // Common implementation (shared by both variants)
+    (
+        @common $vis:vis,
+        $name:ident,
+        $pio:ident
+    ) => {
+        $crate::led2d::paste::paste! {
             /// Static resources for the device.
             $vis struct [<$name:camel Static>] {
                 led_strip_simple: $crate::led_strip_simple::LedStripSimpleStatic<N>,
                 led2d_static: $crate::led2d::Led2dStatic<N>,
-            }
-
-            impl [<$name:camel Static>] {
-                /// Create static resources.
-                #[must_use]
-                $vis const fn new_static() -> Self {
-                    Self {
-                        led_strip_simple: $crate::led_strip_simple::LedStripSimpleStatic::new_static(),
-                        led2d_static: $crate::led2d::Led2dStatic::new_static(),
-                    }
-                }
             }
 
             // Generate the task wrapper
@@ -443,7 +473,10 @@ macro_rules! led2d_device_simple {
                 /// Create static resources.
                 #[must_use]
                 $vis const fn new_static() -> [<$name:camel Static>] {
-                    [<$name:camel Static>]::new_static()
+                    [<$name:camel Static>] {
+                        led_strip_simple: $crate::led_strip_simple::LedStripSimpleStatic::new_static(),
+                        led2d_static: $crate::led2d::Led2dStatic::new_static(),
+                    }
                 }
 
                 /// Create the device, spawning the background task.
