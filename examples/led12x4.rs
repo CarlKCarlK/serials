@@ -17,9 +17,7 @@ use heapless::Vec;
 use panic_probe as _;
 use serials::Result;
 use serials::button::{Button, PressedTo};
-use serials::led12x4::{
-    COLS, Frame, Led12x4, Led12x4Static, Milliamps, ROWS, colors, new_led12x4, text_frame,
-};
+use serials::led12x4::{Frame, Led12x4, Led12x4Static, Milliamps, colors, new_led12x4, text_frame};
 use smart_leds::RGB8;
 
 // cmk00 make this demo better, including fixing font
@@ -79,7 +77,7 @@ async fn demo_blink_text(led_12x4: &Led12x4) -> Result<()> {
         ['r', 'u', 's', 't'],
         [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
     );
-    let off_frame = [[colors::BLACK; COLS]; ROWS];
+    let off_frame = [[colors::BLACK; Led12x4::COLS]; Led12x4::ROWS];
     let frames = [
         Frame::new(on_frame, Duration::from_millis(500)),
         Frame::new(off_frame, Duration::from_millis(500)),
@@ -89,18 +87,18 @@ async fn demo_blink_text(led_12x4: &Led12x4) -> Result<()> {
 
 /// Frame builder that implements DrawTarget for embedded-graphics.
 struct FrameBuilder {
-    image: [[RGB8; COLS]; ROWS],
+    image: [[RGB8; Led12x4::COLS]; Led12x4::ROWS],
 }
 
 impl FrameBuilder {
     fn new() -> Self {
         let black = RGB8::new(0, 0, 0);
         Self {
-            image: [[black; COLS]; ROWS],
+            image: [[black; Led12x4::COLS]; Led12x4::ROWS],
         }
     }
 
-    fn build(&self) -> [[RGB8; COLS]; ROWS] {
+    fn build(&self) -> [[RGB8; Led12x4::COLS]; Led12x4::ROWS] {
         self.image
     }
 }
@@ -117,9 +115,9 @@ impl DrawTarget for FrameBuilder {
             let column_index = coord.x;
             let row_index = coord.y;
             if column_index >= 0
-                && column_index < COLS as i32
+                && column_index < Led12x4::COLS as i32
                 && row_index >= 0
-                && row_index < ROWS as i32
+                && row_index < Led12x4::ROWS as i32
             {
                 self.image[row_index as usize][column_index as usize] =
                     RGB8::new(color.r(), color.g(), color.b());
@@ -131,7 +129,7 @@ impl DrawTarget for FrameBuilder {
 
 impl OriginDimensions for FrameBuilder {
     fn size(&self) -> Size {
-        Size::new(COLS as u32, ROWS as u32)
+        Size::new(Led12x4::COLS as u32, Led12x4::ROWS as u32)
     }
 }
 
@@ -140,23 +138,26 @@ async fn demo_rectangle_diagonals_embedded_graphics(led_12x4: &Led12x4) -> Resul
     let mut frame_builder = FrameBuilder::new();
 
     // Draw red rectangle border
-    Rectangle::new(Point::new(0, 0), Size::new(COLS as u32, ROWS as u32))
-        .into_styled(PrimitiveStyle::with_stroke(Rgb888::RED, 1))
-        .draw(&mut frame_builder)
-        .map_err(|_| serials::Error::FormatError)?;
+    Rectangle::new(
+        Point::new(0, 0),
+        Size::new(Led12x4::COLS as u32, Led12x4::ROWS as u32),
+    )
+    .into_styled(PrimitiveStyle::with_stroke(Rgb888::RED, 1))
+    .draw(&mut frame_builder)
+    .map_err(|_| serials::Error::FormatError)?;
 
     // Draw blue diagonal lines from corner to corner
     Line::new(
         Point::new(0, 0),
-        Point::new((COLS - 1) as i32, (ROWS - 1) as i32),
+        Point::new((Led12x4::COLS - 1) as i32, (Led12x4::ROWS - 1) as i32),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
     .draw(&mut frame_builder)
     .map_err(|_| serials::Error::FormatError)?;
 
     Line::new(
-        Point::new(0, (ROWS - 1) as i32),
-        Point::new((COLS - 1) as i32, 0),
+        Point::new(0, (Led12x4::ROWS - 1) as i32),
+        Point::new((Led12x4::COLS - 1) as i32, 0),
     )
     .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
     .draw(&mut frame_builder)
@@ -185,15 +186,15 @@ async fn demo_bouncing_dot_manual(led_12x4: &Led12x4) -> Result<()> {
     let mut color_index: usize = 0;
 
     for _ in 0..100 {
-        let mut frame = [[black; COLS]; ROWS];
+        let mut frame = [[black; Led12x4::COLS]; Led12x4::ROWS];
         frame[row_index as usize][column_index as usize] = COLORS[color_index];
         led_12x4.write_frame(frame).await?;
 
         column_index = column_index + delta_column;
         row_index = row_index + delta_row;
 
-        if column_index >= COLS as isize {
-            column_index = (COLS as isize) - 2;
+        if column_index >= Led12x4::COLS as isize {
+            column_index = (Led12x4::COLS as isize) - 2;
             delta_column = -1;
             color_index = (color_index + 1) % COLORS.len();
         } else if column_index < 0 {
@@ -202,8 +203,8 @@ async fn demo_bouncing_dot_manual(led_12x4: &Led12x4) -> Result<()> {
             color_index = (color_index + 1) % COLORS.len();
         }
 
-        if row_index >= ROWS as isize {
-            row_index = (ROWS as isize) - 2;
+        if row_index >= Led12x4::ROWS as isize {
+            row_index = (Led12x4::ROWS as isize) - 2;
             delta_row = -1;
             color_index = (color_index + 1) % COLORS.len();
         } else if row_index < 0 {
@@ -238,7 +239,7 @@ async fn demo_bouncing_dot_animation(led_12x4: &Led12x4) -> Result<()> {
     let mut color_index: usize = 0;
 
     for _ in 0..32 {
-        let mut frame = [[black; COLS]; ROWS];
+        let mut frame = [[black; Led12x4::COLS]; Led12x4::ROWS];
         frame[row_index as usize][column_index as usize] = COLORS[color_index];
         frames
             .push(Frame::new(frame, Duration::from_millis(50)))
@@ -247,8 +248,8 @@ async fn demo_bouncing_dot_animation(led_12x4: &Led12x4) -> Result<()> {
         column_index = column_index + delta_column;
         row_index = row_index + delta_row;
 
-        if column_index >= COLS as isize {
-            column_index = (COLS as isize) - 2;
+        if column_index >= Led12x4::COLS as isize {
+            column_index = (Led12x4::COLS as isize) - 2;
             delta_column = -1;
             color_index = (color_index + 1) % COLORS.len();
         } else if column_index < 0 {
@@ -257,8 +258,8 @@ async fn demo_bouncing_dot_animation(led_12x4: &Led12x4) -> Result<()> {
             color_index = (color_index + 1) % COLORS.len();
         }
 
-        if row_index >= ROWS as isize {
-            row_index = (ROWS as isize) - 2;
+        if row_index >= Led12x4::ROWS as isize {
+            row_index = (Led12x4::ROWS as isize) - 2;
             delta_row = -1;
             color_index = (color_index + 1) % COLORS.len();
         } else if row_index < 0 {

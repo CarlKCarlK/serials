@@ -250,20 +250,34 @@ fn check_all() -> ExitCode {
     }
 
     println!("\n{}", "==> Building compile-only tests...".cyan());
-    let compile_tests = ["led12x4"];
-    for test in &compile_tests {
-        println!("  {}", format!("- {test}").bright_black());
-        if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
-            "check",
-            "--bin",
-            test,
-            "--target",
-            target_pico1,
-            "--features",
-            "pico1,arm,wifi",
-            "--no-default-features",
-        ])) {
-            return ExitCode::FAILURE;
+    let compile_tests_dir = workspace_root.join("tests-compile-only");
+    if compile_tests_dir.exists() {
+        let mut compile_tests = Vec::new();
+        if let Ok(entries) = fs::read_dir(&compile_tests_dir) {
+            for entry in entries.flatten() {
+                if let Some(filename) = entry.file_name().to_str() {
+                    if filename.ends_with(".rs") {
+                        let test_name = filename.trim_end_matches(".rs");
+                        compile_tests.push(test_name.to_string());
+                    }
+                }
+            }
+        }
+        compile_tests.sort();
+        for test in &compile_tests {
+            println!("  {}", format!("- {test}").bright_black());
+            if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
+                "check",
+                "--bin",
+                test,
+                "--target",
+                target_pico1,
+                "--features",
+                "pico1,arm,wifi",
+                "--no-default-features",
+            ])) {
+                return ExitCode::FAILURE;
+            }
         }
     }
 

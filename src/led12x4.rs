@@ -153,6 +153,13 @@ pub struct Led12x4 {
 }
 
 impl Led12x4 {
+    /// Number of rows in the display.
+    pub const ROWS: usize = ROWS;
+    /// Number of columns in the display.
+    pub const COLS: usize = COLS;
+    /// Total number of LEDs (ROWS * COLS).
+    pub const N: usize = N;
+
     /// Creates static channel resources for the display.
     #[must_use]
     pub const fn new_static() -> Led12x4Static {

@@ -18,6 +18,14 @@ path = "src/lib.rs"
 name = "led12x4"
 path = "tests-compile-only/led12x4.rs"
 
+[[bin]]
+name = "led2d_custom_mapping"
+path = "tests-compile-only/led2d_custom_mapping.rs"
+
+[[bin]]
+name = "led2d_multiple"
+path = "tests-compile-only/led2d_multiple.rs"
+
 [features]
 default = ["defmt", "pico1", "arm"]
 defmt = []

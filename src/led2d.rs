@@ -453,16 +453,12 @@ macro_rules! led2d_device_simple {
         mapping: serpentine_column_major $(,)?
     ) => {
         $crate::led2d::paste::paste! {
-            /// Number of rows in the display.
-            $vis const ROWS: usize = $rows;
-            /// Number of columns in the display.
-            $vis const COLS: usize = $cols;
-            /// Total number of LEDs (ROWS * COLS).
-            $vis const N: usize = ROWS * COLS;
+            const [<$name:upper _ROWS>]: usize = $rows;
+            const [<$name:upper _COLS>]: usize = $cols;
+            const [<$name:upper _N>]: usize = [<$name:upper _ROWS>] * [<$name:upper _COLS>];
+            const [<$name:upper _MAPPING>]: [u16; [<$name:upper _N>]] = $crate::led2d::serpentine_column_major_mapping::<[<$name:upper _N>], [<$name:upper _ROWS>], [<$name:upper _COLS>]>();
 
-            const MAPPING: [u16; N] = $crate::led2d::serpentine_column_major_mapping::<N, ROWS, COLS>();
-
-            $crate::led2d::led2d_device_simple!(@common $vis, $name, $pio);
+            $crate::led2d::led2d_device_simple!(@common $vis, $name, $pio, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>]);
         }
     };
     // Arbitrary custom mapping variant
@@ -474,44 +470,51 @@ macro_rules! led2d_device_simple {
         mapping: arbitrary([$($index:expr),* $(,)?]) $(,)?
     ) => {
         $crate::led2d::paste::paste! {
-            /// Number of rows in the display.
-            $vis const ROWS: usize = $rows;
-            /// Number of columns in the display.
-            $vis const COLS: usize = $cols;
-            /// Total number of LEDs (ROWS * COLS).
-            $vis const N: usize = ROWS * COLS;
+            const [<$name:upper _ROWS>]: usize = $rows;
+            const [<$name:upper _COLS>]: usize = $cols;
+            const [<$name:upper _N>]: usize = [<$name:upper _ROWS>] * [<$name:upper _COLS>];
+            const [<$name:upper _MAPPING>]: [u16; [<$name:upper _N>]] = [$($index),*];
 
-            const MAPPING: [u16; N] = [$($index),*];
-
-            $crate::led2d::led2d_device_simple!(@common $vis, $name, $pio);
+            $crate::led2d::led2d_device_simple!(@common $vis, $name, $pio, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>]);
         }
     };
     // Common implementation (shared by both variants)
     (
         @common $vis:vis,
         $name:ident,
-        $pio:ident
+        $pio:ident,
+        $rows_const:ident,
+        $cols_const:ident,
+        $n_const:ident,
+        $mapping_const:ident
     ) => {
         $crate::led2d::paste::paste! {
             /// Static resources for the device.
             $vis struct [<$name:camel Static>] {
-                led_strip_simple: $crate::led_strip_simple::LedStripSimpleStatic<N>,
-                led2d_static: $crate::led2d::Led2dStatic<N>,
+                led_strip_simple: $crate::led_strip_simple::LedStripSimpleStatic<$n_const>,
+                led2d_static: $crate::led2d::Led2dStatic<$n_const>,
             }
 
             // Generate the task wrapper
             $crate::led2d::led2d_device_task!(
                 [<$name _device_loop>],
-                $crate::led_strip_simple::LedStripSimple<'static, ::embassy_rp::peripherals::$pio, N>,
-                N
+                $crate::led_strip_simple::LedStripSimple<'static, ::embassy_rp::peripherals::$pio, $n_const>,
+                $n_const
             );
 
             /// Device abstraction for the LED matrix.
             $vis struct [<$name:camel>] {
-                led2d: $crate::led2d::Led2d<'static, N>,
+                led2d: $crate::led2d::Led2d<'static, $n_const>,
             }
 
             impl [<$name:camel>] {
+                /// Number of rows in the display.
+                pub const ROWS: usize = $rows_const;
+                /// Number of columns in the display.
+                pub const COLS: usize = $cols_const;
+                /// Total number of LEDs (ROWS * COLS).
+                pub const N: usize = $n_const;
+
                 /// Create static resources.
                 #[must_use]
                 $vis const fn new_static() -> [<$name:camel Static>] {
@@ -553,8 +556,8 @@ macro_rules! led2d_device_simple {
 
                     let led2d = $crate::led2d::Led2d::new(
                         &static_resources.led2d_static,
-                        &MAPPING,
-                        COLS,
+                        &$mapping_const,
+                        $cols_const,
                     );
 
                     Ok(Self { led2d })
@@ -563,21 +566,17 @@ macro_rules! led2d_device_simple {
                 /// Render a fully defined frame to the display.
                 ///
                 /// Frame is a 2D array in row-major order where `frame[row][col]` is the pixel at (col, row).
-                $vis async fn write_frame(&self, frame: [[::smart_leds::RGB8; COLS]; ROWS]) -> $crate::Result<()> {
+                $vis async fn write_frame(&self, frame: [[::smart_leds::RGB8; $cols_const]; $rows_const]) -> $crate::Result<()> {
                     self.led2d.write_frame(frame).await
                 }
 
                 /// Loop through a sequence of animation frames.
                 ///
                 /// Each frame is a 2D array in row-major order where `frame[row][col]` is the pixel at (col, row).
-                $vis async fn animate(&self, frames: &[$crate::led2d::Frame<ROWS, COLS>]) -> $crate::Result<()> {
+                $vis async fn animate(&self, frames: &[$crate::led2d::Frame<$rows_const, $cols_const>]) -> $crate::Result<()> {
                     self.led2d.animate(frames).await
                 }
             }
-
-            // Re-export common items for convenience
-            $vis use $crate::led_strip_simple::Milliamps;
-            $vis use ::smart_leds::colors;
         }
     };
 }

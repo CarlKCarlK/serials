@@ -22,7 +22,7 @@ use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led_strip_simple::colors;
 use serials::led12x4::{
-    COLS, Frame, Led12x4, Led12x4Static, Milliamps, ROWS, new_led12x4, perimeter_chase_animation,
+    Frame, Led12x4, Led12x4Static, Milliamps, new_led12x4, perimeter_chase_animation,
     text_frame,
 };
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
@@ -360,7 +360,7 @@ impl State {
 
 async fn show_portal_ready(led_12x4: &Led12x4) -> Result<()> {
     let on_frame = text_frame(['C', 'O', 'N', 'N'], DIGIT_COLORS);
-    let off_frame = [[colors::BLACK; COLS]; ROWS];
+    let off_frame = [[colors::BLACK; Led12x4::COLS]; Led12x4::ROWS];
     let frames = [
         Frame::new(on_frame, Duration::from_millis(700)),
         Frame::new(off_frame, Duration::from_millis(300)),
