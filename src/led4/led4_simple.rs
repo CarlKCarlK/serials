@@ -39,51 +39,7 @@ impl Led4SimpleStatic {
 ///
 /// Use this if you don't need animation or blinking. For blinking or animation support, use [`Led4`](crate::led4::Led4) instead.
 ///
-/// # Example
-///
-/// This example is ignored because `Led4Simple` is crate-internal. Users should use [`Led4`](crate::led4::Led4) instead.
-///
-/// ```ignore
-/// # #![no_std]
-/// # #![no_main]
-/// use serials::led4::led4_simple::{Led4Simple, Led4SimpleStatic};
-/// use serials::led4::OutputArray;
-/// # #[panic_handler]
-/// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
-///
-/// async fn example(p: embassy_rp::Peripherals, spawner: embassy_executor::Spawner) -> Result<(), embassy_executor::SpawnError> {
-///     let cells = OutputArray::new([
-///         embassy_rp::gpio::Output::new(p.PIN_1, embassy_rp::gpio::Level::High),
-///         embassy_rp::gpio::Output::new(p.PIN_2, embassy_rp::gpio::Level::High),
-///         embassy_rp::gpio::Output::new(p.PIN_3, embassy_rp::gpio::Level::High),
-///         embassy_rp::gpio::Output::new(p.PIN_4, embassy_rp::gpio::Level::High),
-///     ]);
-///     let segments = OutputArray::new([
-///         embassy_rp::gpio::Output::new(p.PIN_5, embassy_rp::gpio::Level::Low),
-///         embassy_rp::gpio::Output::new(p.PIN_6, embassy_rp::gpio::Level::Low),
-///         embassy_rp::gpio::Output::new(p.PIN_7, embassy_rp::gpio::Level::Low),
-///         embassy_rp::gpio::Output::new(p.PIN_8, embassy_rp::gpio::Level::Low),
-///         embassy_rp::gpio::Output::new(p.PIN_9, embassy_rp::gpio::Level::Low),
-///         embassy_rp::gpio::Output::new(p.PIN_10, embassy_rp::gpio::Level::Low),
-///         embassy_rp::gpio::Output::new(p.PIN_11, embassy_rp::gpio::Level::Low),
-///         embassy_rp::gpio::Output::new(p.PIN_12, embassy_rp::gpio::Level::Low),
-///     ]);
-///     
-///     static LED4_SIMPLE_STATIC: Led4SimpleStatic = Led4Simple::new_static();
-///     let display = Led4Simple::new(&LED4_SIMPLE_STATIC, cells, segments, spawner)?;
-///     
-///     // Display "1234"
-///     display.write_text(['1', '2', '3', '4']);
-///     
-///     // Display "rUSt"
-///     display.write_text(['r', 'U', 'S', 't']);
-///     
-///     Ok(())
-/// }
-/// #
-/// # #[embassy_executor::main]
-/// # async fn main(_spawner: embassy_executor::Spawner) { loop {} }
-/// ```
+/// This is an internal struct. Users should use [`Led4`](crate::led4::Led4) instead.
 pub struct Led4Simple<'a>(&'a Led4SimpleStatic);
 
 impl Led4Simple<'_> {

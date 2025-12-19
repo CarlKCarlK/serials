@@ -133,182 +133,183 @@ fn check_all() -> ExitCode {
     let features_wifi_pico2 = build_features(board_pico2, arch, true);
     let features_wifi_pico1 = build_features(board_pico1, arch, true);
 
-    println!("{}", "==> Running doc tests...".cyan());
-    if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
-        "test",
-        "--doc",
-        "--target",
-        target_pico2,
-        "--features",
-        features_wifi_pico2.as_str(),
-        "--no-default-features",
-    ])) {
-        return ExitCode::FAILURE;
-    }
+    println!("{}", "==> Running all checks in parallel...".cyan());
 
-    println!("\n{}", "==> Running unit tests...".cyan());
-    let host_target = host_target();
-    match host_target.as_deref() {
-        Some(target) => {
-            println!(
-                "  {}",
-                format!("Using host target: {target}").bright_black()
-            );
-        }
-        None => {
-            println!(
-                "{}",
-                "  Unable to detect host target; relying on cargo default.".bright_black()
-            );
-        }
-    }
+    let failures = Mutex::new(Vec::new());
 
-    let mut unit_test_cmd = Command::new("cargo");
-    unit_test_cmd
-        .current_dir(&workspace_root)
-        .args(["test", "--lib"]);
-
-    if let Some(target) = host_target {
-        unit_test_cmd.arg("--target").arg(target);
-    }
-
-    unit_test_cmd.args(["--no-default-features", "--features", "host"]);
-
-    if !run_command(&mut unit_test_cmd) {
-        return ExitCode::FAILURE;
-    }
-
-    println!("\n{}", "==> Building library...".cyan());
-    if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
-        "build",
-        "--lib",
-        "--target",
-        target_pico2,
-        "--features",
-        features_no_wifi.as_str(),
-        "--no-default-features",
-    ])) {
-        return ExitCode::FAILURE;
-    }
-
-    println!(
-        "\n{}",
-        "==> Building examples (pico2, arm, no wifi)...".cyan()
-    );
-    let failed = Mutex::new(Vec::new());
-    no_wifi_examples.par_iter().for_each(|example| {
-        if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
-            "build",
-            "--example",
-            &example.name,
-            "--target",
-            target_pico2,
-            "--features",
-            features_no_wifi.as_str(),
-            "--no-default-features",
-        ])) {
-            failed.lock().unwrap().push(example.name.clone());
-        }
-    });
-    if !failed.lock().unwrap().is_empty() {
-        eprintln!("Failed examples: {:?}", failed.lock().unwrap());
-        return ExitCode::FAILURE;
-    }
-
-    println!(
-        "\n{}",
-        "==> Building examples (pico2, arm, with wifi)...".cyan()
-    );
-    let failed = Mutex::new(Vec::new());
-    examples.par_iter().for_each(|example| {
-        if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
-            "build",
-            "--example",
-            &example.name,
-            "--target",
-            target_pico2,
-            "--features",
-            features_wifi_pico2.as_str(),
-            "--no-default-features",
-        ])) {
-            failed.lock().unwrap().push(example.name.clone());
-        }
-    });
-    if !failed.lock().unwrap().is_empty() {
-        eprintln!("Failed examples: {:?}", failed.lock().unwrap());
-        return ExitCode::FAILURE;
-    }
-
-    println!(
-        "\n{}",
-        "==> Building examples (pico1, arm, with wifi)...".cyan()
-    );
-    let failed = Mutex::new(Vec::new());
-    examples.par_iter().for_each(|example| {
-        if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
-            "build",
-            "--example",
-            &example.name,
-            "--target",
-            target_pico1,
-            "--features",
-            features_wifi_pico1.as_str(),
-            "--no-default-features",
-        ])) {
-            failed.lock().unwrap().push(example.name.clone());
-        }
-    });
-    if !failed.lock().unwrap().is_empty() {
-        eprintln!("Failed examples: {:?}", failed.lock().unwrap());
-        return ExitCode::FAILURE;
-    }
-
-    println!("\n{}", "==> Building compile-only tests...".cyan());
-    let compile_tests_dir = workspace_root.join("tests-compile-only");
-    if compile_tests_dir.exists() {
-        let mut compile_tests = Vec::new();
-        if let Ok(entries) = fs::read_dir(&compile_tests_dir) {
-            for entry in entries.flatten() {
-                if let Some(filename) = entry.file_name().to_str() {
-                    if filename.ends_with(".rs") {
-                        let test_name = filename.trim_end_matches(".rs");
-                        compile_tests.push(test_name.to_string());
-                    }
-                }
-            }
-        }
-        compile_tests.sort();
-        let failed = Mutex::new(Vec::new());
-        compile_tests.par_iter().for_each(|test| {
+    rayon::scope(|s| {
+        // 1. Doc tests
+        s.spawn(|_| {
+            println!("{}", "  [1/8] Doc tests...".bright_black());
             if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
-                "check",
-                "--bin",
-                test,
+                "test",
+                "--doc",
                 "--target",
-                target_pico1,
+                target_pico2,
                 "--features",
-                "pico1,arm,wifi",
+                features_wifi_pico2.as_str(),
                 "--no-default-features",
             ])) {
-                failed.lock().unwrap().push(test.clone());
+                failures.lock().unwrap().push("doc tests");
             }
         });
-        if !failed.lock().unwrap().is_empty() {
-            eprintln!("Failed compile tests: {:?}", failed.lock().unwrap());
-            return ExitCode::FAILURE;
-        }
-    }
 
-    println!("\n{}", "==> Building documentation...".cyan());
-    if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
-        "doc",
-        "--target",
-        target_pico2,
-        "--no-deps",
-        "--features",
-        features_wifi_pico2.as_str(),
-        "--no-default-features",
-    ])) {
+        // 2. Unit tests
+        s.spawn(|_| {
+            println!("{}", "  [2/8] Unit tests...".bright_black());
+            let host_target = host_target();
+            let mut unit_test_cmd = Command::new("cargo");
+            unit_test_cmd
+                .current_dir(&workspace_root)
+                .args(["test", "--lib"]);
+
+            if let Some(target) = host_target {
+                unit_test_cmd.arg("--target").arg(target);
+            }
+
+            unit_test_cmd.args(["--no-default-features", "--features", "host"]);
+
+            if !run_command(&mut unit_test_cmd) {
+                failures.lock().unwrap().push("unit tests");
+            }
+        });
+
+        // 3. Library build
+        s.spawn(|_| {
+            println!("{}", "  [3/8] Library build...".bright_black());
+            if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
+                "build",
+                "--lib",
+                "--target",
+                target_pico2,
+                "--features",
+                features_no_wifi.as_str(),
+                "--no-default-features",
+            ])) {
+                failures.lock().unwrap().push("library build");
+            }
+        });
+
+        // 4. Examples (pico2, no wifi)
+        s.spawn(|_| {
+            println!("{}", "  [4/8] Examples (pico2, no wifi)...".bright_black());
+            no_wifi_examples.par_iter().for_each(|example| {
+                if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
+                    "build",
+                    "--example",
+                    &example.name,
+                    "--target",
+                    target_pico2,
+                    "--features",
+                    features_no_wifi.as_str(),
+                    "--no-default-features",
+                ])) {
+                    failures.lock().unwrap().push("pico2 no-wifi examples");
+                }
+            });
+        });
+
+        // 5. Examples (pico2, with wifi)
+        s.spawn(|_| {
+            println!(
+                "{}",
+                "  [5/8] Examples (pico2, with wifi)...".bright_black()
+            );
+            examples.par_iter().for_each(|example| {
+                if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
+                    "build",
+                    "--example",
+                    &example.name,
+                    "--target",
+                    target_pico2,
+                    "--features",
+                    features_wifi_pico2.as_str(),
+                    "--no-default-features",
+                ])) {
+                    failures.lock().unwrap().push("pico2 wifi examples");
+                }
+            });
+        });
+
+        // 6. Examples (pico1, with wifi)
+        s.spawn(|_| {
+            println!(
+                "{}",
+                "  [6/8] Examples (pico1, with wifi)...".bright_black()
+            );
+            examples.par_iter().for_each(|example| {
+                if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
+                    "build",
+                    "--example",
+                    &example.name,
+                    "--target",
+                    target_pico1,
+                    "--features",
+                    features_wifi_pico1.as_str(),
+                    "--no-default-features",
+                ])) {
+                    failures.lock().unwrap().push("pico1 wifi examples");
+                }
+            });
+        });
+
+        // 7. Compile-only tests
+        s.spawn(|_| {
+            println!("{}", "  [7/8] Compile-only tests...".bright_black());
+            let compile_tests_dir = workspace_root.join("tests-compile-only");
+            if compile_tests_dir.exists() {
+                let mut compile_tests = Vec::new();
+                if let Ok(entries) = fs::read_dir(&compile_tests_dir) {
+                    for entry in entries.flatten() {
+                        if let Some(filename) = entry.file_name().to_str() {
+                            if filename.ends_with(".rs") {
+                                let test_name = filename.trim_end_matches(".rs");
+                                compile_tests.push(test_name.to_string());
+                            }
+                        }
+                    }
+                }
+                compile_tests.sort();
+                compile_tests.par_iter().for_each(|test| {
+                    if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
+                        "check",
+                        "--bin",
+                        test,
+                        "--target",
+                        target_pico1,
+                        "--features",
+                        "pico1,arm,wifi",
+                        "--no-default-features",
+                    ])) {
+                        failures.lock().unwrap().push("compile-only tests");
+                    }
+                });
+            }
+        });
+
+        // 8. Documentation
+        s.spawn(|_| {
+            println!("{}", "  [8/8] Documentation...".bright_black());
+            if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
+                "doc",
+                "--target",
+                target_pico2,
+                "--no-deps",
+                "--features",
+                features_wifi_pico2.as_str(),
+                "--no-default-features",
+            ])) {
+                failures.lock().unwrap().push("documentation");
+            }
+        });
+    });
+
+    let failures = failures.lock().unwrap();
+    if !failures.is_empty() {
+        eprintln!("\n{}", "Failed checks:".red().bold());
+        for failure in failures.iter() {
+            eprintln!("  - {}", failure.red());
+        }
         return ExitCode::FAILURE;
     }
 
