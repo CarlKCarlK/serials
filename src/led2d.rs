@@ -15,6 +15,18 @@ use smart_leds::RGB8;
 
 use crate::Result;
 
+/// Convert RGB8 (smart-leds) to Rgb888 (embedded-graphics).
+#[must_use]
+pub const fn rgb8_to_rgb888(color: RGB8) -> Rgb888 {
+    Rgb888::new(color.r, color.g, color.b)
+}
+
+/// Convert Rgb888 (embedded-graphics) to RGB8 (smart-leds).
+#[must_use]
+pub fn rgb888_to_rgb8(color: Rgb888) -> RGB8 {
+    RGB8::new(color.r(), color.g(), color.b())
+}
+
 // cmk does this need to be limited and public
 /// Maximum frames supported by [`Led2d::animate`].
 pub const ANIMATION_MAX_FRAMES: usize = 32;
@@ -36,6 +48,36 @@ impl<const ROWS: usize, const COLS: usize> Frame<ROWS, COLS> {
     #[must_use]
     pub const fn filled(color: RGB8) -> Self {
         Self([[color; COLS]; ROWS])
+    }
+
+    /// Get the frame dimensions.
+    #[must_use]
+    pub const fn size() -> Size {
+        Size::new(COLS as u32, ROWS as u32)
+    }
+
+    /// Get the top-left corner point.
+    #[must_use]
+    pub const fn top_left() -> Point {
+        Point::new(0, 0)
+    }
+
+    /// Get the top-right corner point.
+    #[must_use]
+    pub const fn top_right() -> Point {
+        Point::new((COLS - 1) as i32, 0)
+    }
+
+    /// Get the bottom-left corner point.
+    #[must_use]
+    pub const fn bottom_left() -> Point {
+        Point::new(0, (ROWS - 1) as i32)
+    }
+
+    /// Get the bottom-right corner point.
+    #[must_use]
+    pub const fn bottom_right() -> Point {
+        Point::new((COLS - 1) as i32, (ROWS - 1) as i32)
     }
 }
 

@@ -105,33 +105,25 @@ async fn demo_rectangle_diagonals_embedded_graphics(led4x12: &Led4x12) -> Result
         prelude::*,
         primitives::{Line, PrimitiveStyle, Rectangle},
     };
+    use serials::led2d::Frame;
 
     let mut frame = Led4x12::new_frame();
 
     // Use the embedded_graphics crate to draw an image.
 
     // Draw red rectangle border
-    Rectangle::new(
-        Point::new(0, 0),
-        Size::new(Led4x12::COLS as u32, Led4x12::ROWS as u32),
-    )
-    .into_styled(PrimitiveStyle::with_stroke(Rgb888::RED, 1))
-    .draw(&mut frame)?;
+    Rectangle::new(Frame::<4, 12>::top_left(), Frame::<4, 12>::size())
+        .into_styled(PrimitiveStyle::with_stroke(Rgb888::RED, 1))
+        .draw(&mut frame)?;
 
     // Draw blue diagonal lines from corner to corner
-    Line::new(
-        Point::new(0, 0),
-        Point::new((Led4x12::COLS - 1) as i32, (Led4x12::ROWS - 1) as i32),
-    )
-    .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
-    .draw(&mut frame)?;
+    Line::new(Frame::<4, 12>::top_left(), Frame::<4, 12>::bottom_right())
+        .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
+        .draw(&mut frame)?;
 
-    Line::new(
-        Point::new(0, (Led4x12::ROWS - 1) as i32),
-        Point::new((Led4x12::COLS - 1) as i32, 0),
-    )
-    .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
-    .draw(&mut frame)?;
+    Line::new(Frame::<4, 12>::bottom_left(), Frame::<4, 12>::top_right())
+        .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
+        .draw(&mut frame)?;
 
     led4x12.write_frame(frame).await
 }
