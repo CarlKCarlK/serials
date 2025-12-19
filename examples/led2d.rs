@@ -10,12 +10,17 @@ use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_rp::init;
 use embassy_time::{Duration, Timer};
+use embedded_graphics::{
+    image::ImageRaw,
+    mono_font::{DecorationDimensions, MonoFont, MonoTextStyle, mapping::StrGlyphMapping},
+    prelude::*,
+    text::Text,
+};
 use heapless::Vec;
 use panic_probe as _;
 use serials::button::{Button, PressedTo};
 use serials::led_strip_simple::Milliamps;
-use serials::led2d::led2d_device_simple;
-use serials::led12x4::text_frame;
+use serials::led2d::{led2d_device_simple, rgb8_to_rgb888};
 use serials::{Error, Result};
 use smart_leds::colors;
 
@@ -26,6 +31,33 @@ led2d_device_simple! {
     cols: 12,
     pio: PIO1,
     mapping: serpentine_column_major,
+}
+
+// Monospace 3x4 font packed for embedded-graphics (ASCII 0x20-0x7E).
+const BIT_MATRIX3X4_FONT_DATA: [u8; 144] = [
+    0x0a, 0xd5, 0x10, 0x4a, 0xa0, 0x01, 0x0a, 0xfe, 0x68, 0x85, 0x70, 0x02, 0x08, 0x74, 0x90, 0x86,
+    0xa5, 0xc4, 0x08, 0x5e, 0x68, 0x48, 0x08, 0x10, 0xeb, 0x7b, 0xe7, 0xfd, 0x22, 0x27, 0xb8, 0x9b,
+    0x39, 0xb4, 0x05, 0xd1, 0xa9, 0x3e, 0xea, 0x5d, 0x28, 0x0a, 0xff, 0xf3, 0xfc, 0xe4, 0x45, 0xd2,
+    0xff, 0x7d, 0xff, 0xbc, 0xd9, 0xff, 0xb7, 0xcb, 0xb4, 0xe8, 0xe9, 0xfd, 0xfe, 0xcb, 0x25, 0xaa,
+    0xd9, 0x7d, 0x97, 0x7d, 0xe7, 0xbf, 0xdf, 0x6f, 0xdf, 0x7f, 0x6d, 0xb7, 0xe0, 0xd0, 0xf7, 0xe5,
+    0x6d, 0x48, 0xc0, 0x68, 0xdf, 0x35, 0x6f, 0x49, 0x40, 0x40, 0x86, 0xf5, 0xd7, 0xab, 0xe0, 0xc7,
+    0x5f, 0x7d, 0xff, 0xbc, 0xd9, 0xff, 0x37, 0xcb, 0xb4, 0xe8, 0xe9, 0xfd, 0x1e, 0xcb, 0x25, 0xaa,
+    0xd9, 0x7d, 0x17, 0x7d, 0xe7, 0xbf, 0xdf, 0x6f, 0xdf, 0x7f, 0x6d, 0xb7, 0xb1, 0x80, 0xf7, 0xe5,
+    0x6d, 0x48, 0xa0, 0xa8, 0xdf, 0x35, 0x6f, 0x49, 0x20, 0x90, 0x86, 0xf5, 0xd7, 0xab, 0xb1, 0x80,
+];
+const BIT_MATRIX3X4_IMAGE_WIDTH: u32 = 48;
+const BIT_MATRIX3X4_GLYPH_MAPPING: StrGlyphMapping<'static> = StrGlyphMapping::new("\0 \u{7e}", 0);
+
+fn bit_matrix3x4_font() -> MonoFont<'static> {
+    MonoFont {
+        image: ImageRaw::new(&BIT_MATRIX3X4_FONT_DATA, BIT_MATRIX3X4_IMAGE_WIDTH),
+        glyph_mapping: &BIT_MATRIX3X4_GLYPH_MAPPING,
+        character_size: Size::new(3, 4),
+        character_spacing: 0,
+        baseline: 3,
+        underline: DecorationDimensions::new(3, 1),
+        strikethrough: DecorationDimensions::new(2, 1),
+    }
 }
 
 #[embassy_executor::main]
@@ -69,12 +101,26 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     }
 }
 
-/// Display "RUST" using the built-in 3x4 font helpers from led12x4.
+/// Display "RUST" using the bit_matrix3x4 font via embedded-graphics.
 async fn demo_rust_text(led4x12: &Led4x12) -> Result<()> {
-    let frame = text_frame(
-        ['R', 'U', 'S', 'T'],
-        [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
-    );
+    let mut frame = Led4x12::new_frame();
+    let font = bit_matrix3x4_font();
+    let letters = [
+        ('R', colors::RED),
+        ('U', colors::GREEN),
+        ('S', colors::BLUE),
+        ('T', colors::YELLOW),
+    ];
+
+    for (index, (character, glyph_color)) in letters.iter().enumerate() {
+        let mut character_bytes = [0u8; 1];
+        character_bytes[0] = *character as u8;
+        let character_str = core::str::from_utf8(&character_bytes).expect("ASCII glyphs only");
+        let style = MonoTextStyle::new(&font, rgb8_to_rgb888(*glyph_color));
+        let position = Point::new((index * 3) as i32, font.baseline as i32);
+        Text::new(character_str, position, style).draw(&mut frame)?;
+    }
+
     led4x12.write_frame(frame).await
 }
 
