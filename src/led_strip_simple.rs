@@ -336,12 +336,6 @@ impl<'d, PIO: Instance, const N: usize> LedStripSimple<'d, PIO, N> {
     }
 }
 
-impl<'d, PIO: Instance, const N: usize> crate::led12x4::LedStrip<N> for LedStripSimple<'d, PIO, N> {
-    async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
-        self.update_pixels(pixels).await
-    }
-}
-
 impl<'d, PIO: Instance, const N: usize> crate::led2d::LedStrip<N> for LedStripSimple<'d, PIO, N> {
     async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
         self.update_pixels(pixels).await

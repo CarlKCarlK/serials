@@ -16,19 +16,30 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_time::Duration;
+use heapless::String;
 use panic_probe as _;
 use serials::button::{Button, PressDuration, PressedTo};
 use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
+use serials::led_strip_simple::Milliamps;
 use serials::led_strip_simple::colors;
-use serials::led12x4::{
-    Led12x4, Led12x4Static, Milliamps, new_led12x4, perimeter_chase_animation, text_frame,
-};
+use serials::led2d::{Led2dFont, led2d_device_simple};
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
 use serials::{Error, Result};
 use smart_leds::RGB8;
+
+led2d_device_simple! {
+    pub led12x4,
+    rows: 4,
+    cols: 12,
+    pio: PIO1,
+    mapping: serpentine_column_major,
+    font: Led2dFont::Font3x4,
+}
+
+type LedFrame = serials::led2d::Frame<{ Led12x4::ROWS }, { Led12x4::COLS }>;
 
 // cmk use the colors enum
 // cmk use an array of colors
@@ -83,13 +94,13 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     // cmk pico1 or pico2 button?
 
     // Set up the 12x4 LED display on GPIO3.
-    static LED_12X4_STATIC: Led12x4Static = Led12x4Static::new_static();
-    let led_12x4 = new_led12x4!(
+    static LED_12X4_STATIC: Led12x4Static = Led12x4::new_static();
+    let led_12x4 = Led12x4::new(
         &LED_12X4_STATIC,
-        PIN_3,
         p.PIO1,
+        p.PIN_3,
         Milliamps(500), // 500mA budget allows ~22% brightness for 48 LEDs
-        spawner
+        spawner,
     )
     .await?;
 
@@ -358,7 +369,7 @@ impl State {
 // Display helper functions for the 12x4 LED clock
 
 async fn show_portal_ready(led_12x4: &Led12x4) -> Result<()> {
-    let on_frame = text_frame(['C', 'O', 'N', 'N'], DIGIT_COLORS);
+    let on_frame = text_frame(led_12x4, "CONN", &DIGIT_COLORS)?;
     led_12x4
         .animate(&[
             (on_frame, Duration::from_millis(700)),
@@ -375,48 +386,100 @@ async fn show_connecting(led_12x4: &Led12x4, try_index: u8, _try_count: u8) -> R
 }
 
 async fn show_connected(led_12x4: &Led12x4) -> Result<()> {
-    led_12x4
-        .write_text(['D', 'O', 'N', 'E'], DIGIT_COLORS)
-        .await
+    led_12x4.write_text("DONE", &DIGIT_COLORS).await
 }
 
 async fn show_connection_failed(led_12x4: &Led12x4) -> Result<()> {
-    led_12x4
-        .write_text(['F', 'A', 'I', 'L'], DIGIT_COLORS)
-        .await
+    led_12x4.write_text("FAIL", &DIGIT_COLORS).await
 }
 
 async fn show_hours_minutes(led_12x4: &Led12x4, hours: u8, minutes: u8) -> Result<()> {
     let (hours_tens, hours_ones) = hours_digits(hours);
     let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
-    led_12x4
-        .write_text(
-            [hours_tens, hours_ones, minutes_tens, minutes_ones],
-            DIGIT_COLORS,
-        )
-        .await
+    let text = chars_to_text([hours_tens, hours_ones, minutes_tens, minutes_ones]);
+    led_12x4.write_text(text.as_str(), &DIGIT_COLORS).await
 }
 
 async fn show_hours_minutes_indicator(led_12x4: &Led12x4, hours: u8, minutes: u8) -> Result<()> {
     let (hours_tens, hours_ones) = hours_digits(hours);
     let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
-    led_12x4
-        .write_text(
-            [hours_tens, hours_ones, minutes_tens, minutes_ones],
-            EDIT_COLORS,
-        )
-        .await
+    let text = chars_to_text([hours_tens, hours_ones, minutes_tens, minutes_ones]);
+    led_12x4.write_text(text.as_str(), &EDIT_COLORS).await
 }
 
 async fn show_minutes_seconds(led_12x4: &Led12x4, minutes: u8, seconds: u8) -> Result<()> {
     let (minutes_tens, minutes_ones) = two_digit_chars(minutes);
     let (seconds_tens, seconds_ones) = two_digit_chars(seconds);
-    led_12x4
-        .write_text(
-            [minutes_tens, minutes_ones, seconds_tens, seconds_ones],
-            DIGIT_COLORS,
-        )
-        .await
+    let text = chars_to_text([minutes_tens, minutes_ones, seconds_tens, seconds_ones]);
+    led_12x4.write_text(text.as_str(), &DIGIT_COLORS).await
+}
+
+const PERIMETER_LENGTH: usize = (Led12x4::COLS * 2) + ((Led12x4::ROWS - 2) * 2);
+
+fn chars_to_text(chars: [char; 4]) -> String<4> {
+    let mut text = String::new();
+    for ch in chars {
+        text.push(ch).expect("text buffer has capacity");
+    }
+    text
+}
+
+fn text_frame(led_12x4: &Led12x4, text: &str, colors: &[RGB8]) -> Result<LedFrame> {
+    let mut frame = Led12x4::new_frame();
+    led_12x4.write_text_to_frame(text, colors, &mut frame)?;
+    Ok(frame)
+}
+
+fn perimeter_chase_animation(
+    clockwise: bool,
+    color: RGB8,
+    duration: Duration,
+) -> [(LedFrame, Duration); PERIMETER_LENGTH] {
+    assert!(
+        duration.as_micros() > 0,
+        "perimeter animation duration must be positive"
+    );
+    let coordinates = perimeter_coordinates(clockwise);
+    core::array::from_fn(|frame_index| {
+        let mut frame = Led12x4::new_frame();
+        let (row_index, column_index) = coordinates[frame_index];
+        frame[row_index][column_index] = color;
+        (frame, duration)
+    })
+}
+
+fn perimeter_coordinates(clockwise: bool) -> [(usize, usize); PERIMETER_LENGTH] {
+    let mut coordinates = [(0_usize, 0_usize); PERIMETER_LENGTH];
+    let mut write_index = 0;
+    let mut push = |row_index: usize, column_index: usize| {
+        coordinates[write_index] = (row_index, column_index);
+        write_index += 1;
+    };
+
+    for column_index in 0..Led12x4::COLS {
+        push(0, column_index);
+    }
+    for row_index in 1..Led12x4::ROWS {
+        push(row_index, Led12x4::COLS - 1);
+    }
+    for column_index in (0..(Led12x4::COLS - 1)).rev() {
+        push(Led12x4::ROWS - 1, column_index);
+    }
+    for row_index in (1..(Led12x4::ROWS - 1)).rev() {
+        push(row_index, 0);
+    }
+
+    debug_assert_eq!(write_index, PERIMETER_LENGTH);
+
+    if clockwise {
+        coordinates
+    } else {
+        let mut reversed = [(0_usize, 0_usize); PERIMETER_LENGTH];
+        for (reverse_index, &(row_index, column_index)) in coordinates.iter().enumerate() {
+            reversed[PERIMETER_LENGTH - 1 - reverse_index] = (row_index, column_index);
+        }
+        reversed
+    }
 }
 
 #[inline]

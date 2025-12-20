@@ -16,10 +16,22 @@ use embedded_graphics::{
 };
 use heapless::Vec;
 use panic_probe as _;
-use serials::Result;
 use serials::button::{Button, PressedTo};
-use serials::led12x4::{Frame, Led12x4, Led12x4Static, Milliamps, colors, new_led12x4, text_frame};
+use serials::led_strip_simple::{Milliamps, colors};
+use serials::led2d::{Led2dFont, led2d_device_simple};
+use serials::{Result, led2d};
 use smart_leds::RGB8;
+
+led2d_device_simple! {
+    pub led12x4,
+    rows: 4,
+    cols: 12,
+    pio: PIO1,
+    mapping: serpentine_column_major,
+    font: Led2dFont::Font3x4,
+}
+
+type LedFrame = led2d::Frame<{ Led12x4::ROWS }, { Led12x4::COLS }>;
 
 // cmk00 make this demo better, including fixing font
 
@@ -33,8 +45,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("LED 12x4 API Exploration");
     let p = embassy_rp::init(Default::default());
 
-    static LED_12X4_STATIC: Led12x4Static = Led12x4Static::new_static();
-    let led_12x4 = new_led12x4!(&LED_12X4_STATIC, PIN_3, p.PIO1, Milliamps(500), spawner).await?;
+    static LED_12X4_STATIC: Led12x4Static = Led12x4::new_static();
+    let led_12x4 = Led12x4::new(&LED_12X4_STATIC, p.PIO1, p.PIN_3, Milliamps(500), spawner).await?;
 
     let mut button = Button::new(p.PIN_13, PressedTo::Ground);
 
@@ -66,18 +78,20 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 async fn demo_text_colors(led_12x4: &Led12x4) -> Result<()> {
     led_12x4
         .write_text(
-            ['r', 'u', 's', 't'],
-            [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
+            "rust",
+            &[colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
         )
         .await
 }
 
 /// Blink "RUST" by constructing frames explicitly.
 async fn demo_blink_text(led_12x4: &Led12x4) -> Result<()> {
-    let on_frame = text_frame(
-        ['r', 'u', 's', 't'],
-        [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
-    );
+    let mut on_frame = Led12x4::new_frame();
+    led_12x4.write_text_to_frame(
+        "rust",
+        &[colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
+        &mut on_frame,
+    )?;
     led_12x4
         .animate(&[
             (on_frame, Duration::from_millis(500)),
@@ -179,7 +193,7 @@ async fn demo_bouncing_dot_animation(led_12x4: &Led12x4) -> Result<()> {
         colors::MAGENTA,
     ];
 
-    let mut frames = Vec::<(Frame, Duration), 32>::new();
+    let mut frames = Vec::<(LedFrame, Duration), 32>::new();
     let mut column_index: isize = 0;
     let mut row_index: isize = 0;
     let mut delta_column: isize = 1;

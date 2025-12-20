@@ -140,7 +140,7 @@ impl<const N: usize> LedStrip<N> {
     }
 }
 
-impl<const N: usize> crate::led12x4::LedStrip<N> for LedStrip<N> {
+impl<const N: usize> crate::led2d::LedStrip<N> for LedStrip<N> {
     async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
         self.update_pixels(pixels).await
     }

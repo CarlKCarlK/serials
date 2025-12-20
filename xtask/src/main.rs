@@ -168,7 +168,13 @@ fn check_all() -> ExitCode {
                 host_test_cmd.arg("--target").arg(target);
             }
 
-            host_test_cmd.args(["--no-default-features", "--features", "host", "--test", "*"]);
+            host_test_cmd.args([
+                "--no-default-features",
+                "--features",
+                "host",
+                "--lib",
+                "--tests",
+            ]);
 
             if !run_command(&mut host_test_cmd) {
                 failures.lock().unwrap().push("host tests");

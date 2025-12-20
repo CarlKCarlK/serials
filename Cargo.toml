@@ -50,7 +50,7 @@ riscv = [
     "dep:embassy-hal-internal",
     "critical-section/restore-state-bool",
 ]
-host = [] # For testing on host platform without hardware dependencies
+host = ["dep:png", "dep:tempfile"] # For testing on host platform without hardware dependencies
 wifi = ["dep:cyw43", "dep:cyw43-pio", "dep:cyw43-firmware", "dep:embassy-net"]
 display-trace = []
 
@@ -134,10 +134,14 @@ static_cell = "2.1.0"
 embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy", branch = "main", default-features = false, optional = true }
 paste = "1.0"
 embedded-graphics = { version = "0.8", default-features = false }
+png = { version = "0.17", optional = true }
+tempfile = { version = "3.13", optional = true }
 
-[dev-dependencies]
-png = "0.17"
-tempfile = "3.13"
+# Integration tests
+[[test]]
+name = "led2d_text_render"
+path = "tests/led2d_text_render.rs"
+required-features = ["host"]
 
 [patch.crates-io]
 embassy-executor = { git = "https://github.com/embassy-rs/embassy", branch = "main" }

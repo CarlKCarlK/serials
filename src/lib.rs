@@ -33,8 +33,6 @@ pub mod pio_irqs;
 pub(crate) mod bit_matrix_led4;
 // These modules require embassy_rp and are excluded when testing on host
 #[cfg(not(feature = "host"))]
-pub(crate) mod bit_matrix3x4;
-#[cfg(not(feature = "host"))]
 pub(crate) mod bit_matrix_led4;
 #[cfg(not(feature = "host"))]
 pub mod button;
@@ -52,8 +50,6 @@ pub mod ir;
 pub mod ir_kepler;
 #[cfg(not(feature = "host"))]
 pub mod ir_mapping;
-#[cfg(not(feature = "host"))]
-pub mod led12x4;
 pub mod led2d;
 #[cfg(not(feature = "host"))]
 pub mod led4;
