@@ -381,7 +381,7 @@ async fn show_portal_ready(led_12x4: &Led12x4) -> Result<()> {
 async fn show_connecting(led_12x4: &Led12x4, try_index: u8, _try_count: u8) -> Result<()> {
     let clockwise = try_index % 2 == 0;
     const FRAME_DURATION: Duration = Duration::from_millis(90);
-    let animation = perimeter_chase_animation(clockwise, CONNECTING_COLOR, FRAME_DURATION);
+    let animation = perimeter_chase_animation(clockwise, CONNECTING_COLOR, FRAME_DURATION)?;
     led_12x4.animate(&animation).await
 }
 
@@ -434,18 +434,22 @@ fn perimeter_chase_animation(
     clockwise: bool,
     color: RGB8,
     duration: Duration,
-) -> [(LedFrame, Duration); PERIMETER_LENGTH] {
+) -> Result<heapless::Vec<(LedFrame, Duration), PERIMETER_LENGTH>> {
     assert!(
         duration.as_micros() > 0,
         "perimeter animation duration must be positive"
     );
     let coordinates = perimeter_coordinates(clockwise);
-    core::array::from_fn(|frame_index| {
+    let mut frames = heapless::Vec::new();
+    for frame_index in 0..PERIMETER_LENGTH {
         let mut frame = Led12x4::new_frame();
         let (row_index, column_index) = coordinates[frame_index];
         frame[row_index][column_index] = color;
-        (frame, duration)
-    })
+        frames
+            .push((frame, duration))
+            .map_err(|_| Error::FormatError)?;
+    }
+    Ok(frames)
 }
 
 fn perimeter_coordinates(clockwise: bool) -> [(usize, usize); PERIMETER_LENGTH] {

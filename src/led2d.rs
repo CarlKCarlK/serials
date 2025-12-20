@@ -398,9 +398,12 @@ impl<'a, const N: usize> Led2d<'a, N> {
         &self,
         frame: Frame<ROWS, COLS>,
     ) -> Result<()> {
+        defmt::info!("Led2d::write_frame: sending DisplayStatic command");
         let frame_1d = self.convert_frame(frame);
         self.command_signal.signal(Command::DisplayStatic(frame_1d));
+        defmt::info!("Led2d::write_frame: waiting for completion");
         self.completion_signal.wait().await;
+        defmt::info!("Led2d::write_frame: completed");
         Ok(())
     }
 
@@ -412,6 +415,7 @@ impl<'a, const N: usize> Led2d<'a, N> {
         frames: &[(Frame<ROWS, COLS>, Duration)],
     ) -> Result<()> {
         assert!(!frames.is_empty(), "animation requires at least one frame");
+        defmt::info!("Led2d::animate: preparing {} frames", frames.len());
         let mut sequence: Vec<([RGB8; N], Duration), ANIMATION_MAX_FRAMES> = Vec::new();
         for (frame, duration) in frames {
             assert!(
@@ -423,8 +427,11 @@ impl<'a, const N: usize> Led2d<'a, N> {
                 .push((frame_1d, *duration))
                 .expect("animation sequence fits");
         }
+        defmt::info!("Led2d::animate: sending Animate command");
         self.command_signal.signal(Command::Animate(sequence));
+        defmt::info!("Led2d::animate: waiting for completion");
         self.completion_signal.wait().await;
+        defmt::info!("Led2d::animate: completed (animation started)");
         Ok(())
     }
 }
@@ -470,27 +477,57 @@ pub async fn led2d_device_loop<const N: usize, S: LedStrip<N>>(
     completion_signal: &'static Led2dCompletionSignal,
     mut strip: S,
 ) -> Result<Infallible> {
+    defmt::info!("led2d_device_loop: task started");
     loop {
+        defmt::debug!("led2d_device_loop: waiting for command");
         let command = command_signal.wait().await;
         command_signal.reset();
 
         match command {
             Command::DisplayStatic(frame) => {
+                defmt::info!("led2d_device_loop: received DisplayStatic command");
                 strip.update_pixels(&frame).await?;
                 completion_signal.signal(());
+                defmt::info!("led2d_device_loop: DisplayStatic completed");
             }
             Command::Animate(frames) => {
+                defmt::info!(
+                    "led2d_device_loop: received Animate command with {} frames",
+                    frames.len()
+                );
                 let next_command =
                     run_animation_loop(frames, command_signal, completion_signal, &mut strip)
                         .await?;
+                defmt::info!("led2d_device_loop: animation interrupted");
                 match next_command {
                     Command::DisplayStatic(frame) => {
+                        defmt::info!(
+                            "led2d_device_loop: processing DisplayStatic from animation interrupt"
+                        );
                         strip.update_pixels(&frame).await?;
                         completion_signal.signal(());
                     }
-                    Command::Animate(_) => {
-                        // Restart animation loop with new sequence
-                        continue;
+                    Command::Animate(new_frames) => {
+                        defmt::info!("led2d_device_loop: restarting with new animation");
+                        // Process the new animation immediately without waiting for next command
+                        let next_command = run_animation_loop(
+                            new_frames,
+                            command_signal,
+                            completion_signal,
+                            &mut strip,
+                        )
+                        .await?;
+                        // Handle any command that interrupted this animation
+                        match next_command {
+                            Command::DisplayStatic(frame) => {
+                                strip.update_pixels(&frame).await?;
+                                completion_signal.signal(());
+                            }
+                            Command::Animate(_) => {
+                                // Another animation interrupted; loop back to handle it
+                                continue;
+                            }
+                        }
                     }
                 }
             }
@@ -504,20 +541,25 @@ async fn run_animation_loop<const N: usize, S: LedStrip<N>>(
     completion_signal: &'static Led2dCompletionSignal,
     strip: &mut S,
 ) -> Result<Command<N>> {
+    defmt::info!("run_animation_loop: starting with {} frames", frames.len());
     completion_signal.signal(());
+    defmt::debug!("run_animation_loop: signaled completion (animation started)");
 
     loop {
-        for (pixels, duration) in &frames {
+        for (frame_index, (pixels, duration)) in frames.iter().enumerate() {
+            defmt::trace!("run_animation_loop: displaying frame {}", frame_index);
             strip.update_pixels(pixels).await?;
 
             match select(command_signal.wait(), Timer::after(*duration)).await {
                 Either::First(new_command) => {
+                    defmt::info!("run_animation_loop: received new command, interrupting");
                     command_signal.reset();
                     return Ok(new_command);
                 }
                 Either::Second(()) => continue,
             }
         }
+        defmt::debug!("run_animation_loop: completed one loop, restarting");
     }
 }
 
@@ -848,6 +890,7 @@ macro_rules! led2d_device_simple {
                     max_current: $crate::led_strip_simple::Milliamps,
                     spawner: ::embassy_executor::Spawner,
                 ) -> $crate::Result<Self> {
+                    defmt::info!("Led2d::new: creating LED strip");
                     let strip = $crate::led_strip_simple::LedStripSimple::[<new_ $pio:lower>](
                         &static_resources.led_strip_simple,
                         pio,
@@ -856,12 +899,14 @@ macro_rules! led2d_device_simple {
                     )
                     .await;
 
+                    defmt::info!("Led2d::new: strip created, spawning device task");
                     let token = [<$name _device_loop>](
                         &static_resources.led2d_static.command_signal,
                         &static_resources.led2d_static.completion_signal,
                         strip,
                     )?;
                     spawner.spawn(token);
+                    defmt::info!("Led2d::new: device task spawned");
 
                     let led2d = $crate::led2d::Led2d::new(
                         &static_resources.led2d_static,
@@ -869,6 +914,7 @@ macro_rules! led2d_device_simple {
                         $cols_const,
                     );
 
+                    defmt::info!("Led2d::new: device created successfully");
                     Ok(Self {
                         led2d,
                         font: ($font_variant).to_font(),
