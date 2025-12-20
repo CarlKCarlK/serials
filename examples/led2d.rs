@@ -48,22 +48,26 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         demo_rust_text(&led4x12).await?;
         button.wait_for_press_duration().await;
 
-        info!("Demo 2: Colored corners");
+        info!("Demo 2: Blink text (\"RUST\")");
+        demo_blink_text(&led4x12).await?;
+        button.wait_for_press_duration().await;
+
+        info!("Demo 3: Colored corners");
         demo_colored_corners(&led4x12).await?;
         button.wait_for_press_duration().await;
 
-        info!("Demo 3: Blink pattern");
+        info!("Demo 4: Blink pattern");
         demo_blink_pattern(&led4x12).await?;
         button.wait_for_press_duration().await;
 
-        info!("Demo 4: Rectangle with diagonals (embedded-graphics)");
+        info!("Demo 5: Rectangle with diagonals (embedded-graphics)");
         demo_rectangle_diagonals_embedded_graphics(&led4x12).await?;
         button.wait_for_press_duration().await;
 
-        info!("Demo 5: Bouncing dot (manual frames)");
+        info!("Demo 6: Bouncing dot (manual frames)");
         demo_bouncing_dot_manual(&led4x12, &mut button).await?;
 
-        info!("Demo 6: Bouncing dot (animation)");
+        info!("Demo 7: Bouncing dot (animation)");
         demo_bouncing_dot_animation(&led4x12).await?;
         button.wait_for_press_duration().await;
     }
@@ -73,6 +77,22 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 async fn demo_rust_text(led4x12: &Led4x12) -> Result<()> {
     let colors = [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW];
     led4x12.write_text("RUST\ntwo", &colors).await
+}
+
+/// Blink "RUST" by constructing frames explicitly.
+async fn demo_blink_text(led4x12: &Led4x12) -> Result<()> {
+    let mut on_frame = Led4x12::new_frame();
+    led4x12.write_text_to_frame(
+        "rust",
+        &[colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
+        &mut on_frame,
+    )?;
+    led4x12
+        .animate(&[
+            (on_frame, Duration::from_millis(500)),
+            (Led4x12::new_frame(), Duration::from_millis(500)),
+        ])
+        .await
 }
 
 /// Display colored corners to demonstrate coordinate mapping.
