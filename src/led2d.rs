@@ -9,7 +9,21 @@ use core::convert::Infallible;
 use embassy_futures::select::{Either, select};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Timer};
-use embedded_graphics::{draw_target::DrawTarget, pixelcolor::Rgb888, prelude::*};
+use embedded_graphics::{
+    draw_target::DrawTarget,
+    mono_font::{
+        DecorationDimensions, MonoFont,
+        ascii::{
+            FONT_4X6, FONT_5X7, FONT_5X8, FONT_6X9, FONT_6X10, FONT_6X12, FONT_6X13,
+            FONT_6X13_BOLD, FONT_6X13_ITALIC, FONT_7X13, FONT_7X13_BOLD, FONT_7X13_ITALIC,
+            FONT_7X14, FONT_7X14_BOLD, FONT_8X13, FONT_8X13_BOLD, FONT_8X13_ITALIC, FONT_9X15,
+            FONT_9X15_BOLD, FONT_9X18, FONT_9X18_BOLD, FONT_10X20,
+        },
+        mapping::StrGlyphMapping,
+    },
+    pixelcolor::Rgb888,
+    prelude::*,
+};
 use heapless::Vec;
 use smart_leds::RGB8;
 
@@ -30,6 +44,98 @@ pub fn rgb888_to_rgb8(color: Rgb888) -> RGB8 {
 // cmk does this need to be limited and public
 /// Maximum frames supported by [`Led2d::animate`].
 pub const ANIMATION_MAX_FRAMES: usize = 32;
+
+// Packed bitmap for the internal 3x4 font (ASCII 0x20-0x7E).
+const BIT_MATRIX3X4_FONT_DATA: [u8; 144] = [
+    0x0a, 0xd5, 0x10, 0x4a, 0xa0, 0x01, 0x0a, 0xfe, 0x68, 0x85, 0x70, 0x02, 0x08, 0x74, 0x90, 0x86,
+    0xa5, 0xc4, 0x08, 0x5e, 0x68, 0x48, 0x08, 0x10, 0xeb, 0x7b, 0xe7, 0xfd, 0x22, 0x27, 0xb8, 0x9b,
+    0x39, 0xb4, 0x05, 0xd1, 0xa9, 0x3e, 0xea, 0x5d, 0x28, 0x0a, 0xff, 0xf3, 0xfc, 0xe4, 0x45, 0xd2,
+    0xff, 0x7d, 0xff, 0xbc, 0xd9, 0xff, 0xb7, 0xcb, 0xb4, 0xe8, 0xe9, 0xfd, 0xfe, 0xcb, 0x25, 0xaa,
+    0xd9, 0x7d, 0x97, 0x7d, 0xe7, 0xbf, 0xdf, 0x6f, 0xdf, 0x7f, 0x6d, 0xb7, 0xe0, 0xd0, 0xf7, 0xe5,
+    0x6d, 0x48, 0xc0, 0x68, 0xdf, 0x35, 0x6f, 0x49, 0x40, 0x40, 0x86, 0xf5, 0xd7, 0xab, 0xe0, 0xc7,
+    0x5f, 0x7d, 0xff, 0xbc, 0xd9, 0xff, 0x37, 0xcb, 0xb4, 0xe8, 0xe9, 0xfd, 0x1e, 0xcb, 0x25, 0xaa,
+    0xd9, 0x7d, 0x17, 0x7d, 0xe7, 0xbf, 0xdf, 0x6f, 0xdf, 0x7f, 0x6d, 0xb7, 0xb1, 0x80, 0xf7, 0xe5,
+    0x6d, 0x48, 0xa0, 0xa8, 0xdf, 0x35, 0x6f, 0x49, 0x20, 0x90, 0x86, 0xf5, 0xd7, 0xab, 0xb1, 0x80,
+];
+const BIT_MATRIX3X4_IMAGE_WIDTH: u32 = 48;
+const BIT_MATRIX3X4_GLYPH_MAPPING: StrGlyphMapping<'static> = StrGlyphMapping::new("\0 \u{7e}", 0);
+
+/// Monospace 3x4 font matching `bit_matrix3x4`.
+#[must_use]
+pub fn bit_matrix3x4_font() -> MonoFont<'static> {
+    MonoFont {
+        image: embedded_graphics::image::ImageRaw::new(
+            &BIT_MATRIX3X4_FONT_DATA,
+            BIT_MATRIX3X4_IMAGE_WIDTH,
+        ),
+        glyph_mapping: &BIT_MATRIX3X4_GLYPH_MAPPING,
+        character_size: embedded_graphics::prelude::Size::new(3, 4),
+        character_spacing: 0,
+        baseline: 3,
+        underline: DecorationDimensions::new(3, 1),
+        strikethrough: DecorationDimensions::new(2, 1),
+    }
+}
+
+/// Built-in 3x4 font and embedded-graphics ASCII fonts.
+#[derive(Clone, Copy, Debug)]
+pub enum Led2dFont {
+    Font3x4,
+    Font4x6,
+    Font5x7,
+    Font5x8,
+    Font6x9,
+    Font6x10,
+    Font6x12,
+    Font6x13,
+    Font6x13Bold,
+    Font6x13Italic,
+    Font7x13,
+    Font7x13Bold,
+    Font7x13Italic,
+    Font7x14,
+    Font7x14Bold,
+    Font8x13,
+    Font8x13Bold,
+    Font8x13Italic,
+    Font9x15,
+    Font9x15Bold,
+    Font9x18,
+    Font9x18Bold,
+    Font10x20,
+}
+
+impl Led2dFont {
+    /// Return the `MonoFont` for this variant.
+    #[must_use]
+    pub fn to_font(self) -> MonoFont<'static> {
+        match self {
+            Self::Font3x4 => bit_matrix3x4_font(),
+            Self::Font4x6 => FONT_4X6,
+            Self::Font5x7 => FONT_5X7,
+            Self::Font5x8 => FONT_5X8,
+            Self::Font6x9 => FONT_6X9,
+            Self::Font6x10 => FONT_6X10,
+            Self::Font6x12 => FONT_6X12,
+            Self::Font6x13 => FONT_6X13,
+            Self::Font6x13Bold => FONT_6X13_BOLD,
+            Self::Font6x13Italic => FONT_6X13_ITALIC,
+            Self::Font7x13 => FONT_7X13,
+            Self::Font7x13Bold => FONT_7X13_BOLD,
+            Self::Font7x13Italic => FONT_7X13_ITALIC,
+            Self::Font7x14 => FONT_7X14,
+            Self::Font7x14Bold => FONT_7X14_BOLD,
+            Self::Font8x13 => FONT_8X13,
+            Self::Font8x13Bold => FONT_8X13_BOLD,
+            Self::Font8x13Italic => FONT_8X13_ITALIC,
+            Self::Font9x15 => FONT_9X15,
+            Self::Font9x15Bold => FONT_9X15_BOLD,
+            Self::Font9x18 => FONT_9X18,
+            Self::Font9x18Bold => FONT_9X18_BOLD,
+            Self::Font10x20 => FONT_10X20,
+        }
+    }
+}
 
 /// Pixel frame for LED matrix displays.
 ///
