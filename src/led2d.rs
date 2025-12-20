@@ -900,7 +900,7 @@ macro_rules! led2d_device_simple {
                     colors: &[smart_leds::RGB8],
                     frame: &mut $crate::led2d::Frame<$rows_const, $cols_const>,
                 ) -> $crate::Result<()> {
-                    $crate::led2d::render_text_to_frame(frame, &self.font, self.line_spacing, text, colors)
+                    $crate::led2d::render_text_to_frame(frame, &self.font, text, colors)
                 }
 
                 /// Convenience wrapper to render text into a fresh frame and display it.
