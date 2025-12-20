@@ -54,7 +54,6 @@ pub mod ir_kepler;
 pub mod ir_mapping;
 #[cfg(not(feature = "host"))]
 pub mod led12x4;
-#[cfg(not(feature = "host"))]
 pub mod led2d;
 #[cfg(not(feature = "host"))]
 pub mod led4;
@@ -80,3 +79,8 @@ pub mod wifi_setup;
 pub use error::{Error, Result};
 #[cfg(not(feature = "host"))]
 pub use time_sync::UnixSeconds;
+
+#[cfg(feature = "host")]
+pub type Error = core::convert::Infallible;
+#[cfg(feature = "host")]
+pub type Result<T, E = Error> = core::result::Result<T, E>;

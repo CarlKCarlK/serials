@@ -77,6 +77,65 @@ pub fn bit_matrix3x4_font() -> MonoFont<'static> {
     }
 }
 
+/// Render text into a frame using the provided font.
+pub fn render_text_to_frame<const ROWS: usize, const COLS: usize>(
+    frame: &mut Frame<ROWS, COLS>,
+    font: &embedded_graphics::mono_font::MonoFont<'static>,
+    text: &str,
+    colors: &[RGB8],
+) -> Result<()> {
+    let glyph_width = font.character_size.width as i32;
+    let glyph_height = font.character_size.height as i32;
+    let advance_x = glyph_width;
+    let advance_y = glyph_height;
+    let height_limit = ROWS as i32;
+    if height_limit <= 0 {
+        return Ok(());
+    }
+    let baseline = font.baseline as i32;
+    let width_limit = COLS as i32;
+    let mut x = 0i32;
+    let mut y = baseline;
+    let mut color_index: usize = 0;
+
+    for ch in text.chars() {
+        if ch == '\n' {
+            x = 0;
+            y += advance_y;
+            if y - baseline >= height_limit {
+                break;
+            }
+            continue;
+        }
+
+        // Clip characters that exceed width limit (no wrapping until explicit \n)
+        if x + glyph_width > width_limit {
+            continue;
+        }
+
+        let color = if colors.is_empty() {
+            smart_leds::colors::WHITE
+        } else {
+            colors[color_index % colors.len()]
+        };
+        color_index = color_index.wrapping_add(1);
+
+        let mut buf = [0u8; 4];
+        let slice = ch.encode_utf8(&mut buf);
+        let style = embedded_graphics::mono_font::MonoTextStyle::new(font, rgb8_to_rgb888(color));
+        let position = embedded_graphics::prelude::Point::new(x, y);
+        embedded_graphics::Drawable::draw(
+            &embedded_graphics::text::Text::new(slice, position, style),
+            frame,
+        )
+        .expect("drawing into frame cannot fail");
+
+        x += advance_x;
+    }
+
+    Ok(())
+}
+
 /// Built-in 3x4 font and embedded-graphics ASCII fonts.
 #[derive(Clone, Copy, Debug)]
 pub enum Led2dFont {
@@ -210,6 +269,12 @@ impl<const ROWS: usize, const COLS: usize> From<[[RGB8; COLS]; ROWS]> for Frame<
 impl<const ROWS: usize, const COLS: usize> From<Frame<ROWS, COLS>> for [[RGB8; COLS]; ROWS] {
     fn from(frame: Frame<ROWS, COLS>) -> Self {
         frame.0
+    }
+}
+
+impl<const ROWS: usize, const COLS: usize> Default for Frame<ROWS, COLS> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -480,6 +545,7 @@ async fn run_animation_loop<const N: usize, S: LedStrip<N>>(
 /// # async fn main(_spawner: Spawner) { loop {} }
 ///
 #[macro_export]
+#[cfg(not(feature = "host"))]
 macro_rules! led2d_device_task {
     (
         $task_name:ident,
@@ -528,6 +594,7 @@ macro_rules! led2d_device_task {
     };
 }
 
+#[cfg(not(feature = "host"))]
 pub use led2d_device_task;
 
 /// Declares the full Led2d device/static pair plus the background task wrapper.
@@ -556,6 +623,7 @@ pub use led2d_device_task;
 /// # async fn main(_spawner: Spawner) { loop {} }
 ///
 #[macro_export]
+#[cfg(not(feature = "host"))]
 macro_rules! led2d_device {
     (
         $vis:vis struct $resources_name:ident,
@@ -602,6 +670,7 @@ macro_rules! led2d_device {
     };
 }
 
+#[cfg(not(feature = "host"))]
 pub use led2d_device;
 
 /// Declares a complete Led2d device abstraction with LedStripSimple integration.
@@ -635,7 +704,6 @@ pub use led2d_device;
 ///     pio: PIO1,
 ///     mapping: serpentine_column_major,
 ///     font: serials::led2d::Led2dFont::Font3x4,
-///     line_spacing: 0,
 /// }
 /// # use embassy_executor::Spawner;
 /// # #[embassy_executor::main]
@@ -661,13 +729,13 @@ pub use led2d_device;
 ///         12, 13, 14, 15
 ///     ]),
 ///     font: serials::led2d::Led2dFont::Font3x4,
-///     line_spacing: 0,
 /// }
 /// # use embassy_executor::Spawner;
 /// # #[embassy_executor::main]
 /// # async fn main(_spawner: Spawner) { loop {} }
 /// ```
 #[macro_export]
+#[cfg(not(feature = "host"))]
 macro_rules! led2d_device_simple {
     // Serpentine column-major mapping variant
     (
@@ -676,8 +744,7 @@ macro_rules! led2d_device_simple {
         cols: $cols:expr,
         pio: $pio:ident,
         mapping: serpentine_column_major,
-        font: $font_variant:expr,
-        line_spacing: $line_spacing:expr $(,)?
+        font: $font_variant:expr $(,)?
     ) => {
         $crate::led2d::paste::paste! {
             const [<$name:upper _ROWS>]: usize = $rows;
@@ -687,7 +754,7 @@ macro_rules! led2d_device_simple {
 
             $crate::led2d::led2d_device_simple!(
                 @common $vis, $name, $pio, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
-                $font_variant, $line_spacing
+                $font_variant
             );
         }
     };
@@ -698,8 +765,7 @@ macro_rules! led2d_device_simple {
         cols: $cols:expr,
         pio: $pio:ident,
         mapping: arbitrary([$($index:expr),* $(,)?]),
-        font: $font_variant:expr,
-        line_spacing: $line_spacing:expr $(,)?
+        font: $font_variant:expr $(,)?
     ) => {
         $crate::led2d::paste::paste! {
             const [<$name:upper _ROWS>]: usize = $rows;
@@ -709,7 +775,7 @@ macro_rules! led2d_device_simple {
 
             $crate::led2d::led2d_device_simple!(
                 @common $vis, $name, $pio, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
-                $font_variant, $line_spacing
+                $font_variant
             );
         }
     };
@@ -722,8 +788,7 @@ macro_rules! led2d_device_simple {
         $cols_const:ident,
         $n_const:ident,
         $mapping_const:ident,
-        $font_variant:expr,
-        $line_spacing:expr
+        $font_variant:expr
     ) => {
         $crate::led2d::paste::paste! {
             /// Static resources for the device.
@@ -743,7 +808,6 @@ macro_rules! led2d_device_simple {
             $vis struct [<$name:camel>] {
                 pub led2d: $crate::led2d::Led2d<'static, $n_const>,
                 pub font: embedded_graphics::mono_font::MonoFont<'static>,
-                pub line_spacing: usize,
             }
 
             impl [<$name:camel>] {
@@ -808,7 +872,6 @@ macro_rules! led2d_device_simple {
                     Ok(Self {
                         led2d,
                         font: ($font_variant).to_font(),
-                        line_spacing: $line_spacing,
                     })
                 }
 
@@ -837,63 +900,7 @@ macro_rules! led2d_device_simple {
                     colors: &[smart_leds::RGB8],
                     frame: &mut $crate::led2d::Frame<$rows_const, $cols_const>,
                 ) -> $crate::Result<()> {
-                    let font = self.font;
-                    let glyph_width = font.character_size.width as i32;
-                    let glyph_height = font.character_size.height as i32;
-                    let advance_x = glyph_width;
-                    let advance_y = glyph_height + self.line_spacing as i32;
-                    let height_limit = $rows_const as i32;
-                    if height_limit <= 0 {
-                        return Ok(());
-                    }
-                    let baseline = font.baseline as i32;
-                    let width_limit = $cols_const as i32;
-                    let mut x = 0i32;
-                    let mut y = baseline;
-                    let mut color_index: usize = 0;
-
-                    for ch in text.chars() {
-                        if ch == '\n' {
-                            x = 0;
-                            y += advance_y;
-                            if y - baseline >= height_limit {
-                                break;
-                            }
-                            continue;
-                        }
-
-                        if x + glyph_width > width_limit {
-                            x = 0;
-                            y += advance_y;
-                            if y - baseline >= height_limit {
-                                break;
-                            }
-                        }
-
-                        let color = if colors.is_empty() {
-                            smart_leds::colors::WHITE
-                        } else {
-                            colors[color_index % colors.len()]
-                        };
-                        color_index = color_index.wrapping_add(1);
-
-                        let mut buf = [0u8; 4];
-                        let slice = ch.encode_utf8(&mut buf);
-                        let style = embedded_graphics::mono_font::MonoTextStyle::new(
-                            &font,
-                            $crate::led2d::rgb8_to_rgb888(color),
-                        );
-                        let position = embedded_graphics::prelude::Point::new(x, y);
-                        embedded_graphics::Drawable::draw(
-                            &embedded_graphics::text::Text::new(slice, position, style),
-                            frame,
-                        )
-                        .expect("drawing into frame cannot fail");
-
-                        x += advance_x;
-                    }
-
-                    Ok(())
+                    $crate::led2d::render_text_to_frame(frame, &self.font, self.line_spacing, text, colors)
                 }
 
                 /// Convenience wrapper to render text into a fresh frame and display it.
@@ -907,4 +914,5 @@ macro_rules! led2d_device_simple {
     };
 }
 
+#[cfg(not(feature = "host"))]
 pub use led2d_device_simple;

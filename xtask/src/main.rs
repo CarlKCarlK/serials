@@ -154,23 +154,24 @@ fn check_all() -> ExitCode {
             }
         });
 
-        // 2. Unit tests
+        // 2. Host tests (unit + integration)
         s.spawn(|_| {
-            println!("{}", "  [2/8] Unit tests...".bright_black());
+            println!(
+                "{}",
+                "  [2/8] Host tests (unit + integration)...".bright_black()
+            );
             let host_target = host_target();
-            let mut unit_test_cmd = Command::new("cargo");
-            unit_test_cmd
-                .current_dir(&workspace_root)
-                .args(["test", "--lib"]);
+            let mut host_test_cmd = Command::new("cargo");
+            host_test_cmd.current_dir(&workspace_root).args(["test"]);
 
             if let Some(target) = host_target {
-                unit_test_cmd.arg("--target").arg(target);
+                host_test_cmd.arg("--target").arg(target);
             }
 
-            unit_test_cmd.args(["--no-default-features", "--features", "host"]);
+            host_test_cmd.args(["--no-default-features", "--features", "host", "--test", "*"]);
 
-            if !run_command(&mut unit_test_cmd) {
-                failures.lock().unwrap().push("unit tests");
+            if !run_command(&mut host_test_cmd) {
+                failures.lock().unwrap().push("host tests");
             }
         });
 

@@ -6,3 +6,6 @@ gather:
 
 attach-probe:
 	./scripts/attach-probe.sh
+
+regenerate-text-pngs:
+	./scripts/regenerate-text-pngs.sh

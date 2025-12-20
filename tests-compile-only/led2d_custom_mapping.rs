@@ -3,6 +3,7 @@
 //! This verifies that led2d_device_simple! macro works with arbitrary custom mappings.
 //! Run via: `cargo check-all` (xtask compiles this for thumbv6m-none-eabi)
 
+#![cfg(not(feature = "host"))]
 #![no_std]
 #![no_main]
 #![allow(dead_code, reason = "Compile-time verification only")]
@@ -28,7 +29,6 @@ led2d_device_simple! {
         3, 4, 5,  // Row 1: LEDs 3, 4, 5
     ]),
     font: serials::led2d::Led2dFont::Font3x4,
-    line_spacing: 0,
 }
 
 /// Verify Led2x3 construction with custom mapping

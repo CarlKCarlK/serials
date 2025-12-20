@@ -6,6 +6,7 @@
 //!
 //! Run via: `cargo check-all` (xtask compiles this for thumbv6m-none-eabi)
 
+#![cfg(not(feature = "host"))]
 #![no_std]
 #![no_main]
 #![allow(dead_code, reason = "Compile-time verification only")]

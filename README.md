@@ -86,6 +86,21 @@ For reliable IR operation alongside SPI RFID:
 - Reduce RFID polling to **500ms intervals**
 - MIN_IDLE filter rejects <5ms noise pulses
 
+## Testing
+
+The project includes host-side tests for font rendering that run on your development machine (no hardware required).
+
+```bash
+# Run all host tests (font rendering comparisons against reference PNGs)
+cargo test --features host --no-default-features --test '*'
+
+# Regenerate reference PNGs for visual inspection
+./scripts/regenerate-text-pngs.sh
+# Then visually inspect the generated PNGs and copy to tests/data/text_render/ if correct
+```
+
+See [tests/data/text_render/README.md](tests/data/text_render/README.md) for details on the font rendering tests.
+
 ## Building
 
 Requires Rust nightly with appropriate target for your board:

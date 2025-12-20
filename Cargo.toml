@@ -17,14 +17,17 @@ path = "src/lib.rs"
 [[bin]]
 name = "led12x4"
 path = "tests-compile-only/led12x4.rs"
+required-features = ["pico1"]
 
 [[bin]]
 name = "led2d_custom_mapping"
 path = "tests-compile-only/led2d_custom_mapping.rs"
+required-features = ["pico1"]
 
 [[bin]]
 name = "led2d_multiple"
 path = "tests-compile-only/led2d_multiple.rs"
+required-features = ["pico1"]
 
 [features]
 default = ["defmt", "pico1", "arm"]
@@ -131,6 +134,10 @@ static_cell = "2.1.0"
 embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy", branch = "main", default-features = false, optional = true }
 paste = "1.0"
 embedded-graphics = { version = "0.8", default-features = false }
+
+[dev-dependencies]
+png = "0.17"
+tempfile = "3.13"
 
 [patch.crates-io]
 embassy-executor = { git = "https://github.com/embassy-rs/embassy", branch = "main" }

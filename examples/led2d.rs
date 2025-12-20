@@ -26,7 +26,6 @@ led2d_device_simple! {
     pio: PIO1,
     mapping: serpentine_column_major,
     font: Led2dFont::Font3x4,
-    line_spacing: 0,
 }
 
 #[embassy_executor::main]
