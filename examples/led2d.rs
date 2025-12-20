@@ -10,12 +10,11 @@ use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_rp::init;
 use embassy_time::{Duration, Timer};
-use embedded_graphics::{mono_font::MonoTextStyle, prelude::*, text::Text};
 use heapless::Vec;
 use panic_probe as _;
 use serials::button::{Button, PressedTo};
 use serials::led_strip_simple::Milliamps;
-use serials::led2d::{Led2dFont, led2d_device_simple, rgb8_to_rgb888};
+use serials::led2d::{Led2dFont, led2d_device_simple};
 use serials::{Error, Result};
 use smart_leds::colors;
 
@@ -27,7 +26,6 @@ led2d_device_simple! {
     pio: PIO1,
     mapping: serpentine_column_major,
     font: Led2dFont::Font3x4,
-    character_spacing: 0,
     line_spacing: 0,
 }
 
@@ -74,25 +72,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
 /// Display "RUST" using the bit_matrix3x4 font via embedded-graphics.
 async fn demo_rust_text(led4x12: &Led4x12) -> Result<()> {
-    let mut frame = Led4x12::new_frame();
-    let font = Led2dFont::Font3x4.to_font();
-    let letters = [
-        ('R', colors::RED),
-        ('U', colors::GREEN),
-        ('S', colors::BLUE),
-        ('T', colors::YELLOW),
-    ];
-
-    for (index, (character, glyph_color)) in letters.iter().enumerate() {
-        let mut character_bytes = [0u8; 1];
-        character_bytes[0] = *character as u8;
-        let character_str = core::str::from_utf8(&character_bytes).expect("ASCII glyphs only");
-        let style = MonoTextStyle::new(&font, rgb8_to_rgb888(*glyph_color));
-        let position = Point::new((index * 3) as i32, font.baseline as i32);
-        Text::new(character_str, position, style).draw(&mut frame)?;
-    }
-
-    led4x12.write_frame(frame).await
+    let colors = [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW];
+    led4x12.write_text("RUST\ntwo", &colors).await
 }
 
 /// Display colored corners to demonstrate coordinate mapping.

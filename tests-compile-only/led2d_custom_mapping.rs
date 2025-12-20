@@ -28,7 +28,6 @@ led2d_device_simple! {
         3, 4, 5,  // Row 1: LEDs 3, 4, 5
     ]),
     font: serials::led2d::Led2dFont::Font3x4,
-    character_spacing: 0,
     line_spacing: 0,
 }
 

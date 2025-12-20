@@ -25,7 +25,6 @@ led2d_device_simple! {
     pio: PIO0,
     mapping: serpentine_column_major,
     font: serials::led2d::Led2dFont::Font3x4,
-    character_spacing: 0,
     line_spacing: 0,
 }
 
@@ -37,7 +36,6 @@ led2d_device_simple! {
     pio: PIO1,
     mapping: serpentine_column_major,
     font: serials::led2d::Led2dFont::Font3x4,
-    character_spacing: 0,
     line_spacing: 0,
 }
 

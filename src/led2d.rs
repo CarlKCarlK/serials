@@ -635,7 +635,6 @@ pub use led2d_device;
 ///     pio: PIO1,
 ///     mapping: serpentine_column_major,
 ///     font: serials::led2d::Led2dFont::Font3x4,
-///     character_spacing: 0,
 ///     line_spacing: 0,
 /// }
 /// # use embassy_executor::Spawner;
@@ -662,7 +661,6 @@ pub use led2d_device;
 ///         12, 13, 14, 15
 ///     ]),
 ///     font: serials::led2d::Led2dFont::Font3x4,
-///     character_spacing: 0,
 ///     line_spacing: 0,
 /// }
 /// # use embassy_executor::Spawner;
@@ -679,7 +677,6 @@ macro_rules! led2d_device_simple {
         pio: $pio:ident,
         mapping: serpentine_column_major,
         font: $font_variant:expr,
-        character_spacing: $char_spacing:expr,
         line_spacing: $line_spacing:expr $(,)?
     ) => {
         $crate::led2d::paste::paste! {
@@ -690,7 +687,7 @@ macro_rules! led2d_device_simple {
 
             $crate::led2d::led2d_device_simple!(
                 @common $vis, $name, $pio, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
-                $font_variant, $char_spacing, $line_spacing
+                $font_variant, $line_spacing
             );
         }
     };
@@ -702,7 +699,6 @@ macro_rules! led2d_device_simple {
         pio: $pio:ident,
         mapping: arbitrary([$($index:expr),* $(,)?]),
         font: $font_variant:expr,
-        character_spacing: $char_spacing:expr,
         line_spacing: $line_spacing:expr $(,)?
     ) => {
         $crate::led2d::paste::paste! {
@@ -713,7 +709,7 @@ macro_rules! led2d_device_simple {
 
             $crate::led2d::led2d_device_simple!(
                 @common $vis, $name, $pio, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
-                $font_variant, $char_spacing, $line_spacing
+                $font_variant, $line_spacing
             );
         }
     };
@@ -727,7 +723,6 @@ macro_rules! led2d_device_simple {
         $n_const:ident,
         $mapping_const:ident,
         $font_variant:expr,
-        $char_spacing:expr,
         $line_spacing:expr
     ) => {
         $crate::led2d::paste::paste! {
@@ -748,7 +743,6 @@ macro_rules! led2d_device_simple {
             $vis struct [<$name:camel>] {
                 pub led2d: $crate::led2d::Led2d<'static, $n_const>,
                 pub font: embedded_graphics::mono_font::MonoFont<'static>,
-                pub character_spacing: usize,
                 pub line_spacing: usize,
             }
 
@@ -814,7 +808,6 @@ macro_rules! led2d_device_simple {
                     Ok(Self {
                         led2d,
                         font: ($font_variant).to_font(),
-                        character_spacing: $char_spacing,
                         line_spacing: $line_spacing,
                     })
                 }
@@ -831,6 +824,83 @@ macro_rules! led2d_device_simple {
                 /// Each frame is a tuple of (Frame, duration).
                 $vis async fn animate(&self, frames: &[($crate::led2d::Frame<$rows_const, $cols_const>, ::embassy_time::Duration)]) -> $crate::Result<()> {
                     self.led2d.animate(frames).await
+                }
+
+                /// Render text into a frame using the configured font and spacing.
+                ///
+                /// - `text`: text to render; `\n` starts a new line.
+                /// - `colors`: cycle of colors for non-newline characters; if empty, white is used.
+                /// - `frame`: target frame to draw into.
+                pub fn write_text_to_frame(
+                    &self,
+                    text: &str,
+                    colors: &[smart_leds::RGB8],
+                    frame: &mut $crate::led2d::Frame<$rows_const, $cols_const>,
+                ) -> $crate::Result<()> {
+                    let font = self.font;
+                    let glyph_width = font.character_size.width as i32;
+                    let glyph_height = font.character_size.height as i32;
+                    let advance_x = glyph_width;
+                    let advance_y = glyph_height + self.line_spacing as i32;
+                    let height_limit = $rows_const as i32;
+                    if height_limit <= 0 {
+                        return Ok(());
+                    }
+                    let baseline = font.baseline as i32;
+                    let width_limit = $cols_const as i32;
+                    let mut x = 0i32;
+                    let mut y = baseline;
+                    let mut color_index: usize = 0;
+
+                    for ch in text.chars() {
+                        if ch == '\n' {
+                            x = 0;
+                            y += advance_y;
+                            if y - baseline >= height_limit {
+                                break;
+                            }
+                            continue;
+                        }
+
+                        if x + glyph_width > width_limit {
+                            x = 0;
+                            y += advance_y;
+                            if y - baseline >= height_limit {
+                                break;
+                            }
+                        }
+
+                        let color = if colors.is_empty() {
+                            smart_leds::colors::WHITE
+                        } else {
+                            colors[color_index % colors.len()]
+                        };
+                        color_index = color_index.wrapping_add(1);
+
+                        let mut buf = [0u8; 4];
+                        let slice = ch.encode_utf8(&mut buf);
+                        let style = embedded_graphics::mono_font::MonoTextStyle::new(
+                            &font,
+                            $crate::led2d::rgb8_to_rgb888(color),
+                        );
+                        let position = embedded_graphics::prelude::Point::new(x, y);
+                        embedded_graphics::Drawable::draw(
+                            &embedded_graphics::text::Text::new(slice, position, style),
+                            frame,
+                        )
+                        .expect("drawing into frame cannot fail");
+
+                        x += advance_x;
+                    }
+
+                    Ok(())
+                }
+
+                /// Convenience wrapper to render text into a fresh frame and display it.
+                pub async fn write_text(&self, text: &str, colors: &[smart_leds::RGB8]) -> $crate::Result<()> {
+                    let mut frame = Self::new_frame();
+                    self.write_text_to_frame(text, colors, &mut frame)?;
+                    self.write_frame(frame).await
                 }
             }
         }
