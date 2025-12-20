@@ -27,6 +27,9 @@ led2d_device_simple! {
         0, 1, 2,  // Row 0: LEDs 0, 1, 2
         3, 4, 5,  // Row 1: LEDs 3, 4, 5
     ]),
+    font: serials::led2d::Led2dFont::Font3x4,
+    character_spacing: 0,
+    line_spacing: 0,
 }
 
 /// Verify Led2x3 construction with custom mapping

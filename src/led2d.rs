@@ -634,6 +634,9 @@ pub use led2d_device;
 ///     cols: 12,
 ///     pio: PIO1,
 ///     mapping: serpentine_column_major,
+///     font: serials::led2d::Led2dFont::Font3x4,
+///     character_spacing: 0,
+///     line_spacing: 0,
 /// }
 /// # use embassy_executor::Spawner;
 /// # #[embassy_executor::main]
@@ -658,6 +661,9 @@ pub use led2d_device;
 ///         8, 9, 10, 11,
 ///         12, 13, 14, 15
 ///     ]),
+///     font: serials::led2d::Led2dFont::Font3x4,
+///     character_spacing: 0,
+///     line_spacing: 0,
 /// }
 /// # use embassy_executor::Spawner;
 /// # #[embassy_executor::main]
@@ -671,7 +677,10 @@ macro_rules! led2d_device_simple {
         rows: $rows:expr,
         cols: $cols:expr,
         pio: $pio:ident,
-        mapping: serpentine_column_major $(,)?
+        mapping: serpentine_column_major,
+        font: $font_variant:expr,
+        character_spacing: $char_spacing:expr,
+        line_spacing: $line_spacing:expr $(,)?
     ) => {
         $crate::led2d::paste::paste! {
             const [<$name:upper _ROWS>]: usize = $rows;
@@ -679,7 +688,10 @@ macro_rules! led2d_device_simple {
             const [<$name:upper _N>]: usize = [<$name:upper _ROWS>] * [<$name:upper _COLS>];
             const [<$name:upper _MAPPING>]: [u16; [<$name:upper _N>]] = $crate::led2d::serpentine_column_major_mapping::<[<$name:upper _N>], [<$name:upper _ROWS>], [<$name:upper _COLS>]>();
 
-            $crate::led2d::led2d_device_simple!(@common $vis, $name, $pio, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>]);
+            $crate::led2d::led2d_device_simple!(
+                @common $vis, $name, $pio, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
+                $font_variant, $char_spacing, $line_spacing
+            );
         }
     };
     // Arbitrary custom mapping variant
@@ -688,7 +700,10 @@ macro_rules! led2d_device_simple {
         rows: $rows:expr,
         cols: $cols:expr,
         pio: $pio:ident,
-        mapping: arbitrary([$($index:expr),* $(,)?]) $(,)?
+        mapping: arbitrary([$($index:expr),* $(,)?]),
+        font: $font_variant:expr,
+        character_spacing: $char_spacing:expr,
+        line_spacing: $line_spacing:expr $(,)?
     ) => {
         $crate::led2d::paste::paste! {
             const [<$name:upper _ROWS>]: usize = $rows;
@@ -696,7 +711,10 @@ macro_rules! led2d_device_simple {
             const [<$name:upper _N>]: usize = [<$name:upper _ROWS>] * [<$name:upper _COLS>];
             const [<$name:upper _MAPPING>]: [u16; [<$name:upper _N>]] = [$($index),*];
 
-            $crate::led2d::led2d_device_simple!(@common $vis, $name, $pio, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>]);
+            $crate::led2d::led2d_device_simple!(
+                @common $vis, $name, $pio, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
+                $font_variant, $char_spacing, $line_spacing
+            );
         }
     };
     // Common implementation (shared by both variants)
@@ -707,7 +725,10 @@ macro_rules! led2d_device_simple {
         $rows_const:ident,
         $cols_const:ident,
         $n_const:ident,
-        $mapping_const:ident
+        $mapping_const:ident,
+        $font_variant:expr,
+        $char_spacing:expr,
+        $line_spacing:expr
     ) => {
         $crate::led2d::paste::paste! {
             /// Static resources for the device.
@@ -725,7 +746,10 @@ macro_rules! led2d_device_simple {
 
             /// Device abstraction for the LED matrix.
             $vis struct [<$name:camel>] {
-                led2d: $crate::led2d::Led2d<'static, $n_const>,
+                pub led2d: $crate::led2d::Led2d<'static, $n_const>,
+                pub font: embedded_graphics::mono_font::MonoFont<'static>,
+                pub character_spacing: usize,
+                pub line_spacing: usize,
             }
 
             impl [<$name:camel>] {
@@ -787,7 +811,12 @@ macro_rules! led2d_device_simple {
                         $cols_const,
                     );
 
-                    Ok(Self { led2d })
+                    Ok(Self {
+                        led2d,
+                        font: ($font_variant).to_font(),
+                        character_spacing: $char_spacing,
+                        line_spacing: $line_spacing,
+                    })
                 }
 
                 /// Render a fully defined frame to the display.
