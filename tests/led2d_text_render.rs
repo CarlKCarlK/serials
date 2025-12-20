@@ -44,6 +44,11 @@ fn font5x8_on_600x800_fibonacci() {
     );
 }
 
+#[test]
+fn font3x4_on_12x4_no_colors_defaults_to_white() {
+    run_render_test::<4, 12>("font3x4_12x4_white", Led2dFont::Font3x4, "RUST", &[]);
+}
+
 fn run_render_test<const ROWS: usize, const COLS: usize>(
     name: &str,
     font: Led2dFont,
