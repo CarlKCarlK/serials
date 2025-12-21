@@ -471,8 +471,7 @@ pub trait LedStrip<const N: usize> {
     async fn update_pixels(&mut self, pixels: &[RGB8; N]) -> Result<()>;
 }
 
-// cmk000 by the rules of Rust style, should this be Led2D?
-// cmk000 this needs a compiled-only doc test.
+// cmk00 this needs a compiled-only doc test.
 /// A device abstraction for rectangular LED matrix displays.
 ///
 /// Supports any size display with arbitrary coordinate-to-LED-index mapping.

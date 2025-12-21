@@ -30,8 +30,7 @@ use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
 use serials::{Error, Result};
 use smart_leds::RGB8;
 
-// cmk000 confirm the chosen animation max frame number is correct for this panel
-// cmk000 could/should we replace arbitrary with a cat of the zigzag mapping?
+// cmk could/should we replace arbitrary with a cat of the zigzag mapping?
 // Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise)
 led2d_device_simple! {
     pub led8x12,
