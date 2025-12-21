@@ -221,6 +221,7 @@ impl WifiSetup {
     /// Initialize WiFi auto-provisioning with custom configuration fields.
     ///
     /// See [`WifiSetup`] for a complete example.
+    // cmk00 PIO0 is hardcoded here (and in stack.rs). Could be made generic over any PIO.
     #[allow(clippy::too_many_arguments)]
     pub fn new<const N: usize>(
         wifi_setup_static: &'static WifiSetupStatic,

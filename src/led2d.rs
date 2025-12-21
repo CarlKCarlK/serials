@@ -44,7 +44,7 @@ pub fn rgb888_to_rgb8(color: Rgb888) -> RGB8 {
 
 // cmk does this need to be limited and public
 /// Maximum frames supported by [`Led2d::animate`].
-pub const ANIMATION_MAX_FRAMES: usize = 32;
+pub const ANIMATION_MAX_FRAMES: usize = 48;
 
 // Packed bitmap for the internal 3x4 font (ASCII 0x20-0x7E).
 const BIT_MATRIX3X4_FONT_DATA: [u8; 144] = [
