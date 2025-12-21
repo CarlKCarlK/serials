@@ -26,7 +26,7 @@ led2d_device_simple! {
     pio: PIO0,
     mapping: serpentine_column_major,
     max_frames: 32,
-    font: serials::led2d::Led2dFont::Font3x4Trim,
+    font: Font3x4Trim,
 }
 
 // Second device: 8x8 display
@@ -37,7 +37,7 @@ led2d_device_simple! {
     pio: PIO1,
     mapping: serpentine_column_major,
     max_frames: 32,
-    font: serials::led2d::Led2dFont::Font3x4Trim,
+    font: Font3x4Trim,
 }
 
 /// Verify both devices can be constructed and used together

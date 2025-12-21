@@ -14,7 +14,7 @@ use heapless::Vec;
 use panic_probe as _;
 use serials::button::{Button, PressedTo};
 use serials::led_strip_simple::Milliamps;
-use serials::led2d::{Led2dFont, led2d_device_simple};
+use serials::led2d::led2d_device_simple;
 use serials::{Error, Result};
 use smart_leds::colors;
 

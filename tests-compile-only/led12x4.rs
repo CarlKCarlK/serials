@@ -11,7 +11,7 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use panic_probe as _;
 use serials::led_strip_simple::{Milliamps, colors};
-use serials::led2d::{Led2dFont, led2d_device, led2d_device_simple};
+use serials::led2d::{led2d_device, led2d_device_simple};
 
 led2d_device_simple! {
     pub led12x4_pio0,

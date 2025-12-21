@@ -23,7 +23,7 @@ use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use serials::flash_array::{FlashArray, FlashArrayStatic};
 use serials::led_strip_simple::Milliamps;
 use serials::led_strip_simple::colors;
-use serials::led2d::{Led2dFont, led2d_device_simple};
+use serials::led2d::led2d_device_simple;
 use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
