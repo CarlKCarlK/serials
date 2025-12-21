@@ -107,8 +107,8 @@ impl ClockStatic {
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// use serials::clock::{Clock, ClockStatic, ONE_SECOND, h12_m_s};
-/// use serials::time_sync::UnixSeconds;
+/// use device_kit::clock::{Clock, ClockStatic, ONE_SECOND, h12_m_s};
+/// use device_kit::time_sync::UnixSeconds;
 /// # #[panic_handler]
 /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 ///

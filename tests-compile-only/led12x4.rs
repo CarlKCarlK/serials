@@ -10,8 +10,8 @@
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use panic_probe as _;
-use serials::led_strip_simple::{Milliamps, colors};
-use serials::led2d::{led2d_device, led2d_device_simple};
+use device_kit::led_strip_simple::{Milliamps, colors};
+use device_kit::led2d::{led2d_device, led2d_device_simple};
 
 led2d_device_simple! {
     pub led12x4_pio0,
@@ -38,15 +38,15 @@ const LED12X4_COLS: usize = 12;
 const LED12X4_N: usize = LED12X4_ROWS * LED12X4_COLS;
 const LED12X4_MAX_FRAMES: usize = 32;
 const LED12X4_MAPPING: [u16; LED12X4_N] =
-    serials::led2d::serpentine_column_major_mapping::<LED12X4_N, LED12X4_ROWS, LED12X4_COLS>();
-type LedFrame = serials::led2d::Frame<LED12X4_ROWS, LED12X4_COLS>;
-static LED12X4_STRIP_STATIC: serials::led_strip::LedStripStatic<LED12X4_N> =
-    serials::led_strip::LedStrip::new_static();
+    device_kit::led2d::serpentine_column_major_mapping::<LED12X4_N, LED12X4_ROWS, LED12X4_COLS>();
+type LedFrame = device_kit::led2d::Frame<LED12X4_ROWS, LED12X4_COLS>;
+static LED12X4_STRIP_STATIC: device_kit::led_strip::LedStripStatic<LED12X4_N> =
+    device_kit::led_strip::LedStrip::new_static();
 
 led2d_device! {
     pub struct Led12x4StripResources,
     task: pub led12x4_strip_task,
-    strip: serials::led_strip::LedStrip<LED12X4_N>,
+    strip: device_kit::led_strip::LedStrip<LED12X4_N>,
     leds: LED12X4_N,
     mapping: &LED12X4_MAPPING,
     cols: LED12X4_COLS,
@@ -54,8 +54,8 @@ led2d_device! {
 }
 
 async fn write_text_frame(
-    led: &serials::led2d::Led2d<'static, LED12X4_N, LED12X4_MAX_FRAMES>,
-) -> serials::Result<()> {
+    led: &device_kit::led2d::Led2d<'static, LED12X4_N, LED12X4_MAX_FRAMES>,
+) -> device_kit::Result<()> {
     let frame = LedFrame::new();
     led.write_frame(frame).await
 }
@@ -64,7 +64,7 @@ async fn write_text_frame(
 async fn test_led12x4_pio0_write_text(
     p: embassy_rp::Peripherals,
     spawner: Spawner,
-) -> serials::Result<()> {
+) -> device_kit::Result<()> {
     static LED_12X4_STATIC: Led12x4Pio0Static = Led12x4Pio0::new_static();
     let led_12x4 =
         Led12x4Pio0::new(&LED_12X4_STATIC, p.PIO0, p.PIN_3, Milliamps(500), spawner).await?;
@@ -80,7 +80,7 @@ async fn test_led12x4_pio0_write_text(
 }
 
 /// Verify Led12x4Pio1 constructor
-async fn test_led12x4_pio1(p: embassy_rp::Peripherals, spawner: Spawner) -> serials::Result<()> {
+async fn test_led12x4_pio1(p: embassy_rp::Peripherals, spawner: Spawner) -> device_kit::Result<()> {
     static LED_12X4_STATIC: Led12x4Pio1Static = Led12x4Pio1::new_static();
     let _led_12x4 =
         Led12x4Pio1::new(&LED_12X4_STATIC, p.PIO1, p.PIN_3, Milliamps(500), spawner).await?;
@@ -92,9 +92,9 @@ async fn test_led12x4_pio1(p: embassy_rp::Peripherals, spawner: Spawner) -> seri
 async fn test_led12x4_from_multi(
     _p: embassy_rp::Peripherals,
     spawner: Spawner,
-) -> serials::Result<()> {
+) -> device_kit::Result<()> {
     static LED12X4_RESOURCES: Led12x4StripResources = Led12x4StripResources::new_static();
-    let led_strip = serials::led_strip::LedStrip::new(&LED12X4_STRIP_STATIC)?;
+    let led_strip = device_kit::led_strip::LedStrip::new(&LED12X4_STRIP_STATIC)?;
     let led12x4 = LED12X4_RESOURCES.new(led_strip, spawner)?;
     write_text_frame(&led12x4).await?;
 
@@ -105,10 +105,10 @@ async fn test_led12x4_from_multi(
 async fn test_led12x4_from_simple(
     p: embassy_rp::Peripherals,
     spawner: Spawner,
-) -> serials::Result<()> {
+) -> device_kit::Result<()> {
     let _ = p;
     static LED12X4_RESOURCES: Led12x4StripResources = Led12x4StripResources::new_static();
-    let led_strip = serials::led_strip::LedStrip::new(&LED12X4_STRIP_STATIC)?;
+    let led_strip = device_kit::led_strip::LedStrip::new(&LED12X4_STRIP_STATIC)?;
     let led12x4 = LED12X4_RESOURCES.new(led_strip, spawner)?;
     write_text_frame(&led12x4).await?;
 

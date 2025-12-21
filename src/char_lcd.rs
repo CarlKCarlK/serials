@@ -46,12 +46,12 @@ impl CharLcdStatic {
 /// # #![no_std]
 /// # use panic_probe as _;
 /// # fn main() {}
-/// use serials::char_lcd::{CharLcd, CharLcdStatic};
+/// use device_kit::char_lcd::{CharLcd, CharLcdStatic};
 ///
 /// async fn example(
 ///     p: embassy_rp::Peripherals,
 ///     spawner: embassy_executor::Spawner,
-/// ) -> serials::Result<()> {
+/// ) -> device_kit::Result<()> {
 ///     static CHAR_LCD_STATIC: CharLcdStatic = CharLcd::new_static();
 ///     let lcd = CharLcd::new(&CHAR_LCD_STATIC, p.I2C0, p.PIN_1, p.PIN_0, spawner)?;
 ///     let mut text: heapless::String<64> = "Hello!".try_into().unwrap();

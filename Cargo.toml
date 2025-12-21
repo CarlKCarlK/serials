@@ -5,12 +5,12 @@ default-members = ["."]
 [package]
 edition = "2024"
 # if this changes, update .vscode/launch.json and .cargo/config.toml
-name = "serials"
+name = "device-kit"
 version = "0.0.1"
 
 # Pure library crate - all applications are in examples/
 [lib]
-name = "serials"
+name = "device_kit"
 path = "src/lib.rs"
 
 # Compile-only tests (not run, just type-checked)

@@ -12,10 +12,10 @@ use embassy_rp::init;
 use embassy_time::{Duration, Timer};
 use heapless::Vec;
 use panic_probe as _;
-use serials::button::{Button, PressedTo};
-use serials::led_strip_simple::Milliamps;
-use serials::led2d::led2d_device_simple;
-use serials::{Error, Result};
+use device_kit::button::{Button, PressedTo};
+use device_kit::led_strip_simple::Milliamps;
+use device_kit::led2d::led2d_device_simple;
+use device_kit::{Error, Result};
 use smart_leds::colors;
 
 // Create the led2d device using the macro
@@ -137,7 +137,7 @@ async fn demo_rectangle_diagonals_embedded_graphics(led4x12: &Led4x12) -> Result
         prelude::*,
         primitives::{Line, PrimitiveStyle, Rectangle},
     };
-    use serials::led2d::Frame;
+    use device_kit::led2d::Frame;
 
     let mut frame = Led4x12::new_frame();
 

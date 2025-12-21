@@ -95,7 +95,7 @@ mod wifi_impl {
     /// # #![no_std]
     /// # #![no_main]
     /// # use panic_probe as _;
-    /// use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+    /// use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
     ///
     /// # #[allow(dead_code)]
     /// async fn run_time_sync(

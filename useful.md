@@ -77,7 +77,7 @@ View defmt logs (already active during `cargo run`):
 
 Flash to device manually (if cargo run fails):
 ```bash
-probe-rs run --chip=RP2040 target/thumbv6m-none-eabi/debug/serials
+probe-rs run --chip=RP2040 target/thumbv6m-none-eabi/debug/device-kit
 ```
 
 ## Clean & Rebuild

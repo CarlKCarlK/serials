@@ -12,9 +12,9 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::Duration;
 use panic_probe as _;
-use serials::Result;
-use serials::led_strip_simple::Milliamps;
-use serials::led2d::led2d_device_simple;
+use device_kit::Result;
+use device_kit::led_strip_simple::Milliamps;
+use device_kit::led2d::led2d_device_simple;
 use smart_leds::colors;
 
 // Example with a custom arbitrary mapping for a 2x3 display (6 LEDs total)

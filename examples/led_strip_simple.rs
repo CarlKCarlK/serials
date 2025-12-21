@@ -7,8 +7,8 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
-use serials::Result;
-use serials::led_strip_simple::{
+use device_kit::Result;
+use device_kit::led_strip_simple::{
     LedStripSimple, LedStripSimpleStatic, Milliamps, colors, new_simple_strip,
 };
 type PioPeriph = embassy_rp::peripherals::PIO1;

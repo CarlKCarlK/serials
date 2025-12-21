@@ -25,15 +25,15 @@ When you modify the font rendering code or want to update the reference images:
 2. Visually inspect the generated PNGs:
 
    ```bash
-   eog /tmp/serials-text-pngs-XXXXX/*.png
+   eog /tmp/device-kit-text-pngs-XXXXX/*.png
    # or
-   display /tmp/serials-text-pngs-XXXXX/*.png
+   display /tmp/device-kit-text-pngs-XXXXX/*.png
    ```
 
 3. If they look correct, copy them to replace the references:
 
    ```bash
-   cp /tmp/serials-text-pngs-XXXXX/*.png tests/data/text_render/
+   cp /tmp/device-kit-text-pngs-XXXXX/*.png tests/data/text_render/
    ```
 
 4. Commit the updated PNGs to git.
@@ -46,7 +46,7 @@ When you modify the font rendering code or want to update the reference images:
 
 ## How It Works
 
-The tests use the `SERIALS_GENERATE_TEXT_PNGS` environment variable to switch between two modes:
+The tests use the `DEVICE_KIT_GENERATE_TEXT_PNGS` environment variable to switch between two modes:
 
 - **Not set**: Test mode - compare rendered output against reference PNGs
 - **Set to a directory**: Generation mode - write rendered output as PNGs to that directory

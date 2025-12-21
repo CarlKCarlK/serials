@@ -12,14 +12,14 @@ use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use heapless::String;
 use panic_probe as _;
-use serials::button::PressedTo;
-use serials::char_lcd::{CharLcd, CharLcdStatic};
-use serials::clock::{Clock, ClockStatic, ONE_SECOND};
-use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
-use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
-use serials::{Error, Result};
+use device_kit::button::PressedTo;
+use device_kit::char_lcd::{CharLcd, CharLcdStatic};
+use device_kit::clock::{Clock, ClockStatic, ONE_SECOND};
+use device_kit::flash_array::{FlashArray, FlashArrayStatic};
+use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+use device_kit::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
+use device_kit::wifi_setup::{WifiSetup, WifiSetupStatic};
+use device_kit::{Error, Result};
 
 // ============================================================================
 // Main Orchestrator

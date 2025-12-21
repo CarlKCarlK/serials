@@ -11,9 +11,9 @@
 //! # use panic_probe as _;
 //! use embassy_executor::Spawner;
 //! use embassy_rp::init;
-//! use serials::led2d::{Led2dFont, led2d_device_simple};
-//! use serials::led_strip_simple::Milliamps;
-//! use serials::led_strip_simple::colors;
+//! use device_kit::led2d::{Led2dFont, led2d_device_simple};
+//! use device_kit::led_strip_simple::Milliamps;
+//! use device_kit::led_strip_simple::colors;
 //!
 //! // Generate a complete LED matrix device abstraction
 //! led2d_device_simple! {
@@ -932,9 +932,9 @@ macro_rules! led2d_device_simple {
             /// # use panic_probe as _;
             /// use embassy_executor::Spawner;
             /// use embassy_rp::init;
-            /// use serials::led2d::{Led2dFont, led2d_device_simple};
-            /// use serials::led_strip_simple::Milliamps;
-            /// use serials::led_strip_simple::colors;
+            /// use device_kit::led2d::{Led2dFont, led2d_device_simple};
+            /// use device_kit::led_strip_simple::Milliamps;
+            /// use device_kit::led_strip_simple::colors;
             ///
             /// led2d_device_simple! {
             ///     pub led12x4,
@@ -1078,9 +1078,9 @@ macro_rules! led2d_device_simple {
                 /// # use panic_probe as _;
                 /// # use embassy_executor::Spawner;
                 /// # use embassy_rp::init;
-                /// # use serials::led2d::{Led2dFont, led2d_device_simple};
-                /// # use serials::led_strip_simple::Milliamps;
-                /// # use serials::led_strip_simple::colors;
+                /// # use device_kit::led2d::{Led2dFont, led2d_device_simple};
+                /// # use device_kit::led_strip_simple::Milliamps;
+                /// # use device_kit::led_strip_simple::colors;
                 /// # led2d_device_simple! {
                 /// #     pub led12x4,
                 /// #     rows: 4,
@@ -1177,7 +1177,7 @@ macro_rules! led2d_device_simple {
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// use serials::led2d::led2d_device_simple;
+/// use device_kit::led2d::led2d_device_simple;
 ///
 /// led2d_device_simple! {
 ///     pub led12x4,
@@ -1198,7 +1198,7 @@ macro_rules! led2d_device_simple {
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// use serials::led2d::led2d_device_simple;
+/// use device_kit::led2d::led2d_device_simple;
 ///
 /// led2d_device_simple! {
 ///     pub led4x4,

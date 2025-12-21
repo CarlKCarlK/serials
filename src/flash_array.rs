@@ -181,7 +181,7 @@ impl FlashArrayStatic {
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// use serials::flash_array::{FlashArray, FlashArrayStatic};
+/// use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 ///
 /// // Define your configuration type
 /// #[derive(serde::Serialize, serde::Deserialize, Debug, Default)]
@@ -191,7 +191,7 @@ impl FlashArrayStatic {
 ///     display_mode: u8,
 /// }
 ///
-/// async fn example(p: embassy_rp::Peripherals) -> serials::Result<()> {
+/// async fn example(p: embassy_rp::Peripherals) -> device_kit::Result<()> {
 ///     static FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
 ///     let [mut device_config_block] = FlashArray::new(&FLASH_STATIC, p.FLASH)?;
 ///
@@ -215,8 +215,8 @@ impl FlashArrayStatic {
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// use serials::flash_array::{FlashArray, FlashArrayStatic};
-/// async fn example() -> serials::Result<()> {
+/// use device_kit::flash_array::{FlashArray, FlashArrayStatic};
+/// async fn example() -> device_kit::Result<()> {
 ///     let p = embassy_rp::init(Default::default());
 ///     static FLASH_STATIC: FlashArrayStatic = FlashArray::<1>::new_static();
 ///     let [mut string_block] = FlashArray::new(&FLASH_STATIC, p.FLASH)?;

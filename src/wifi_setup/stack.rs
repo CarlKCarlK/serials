@@ -14,9 +14,9 @@
 //! # #![no_std]
 //! # use panic_probe as _;
 //! # #[cfg(feature = "wifi")]
-//! use serials::flash_array::{FlashArray, FlashArrayStatic};
+//! use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 //! # #[cfg(feature = "wifi")]
-//! use serials::wifi::{Wifi, WifiStatic};
+//! use device_kit::wifi::{Wifi, WifiStatic};
 //! # fn main() {}
 //! #[cfg(feature = "wifi")]
 //! async fn example(spawner: embassy_executor::Spawner) {
@@ -54,11 +54,11 @@
 //! # #![no_std]
 //! # use panic_probe as _;
 //! # #[cfg(feature = "wifi")]
-//! use serials::flash_array::{FlashArray, FlashArrayStatic};
+//! use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 //! # #[cfg(feature = "wifi")]
-//! use serials::wifi::{Wifi, WifiStatic};
+//! use device_kit::wifi::{Wifi, WifiStatic};
 //! # #[cfg(feature = "wifi")]
-//! use serials::wifi_setup::WifiCredentials;
+//! use device_kit::wifi_setup::WifiCredentials;
 //! # fn main() {}
 //! #[cfg(feature = "wifi")]
 //! async fn example(spawner: embassy_executor::Spawner, credentials: WifiCredentials) {

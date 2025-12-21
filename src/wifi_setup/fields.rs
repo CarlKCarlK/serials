@@ -31,16 +31,16 @@ use crate::{Error, Result};
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// use serials::button::PressedTo;
-/// use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
-/// use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
-/// use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
+/// use device_kit::button::PressedTo;
+/// use device_kit::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
+/// use device_kit::wifi_setup::{WifiSetup, WifiSetupStatic};
+/// use device_kit::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 /// # #[panic_handler]
 /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 /// async fn example(
 ///     spawner: embassy_executor::Spawner,
 ///     p: embassy_rp::Peripherals,
-/// ) -> Result<(), serials::Error> {
+/// ) -> Result<(), device_kit::Error> {
 ///     // Set up flash storage
 ///     static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
 ///     let [wifi_flash, timezone_flash] =
@@ -384,16 +384,16 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// use serials::button::PressedTo;
-/// use serials::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
-/// use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
-/// use serials::wifi_setup::fields::{TextField, TextFieldStatic};
+/// use device_kit::button::PressedTo;
+/// use device_kit::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
+/// use device_kit::wifi_setup::{WifiSetup, WifiSetupStatic};
+/// use device_kit::wifi_setup::fields::{TextField, TextFieldStatic};
 /// # #[panic_handler]
 /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 /// async fn example(
 ///     spawner: embassy_executor::Spawner,
 ///     p: embassy_rp::Peripherals,
-/// ) -> Result<(), serials::Error> {
+/// ) -> Result<(), device_kit::Error> {
 ///     // Set up flash storage
 ///     static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
 ///     let [wifi_flash, device_name_flash] =

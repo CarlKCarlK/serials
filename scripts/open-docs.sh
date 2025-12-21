@@ -2,7 +2,7 @@
 set -e
 
 DISTRO=Ubuntu
-DOC_PATH="$(pwd)/target/thumbv8m.main-none-eabihf/doc/serials/index.html"
+DOC_PATH="$(pwd)/target/thumbv8m.main-none-eabihf/doc/device_kit/index.html"
 
 WIN_PATH="\\\\wsl$\\$DISTRO${DOC_PATH//\//\\}"
 

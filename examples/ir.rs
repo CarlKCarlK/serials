@@ -5,7 +5,7 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use panic_probe as _;
-use serials::ir::{Ir, IrEvent, IrStatic};
+use device_kit::ir::{Ir, IrEvent, IrStatic};
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {

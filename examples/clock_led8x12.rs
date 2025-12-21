@@ -18,16 +18,16 @@ use embassy_futures::select::{Either, select};
 use embassy_time::Duration;
 use heapless::String;
 use panic_probe as _;
-use serials::button::{Button, PressDuration, PressedTo};
-use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
-use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::led_strip_simple::Milliamps;
-use serials::led_strip_simple::colors;
-use serials::led2d::led2d_device_simple;
-use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
-use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
-use serials::{Error, Result};
+use device_kit::button::{Button, PressDuration, PressedTo};
+use device_kit::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
+use device_kit::flash_array::{FlashArray, FlashArrayStatic};
+use device_kit::led_strip_simple::Milliamps;
+use device_kit::led_strip_simple::colors;
+use device_kit::led2d::led2d_device_simple;
+use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+use device_kit::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
+use device_kit::wifi_setup::{WifiSetup, WifiSetupStatic};
+use device_kit::{Error, Result};
 use smart_leds::RGB8;
 
 // cmk could/should we replace arbitrary with a cat of the zigzag mapping?
@@ -55,7 +55,7 @@ led2d_device_simple! {
     font: Font4x6Trim,
 }
 
-type LedFrame = serials::led2d::Frame<{ Led8x12::ROWS }, { Led8x12::COLS }>;
+type LedFrame = device_kit::led2d::Frame<{ Led8x12::ROWS }, { Led8x12::COLS }>;
 
 const FAST_MODE_SPEED: f32 = 720.0;
 const CONNECTING_COLOR: RGB8 = colors::SADDLE_BROWN;
@@ -121,7 +121,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         .connect(spawner, move |event| {
             let led_8x12_ref = led_8x12_ref;
             async move {
-                use serials::wifi_setup::WifiSetupEvent;
+                use device_kit::wifi_setup::WifiSetupEvent;
                 match event {
                     WifiSetupEvent::CaptivePortalReady => {
                         info!("WiFi: captive portal ready, displaying CONN");
@@ -349,7 +349,7 @@ impl State {
                     info!("Short press detected - incrementing offset");
                     // Increment the offset by 1 hour
                     offset_minutes += 60;
-                    const ONE_DAY_MINUTES: i32 = serials::clock::ONE_DAY.as_secs() as i32 / 60;
+                    const ONE_DAY_MINUTES: i32 = device_kit::clock::ONE_DAY.as_secs() as i32 / 60;
                     if offset_minutes >= ONE_DAY_MINUTES {
                         offset_minutes -= ONE_DAY_MINUTES;
                     }

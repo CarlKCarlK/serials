@@ -103,14 +103,14 @@ pub struct WifiSetupStatic {
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// use serials::button::PressedTo;
-/// use serials::flash_array::{FlashArray, FlashArrayStatic};
-/// use serials::wifi_setup::{WifiSetup, WifiSetupStatic, WifiSetupEvent};
-/// use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
+/// use device_kit::button::PressedTo;
+/// use device_kit::flash_array::{FlashArray, FlashArrayStatic};
+/// use device_kit::wifi_setup::{WifiSetup, WifiSetupStatic, WifiSetupEvent};
+/// use device_kit::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
 /// async fn example(
 ///     spawner: embassy_executor::Spawner,
 ///     p: embassy_rp::Peripherals,
-/// ) -> Result<(), serials::Error> {
+/// ) -> Result<(), device_kit::Error> {
 ///     // Set up flash storage for WiFi credentials and timezone
 ///     static FLASH_STATIC: FlashArrayStatic = FlashArray::<2>::new_static();
 ///     let [wifi_flash, timezone_flash] =
@@ -358,9 +358,9 @@ impl WifiSetup {
     /// # #![no_main]
     /// # use panic_probe as _;
     /// # use embassy_executor::Spawner;
-    /// # use serials::wifi_setup::WifiSetup;
-    /// # use serials::wifi_setup::WifiSetupEvent;
-    /// # use serials::Result;
+    /// # use device_kit::wifi_setup::WifiSetup;
+    /// # use device_kit::wifi_setup::WifiSetupEvent;
+    /// # use device_kit::Result;
     /// async fn connect_sync(wifi_setup: &WifiSetup, spawner: embassy_executor::Spawner) -> Result<()> {
     ///     wifi_setup.connect(spawner, |event| async move {
     ///         defmt::info!("Event: {:?}", event);
@@ -375,8 +375,8 @@ impl WifiSetup {
     /// # #![no_main]
     /// # use panic_probe as _;
     /// # use embassy_executor::Spawner;
-    /// # use serials::wifi_setup::{WifiSetup, WifiSetupEvent};
-    /// # use serials::Result;
+    /// # use device_kit::wifi_setup::{WifiSetup, WifiSetupEvent};
+    /// # use device_kit::Result;
     /// async fn update_display(event: WifiSetupEvent) {
     ///     // Update UI asynchronously (placeholder)
     ///     core::future::ready(()).await;

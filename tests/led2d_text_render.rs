@@ -1,7 +1,7 @@
 #![cfg(feature = "host")]
 
 use png::{BitDepth, ColorType, Decoder, Encoder};
-use serials::led2d::{Frame, Led2dFont, render_text_to_frame};
+use device_kit::led2d::{Frame, Led2dFont, render_text_to_frame};
 use smart_leds::{RGB8, colors};
 use std::fs::File;
 use std::io::BufWriter;
@@ -124,10 +124,10 @@ fn run_render_test_heap<const ROWS: usize, const COLS: usize>(
 }
 
 fn generation_dir() -> Option<PathBuf> {
-    let env_value = std::env::var("SERIALS_GENERATE_TEXT_PNGS").ok()?;
+    let env_value = std::env::var("DEVICE_KIT_GENERATE_TEXT_PNGS").ok()?;
     let dir = if env_value.is_empty() {
         let mut path = std::env::temp_dir();
-        path.push("serials-text-pngs");
+        path.push("device-kit-text-pngs");
         path
     } else {
         PathBuf::from(env_value)

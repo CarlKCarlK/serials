@@ -544,6 +544,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "device-kit"
+version = "0.0.1"
+dependencies = [
+ "cortex-m",
+ "cortex-m-rt",
+ "crc32fast",
+ "critical-section",
+ "cyw43",
+ "cyw43-firmware",
+ "cyw43-pio",
+ "defmt 0.3.100",
+ "defmt-rtt",
+ "derive_more",
+ "embassy-executor",
+ "embassy-futures",
+ "embassy-hal-internal",
+ "embassy-net",
+ "embassy-rp",
+ "embassy-sync",
+ "embassy-time",
+ "embedded-graphics",
+ "embedded-hal 1.0.0",
+ "embedded-hal-async",
+ "embedded-hal-bus",
+ "embedded-io-async 0.6.1",
+ "esp-hal-mfrc522",
+ "fixed",
+ "hd44780-driver",
+ "heapless",
+ "itertools 0.13.0",
+ "panic-probe",
+ "paste",
+ "png",
+ "portable-atomic",
+ "postcard",
+ "riscv",
+ "riscv-rt",
+ "rp235x-hal",
+ "serde",
+ "smart-leds",
+ "static_cell",
+ "tempfile",
+ "time",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2007,52 +2053,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.89",
-]
-
-[[package]]
-name = "serials"
-version = "0.0.1"
-dependencies = [
- "cortex-m",
- "cortex-m-rt",
- "crc32fast",
- "critical-section",
- "cyw43",
- "cyw43-firmware",
- "cyw43-pio",
- "defmt 0.3.100",
- "defmt-rtt",
- "derive_more",
- "embassy-executor",
- "embassy-futures",
- "embassy-hal-internal",
- "embassy-net",
- "embassy-rp",
- "embassy-sync",
- "embassy-time",
- "embedded-graphics",
- "embedded-hal 1.0.0",
- "embedded-hal-async",
- "embedded-hal-bus",
- "embedded-io-async 0.6.1",
- "esp-hal-mfrc522",
- "fixed",
- "hd44780-driver",
- "heapless",
- "itertools 0.13.0",
- "panic-probe",
- "paste",
- "png",
- "portable-atomic",
- "postcard",
- "riscv",
- "riscv-rt",
- "rp235x-hal",
- "serde",
- "smart-leds",
- "static_cell",
- "tempfile",
- "time",
 ]
 
 [[package]]

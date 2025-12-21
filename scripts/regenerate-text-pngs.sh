@@ -13,10 +13,10 @@ OUTPUT_DIR="${1:-}"
 
 if [ -z "$OUTPUT_DIR" ]; then
     OUTPUT_DIR=$(mktemp -d)
-    export SERIALS_GENERATE_TEXT_PNGS="$OUTPUT_DIR"
+    export DEVICE_KIT_GENERATE_TEXT_PNGS="$OUTPUT_DIR"
     echo "Generating PNGs to: $OUTPUT_DIR"
 else
-    export SERIALS_GENERATE_TEXT_PNGS="$OUTPUT_DIR"
+    export DEVICE_KIT_GENERATE_TEXT_PNGS="$OUTPUT_DIR"
     echo "Generating PNGs to: $OUTPUT_DIR"
 fi
 

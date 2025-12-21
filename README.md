@@ -1,4 +1,4 @@
-# Serials
+# device-kit
 
 An embedded Rust library for Raspberry Pi Pico/Pico W providing async virtual device abstractions for common peripherals.
 

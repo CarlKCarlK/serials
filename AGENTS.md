@@ -117,7 +117,7 @@ Preserving comments: When changing code, generally don't remove TODO's and cmk's
 - In examples, prefer importing the types you need (`use crate::foo::{Device, DeviceStatic};`) instead of fully-qualified paths for statics.
 - Keep example shape consistent: show an async function that receives `Peripherals`/`Spawner` (or other handles) and constructs the device with `new_static`/`new`; avoid mixing inline examples without that pattern next to function-based ones.
 - Examples must show the actual `use` statements for the module being documented (bring types into scope explicitly rather than relying on hidden imports).
-- In examples, keep `use` statements limited to `serials::...` items; refer to other crates/modules with fully qualified paths inline.
+- In examples, keep `use` statements limited to `device_kit::...` items; refer to other crates/modules with fully qualified paths inline.
 
 ### Precision Over Future‑Proofing
 
@@ -186,14 +186,14 @@ For RGB colors, use the predefined constants from `smart_leds::colors` (re-expor
 ✅ Good:
 
 ```rust
-use serials::led_strip::colors;
+use device_kit::led_strip::colors;
 let frame = [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW];
 ```
 
 ❌ Bad:
 
 ```rust
-use serials::led_strip::Rgb;
+use device_kit::led_strip::Rgb;
 let red = Rgb::new(255, 0, 0);
 let green = Rgb::new(0, 255, 0);
 ```

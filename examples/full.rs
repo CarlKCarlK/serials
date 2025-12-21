@@ -18,22 +18,22 @@ use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
 use heapless::{FnvIndexMap, String};
 use panic_probe as _;
-use serials::Result;
-use serials::char_lcd::{CharLcd, CharLcdStatic};
-use serials::clock::{Clock, ClockStatic, ONE_SECOND};
+use device_kit::Result;
+use device_kit::char_lcd::{CharLcd, CharLcdStatic};
+use device_kit::clock::{Clock, ClockStatic, ONE_SECOND};
 #[cfg(feature = "wifi")]
-use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::ir::{Ir, IrEvent, IrStatic};
-use serials::led_strip::Rgb;
-use serials::led_strip::colors;
-use serials::led_strip::define_led_strips;
-use serials::led_strip_simple::Milliamps;
-use serials::led24x4::Led24x4;
-use serials::rfid::{Rfid, RfidEvent, RfidStatic};
-use serials::servo::servo_a;
-use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+use device_kit::flash_array::{FlashArray, FlashArrayStatic};
+use device_kit::ir::{Ir, IrEvent, IrStatic};
+use device_kit::led_strip::Rgb;
+use device_kit::led_strip::colors;
+use device_kit::led_strip::define_led_strips;
+use device_kit::led_strip_simple::Milliamps;
+use device_kit::led24x4::Led24x4;
+use device_kit::rfid::{Rfid, RfidEvent, RfidStatic};
+use device_kit::servo::servo_a;
+use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 #[cfg(feature = "wifi")]
-use serials::wifi_config::collect_wifi_credentials;
+use device_kit::wifi_config::collect_wifi_credentials;
 use time::OffsetDateTime;
 
 use colors::{BLACK, BLUE, GREEN, RED, YELLOW};
@@ -135,7 +135,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
             p.PIN_29, // WiFi CLK
             p.DMA_CH0,
             wifi_block,
-            serials::wifi::DEFAULT_CAPTIVE_PORTAL_SSID,
+            device_kit::wifi::DEFAULT_CAPTIVE_PORTAL_SSID,
             spawner,
         )
     };

@@ -19,13 +19,13 @@ use embassy_rp::gpio::{self, Level};
 use embassy_time::Duration;
 use heapless::String;
 use panic_probe as _;
-use serials::Result;
-use serials::UnixSeconds;
-use serials::button::PressedTo;
-use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::led4::{BlinkState, Led4, Led4Static, OutputArray};
-use serials::wifi_setup::fields::{TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic};
-use serials::wifi_setup::{WifiSetup, WifiSetupEvent, WifiSetupStatic};
+use device_kit::Result;
+use device_kit::UnixSeconds;
+use device_kit::button::PressedTo;
+use device_kit::flash_array::{FlashArray, FlashArrayStatic};
+use device_kit::led4::{BlinkState, Led4, Led4Static, OutputArray};
+use device_kit::wifi_setup::fields::{TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic};
+use device_kit::wifi_setup::{WifiSetup, WifiSetupEvent, WifiSetupStatic};
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -114,7 +114,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                 }
 
                 WifiSetupEvent::Connecting { try_index, .. } => {
-                    led4_ref.animate_text(serials::led4::circular_outline_animation(
+                    led4_ref.animate_text(device_kit::led4::circular_outline_animation(
                         (try_index & 1) == 0,
                     ));
                 }

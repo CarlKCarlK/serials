@@ -67,7 +67,7 @@ type AnimateSequence = Vec<Step, 16>;
 /// Concatenate arrays of animation [`Step`] values into a single sequence.
 ///
 /// Provide the capacity as a const generic and pass slices of step arrays.
-/// Import with `use serials::servo_animate::concat_steps;`.
+/// Import with `use device_kit::servo_animate::concat_steps;`.
 #[must_use]
 pub fn concat_steps<const CAP: usize>(sequences: &[&[Step]]) -> Vec<Step, CAP> {
     let mut out: Vec<Step, CAP> = Vec::new();
@@ -106,7 +106,7 @@ impl ServoAnimateStatic {
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// use serials::servo_animate::{concat_steps, linear, ServoAnimate, ServoAnimateStatic, Step, servo_even};
+/// use device_kit::servo_animate::{concat_steps, linear, ServoAnimate, ServoAnimateStatic, Step, servo_even};
 /// # #[panic_handler]
 /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 ///

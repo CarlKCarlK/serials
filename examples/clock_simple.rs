@@ -9,8 +9,8 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use panic_probe as _;
-use serials::UnixSeconds;
-use serials::clock::{Clock, ClockStatic, ONE_SECOND, h12_m_s};
+use device_kit::UnixSeconds;
+use device_kit::clock::{Clock, ClockStatic, ONE_SECOND, h12_m_s};
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -18,7 +18,7 @@ pub async fn main(spawner: Spawner) -> ! {
     core::panic!("{err}");
 }
 
-async fn run(spawner: Spawner) -> serials::Result<Infallible> {
+async fn run(spawner: Spawner) -> device_kit::Result<Infallible> {
     // Initialize RP2040 peripherals to start the time driver.
     let _p = embassy_rp::init(Default::default());
 

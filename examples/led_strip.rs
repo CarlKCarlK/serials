@@ -6,10 +6,10 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
-use serials::Result;
-use serials::led_strip::define_led_strips;
-use serials::led_strip::{Rgb, colors};
-use serials::led_strip_simple::Milliamps;
+use device_kit::Result;
+use device_kit::led_strip::define_led_strips;
+use device_kit::led_strip::{Rgb, colors};
+use device_kit::led_strip_simple::Milliamps;
 
 define_led_strips! {
     pio: PIO0,

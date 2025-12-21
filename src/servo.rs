@@ -55,7 +55,7 @@ pub use servo_odd;
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
-/// # use serials::servo::servo_odd;
+/// # use device_kit::servo::servo_odd;
 /// # #[panic_handler]
 /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 /// async fn example(p: embassy_rp::Peripherals) {
@@ -97,7 +97,7 @@ impl<'d> Servo<'d> {
     /// ```no_run
     /// # #![no_std]
     /// # #![no_main]
-    /// use serials::servo::{Servo, ServoChannel};
+    /// use device_kit::servo::{Servo, ServoChannel};
     /// # #[panic_handler]
     /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
     /// async fn example(p: embassy_rp::Peripherals) {

@@ -16,14 +16,14 @@ use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_rp::gpio::{self, Level};
 use panic_probe as _;
-use serials::button::{Button, PressDuration, PressedTo};
-use serials::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
-use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::led4::{BlinkState, Led4, Led4Static, OutputArray, circular_outline_animation};
-use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
-use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
-use serials::{Error, Result};
+use device_kit::button::{Button, PressDuration, PressedTo};
+use device_kit::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
+use device_kit::flash_array::{FlashArray, FlashArrayStatic};
+use device_kit::led4::{BlinkState, Led4, Led4Static, OutputArray, circular_outline_animation};
+use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+use device_kit::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
+use device_kit::wifi_setup::{WifiSetup, WifiSetupStatic};
+use device_kit::{Error, Result};
 
 const FAST_MODE_SPEED: f32 = 720.0;
 
@@ -90,7 +90,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let led4_ref = &led4;
     let (stack, mut button) = wifi_setup
         .connect(spawner, move |event| async move {
-            use serials::wifi_setup::WifiSetupEvent;
+            use device_kit::wifi_setup::WifiSetupEvent;
             match event {
                 WifiSetupEvent::CaptivePortalReady => {
                     led4_ref.write_text(['C', 'O', 'N', 'N'], BlinkState::BlinkingAndOn);
@@ -322,7 +322,7 @@ impl State {
                     info!("Short press detected - incrementing offset");
                     // Increment the offset by 1 hour
                     offset_minutes += 60;
-                    const ONE_DAY_MINUTES: i32 = serials::clock::ONE_DAY.as_secs() as i32 / 60;
+                    const ONE_DAY_MINUTES: i32 = device_kit::clock::ONE_DAY.as_secs() as i32 / 60;
                     if offset_minutes >= ONE_DAY_MINUTES {
                         offset_minutes -= ONE_DAY_MINUTES;
                     }

@@ -14,14 +14,14 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use panic_probe as _;
-use serials::Result;
-use serials::button::PressedTo;
-use serials::clock::{Clock, ClockStatic, ONE_SECOND};
-use serials::flash_array::{FlashArray, FlashArrayStatic};
-use serials::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use serials::wifi_setup::WifiSetupEvent;
-use serials::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
-use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
+use device_kit::Result;
+use device_kit::button::PressedTo;
+use device_kit::clock::{Clock, ClockStatic, ONE_SECOND};
+use device_kit::flash_array::{FlashArray, FlashArrayStatic};
+use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+use device_kit::wifi_setup::WifiSetupEvent;
+use device_kit::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
+use device_kit::wifi_setup::{WifiSetup, WifiSetupStatic};
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {

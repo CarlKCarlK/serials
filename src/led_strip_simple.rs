@@ -279,14 +279,14 @@ impl<const N: usize> LedStripSimpleStatic<N> {
 /// # #![no_std]
 /// # use panic_probe as _;
 /// # fn main() {}
-/// use serials::led_strip_simple::{
+/// use device_kit::led_strip_simple::{
 ///     LedStripSimple,
 ///     LedStripSimpleStatic,
 ///     Milliamps,
 ///     colors,
 ///     new_simple_strip,
 /// };
-/// use serials::Result;
+/// use device_kit::Result;
 ///
 /// async fn example(p: embassy_rp::Peripherals) -> Result<()> {
 ///     static STRIP_STATIC: LedStripSimpleStatic<8> = LedStripSimpleStatic::new_static();

@@ -7,7 +7,7 @@ use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use panic_probe as _;
-use serials::ir_kepler::{IrKepler, IrKeplerStatic};
+use device_kit::ir_kepler::{IrKepler, IrKeplerStatic};
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
@@ -15,7 +15,7 @@ async fn main(spawner: Spawner) -> ! {
     panic!("{err}");
 }
 
-async fn inner_main(spawner: Spawner) -> serials::Result<Infallible> {
+async fn inner_main(spawner: Spawner) -> device_kit::Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     info!("Starting Kepler IR Remote Example");

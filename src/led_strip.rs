@@ -91,9 +91,9 @@ impl<const N: usize> LedStripStatic<N> {
 /// # #![no_std]
 /// # use panic_probe as _;
 /// # fn main() {}
-/// use serials::led_strip::{LedStrip, LedStripStatic, Rgb};
+/// use device_kit::led_strip::{LedStrip, LedStripStatic, Rgb};
 ///
-/// async fn example() -> serials::Result<()> {
+/// async fn example() -> device_kit::Result<()> {
 ///     static LED_STRIP_STATIC: LedStripStatic<8> = LedStrip::new_static();
 ///     let mut strip: LedStrip<8> = LedStrip::new(&LED_STRIP_STATIC)?;
 ///

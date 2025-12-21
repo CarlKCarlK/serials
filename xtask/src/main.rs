@@ -1,4 +1,4 @@
-//! Build automation tasks for the serials project.
+//! Build automation tasks for the device-kit project.
 //!
 //! Run with: `cargo xtask <command>`
 
@@ -12,7 +12,7 @@ use std::sync::Mutex;
 
 #[derive(Parser)]
 #[command(name = "xtask")]
-#[command(about = "Build automation for serials project", long_about = None)]
+#[command(about = "Build automation for device-kit project", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
