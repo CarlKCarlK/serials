@@ -1,7 +1,44 @@
 //! A device abstraction for rectangular LED matrix displays with arbitrary size.
 //!
-//! Supports text, graphics, and animation. Use the [`led2d_device_simple!`] macro
-//! to generate a complete device abstraction for your specific display configuration.
+//! Supports text rendering, animation, and full graphics capabilities. Use the
+//! [`led2d_device_simple!`] macro to generate a complete device abstraction for
+//! your specific display configuration. See [`Led4x12Example`] for an example
+//! of a generated device.
+//!
+//! For custom graphics, create a [`Frame`] and use the
+//! [`embedded-graphics`](https://docs.rs/embedded-graphics) drawing API. See the
+//! [`Frame`] documentation for an example.
+//!
+//! # Using the `led2d_device_simple!` Macro
+//!
+//! The macro generates a type-safe device abstraction with text rendering, animation,
+//! and graphics support. It creates two types: `YourNameStatic` (for resources) and
+//! `YourName` (the device handle).
+//!
+//! ## Macro Parameters
+//!
+//! - Visibility and base name for generated types (e.g., `pub led12x4`)
+//! - `rows` - Number of rows in the display
+//! - `cols` - Number of columns in the display  
+//! - `pio` - PIO peripheral (PIO0, PIO1, or PIO2 on Pico 2)
+//! - `mapping` - LED strip physical layout:
+//!   - `serpentine_column_major` - Common serpentine wiring pattern
+//!   - `arbitrary([indices...])` - Custom mapping array
+//! - `max_frames` - Maximum animation frames allowed (not buffered)
+//! - `font` - Built-in font variant (see [`Led2dFont`])
+//!
+//! ## Generated API
+//!
+//! The macro generates:
+//! - `YourNameStatic` - Static resources (create with `YourName::new_static()`)
+//! - `YourName` - Device handle with methods:
+//!   - [`new()`](Led4x12Example::new) - Initialize the display
+//!   - [`write_text()`](Led4x12Example::write_text) - Display colored text
+//!   - [`write_frame()`](Led4x12Example::write_frame) - Display a custom frame
+//!   - [`write_text_to_frame()`](Led4x12Example::write_text_to_frame) - Render text into a frame
+//!   - [`animate()`](Led4x12Example::animate) - Loop through animation frames
+//!   - [`new_frame()`](Led4x12Example::new_frame) - Create a blank frame
+//!   - Constants: [`ROWS`](Led4x12Example::ROWS), [`COLS`](Led4x12Example::COLS), [`N`](Led4x12Example::N), [`MAX_FRAMES`](Led4x12Example::MAX_FRAMES)
 //!
 //! # Example
 //!
@@ -325,9 +362,54 @@ impl Led2dFont {
 
 // cmk000 need to tell that compatible with EG and give example
 // cmk0 should also define Default via the trait
-/// Pixel frame for LED matrix displays.
+/// A 2D array of RGB pixels representing a single display frame.
 ///
-/// Wraps a 2D array of RGB pixels with support for indexing and embedded-graphics.
+/// Frames are used to prepare images before sending them to the LED matrix. They support:
+/// - Direct pixel access via array indexing
+/// - Full graphics drawing via [`embedded-graphics`](https://docs.rs/embedded-graphics) (lines, shapes, text, and more)
+/// - Automatic conversion to the strip's physical LED order
+///
+/// Frames are stored in row-major order where `frame[row][col]` represents the pixel
+/// at display coordinates (col, row). The physical mapping to the LED strip is handled
+/// automatically by the device abstraction.
+///
+/// # Examples
+///
+/// Direct pixel access:
+///
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// # use device_kit::led2d::Frame;
+/// # use smart_leds::RGB8;
+/// # fn example() {
+/// let mut frame = Frame::<4, 12>::new();  // 4 rows × 12 columns
+/// frame[0][0] = RGB8::new(255, 0, 0);     // Set top-left pixel to red
+/// frame[3][11] = RGB8::new(0, 255, 0);    // Set bottom-right pixel to green
+/// # }
+/// ```
+///
+/// Drawing with [`embedded-graphics`](https://docs.rs/embedded-graphics):
+///
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// # use device_kit::led2d::{Frame, rgb8_to_rgb888};
+/// # use smart_leds::RGB8;
+/// use embedded_graphics::{prelude::*, primitives::{Line, PrimitiveStyle}};
+/// # fn example() {
+/// let mut frame = Frame::<8, 12>::new();
+/// let color = rgb8_to_rgb888(RGB8::new(255, 0, 0));
+/// Line::new(Point::new(0, 0), Point::new(11, 7))
+///     .into_styled(PrimitiveStyle::with_stroke(color, 1))
+///     .draw(&mut frame)
+///     .unwrap();
+/// # }
+/// ```
+///
+/// See the [module-level documentation](crate::led2d) for more usage examples.
 #[derive(Clone, Copy, Debug)]
 pub struct Frame<const ROWS: usize, const COLS: usize>(pub [[RGB8; COLS]; ROWS]);
 
@@ -838,7 +920,10 @@ macro_rules! led2d_device {
 #[cfg(not(feature = "host"))]
 pub use led2d_device;
 
-// cmk000 move all the docs to the module-level
+// cmk000 move all the docs to the module-level (done - docs now at module level)
+/// Generate a complete LED matrix device abstraction with text, graphics, and animation support.
+///
+/// See the [module-level documentation](crate::led2d) for usage examples and detailed parameter descriptions.
 #[macro_export]
 #[cfg(not(feature = "host"))]
 macro_rules! led2d_device_simple {
@@ -903,9 +988,9 @@ macro_rules! led2d_device_simple {
         $max_frames_const:ident
     ) => {
         $crate::led2d::paste::paste! {
-            /// Static resources for the device.
+            /// Static resources for the LED matrix device.
             ///
-            /// See [`Led4x12Example`] for usage.
+            /// See the [module-level documentation](crate::led2d) for usage examples.
             $vis struct [<$name:camel Static>] {
                 led_strip_simple: $crate::led_strip_simple::LedStripSimpleStatic<$n_const>,
                 led2d_static: $crate::led2d::Led2dStatic<$n_const, $max_frames_const>,
@@ -919,56 +1004,9 @@ macro_rules! led2d_device_simple {
                 $max_frames_const
             );
 
-            /// Example device abstraction showing the API generated by [`led2d_device_simple!`].
+            /// LED matrix device handle generated by [`led2d_device_simple!`](crate::led2d::led2d_device_simple).
             ///
-            /// Use [`led2d_device_simple!`](crate::led2d::led2d_device_simple) to generate this type
-            /// with your specific display configuration.
-            ///
-            /// # Example
-            ///
-            /// ```no_run
-            /// # #![no_std]
-            /// # #![no_main]
-            /// # use panic_probe as _;
-            /// use embassy_executor::Spawner;
-            /// use embassy_rp::init;
-            /// use device_kit::led2d::{Led2dFont, led2d_device_simple};
-            /// use device_kit::led_strip_simple::Milliamps;
-            /// use device_kit::led_strip_simple::colors;
-            ///
-            /// led2d_device_simple! {
-            ///     pub led12x4,
-            ///     rows: 4,
-            ///     cols: 12,
-            ///     pio: PIO1,
-            ///     mapping: serpentine_column_major,
-            ///     max_frames: 32,
-            ///     font: Font3x4Trim,
-            /// }
-            ///
-            /// #[embassy_executor::main]
-            /// async fn main(spawner: Spawner) {
-            ///     let p = init(Default::default());
-            ///
-            ///     static LED_12X4_STATIC: Led12x4Static = Led12x4::new_static();
-            ///     let led_12x4 = Led12x4::new(
-            ///         &LED_12X4_STATIC,
-            ///         p.PIO1,
-            ///         p.PIN_3,
-            ///         Milliamps(500),
-            ///         spawner,
-            ///     )
-            ///     .await
-            ///     .unwrap();
-            ///
-            ///     // Display colorful text
-            ///     led_12x4.write_text("HI!", &[colors::CYAN, colors::MAGENTA, colors::YELLOW])
-            ///         .await
-            ///         .unwrap();
-            ///
-            ///     loop {}
-            /// }
-            /// ```
+            /// See the [module-level documentation](crate::led2d) for usage examples and the complete API reference.
             $vis struct [<$name:camel>] {
                 led2d: $crate::led2d::Led2d<'static, $n_const, $max_frames_const>,
                 font: embedded_graphics::mono_font::MonoFont<'static>,
@@ -988,7 +1026,7 @@ macro_rules! led2d_device_simple {
 
                 /// Create static resources.
                 ///
-                /// See [`Led4x12Example`](Self) for usage.
+                /// See the [struct-level example](Self) for usage.
                 #[must_use]
                 $vis const fn new_static() -> [<$name:camel Static>] {
                     [<$name:camel Static>] {
@@ -999,7 +1037,7 @@ macro_rules! led2d_device_simple {
 
                 /// Create a new blank (all black) frame.
                 ///
-                /// See [`Led4x12Example`](Self) for usage.
+                /// See the [animate example](Self::animate) for usage.
                 #[must_use]
                 $vis const fn new_frame() -> $crate::led2d::Frame<$rows_const, $cols_const> {
                     $crate::led2d::Frame::new()
@@ -1011,13 +1049,14 @@ macro_rules! led2d_device_simple {
                 /// and current limit. The device is ready to display frames immediately.
                 ///
                 /// # Parameters
+                ///
                 /// - `static_resources`: Static resources created with `new_static()`
                 /// - `pio`: PIO peripheral for LED control
                 /// - `pin`: GPIO pin connected to LED data line
                 /// - `max_current`: Maximum current budget for brightness control
                 /// - `spawner`: Task spawner for background operations
                 ///
-                /// See [`Led4x12Example`](Self) for usage.
+                /// See the [struct-level example](Self) for usage.
                 $vis async fn new(
                     static_resources: &'static [<$name:camel Static>],
                     pio: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pio>,
@@ -1061,14 +1100,14 @@ macro_rules! led2d_device_simple {
                 ///
                 /// Frame is a 2D array in row-major order where `frame[row][col]` is the pixel at (col, row).
                 ///
-                /// See [`Led4x12Example`](Self) for usage.
+                /// See the [animate example](Self::animate) for usage.
                 $vis async fn write_frame(&self, frame: $crate::led2d::Frame<$rows_const, $cols_const>) -> $crate::Result<()> {
                     self.led2d.write_frame(frame).await
                 }
 
                 /// Loop through a sequence of animation frames.
                 ///
-                /// Each frame is a tuple of (Frame, duration).
+                /// Each frame is a tuple of (Frame, duration). The animation repeats indefinitely.
                 ///
                 /// # Example
                 ///
@@ -1138,9 +1177,13 @@ macro_rules! led2d_device_simple {
                     $crate::led2d::render_text_to_frame(frame, &self.font, text, colors, self.font_variant.spacing_reduction())
                 }
 
-                /// Convenience wrapper to render text into a fresh frame and display it.
+                /// Render text and display it on the LED matrix.
                 ///
-                /// See [`Led4x12Example`](Self) for usage.
+                /// Colors cycle through non-newline characters. If `colors` is empty, white is used.
+                /// For example, with colors `[RED, GREEN]` and text "HELLO", you get: H(red), E(green),
+                /// L(red), L(green), O(red).
+                ///
+                /// See the [struct-level example](Self) for usage.
                 pub async fn write_text(&self, text: &str, colors: &[smart_leds::RGB8]) -> $crate::Result<()> {
                     let mut frame = Self::new_frame();
                     self.write_text_to_frame(text, colors, &mut frame)?;
