@@ -18,23 +18,28 @@ use serials::led2d::{Led2dFont, led2d_device_simple};
 use serials::{Error, Result};
 use smart_leds::colors;
 
-// Create the led2d device using the macro - 12x8 screen (two 12x4 stacked)
+// Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise)
+// Better for clock display - can fit 2 lines of 2 digits each
 led2d_device_simple! {
     pub led8x12,
-    rows: 8,
-    cols: 12,
+    rows: 12,
+    cols: 8,
     pio: PIO0,
     mapping: arbitrary([
-        0, 7, 8, 15, 16, 23, 24, 31, 32, 39, 40, 47,
-        1, 6, 9, 14, 17, 22, 25, 30, 33, 38, 41, 46,
-        2, 5, 10, 13, 18, 21, 26, 29, 34, 37, 42, 45,
-        3, 4, 11, 12, 19, 20, 27, 28, 35, 36, 43, 44,
-        48, 55, 56, 63, 64, 71, 72, 79, 80, 87, 88, 95,
-        49, 54, 57, 62, 65, 70, 73, 78, 81, 86, 89, 94,
-        50, 53, 58, 61, 66, 69, 74, 77, 82, 85, 90, 93,
-        51, 52, 59, 60, 67, 68, 75, 76, 83, 84, 91, 92,
+        47, 46, 45, 44, 95, 94, 93, 92,
+        40, 41, 42, 43, 88, 89, 90, 91,
+        39, 38, 37, 36, 87, 86, 85, 84,
+        32, 33, 34, 35, 80, 81, 82, 83,
+        31, 30, 29, 28, 79, 78, 77, 76,
+        24, 25, 26, 27, 72, 73, 74, 75,
+        23, 22, 21, 20, 71, 70, 69, 68,
+        16, 17, 18, 19, 64, 65, 66, 67,
+        15, 14, 13, 12, 63, 62, 61, 60,
+        8, 9, 10, 11, 56, 57, 58, 59,
+        7, 6, 5, 4, 55, 54, 53, 52,
+        0, 1, 2, 3, 48, 49, 50, 51,
     ]),
-    font: Led2dFont::Font3x4,
+    font: Led2dFont::Font4x6Trim,
 }
 
 #[embassy_executor::main]
@@ -44,7 +49,7 @@ pub async fn main(spawner: Spawner) -> ! {
 }
 
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
-    info!("LED 2D API Exploration (12x8 display)");
+    info!("LED 2D API Exploration (8x12 rotated display)");
     let p = init(Default::default());
 
     static LED8X12_STATIC: Led8x12Static = Led8x12::new_static();
@@ -53,16 +58,16 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let mut button = Button::new(p.PIN_13, PressedTo::Ground);
 
     loop {
-        info!("Demo 1: 3x4 font (\"RUST\" in four colors)");
-        demo_rust_text(&led8x12).await?;
+        info!("Demo 1: Clock-style two-line text");
+        demo_clock_text(&led8x12).await?;
         button.wait_for_press_duration().await;
 
-        info!("Demo 2: Blink text (\"RUST\")");
-        demo_blink_text(&led8x12).await?;
-        button.wait_for_press_duration().await;
-
-        info!("Demo 3: Colored corners");
+        info!("Demo 2: Colored corners (orientation test)");
         demo_colored_corners(&led8x12).await?;
+        button.wait_for_press_duration().await;
+
+        info!("Demo 3: Blink text");
+        demo_blink_text(&led8x12).await?;
         button.wait_for_press_duration().await;
 
         info!("Demo 4: Blink pattern");
@@ -79,27 +84,19 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         info!("Demo 7: Bouncing dot (animation)");
         demo_bouncing_dot_animation(&led8x12).await?;
         button.wait_for_press_duration().await;
-
-        info!("Demo 8: Scrolling text");
-        demo_scrolling_text(&led8x12).await?;
-        button.wait_for_press_duration().await;
     }
 }
 
-/// Display "RUST" using the bit_matrix3x4 font via embedded-graphics.
-async fn demo_rust_text(led8x12: &Led8x12) -> Result<()> {
-    let colors = [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW];
-    led8x12.write_text("RUST\ntwo", &colors).await
+/// Display time-like text using two lines (like "12" on top, "34" on bottom).
+async fn demo_clock_text(led8x12: &Led8x12) -> Result<()> {
+    let colors = [colors::CYAN, colors::MAGENTA, colors::ORANGE, colors::LIME];
+    led8x12.write_text("12\n34", &colors).await
 }
 
-/// Blink "RUST" by constructing frames explicitly.
+/// Blink text by constructing frames explicitly.
 async fn demo_blink_text(led8x12: &Led8x12) -> Result<()> {
     let mut on_frame = Led8x12::new_frame();
-    led8x12.write_text_to_frame(
-        "rust",
-        &[colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
-        &mut on_frame,
-    )?;
+    led8x12.write_text_to_frame("HI", &[colors::YELLOW], &mut on_frame)?;
     led8x12
         .animate(&[
             (on_frame, Duration::from_millis(500)),
@@ -128,7 +125,7 @@ async fn demo_blink_pattern(led8x12: &Led8x12) -> Result<()> {
     for row_index in 0..Led8x12::ROWS {
         for column_index in 0..Led8x12::COLS {
             if (row_index + column_index) % 2 == 0 {
-                on_frame[row_index][column_index] = colors::CYAN;
+                on_frame[row_index][column_index] = colors::PURPLE;
             }
         }
     }
@@ -156,16 +153,16 @@ async fn demo_rectangle_diagonals_embedded_graphics(led8x12: &Led8x12) -> Result
     // Use the embedded_graphics crate to draw an image.
 
     // Draw red rectangle border
-    Rectangle::new(Frame::<8, 12>::top_left(), Frame::<8, 12>::size())
+    Rectangle::new(Frame::<12, 8>::top_left(), Frame::<12, 8>::size())
         .into_styled(PrimitiveStyle::with_stroke(Rgb888::RED, 1))
         .draw(&mut frame)?;
 
     // Draw blue diagonal lines from corner to corner
-    Line::new(Frame::<8, 12>::top_left(), Frame::<8, 12>::bottom_right())
+    Line::new(Frame::<12, 8>::top_left(), Frame::<12, 8>::bottom_right())
         .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
         .draw(&mut frame)?;
 
-    Line::new(Frame::<8, 12>::bottom_left(), Frame::<8, 12>::top_right())
+    Line::new(Frame::<12, 8>::bottom_left(), Frame::<12, 8>::top_right())
         .into_styled(PrimitiveStyle::with_stroke(Rgb888::BLUE, 1))
         .draw(&mut frame)?;
 
@@ -244,12 +241,4 @@ async fn demo_bouncing_dot_animation(led8x12: &Led8x12) -> Result<()> {
     }
 
     led8x12.animate(&frames).await
-}
-
-/// Scrolling text demonstration - takes advantage of the taller 8-row display.
-async fn demo_scrolling_text(led8x12: &Led8x12) -> Result<()> {
-    let colors = [colors::MAGENTA, colors::ORANGE];
-
-    // Display two lines of text that can fit vertically
-    led8x12.write_text("HELLO\nWORLD", &colors).await
 }

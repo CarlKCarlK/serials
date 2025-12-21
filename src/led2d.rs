@@ -86,11 +86,12 @@ pub fn render_text_to_frame<const ROWS: usize, const COLS: usize>(
     font: &embedded_graphics::mono_font::MonoFont<'static>,
     text: &str,
     colors: &[RGB8],
+    spacing_reduction: (i32, i32),
 ) -> Result<()> {
     let glyph_width = font.character_size.width as i32;
     let glyph_height = font.character_size.height as i32;
-    let advance_x = glyph_width;
-    let advance_y = glyph_height;
+    let advance_x = glyph_width - spacing_reduction.0;
+    let advance_y = glyph_height - spacing_reduction.1;
     let height_limit = ROWS as i32;
     if height_limit <= 0 {
         return Ok(());
@@ -112,7 +113,7 @@ pub fn render_text_to_frame<const ROWS: usize, const COLS: usize>(
         }
 
         // Clip characters that exceed width limit (no wrapping until explicit \n)
-        if x + glyph_width > width_limit {
+        if x + advance_x > width_limit {
             continue;
         }
 
@@ -143,29 +144,96 @@ pub fn render_text_to_frame<const ROWS: usize, const COLS: usize>(
 /// Built-in 3x4 font and embedded-graphics ASCII fonts.
 #[derive(Clone, Copy, Debug)]
 pub enum Led2dFont {
-    Font3x4,
+    /// Custom 3×4 font (no spacing)
+    Font3x4Trim,
+    /// EG 4×6 font
     Font4x6,
+    /// EG 4×6 trimmed to 3×5 (removes blank right column and bottom row)
+    Font3x5Trim,
+    /// EG 5×7 font
     Font5x7,
+    /// EG 5×7 trimmed to 4×6
+    Font4x6Trim,
+    /// EG 5×8 font
     Font5x8,
+    /// EG 5×8 trimmed to 4×7
+    Font4x7Trim,
+    /// EG 6×9 font
     Font6x9,
+    /// EG 6×9 trimmed to 5×8
+    Font5x8Trim,
+    /// EG 6×10 font
     Font6x10,
+    /// EG 6×10 trimmed to 5×9
+    Font5x9Trim,
+    /// EG 6×12 font
     Font6x12,
+    /// EG 6×12 trimmed to 5×11
+    Font5x11Trim,
+    /// EG 6×13 font
     Font6x13,
+    /// EG 6×13 trimmed to 5×12
+    Font5x12Trim,
+    /// EG 6×13 Bold font
     Font6x13Bold,
+    /// EG 6×13 Bold trimmed to 5×12
+    Font5x12TrimBold,
+    /// EG 6×13 Italic font
     Font6x13Italic,
+    /// EG 6×13 Italic trimmed to 5×12
+    Font5x12TrimItalic,
+    /// EG 7×13 font
     Font7x13,
+    /// EG 7×13 trimmed to 6×12
+    Font6x12Trim,
+    /// EG 7×13 Bold font
     Font7x13Bold,
+    /// EG 7×13 Bold trimmed to 6×12
+    Font6x12TrimBold,
+    /// EG 7×13 Italic font
     Font7x13Italic,
+    /// EG 7×13 Italic trimmed to 6×12
+    Font6x12TrimItalic,
+    /// EG 7×14 font
     Font7x14,
+    /// EG 7×14 trimmed to 6×13
+    Font6x13Trim,
+    /// EG 7×14 Bold font
     Font7x14Bold,
+    /// EG 7×14 Bold trimmed to 6×13
+    Font6x13TrimBold,
+    /// EG 8×13 font
     Font8x13,
+    /// EG 8×13 trimmed to 7×12
+    Font7x12Trim,
+    /// EG 8×13 Bold font
     Font8x13Bold,
+    /// EG 8×13 Bold trimmed to 7×12
+    Font7x12TrimBold,
+    /// EG 8×13 Italic font
     Font8x13Italic,
+    /// EG 8×13 Italic trimmed to 7×12
+    Font7x12TrimItalic,
+    /// EG 9×15 font
     Font9x15,
+    /// EG 9×15 trimmed to 8×14
+    Font8x14Trim,
+    /// EG 9×15 Bold font
     Font9x15Bold,
+    /// EG 9×15 Bold trimmed to 8×14
+    Font8x14TrimBold,
+    /// EG 9×18 font
     Font9x18,
+    /// EG 9×18 trimmed to 8×17
+    Font8x17Trim,
+    /// EG 9×18 Bold font
     Font9x18Bold,
+    /// EG 9×18 Bold trimmed to 8×17
+    Font8x17TrimBold,
+    /// EG 10×20 font
     Font10x20,
+    /// EG 10×20 trimmed to 9×19
+    Font9x19Trim,
 }
 
 impl Led2dFont {
@@ -173,29 +241,81 @@ impl Led2dFont {
     #[must_use]
     pub fn to_font(self) -> MonoFont<'static> {
         match self {
-            Self::Font3x4 => bit_matrix3x4_font(),
-            Self::Font4x6 => FONT_4X6,
-            Self::Font5x7 => FONT_5X7,
-            Self::Font5x8 => FONT_5X8,
-            Self::Font6x9 => FONT_6X9,
-            Self::Font6x10 => FONT_6X10,
-            Self::Font6x12 => FONT_6X12,
-            Self::Font6x13 => FONT_6X13,
-            Self::Font6x13Bold => FONT_6X13_BOLD,
-            Self::Font6x13Italic => FONT_6X13_ITALIC,
-            Self::Font7x13 => FONT_7X13,
-            Self::Font7x13Bold => FONT_7X13_BOLD,
-            Self::Font7x13Italic => FONT_7X13_ITALIC,
-            Self::Font7x14 => FONT_7X14,
-            Self::Font7x14Bold => FONT_7X14_BOLD,
-            Self::Font8x13 => FONT_8X13,
-            Self::Font8x13Bold => FONT_8X13_BOLD,
-            Self::Font8x13Italic => FONT_8X13_ITALIC,
-            Self::Font9x15 => FONT_9X15,
-            Self::Font9x15Bold => FONT_9X15_BOLD,
-            Self::Font9x18 => FONT_9X18,
-            Self::Font9x18Bold => FONT_9X18_BOLD,
-            Self::Font10x20 => FONT_10X20,
+            Self::Font3x4Trim => bit_matrix3x4_font(),
+            Self::Font4x6 | Self::Font3x5Trim => FONT_4X6,
+            Self::Font5x7 | Self::Font4x6Trim => FONT_5X7,
+            Self::Font5x8 | Self::Font4x7Trim => FONT_5X8,
+            Self::Font6x9 | Self::Font5x8Trim => FONT_6X9,
+            Self::Font6x10 | Self::Font5x9Trim => FONT_6X10,
+            Self::Font6x12 | Self::Font5x11Trim => FONT_6X12,
+            Self::Font6x13 | Self::Font5x12Trim => FONT_6X13,
+            Self::Font6x13Bold | Self::Font5x12TrimBold => FONT_6X13_BOLD,
+            Self::Font6x13Italic | Self::Font5x12TrimItalic => FONT_6X13_ITALIC,
+            Self::Font7x13 | Self::Font6x12Trim => FONT_7X13,
+            Self::Font7x13Bold | Self::Font6x12TrimBold => FONT_7X13_BOLD,
+            Self::Font7x13Italic | Self::Font6x12TrimItalic => FONT_7X13_ITALIC,
+            Self::Font7x14 | Self::Font6x13Trim => FONT_7X14,
+            Self::Font7x14Bold | Self::Font6x13TrimBold => FONT_7X14_BOLD,
+            Self::Font8x13 | Self::Font7x12Trim => FONT_8X13,
+            Self::Font8x13Bold | Self::Font7x12TrimBold => FONT_8X13_BOLD,
+            Self::Font8x13Italic | Self::Font7x12TrimItalic => FONT_8X13_ITALIC,
+            Self::Font9x15 | Self::Font8x14Trim => FONT_9X15,
+            Self::Font9x15Bold | Self::Font8x14TrimBold => FONT_9X15_BOLD,
+            Self::Font9x18 | Self::Font8x17Trim => FONT_9X18,
+            Self::Font9x18Bold | Self::Font8x17TrimBold => FONT_9X18_BOLD,
+            Self::Font10x20 | Self::Font9x19Trim => FONT_10X20,
+        }
+    }
+
+    /// Return spacing reduction for trimmed variants (cols, rows).
+    #[must_use]
+    pub const fn spacing_reduction(self) -> (i32, i32) {
+        match self {
+            Self::Font3x4Trim
+            | Self::Font4x6
+            | Self::Font5x7
+            | Self::Font5x8
+            | Self::Font6x9
+            | Self::Font6x10
+            | Self::Font6x12
+            | Self::Font6x13
+            | Self::Font6x13Bold
+            | Self::Font6x13Italic
+            | Self::Font7x13
+            | Self::Font7x13Bold
+            | Self::Font7x13Italic
+            | Self::Font7x14
+            | Self::Font7x14Bold
+            | Self::Font8x13
+            | Self::Font8x13Bold
+            | Self::Font8x13Italic
+            | Self::Font9x15
+            | Self::Font9x15Bold
+            | Self::Font9x18
+            | Self::Font9x18Bold
+            | Self::Font10x20 => (0, 0),
+            Self::Font3x5Trim
+            | Self::Font4x6Trim
+            | Self::Font4x7Trim
+            | Self::Font5x8Trim
+            | Self::Font5x9Trim
+            | Self::Font5x11Trim
+            | Self::Font5x12Trim
+            | Self::Font5x12TrimBold
+            | Self::Font5x12TrimItalic
+            | Self::Font6x12Trim
+            | Self::Font6x12TrimBold
+            | Self::Font6x12TrimItalic
+            | Self::Font6x13Trim
+            | Self::Font6x13TrimBold
+            | Self::Font7x12Trim
+            | Self::Font7x12TrimBold
+            | Self::Font7x12TrimItalic
+            | Self::Font8x14Trim
+            | Self::Font8x14TrimBold
+            | Self::Font8x17Trim
+            | Self::Font8x17TrimBold
+            | Self::Font9x19Trim => (1, 1),
         }
     }
 }
@@ -809,6 +929,7 @@ macro_rules! led2d_device_simple {
             $vis struct [<$name:camel>] {
                 pub led2d: $crate::led2d::Led2d<'static, $n_const>,
                 pub font: embedded_graphics::mono_font::MonoFont<'static>,
+                pub font_variant: $crate::led2d::Led2dFont,
             }
 
             impl [<$name:camel>] {
@@ -877,6 +998,7 @@ macro_rules! led2d_device_simple {
                     Ok(Self {
                         led2d,
                         font: ($font_variant).to_font(),
+                        font_variant: $font_variant,
                     })
                 }
 
@@ -905,7 +1027,7 @@ macro_rules! led2d_device_simple {
                     colors: &[smart_leds::RGB8],
                     frame: &mut $crate::led2d::Frame<$rows_const, $cols_const>,
                 ) -> $crate::Result<()> {
-                    $crate::led2d::render_text_to_frame(frame, &self.font, text, colors)
+                    $crate::led2d::render_text_to_frame(frame, &self.font, text, colors, self.font_variant.spacing_reduction())
                 }
 
                 /// Convenience wrapper to render text into a fresh frame and display it.
