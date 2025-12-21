@@ -11,7 +11,12 @@ const REFERENCE_DIR: &str = "tests/data/text_render";
 
 #[test]
 fn font3x4_on_12x4_matches_reference() {
-    run_render_test::<4, 12>("font3x4_12x4", Led2dFont::Font3x4, "RUST", &four_colors());
+    run_render_test::<4, 12>(
+        "font3x4_12x4",
+        Led2dFont::Font3x4Trim,
+        "RUST",
+        &four_colors(),
+    );
 }
 
 #[test]
@@ -46,7 +51,12 @@ fn font5x8_on_600x800_fibonacci() {
 
 #[test]
 fn font3x4_on_12x4_no_colors_defaults_to_white() {
-    run_render_test::<4, 12>("font3x4_12x4_white", Led2dFont::Font3x4, "RUST", &[]);
+    run_render_test::<4, 12>(
+        "font3x4_12x4_white",
+        Led2dFont::Font3x4Trim,
+        "RUST",
+        &[],
+    );
 }
 
 fn run_render_test<const ROWS: usize, const COLS: usize>(
@@ -56,7 +66,8 @@ fn run_render_test<const ROWS: usize, const COLS: usize>(
     colors: &[RGB8],
 ) {
     let mut frame: Frame<ROWS, COLS> = Frame::new();
-    render_text_to_frame(&mut frame, &font.to_font(), text, colors).expect("render must succeed");
+    render_text_to_frame(&mut frame, &font.to_font(), text, colors, (0, 0))
+        .expect("render must succeed");
 
     if let Some(dir) = generation_dir() {
         let output_path = dir.join(format!("{name}.png"));
@@ -90,7 +101,8 @@ fn run_render_test_heap<const ROWS: usize, const COLS: usize>(
     let frame_ptr = frame_box.as_mut_ptr() as *mut [[RGB8; COLS]; ROWS];
     let frame_ref: &mut Frame<ROWS, COLS> = unsafe { &mut *(frame_ptr as *mut Frame<ROWS, COLS>) };
 
-    render_text_to_frame(frame_ref, &font.to_font(), text, colors).expect("render must succeed");
+    render_text_to_frame(frame_ref, &font.to_font(), text, colors, (0, 0))
+        .expect("render must succeed");
 
     if let Some(dir) = generation_dir() {
         let output_path = dir.join(format!("{name}.png"));

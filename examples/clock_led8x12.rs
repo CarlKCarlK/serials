@@ -451,12 +451,21 @@ fn perimeter_chase_animation(
         duration.as_micros() > 0,
         "perimeter animation duration must be positive"
     );
+    const SNAKE_LENGTH: usize = 4;
+    assert!(
+        SNAKE_LENGTH <= PERIMETER_LENGTH,
+        "snake length must fit inside the perimeter"
+    );
     let coordinates = perimeter_coordinates(clockwise);
     let mut frames = heapless::Vec::new();
-    for frame_index in 0..PERIMETER_LENGTH {
+    for head_index in 0..PERIMETER_LENGTH {
         let mut frame = Led8x12::new_frame();
-        let (row_index, column_index) = coordinates[frame_index];
-        frame[row_index][column_index] = color;
+        for segment_offset in 0..SNAKE_LENGTH {
+            let coordinate_index =
+                (head_index + PERIMETER_LENGTH - segment_offset) % PERIMETER_LENGTH;
+            let (row_index, column_index) = coordinates[coordinate_index];
+            frame[row_index][column_index] = color;
+        }
         frames
             .push((frame, duration))
             .map_err(|_| Error::FormatError)?;

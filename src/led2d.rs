@@ -1071,7 +1071,7 @@ macro_rules! led2d_device_simple {
 ///     cols: 12,
 ///     pio: PIO1,
 ///     mapping: serpentine_column_major,
-///     font: serials::led2d::Led2dFont::Font3x4,
+///     font: serials::led2d::Led2dFont::Font3x4Trim,
 /// }
 /// # use embassy_executor::Spawner;
 /// # #[embassy_executor::main]
@@ -1096,7 +1096,7 @@ macro_rules! led2d_device_simple {
 ///         8, 9, 10, 11,
 ///         12, 13, 14, 15
 ///     ]),
-///     font: serials::led2d::Led2dFont::Font3x4,
+///     font: serials::led2d::Led2dFont::Font3x4Trim,
 /// }
 /// # use embassy_executor::Spawner;
 /// # #[embassy_executor::main]

@@ -1,4 +1,5 @@
 //! Internal segment state representation for 4-digit 7-segment displays.
+#![cfg_attr(feature = "host", allow(dead_code))]
 
 use core::num::NonZeroU8;
 use core::ops::{BitOrAssign, Index, IndexMut};

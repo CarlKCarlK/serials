@@ -12,7 +12,6 @@ use embassy_executor::Spawner;
 use panic_probe as _;
 use serials::led2d::{led2d_device, led2d_device_simple, Led2dFont};
 use serials::led_strip_simple::{Milliamps, colors};
-use smart_leds::RGB8;
 
 led2d_device_simple! {
     pub led12x4_pio0,
@@ -20,7 +19,7 @@ led2d_device_simple! {
     cols: 12,
     pio: PIO0,
     mapping: serpentine_column_major,
-    font: Led2dFont::Font3x4,
+    font: Led2dFont::Font3x4Trim,
 }
 
 led2d_device_simple! {
@@ -29,7 +28,7 @@ led2d_device_simple! {
     cols: 12,
     pio: PIO1,
     mapping: serpentine_column_major,
-    font: Led2dFont::Font3x4,
+    font: Led2dFont::Font3x4Trim,
 }
 
 const LED12X4_ROWS: usize = 4;
@@ -82,7 +81,7 @@ async fn test_led12x4_pio1(p: embassy_rp::Peripherals, spawner: Spawner) -> seri
 
 /// Verify Led2d with a custom strip type (multi-strip driver)
 async fn test_led12x4_from_multi(
-    p: embassy_rp::Peripherals,
+    _p: embassy_rp::Peripherals,
     spawner: Spawner,
 ) -> serials::Result<()> {
     static LED12X4_RESOURCES: Led12x4StripResources = Led12x4StripResources::new_static();

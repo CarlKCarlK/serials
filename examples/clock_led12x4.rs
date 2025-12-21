@@ -36,7 +36,7 @@ led2d_device_simple! {
     cols: 12,
     pio: PIO1,
     mapping: serpentine_column_major,
-    font: Led2dFont::Font3x4,
+    font: Led2dFont::Font3x4Trim,
 }
 
 type LedFrame = serials::led2d::Frame<{ Led12x4::ROWS }, { Led12x4::COLS }>;
