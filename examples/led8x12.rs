@@ -40,7 +40,7 @@ led2d_device_simple! {
         0, 1, 2, 3, 48, 49, 50, 51,
     ]),
     max_frames: 32,
-    font: Led2dFont::Font4x6Trim,
+    font: Font4x6Trim,
 }
 
 #[embassy_executor::main]

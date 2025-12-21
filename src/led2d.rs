@@ -1,9 +1,10 @@
-//! A device abstraction for rectangular LED matrix displays with arbitrary dimensions.
+//! A device abstraction for rectangular LED matrix displays with arbitrary size.
 //!
-//! See [`Led2d`] for usage details.
+//! Supports text, graphics, and animation. See [`Led2d`] for usage details.
 
 // Re-export for macro use
-// cmk000 this appears in the docs? should it? If not, hide it. If yes, add a documation line.
+// Must be `pub` (not `pub(crate)`) because macros expand at the call site in downstream crates, but this is an implementation detail.
+#[doc(hidden)]
 pub use paste;
 
 use core::convert::Infallible;
@@ -41,10 +42,6 @@ pub const fn rgb8_to_rgb888(color: RGB8) -> Rgb888 {
 pub fn rgb888_to_rgb8(color: Rgb888) -> RGB8 {
     RGB8::new(color.r(), color.g(), color.b())
 }
-
-// cmk does this need to be limited and public
-/// Default maximum frames supported by [`Led2d::animate`].
-pub const ANIMATION_MAX_FRAMES: usize = 48;
 
 // Packed bitmap for the internal 3x4 font (ASCII 0x20-0x7E).
 const BIT_MATRIX3X4_FONT_DATA: [u8; 144] = [
@@ -140,99 +137,55 @@ pub fn render_text_to_frame<const ROWS: usize, const COLS: usize>(
     Ok(())
 }
 
-// cmk000 this description is bad
-/// Built-in 3x4 font and embedded-graphics ASCII fonts.
+/// Font options for [`Led2d`] text rendering.
+///
+/// Fonts with `Trim` suffix remove blank spacing to pack text more tightly on small displays.
 #[derive(Clone, Copy, Debug)]
 pub enum Led2dFont {
-    /// Custom 3×4 font (no spacing)
     Font3x4Trim,
-    /// EG 4×6 font
     Font4x6,
-    /// EG 4×6 trimmed to 3×5 (removes blank right column and bottom row)
     Font3x5Trim,
-    /// EG 5×7 font
     Font5x7,
-    /// EG 5×7 trimmed to 4×6
     Font4x6Trim,
-    /// EG 5×8 font
     Font5x8,
-    /// EG 5×8 trimmed to 4×7
     Font4x7Trim,
-    /// EG 6×9 font
     Font6x9,
-    /// EG 6×9 trimmed to 5×8
     Font5x8Trim,
-    /// EG 6×10 font
     Font6x10,
-    /// EG 6×10 trimmed to 5×9
     Font5x9Trim,
-    /// EG 6×12 font
     Font6x12,
-    /// EG 6×12 trimmed to 5×11
     Font5x11Trim,
-    /// EG 6×13 font
     Font6x13,
-    /// EG 6×13 trimmed to 5×12
     Font5x12Trim,
-    /// EG 6×13 Bold font
     Font6x13Bold,
-    /// EG 6×13 Bold trimmed to 5×12
     Font5x12TrimBold,
-    /// EG 6×13 Italic font
     Font6x13Italic,
-    /// EG 6×13 Italic trimmed to 5×12
     Font5x12TrimItalic,
-    /// EG 7×13 font
     Font7x13,
-    /// EG 7×13 trimmed to 6×12
     Font6x12Trim,
-    /// EG 7×13 Bold font
     Font7x13Bold,
-    /// EG 7×13 Bold trimmed to 6×12
     Font6x12TrimBold,
-    /// EG 7×13 Italic font
     Font7x13Italic,
-    /// EG 7×13 Italic trimmed to 6×12
     Font6x12TrimItalic,
-    /// EG 7×14 font
     Font7x14,
-    /// EG 7×14 trimmed to 6×13
     Font6x13Trim,
-    /// EG 7×14 Bold font
     Font7x14Bold,
-    /// EG 7×14 Bold trimmed to 6×13
     Font6x13TrimBold,
-    /// EG 8×13 font
     Font8x13,
-    /// EG 8×13 trimmed to 7×12
     Font7x12Trim,
-    /// EG 8×13 Bold font
     Font8x13Bold,
-    /// EG 8×13 Bold trimmed to 7×12
     Font7x12TrimBold,
-    /// EG 8×13 Italic font
     Font8x13Italic,
-    /// EG 8×13 Italic trimmed to 7×12
     Font7x12TrimItalic,
-    /// EG 9×15 font
     Font9x15,
-    /// EG 9×15 trimmed to 8×14
     Font8x14Trim,
-    /// EG 9×15 Bold font
     Font9x15Bold,
-    /// EG 9×15 Bold trimmed to 8×14
     Font8x14TrimBold,
-    /// EG 9×18 font
     Font9x18,
-    /// EG 9×18 trimmed to 8×17
     Font8x17Trim,
-    /// EG 9×18 Bold font
     Font9x18Bold,
-    /// EG 9×18 Bold trimmed to 8×17
     Font8x17TrimBold,
-    /// EG 10×20 font
     Font10x20,
-    /// EG 10×20 trimmed to 9×19
     Font9x19Trim,
 }
 
@@ -433,13 +386,16 @@ impl<const ROWS: usize, const COLS: usize> DrawTarget for Frame<ROWS, COLS> {
     }
 }
 
-// cmk000 should not be public and visable to the docs, right?
+#[doc(hidden)]
+// Public so macro expansions in downstream crates can share the command signal type.
 pub type Led2dCommandSignal<const N: usize, const MAX_FRAMES: usize> =
     Signal<CriticalSectionRawMutex, Command<N, MAX_FRAMES>>;
-// cmk000 should not be public and visable to the docs, right?
+#[doc(hidden)]
+// Public so macro expansions in downstream crates can observe completion signals.
 pub type Led2dCompletionSignal = Signal<CriticalSectionRawMutex, ()>;
 
-// cmk000 this should not be public nor appear in the docs
+#[doc(hidden)]
+// Public so macro-generated tasks can share the command channel type.
 /// Command for the LED device loop.
 #[derive(Clone)]
 pub enum Command<const N: usize, const MAX_FRAMES: usize> {
@@ -447,8 +403,7 @@ pub enum Command<const N: usize, const MAX_FRAMES: usize> {
     Animate(Vec<([RGB8; N], Duration), MAX_FRAMES>),
 }
 
-// cmk000 bad description. better something like: Static type for the Led2d device abstraction.
-/// Signal resources for [`Led2d`].
+/// Static type for the [`Led2d`] device abstraction.
 pub struct Led2dStatic<const N: usize, const MAX_FRAMES: usize> {
     pub command_signal: Led2dCommandSignal<N, MAX_FRAMES>,
     pub completion_signal: Led2dCompletionSignal,
@@ -464,9 +419,10 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2dStatic<N, MAX_FRAMES> {
     }
 }
 
-// cmk think about if this should be public
 /// Trait for LED strip drivers that can render a full frame.
-pub trait LedStrip<const N: usize> {
+///
+/// Internal trait implemented by led strip types. Users don't need to implement this directly.
+pub(crate) trait LedStrip<const N: usize> {
     /// Update all pixels at once.
     async fn update_pixels(&mut self, pixels: &[RGB8; N]) -> Result<()>;
 }
@@ -615,6 +571,7 @@ pub const fn serpentine_column_major_mapping<
 ///
 /// Since embassy tasks cannot be generic, users must create a concrete wrapper task.
 /// Example usage in `led12x4.rs`.
+#[allow(private_bounds)]
 pub async fn led2d_device_loop<const N: usize, const MAX_FRAMES: usize, S: LedStrip<N>>(
     command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
     completion_signal: &'static Led2dCompletionSignal,
@@ -706,10 +663,10 @@ async fn run_animation_loop<const N: usize, const MAX_FRAMES: usize, S: LedStrip
     }
 }
 
+// cmk000 this appears in the docs? should it? If not, hide it (may no longer apply)
 #[doc(hidden)]
 #[macro_export]
 #[cfg(not(feature = "host"))]
-// cmk000 this appears in the docs? should it? If not, hide it
 macro_rules! led2d_device_task {
     (
         $task_name:ident,
@@ -764,37 +721,14 @@ macro_rules! led2d_device_task {
     };
 }
 
-/// Declares an Embassy task that runs [`led2d_device_loop`] for a concrete LED strip type.
-///
-/// Each `Led2d` device needs a monomorphic task because `#[embassy_executor::task]` does not
-/// support generics. This macro generates the boilerplate wrapper and keeps your modules tidy.
-///
-/// # Example
-/// ```no_run
-/// # #![no_std]
-/// # #![no_main]
-/// # use panic_probe as _;
-/// use embassy_executor::Spawner;
-/// use embassy_rp::{init, peripherals::PIO1};
-/// use serials::Result;
-/// use serials::led2d::{Led2dStatic, led2d_device_task};
-/// use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, Milliamps};
-///
-/// const COLS: usize = 12;
-/// const ROWS: usize = 4;
-/// const N: usize = COLS * ROWS;
-/// #
-/// # #[embassy_executor::main]
-/// # async fn main(_spawner: Spawner) { loop {} }
-/// ```
+#[doc(hidden)]
 #[cfg(not(feature = "host"))]
-#[doc(inline)]
 pub use led2d_device_task;
 
+// cmk000 this appears in the docs? should it? If not, hide it (may no longer apply)
 #[doc(hidden)]
 #[macro_export]
 #[cfg(not(feature = "host"))]
-// cmk000 this appears in the docs? should it? If not, hide it
 macro_rules! led2d_device {
     (
         $vis:vis struct $resources_name:ident,
@@ -842,37 +776,10 @@ macro_rules! led2d_device {
     };
 }
 
-/// Declares the full Led2d device/static pair plus the background task wrapper.
-///
-/// This extends [`led2d_device_task!`] by also generating a static resource holder with
-/// `new_static`/`new` so callers do not need to wire up the signals and task spawning manually.
-///
-/// The `max_frames` argument sets the per-device animation buffer capacity.
-///
-/// # Example
-/// ```no_run
-/// # #![no_std]
-/// # #![no_main]
-/// # use panic_probe as _;
-/// use defmt::info;
-/// use embassy_executor::Spawner;
-/// use embassy_rp::{init, peripherals::PIO1};
-/// use serials::Result;
-/// use serials::led2d::{Led2d, led2d_device};
-/// use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, Milliamps};
-///
-/// const COLS: usize = 12;
-/// const ROWS: usize = 4;
-/// const N: usize = COLS * ROWS;
-/// const MAPPING: [u16; N] = serials::led2d::serpentine_column_major_mapping::<N, ROWS, COLS>();
-/// #
-/// # #[embassy_executor::main]
-/// # async fn main(_spawner: Spawner) { loop {} }
+#[doc(hidden)]
 #[cfg(not(feature = "host"))]
-#[doc(inline)]
 pub use led2d_device;
 
-#[doc(hidden)]
 #[macro_export]
 #[cfg(not(feature = "host"))]
 macro_rules! led2d_device_simple {
@@ -884,7 +791,7 @@ macro_rules! led2d_device_simple {
         pio: $pio:ident,
         mapping: serpentine_column_major,
         max_frames: $max_frames:expr,
-        font: $font_variant:expr $(,)?
+        font: $font_variant:ident $(,)?
     ) => {
         $crate::led2d::paste::paste! {
             const [<$name:upper _ROWS>]: usize = $rows;
@@ -908,7 +815,7 @@ macro_rules! led2d_device_simple {
         pio: $pio:ident,
         mapping: arbitrary([$($index:expr),* $(,)?]),
         max_frames: $max_frames:expr,
-        font: $font_variant:expr $(,)?
+        font: $font_variant:ident $(,)?
     ) => {
         $crate::led2d::paste::paste! {
             const [<$name:upper _ROWS>]: usize = $rows;
@@ -951,11 +858,60 @@ macro_rules! led2d_device_simple {
                 $max_frames_const
             );
 
-            /// Device abstraction for the LED matrix.
+            /// A device abstraction for LED matrix displays.
+            ///
+            /// Use [`led2d_device_simple!`](crate::led2d::led2d_device_simple) to generate this type
+            /// with your specific display configuration.
+            ///
+            /// # Example
+            ///
+            /// ```no_run
+            /// # #![no_std]
+            /// # #![no_main]
+            /// # use panic_probe as _;
+            /// use embassy_executor::Spawner;
+            /// use embassy_rp::init;
+            /// use serials::led2d::{Led2dFont, led2d_device_simple};
+            /// use serials::led_strip_simple::Milliamps;
+            /// use serials::led_strip_simple::colors;
+            ///
+            /// led2d_device_simple! {
+            ///     pub led12x4,
+            ///     rows: 4,
+            ///     cols: 12,
+            ///     pio: PIO1,
+            ///     mapping: serpentine_column_major,
+            ///     max_frames: 32,
+            ///     font: Font3x4Trim,
+            /// }
+            ///
+            /// #[embassy_executor::main]
+            /// async fn main(spawner: Spawner) {
+            ///     let p = init(Default::default());
+            ///
+            ///     static LED_12X4_STATIC: Led12x4Static = Led12x4::new_static();
+            ///     let led_12x4 = Led12x4::new(
+            ///         &LED_12X4_STATIC,
+            ///         p.PIO1,
+            ///         p.PIN_3,
+            ///         Milliamps(500),
+            ///         spawner,
+            ///     )
+            ///     .await
+            ///     .unwrap();
+            ///
+            ///     // Display colorful text
+            ///     led_12x4.write_text("HI!", &[colors::CYAN, colors::MAGENTA, colors::YELLOW])
+            ///         .await
+            ///         .unwrap();
+            ///
+            ///     loop {}
+            /// }
+            /// ```
             $vis struct [<$name:camel>] {
-                pub led2d: $crate::led2d::Led2d<'static, $n_const, $max_frames_const>,
-                pub font: embedded_graphics::mono_font::MonoFont<'static>,
-                pub font_variant: $crate::led2d::Led2dFont,
+                led2d: $crate::led2d::Led2d<'static, $n_const, $max_frames_const>,
+                font: embedded_graphics::mono_font::MonoFont<'static>,
+                font_variant: $crate::led2d::Led2dFont,
             }
 
             impl [<$name:camel>] {
@@ -1026,8 +982,8 @@ macro_rules! led2d_device_simple {
                     defmt::info!("Led2d::new: device created successfully");
                     Ok(Self {
                         led2d,
-                        font: ($font_variant).to_font(),
-                        font_variant: $font_variant,
+                        font: $crate::led2d::Led2dFont::$font_variant.to_font(),
+                        font_variant: $crate::led2d::Led2dFont::$font_variant,
                     })
                 }
 
@@ -1103,7 +1059,7 @@ macro_rules! led2d_device_simple {
 ///     pio: PIO1,
 ///     mapping: serpentine_column_major,
 ///     max_frames: 32,
-///     font: serials::led2d::Led2dFont::Font3x4Trim,
+///     font: Font3x4Trim,
 /// }
 /// # use embassy_executor::Spawner;
 /// # #[embassy_executor::main]
@@ -1129,7 +1085,7 @@ macro_rules! led2d_device_simple {
 ///         12, 13, 14, 15
 ///     ]),
 ///     max_frames: 16,
-///     font: serials::led2d::Led2dFont::Font3x4Trim,
+///     font: Font3x4Trim,
 /// }
 /// # use embassy_executor::Spawner;
 /// # #[embassy_executor::main]
@@ -1138,3 +1094,17 @@ macro_rules! led2d_device_simple {
 #[cfg(not(feature = "host"))]
 #[doc(inline)]
 pub use led2d_device_simple;
+
+/// Example type showing the API generated by [`led2d_device_simple!`].
+///
+/// See the struct documentation below for a complete usage example.
+#[cfg(doc)]
+led2d_device_simple! {
+    pub led4x12_example,
+    rows: 12,
+    cols: 4,
+    pio: PIO1,
+    mapping: serpentine_column_major,
+    max_frames: 32,
+    font: Font3x4Trim,
+}
