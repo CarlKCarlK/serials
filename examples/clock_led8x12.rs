@@ -31,6 +31,8 @@ use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
 use serials::{Error, Result};
 use smart_leds::RGB8;
 
+// cmk000 I think we need to specify the animation max frame number
+// cmk000 could/should we replace arbitrary with a cat of the zigzag mapping?
 // Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise)
 led2d_device_simple! {
     pub led8x12,
@@ -388,6 +390,9 @@ async fn show_portal_ready(led_8x12: &Led8x12) -> Result<()> {
 }
 
 async fn show_connecting(led_8x12: &Led8x12, try_index: u8, _try_count: u8) -> Result<()> {
+    // Delay animation start to avoid wifi initialization glitches
+    embassy_time::Timer::after(Duration::from_secs(1)).await;
+
     let clockwise = try_index % 2 == 0;
     const FRAME_DURATION: Duration = Duration::from_millis(90);
     let animation = perimeter_chase_animation(clockwise, CONNECTING_COLOR, FRAME_DURATION)?;
@@ -531,7 +536,12 @@ fn hours_digits(hours: u8) -> (char, char) {
     reason = "Value < 100 ensures division is safe"
 )]
 fn tens_digit(value: u8) -> char {
-    ((value / 10) + b'0') as char
+    let digit = value / 10;
+    if digit == 0 {
+        'O'
+    } else {
+        (digit + b'0') as char
+    }
 }
 
 #[inline]
@@ -541,5 +551,10 @@ fn tens_digit(value: u8) -> char {
     reason = "Value < 100 ensures division is safe"
 )]
 fn ones_digit(value: u8) -> char {
-    ((value % 10) + b'0') as char
+    let digit = value % 10;
+    if digit == 0 {
+        'O'
+    } else {
+        (digit + b'0') as char
+    }
 }
