@@ -409,9 +409,10 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO2, N> {
     }
 }
 
+#[doc(hidden)]
+#[macro_export]
 /// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and fails fast if PIO2 is used on Pico 1.
 /// See the usage example on [`LedStripSimple`].
-#[macro_export]
 macro_rules! new_simple_strip {
     (
         $strip_static:expr,
@@ -461,4 +462,7 @@ macro_rules! new_simple_strip {
     }};
 }
 
-pub use crate::new_simple_strip;
+/// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and fails fast if PIO2 is used on Pico 1.
+/// See the usage example on [`LedStripSimple`].
+#[doc(inline)]
+pub use new_simple_strip;

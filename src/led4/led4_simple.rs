@@ -74,6 +74,7 @@ impl Led4Simple<'_> {
     }
 }
 
+// cmk000 this appears in the docs? should it? If not, hide it
 #[embassy_executor::task]
 async fn device_loop(
     cell_pins: OutputArray<'static, CELL_COUNT>,

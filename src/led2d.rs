@@ -3,6 +3,7 @@
 //! See [`Led2d`] for usage details.
 
 // Re-export for macro use
+// cmk000 this appears in the docs? should it? If not, hide it. If yes, add a documation line.
 pub use paste;
 
 use core::convert::Infallible;
@@ -136,6 +137,7 @@ pub fn render_text_to_frame<const ROWS: usize, const COLS: usize>(
     Ok(())
 }
 
+// cmk000 this description is bad
 /// Built-in 3x4 font and embedded-graphics ASCII fonts.
 #[derive(Clone, Copy, Debug)]
 pub enum Led2dFont {
@@ -196,6 +198,7 @@ impl Led2dFont {
     }
 }
 
+// cmk0 should also define Default via the trait
 /// Pixel frame for LED matrix displays.
 ///
 /// Wraps a 2D array of RGB pixels with support for indexing and embedded-graphics.
@@ -311,6 +314,7 @@ impl<const ROWS: usize, const COLS: usize> DrawTarget for Frame<ROWS, COLS> {
 pub type Led2dCommandSignal<const N: usize> = Signal<CriticalSectionRawMutex, Command<N>>;
 pub type Led2dCompletionSignal = Signal<CriticalSectionRawMutex, ()>;
 
+// cmk000 this should not be public nor appear in the docs
 /// Command for the LED device loop.
 #[derive(Clone)]
 pub enum Command<const N: usize> {
@@ -318,6 +322,7 @@ pub enum Command<const N: usize> {
     Animate(Vec<([RGB8; N], Duration), ANIMATION_MAX_FRAMES>),
 }
 
+// cmk000 bad description. better something like: Static type for the Led2d device abstraction.
 /// Signal resources for [`Led2d`].
 pub struct Led2dStatic<const N: usize> {
     pub command_signal: Led2dCommandSignal<N>,
@@ -334,12 +339,15 @@ impl<const N: usize> Led2dStatic<N> {
     }
 }
 
+// cmk think about if this should be public
 /// Trait for LED strip drivers that can render a full frame.
 pub trait LedStrip<const N: usize> {
     /// Update all pixels at once.
     async fn update_pixels(&mut self, pixels: &[RGB8; N]) -> Result<()>;
 }
 
+// cmk000 by the rules of Rust style, should this be Led2D?
+// cmk000 this needs a compiled-only doc test.
 /// A device abstraction for rectangular LED matrix displays.
 ///
 /// Supports any size display with arbitrary coordinate-to-LED-index mapping.
@@ -563,31 +571,10 @@ async fn run_animation_loop<const N: usize, S: LedStrip<N>>(
     }
 }
 
-/// Declares an Embassy task that runs [`led2d_device_loop`] for a concrete LED strip type.
-///
-/// Each `Led2d` device needs a monomorphic task because `#[embassy_executor::task]` does not
-/// support generics. This macro generates the boilerplate wrapper and keeps your modules tidy.
-///
-/// # Example
-/// ```no_run
-/// # #![no_std]
-/// # #![no_main]
-/// # use panic_probe as _;
-/// use embassy_executor::Spawner;
-/// use embassy_rp::{init, peripherals::PIO1};
-/// use serials::Result;
-/// use serials::led2d::{Led2dStatic, led2d_device_task};
-/// use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, Milliamps};
-///
-/// const COLS: usize = 12;
-/// const ROWS: usize = 4;
-/// const N: usize = COLS * ROWS;
-/// #
-/// # #[embassy_executor::main]
-/// # async fn main(_spawner: Spawner) { loop {} }
-///
+#[doc(hidden)]
 #[macro_export]
 #[cfg(not(feature = "host"))]
+// cmk000 this appears in the docs? should it? If not, hide it
 macro_rules! led2d_device_task {
     (
         $task_name:ident,
@@ -636,36 +623,37 @@ macro_rules! led2d_device_task {
     };
 }
 
-#[cfg(not(feature = "host"))]
-pub use led2d_device_task;
-
-/// Declares the full Led2d device/static pair plus the background task wrapper.
+/// Declares an Embassy task that runs [`led2d_device_loop`] for a concrete LED strip type.
 ///
-/// This extends [`led2d_device_task!`] by also generating a static resource holder with
-/// `new_static`/`new` so callers do not need to wire up the signals and task spawning manually.
+/// Each `Led2d` device needs a monomorphic task because `#[embassy_executor::task]` does not
+/// support generics. This macro generates the boilerplate wrapper and keeps your modules tidy.
 ///
 /// # Example
 /// ```no_run
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// use defmt::info;
 /// use embassy_executor::Spawner;
 /// use embassy_rp::{init, peripherals::PIO1};
 /// use serials::Result;
-/// use serials::led2d::{Led2d, led2d_device};
+/// use serials::led2d::{Led2dStatic, led2d_device_task};
 /// use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, Milliamps};
 ///
 /// const COLS: usize = 12;
 /// const ROWS: usize = 4;
 /// const N: usize = COLS * ROWS;
-/// const MAPPING: [u16; N] = serials::led2d::serpentine_column_major_mapping::<N, ROWS, COLS>();
 /// #
 /// # #[embassy_executor::main]
 /// # async fn main(_spawner: Spawner) { loop {} }
-///
+/// ```
+#[cfg(not(feature = "host"))]
+#[doc(inline)]
+pub use led2d_device_task;
+
+#[doc(hidden)]
 #[macro_export]
 #[cfg(not(feature = "host"))]
+// cmk000 this appears in the docs? should it? If not, hide it
 macro_rules! led2d_device {
     (
         $vis:vis struct $resources_name:ident,
@@ -712,70 +700,35 @@ macro_rules! led2d_device {
     };
 }
 
+/// Declares the full Led2d device/static pair plus the background task wrapper.
+///
+/// This extends [`led2d_device_task!`] by also generating a static resource holder with
+/// `new_static`/`new` so callers do not need to wire up the signals and task spawning manually.
+///
+/// # Example
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// use defmt::info;
+/// use embassy_executor::Spawner;
+/// use embassy_rp::{init, peripherals::PIO1};
+/// use serials::Result;
+/// use serials::led2d::{Led2d, led2d_device};
+/// use serials::led_strip_simple::{LedStripSimple, LedStripSimpleStatic, Milliamps};
+///
+/// const COLS: usize = 12;
+/// const ROWS: usize = 4;
+/// const N: usize = COLS * ROWS;
+/// const MAPPING: [u16; N] = serials::led2d::serpentine_column_major_mapping::<N, ROWS, COLS>();
+/// #
+/// # #[embassy_executor::main]
+/// # async fn main(_spawner: Spawner) { loop {} }
 #[cfg(not(feature = "host"))]
+#[doc(inline)]
 pub use led2d_device;
 
-/// Declares a complete Led2d device abstraction with LedStripSimple integration.
-///
-/// This macro generates all the boilerplate for a rectangular LED matrix device:
-/// - Constants: ROWS, COLS, N (total LEDs)
-/// - Mapping array (serpentine column-major or custom)
-/// - Static struct with embedded LedStripSimple resources
-/// - Device struct with Led2d handle
-/// - Constructor that creates strip + spawns task
-/// - Wrapper methods: write_frame, animate, xy_to_index
-///
-/// # Mapping Variants
-///
-/// - `serpentine_column_major`: Built-in serpentine column-major wiring pattern
-/// - `arbitrary([...])`: Custom mapping array (must have exactly N elements)
-///
-/// # Examples
-///
-/// With serpentine mapping:
-/// ```no_run
-/// # #![no_std]
-/// # #![no_main]
-/// # use panic_probe as _;
-/// use serials::led2d::led2d_device_simple;
-///
-/// led2d_device_simple! {
-///     pub led12x4,
-///     rows: 4,
-///     cols: 12,
-///     pio: PIO1,
-///     mapping: serpentine_column_major,
-///     font: serials::led2d::Led2dFont::Font3x4,
-/// }
-/// # use embassy_executor::Spawner;
-/// # #[embassy_executor::main]
-/// # async fn main(_spawner: Spawner) { loop {} }
-/// ```
-///
-/// With custom mapping:
-/// ```no_run
-/// # #![no_std]
-/// # #![no_main]
-/// # use panic_probe as _;
-/// use serials::led2d::led2d_device_simple;
-///
-/// led2d_device_simple! {
-///     pub led4x4,
-///     rows: 4,
-///     cols: 4,
-///     pio: PIO0,
-///     mapping: arbitrary([
-///         0, 1, 2, 3,
-///         4, 5, 6, 7,
-///         8, 9, 10, 11,
-///         12, 13, 14, 15
-///     ]),
-///     font: serials::led2d::Led2dFont::Font3x4,
-/// }
-/// # use embassy_executor::Spawner;
-/// # #[embassy_executor::main]
-/// # async fn main(_spawner: Spawner) { loop {} }
-/// ```
+#[doc(hidden)]
 #[macro_export]
 #[cfg(not(feature = "host"))]
 macro_rules! led2d_device_simple {
@@ -960,5 +913,67 @@ macro_rules! led2d_device_simple {
     };
 }
 
+/// Declares a complete Led2d device abstraction with LedStripSimple integration.
+///
+/// This macro generates all the boilerplate for a rectangular LED matrix device:
+/// - Constants: ROWS, COLS, N (total LEDs)
+/// - Mapping array (serpentine column-major or custom)
+/// - Static struct with embedded LedStripSimple resources
+/// - Device struct with Led2d handle
+/// - Constructor that creates strip + spawns task
+/// - Wrapper methods: write_frame, animate, xy_to_index
+///
+/// # Mapping Variants
+///
+/// - `serpentine_column_major`: Built-in serpentine column-major wiring pattern
+/// - `arbitrary([...])`: Custom mapping array (must have exactly N elements)
+///
+/// # Examples
+///
+/// With serpentine mapping:
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// use serials::led2d::led2d_device_simple;
+///
+/// led2d_device_simple! {
+///     pub led12x4,
+///     rows: 4,
+///     cols: 12,
+///     pio: PIO1,
+///     mapping: serpentine_column_major,
+///     font: serials::led2d::Led2dFont::Font3x4,
+/// }
+/// # use embassy_executor::Spawner;
+/// # #[embassy_executor::main]
+/// # async fn main(_spawner: Spawner) { loop {} }
+/// ```
+///
+/// With custom mapping:
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// use serials::led2d::led2d_device_simple;
+///
+/// led2d_device_simple! {
+///     pub led4x4,
+///     rows: 4,
+///     cols: 4,
+///     pio: PIO0,
+///     mapping: arbitrary([
+///         0, 1, 2, 3,
+///         4, 5, 6, 7,
+///         8, 9, 10, 11,
+///         12, 13, 14, 15
+///     ]),
+///     font: serials::led2d::Led2dFont::Font3x4,
+/// }
+/// # use embassy_executor::Spawner;
+/// # #[embassy_executor::main]
+/// # async fn main(_spawner: Spawner) { loop {} }
+/// ```
 #[cfg(not(feature = "host"))]
+#[doc(inline)]
 pub use led2d_device_simple;
