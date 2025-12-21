@@ -3,6 +3,7 @@
 //! This example uses two stacked 12x4 LED panels rotated 90° clockwise to create an 8-wide
 //! by 12-tall display. Uses Font4x6Trim for dense 2-line digit display ("12\n34").
 //! The panel is on GPIO4, reset button on GPIO13.
+// cmk000 zero is ugly in some fonts, switch to letter O?
 
 #![no_std]
 #![no_main]
