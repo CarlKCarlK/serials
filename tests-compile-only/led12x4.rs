@@ -52,11 +52,8 @@ led2d_device! {
 
 async fn write_text_frame(
     led: &serials::led2d::Led2d<'static, LED12X4_N>,
-    text: &str,
-    colors: &[RGB8],
 ) -> serials::Result<()> {
-    let mut frame = LedFrame::new();
-    serials::led2d::render_text_to_frame(&mut frame, &Led2dFont::Font3x4.to_font(), text, colors)?;
+    let frame = LedFrame::new();
     led.write_frame(frame).await
 }
 
@@ -93,8 +90,6 @@ async fn test_led12x4_from_multi(
     let led12x4 = LED12X4_RESOURCES.new(led_strip, spawner)?;
     write_text_frame(
         &led12x4,
-        "ABCD",
-        &[colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
     )
     .await?;
 
@@ -110,7 +105,7 @@ async fn test_led12x4_from_simple(
     static LED12X4_RESOURCES: Led12x4StripResources = Led12x4StripResources::new_static();
     let led_strip = serials::led_strip::LedStrip::new(&LED12X4_STRIP_STATIC)?;
     let led12x4 = LED12X4_RESOURCES.new(led_strip, spawner)?;
-    write_text_frame(&led12x4, "WXYZ", &[colors::WHITE]).await?;
+    write_text_frame(&led12x4).await?;
 
     Ok(())
 }

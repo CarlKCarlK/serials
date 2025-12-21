@@ -21,6 +21,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 const CELL_COUNT: usize = 4;
 const CELL_COUNT_U8: u8 = CELL_COUNT as u8;
 
+// cmk survey every use of #[doc(hidden)] and consider if crate(pub) or nothing would be better.
 /// Internal type for optimizing multiplexing by grouping digits with identical segment patterns.
 ///
 /// Maps from segment bit patterns to the indexes of digits that share that pattern.

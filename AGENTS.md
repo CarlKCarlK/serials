@@ -294,3 +294,34 @@ or
 // If read_state can be synchronous
 let result = read_state_sync();
 ```
+
+## Visibility and Documentation
+
+When something shouldn't be in the public API docs, express that through visibility modifiers rather than doc attributes:
+
+✅ Good:
+
+```rust
+pub(crate) struct InternalHelper { ... }  // Visible in crate, not in public docs
+struct PrivateHelper { ... }              // Private, not in public docs
+```
+
+❌ Bad:
+
+```rust
+#[doc(hidden)]
+pub struct InternalHelper { ... }  // Public but hidden - confusing!
+```
+
+If something truly shouldn't be in public docs, it shouldn't be `pub` either. Use `pub(crate)` for crate-internal APIs or omit `pub` entirely for private items. The `#[doc(hidden)]` attribute creates a mismatch between visibility and documentation that makes the API less clear.
+
+**Exception: Macro helpers**
+
+There is one legitimate use case for `#[doc(hidden)]` on `pub` items: functions called by public macros that expand at the call site. These must be `pub` (not `pub(crate)`) because macro-generated code in downstream crates needs to call them, but they're not part of the user-facing API.
+
+```rust
+#[doc(hidden)]
+pub fn helper_for_macro() { ... }  // Called by macro expansion in user code
+```
+
+When using `#[doc(hidden)]` for this reason, always add a comment explaining why it must be public despite being an implementation detail.

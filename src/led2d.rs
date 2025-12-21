@@ -61,6 +61,7 @@ const BIT_MATRIX3X4_FONT_DATA: [u8; 144] = [
 const BIT_MATRIX3X4_IMAGE_WIDTH: u32 = 48;
 const BIT_MATRIX3X4_GLYPH_MAPPING: StrGlyphMapping<'static> = StrGlyphMapping::new("\0 \u{7e}", 0);
 
+#[doc(hidden)]
 /// Monospace 3x4 font matching `bit_matrix3x4`.
 #[must_use]
 pub fn bit_matrix3x4_font() -> MonoFont<'static> {
@@ -78,6 +79,7 @@ pub fn bit_matrix3x4_font() -> MonoFont<'static> {
     }
 }
 
+#[doc(hidden)]
 /// Render text into a frame using the provided font.
 pub fn render_text_to_frame<const ROWS: usize, const COLS: usize>(
     frame: &mut Frame<ROWS, COLS>,
@@ -311,7 +313,9 @@ impl<const ROWS: usize, const COLS: usize> DrawTarget for Frame<ROWS, COLS> {
     }
 }
 
+// cmk000 should not be public and visable to the docs, right?
 pub type Led2dCommandSignal<const N: usize> = Signal<CriticalSectionRawMutex, Command<N>>;
+// cmk000 should not be public and visable to the docs, right?
 pub type Led2dCompletionSignal = Signal<CriticalSectionRawMutex, ()>;
 
 // cmk000 this should not be public nor appear in the docs
@@ -451,6 +455,7 @@ impl<'a, const N: usize> Led2d<'a, N> {
 ///
 /// Returns a flat array where index `row * COLS + col` gives the LED index for that position.
 #[must_use]
+#[doc(hidden)]
 pub const fn serpentine_column_major_mapping<
     const N: usize,
     const ROWS: usize,
@@ -476,6 +481,7 @@ pub const fn serpentine_column_major_mapping<
     mapping
 }
 
+#[doc(hidden)]
 /// Device loop for Led2d. This is exported so users can create their own task wrappers.
 ///
 /// Since embassy tasks cannot be generic, users must create a concrete wrapper task.
