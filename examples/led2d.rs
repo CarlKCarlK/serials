@@ -25,6 +25,7 @@ led2d_device_simple! {
     cols: 12,
     pio: PIO1,
     mapping: serpentine_column_major,
+    max_frames: 32,
     font: Led2dFont::Font3x4Trim,
 }
 
@@ -197,8 +198,6 @@ async fn demo_bouncing_dot_manual(led4x12: &Led4x12, button: &mut Button<'_>) ->
 
 /// Bouncing dot using pre-built animation frames.
 async fn demo_bouncing_dot_animation(led4x12: &Led4x12) -> Result<()> {
-    use serials::led2d::ANIMATION_MAX_FRAMES;
-
     let mut color_cycle = [colors::CYAN, colors::YELLOW, colors::LIME].iter().cycle();
 
     // Steps one position coordinate and reports if it hit an edge.
@@ -212,13 +211,13 @@ async fn demo_bouncing_dot_animation(led4x12: &Led4x12) -> Result<()> {
         true
     }
 
-    let mut frames = Vec::<_, ANIMATION_MAX_FRAMES>::new();
+    let mut frames = Vec::<_, { Led4x12::MAX_FRAMES }>::new();
     let (mut x, mut y) = (0isize, 0isize);
     let (mut vx, mut vy) = (1isize, 1isize);
     let (x_limit, y_limit) = (Led4x12::COLS as isize, Led4x12::ROWS as isize);
     let mut color = *color_cycle.next().unwrap();
 
-    for _ in 0..ANIMATION_MAX_FRAMES {
+    for _ in 0..Led4x12::MAX_FRAMES {
         let mut frame = Led4x12::new_frame();
         frame[y as usize][x as usize] = color;
         frames

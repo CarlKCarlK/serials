@@ -43,7 +43,7 @@ pub fn rgb888_to_rgb8(color: Rgb888) -> RGB8 {
 }
 
 // cmk does this need to be limited and public
-/// Maximum frames supported by [`Led2d::animate`].
+/// Default maximum frames supported by [`Led2d::animate`].
 pub const ANIMATION_MAX_FRAMES: usize = 48;
 
 // Packed bitmap for the internal 3x4 font (ASCII 0x20-0x7E).
@@ -434,26 +434,27 @@ impl<const ROWS: usize, const COLS: usize> DrawTarget for Frame<ROWS, COLS> {
 }
 
 // cmk000 should not be public and visable to the docs, right?
-pub type Led2dCommandSignal<const N: usize> = Signal<CriticalSectionRawMutex, Command<N>>;
+pub type Led2dCommandSignal<const N: usize, const MAX_FRAMES: usize> =
+    Signal<CriticalSectionRawMutex, Command<N, MAX_FRAMES>>;
 // cmk000 should not be public and visable to the docs, right?
 pub type Led2dCompletionSignal = Signal<CriticalSectionRawMutex, ()>;
 
 // cmk000 this should not be public nor appear in the docs
 /// Command for the LED device loop.
 #[derive(Clone)]
-pub enum Command<const N: usize> {
+pub enum Command<const N: usize, const MAX_FRAMES: usize> {
     DisplayStatic([RGB8; N]),
-    Animate(Vec<([RGB8; N], Duration), ANIMATION_MAX_FRAMES>),
+    Animate(Vec<([RGB8; N], Duration), MAX_FRAMES>),
 }
 
 // cmk000 bad description. better something like: Static type for the Led2d device abstraction.
 /// Signal resources for [`Led2d`].
-pub struct Led2dStatic<const N: usize> {
-    pub command_signal: Led2dCommandSignal<N>,
+pub struct Led2dStatic<const N: usize, const MAX_FRAMES: usize> {
+    pub command_signal: Led2dCommandSignal<N, MAX_FRAMES>,
     pub completion_signal: Led2dCompletionSignal,
 }
 
-impl<const N: usize> Led2dStatic<N> {
+impl<const N: usize, const MAX_FRAMES: usize> Led2dStatic<N, MAX_FRAMES> {
     #[must_use]
     pub const fn new_static() -> Self {
         Self {
@@ -477,22 +478,27 @@ pub trait LedStrip<const N: usize> {
 /// Supports any size display with arbitrary coordinate-to-LED-index mapping.
 /// The mapping is stored as a runtime slice, allowing stable Rust without experimental features.
 ///
-/// Rows and columns are metadata used only for indexing - the core type is generic only over N (total LEDs).
-pub struct Led2d<'a, const N: usize> {
-    command_signal: &'static Led2dCommandSignal<N>,
+/// Rows and columns are metadata used only for indexing - the core type is generic only over
+/// N (total LEDs) and MAX_FRAMES (animation capacity).
+pub struct Led2d<'a, const N: usize, const MAX_FRAMES: usize> {
+    command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
     completion_signal: &'static Led2dCompletionSignal,
     mapping: &'a [u16],
     cols: usize,
 }
 
-impl<'a, const N: usize> Led2d<'a, N> {
+impl<'a, const N: usize, const MAX_FRAMES: usize> Led2d<'a, N, MAX_FRAMES> {
     /// Create Led2d device handle.
     ///
     /// The `mapping` slice defines how (column, row) coordinates map to LED strip indices.
     /// Index `row * cols + col` gives the LED index for that position.
     /// Length must equal N (checked with debug_assert).
     #[must_use]
-    pub fn new(led2d_static: &'static Led2dStatic<N>, mapping: &'a [u16], cols: usize) -> Self {
+    pub fn new(
+        led2d_static: &'static Led2dStatic<N, MAX_FRAMES>,
+        mapping: &'a [u16],
+        cols: usize,
+    ) -> Self {
         debug_assert_eq!(mapping.len(), N, "mapping length must equal N (total LEDs)");
         Self {
             command_signal: &led2d_static.command_signal,
@@ -546,9 +552,13 @@ impl<'a, const N: usize> Led2d<'a, N> {
         &self,
         frames: &[(Frame<ROWS, COLS>, Duration)],
     ) -> Result<()> {
+        assert!(
+            MAX_FRAMES > 0,
+            "max_frames must be positive for Led2d animations"
+        );
         assert!(!frames.is_empty(), "animation requires at least one frame");
         defmt::info!("Led2d::animate: preparing {} frames", frames.len());
-        let mut sequence: Vec<([RGB8; N], Duration), ANIMATION_MAX_FRAMES> = Vec::new();
+        let mut sequence: Vec<([RGB8; N], Duration), MAX_FRAMES> = Vec::new();
         for (frame, duration) in frames {
             assert!(
                 duration.as_micros() > 0,
@@ -606,8 +616,8 @@ pub const fn serpentine_column_major_mapping<
 ///
 /// Since embassy tasks cannot be generic, users must create a concrete wrapper task.
 /// Example usage in `led12x4.rs`.
-pub async fn led2d_device_loop<const N: usize, S: LedStrip<N>>(
-    command_signal: &'static Led2dCommandSignal<N>,
+pub async fn led2d_device_loop<const N: usize, const MAX_FRAMES: usize, S: LedStrip<N>>(
+    command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
     completion_signal: &'static Led2dCompletionSignal,
     mut strip: S,
 ) -> Result<Infallible> {
@@ -669,12 +679,12 @@ pub async fn led2d_device_loop<const N: usize, S: LedStrip<N>>(
     }
 }
 
-async fn run_animation_loop<const N: usize, S: LedStrip<N>>(
-    frames: Vec<([RGB8; N], Duration), ANIMATION_MAX_FRAMES>,
-    command_signal: &'static Led2dCommandSignal<N>,
+async fn run_animation_loop<const N: usize, const MAX_FRAMES: usize, S: LedStrip<N>>(
+    frames: Vec<([RGB8; N], Duration), MAX_FRAMES>,
+    command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
     completion_signal: &'static Led2dCompletionSignal,
     strip: &mut S,
-) -> Result<Command<N>> {
+) -> Result<Command<N, MAX_FRAMES>> {
     defmt::info!("run_animation_loop: starting with {} frames", frames.len());
     completion_signal.signal(());
     defmt::debug!("run_animation_loop: signaled completion (animation started)");
@@ -705,27 +715,31 @@ macro_rules! led2d_device_task {
     (
         $task_name:ident,
         $strip_ty:ty,
-        $n:expr $(,)?
+        $n:expr,
+        $max_frames:expr $(,)?
     ) => {
         $crate::led2d::led2d_device_task!(
             @inner
             ()
             $task_name,
             $strip_ty,
-            $n
+            $n,
+            $max_frames
         );
     };
     (
         $vis:vis $task_name:ident,
         $strip_ty:ty,
-        $n:expr $(,)?
+        $n:expr,
+        $max_frames:expr $(,)?
     ) => {
         $crate::led2d::led2d_device_task!(
             @inner
             ($vis)
             $task_name,
             $strip_ty,
-            $n
+            $n,
+            $max_frames
         );
     };
     (
@@ -733,17 +747,19 @@ macro_rules! led2d_device_task {
         ($($vis:tt)*)
         $task_name:ident,
         $strip_ty:ty,
-        $n:expr $(,)?
+        $n:expr,
+        $max_frames:expr $(,)?
     ) => {
         #[embassy_executor::task]
         $($vis)* async fn $task_name(
-            command_signal: &'static $crate::led2d::Led2dCommandSignal<$n>,
+            command_signal: &'static $crate::led2d::Led2dCommandSignal<$n, $max_frames>,
             completion_signal: &'static $crate::led2d::Led2dCompletionSignal,
             strip: $strip_ty,
         ) {
-            let err = $crate::led2d::led2d_device_loop(command_signal, completion_signal, strip)
-                .await
-                .unwrap_err();
+            let err =
+                $crate::led2d::led2d_device_loop(command_signal, completion_signal, strip)
+                    .await
+                    .unwrap_err();
             panic!("{err}");
         }
     };
@@ -787,12 +803,13 @@ macro_rules! led2d_device {
         strip: $strip_ty:ty,
         leds: $n:expr,
         mapping: $mapping:expr,
-        cols: $cols:expr $(,)?
+        cols: $cols:expr,
+        max_frames: $max_frames:expr $(,)?
     ) => {
-        $crate::led2d::led2d_device_task!($task_vis $task_name, $strip_ty, $n);
+        $crate::led2d::led2d_device_task!($task_vis $task_name, $strip_ty, $n, $max_frames);
 
         $vis struct $resources_name {
-            led2d_static: $crate::led2d::Led2dStatic<$n>,
+            led2d_static: $crate::led2d::Led2dStatic<$n, $max_frames>,
         }
 
         impl $resources_name {
@@ -809,7 +826,7 @@ macro_rules! led2d_device {
                 &'static self,
                 strip: $strip_ty,
                 spawner: ::embassy_executor::Spawner,
-            ) -> $crate::Result<$crate::led2d::Led2d<'static, $n>> {
+            ) -> $crate::Result<$crate::led2d::Led2d<'static, $n, $max_frames>> {
                 let token = $task_name(
                     &self.led2d_static.command_signal,
                     &self.led2d_static.completion_signal,
@@ -830,6 +847,8 @@ macro_rules! led2d_device {
 ///
 /// This extends [`led2d_device_task!`] by also generating a static resource holder with
 /// `new_static`/`new` so callers do not need to wire up the signals and task spawning manually.
+///
+/// The `max_frames` argument sets the per-device animation buffer capacity.
 ///
 /// # Example
 /// ```no_run
@@ -865,6 +884,7 @@ macro_rules! led2d_device_simple {
         cols: $cols:expr,
         pio: $pio:ident,
         mapping: serpentine_column_major,
+        max_frames: $max_frames:expr,
         font: $font_variant:expr $(,)?
     ) => {
         $crate::led2d::paste::paste! {
@@ -872,10 +892,12 @@ macro_rules! led2d_device_simple {
             const [<$name:upper _COLS>]: usize = $cols;
             const [<$name:upper _N>]: usize = [<$name:upper _ROWS>] * [<$name:upper _COLS>];
             const [<$name:upper _MAPPING>]: [u16; [<$name:upper _N>]] = $crate::led2d::serpentine_column_major_mapping::<[<$name:upper _N>], [<$name:upper _ROWS>], [<$name:upper _COLS>]>();
+            const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             $crate::led2d::led2d_device_simple!(
                 @common $vis, $name, $pio, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
-                $font_variant
+                $font_variant,
+                [<$name:upper _MAX_FRAMES>]
             );
         }
     };
@@ -886,6 +908,7 @@ macro_rules! led2d_device_simple {
         cols: $cols:expr,
         pio: $pio:ident,
         mapping: arbitrary([$($index:expr),* $(,)?]),
+        max_frames: $max_frames:expr,
         font: $font_variant:expr $(,)?
     ) => {
         $crate::led2d::paste::paste! {
@@ -893,10 +916,12 @@ macro_rules! led2d_device_simple {
             const [<$name:upper _COLS>]: usize = $cols;
             const [<$name:upper _N>]: usize = [<$name:upper _ROWS>] * [<$name:upper _COLS>];
             const [<$name:upper _MAPPING>]: [u16; [<$name:upper _N>]] = [$($index),*];
+            const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             $crate::led2d::led2d_device_simple!(
                 @common $vis, $name, $pio, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
-                $font_variant
+                $font_variant,
+                [<$name:upper _MAX_FRAMES>]
             );
         }
     };
@@ -909,25 +934,27 @@ macro_rules! led2d_device_simple {
         $cols_const:ident,
         $n_const:ident,
         $mapping_const:ident,
-        $font_variant:expr
+        $font_variant:expr,
+        $max_frames_const:ident
     ) => {
         $crate::led2d::paste::paste! {
             /// Static resources for the device.
             $vis struct [<$name:camel Static>] {
                 led_strip_simple: $crate::led_strip_simple::LedStripSimpleStatic<$n_const>,
-                led2d_static: $crate::led2d::Led2dStatic<$n_const>,
+                led2d_static: $crate::led2d::Led2dStatic<$n_const, $max_frames_const>,
             }
 
             // Generate the task wrapper
             $crate::led2d::led2d_device_task!(
                 [<$name _device_loop>],
                 $crate::led_strip_simple::LedStripSimple<'static, ::embassy_rp::peripherals::$pio, $n_const>,
-                $n_const
+                $n_const,
+                $max_frames_const
             );
 
             /// Device abstraction for the LED matrix.
             $vis struct [<$name:camel>] {
-                pub led2d: $crate::led2d::Led2d<'static, $n_const>,
+                pub led2d: $crate::led2d::Led2d<'static, $n_const, $max_frames_const>,
                 pub font: embedded_graphics::mono_font::MonoFont<'static>,
                 pub font_variant: $crate::led2d::Led2dFont,
             }
@@ -939,6 +966,9 @@ macro_rules! led2d_device_simple {
                 pub const COLS: usize = $cols_const;
                 /// Total number of LEDs (ROWS * COLS).
                 pub const N: usize = $n_const;
+                /// Maximum animation frames supported for this device.
+                // cmk00 consider behavior when MAX_FRAMES is 0
+                pub const MAX_FRAMES: usize = $max_frames_const;
 
                 /// Create static resources.
                 #[must_use]
@@ -1056,6 +1086,8 @@ macro_rules! led2d_device_simple {
 /// - `serpentine_column_major`: Built-in serpentine column-major wiring pattern
 /// - `arbitrary([...])`: Custom mapping array (must have exactly N elements)
 ///
+/// Use `max_frames` to set the animation buffer size for each device.
+///
 /// # Examples
 ///
 /// With serpentine mapping:
@@ -1071,6 +1103,7 @@ macro_rules! led2d_device_simple {
 ///     cols: 12,
 ///     pio: PIO1,
 ///     mapping: serpentine_column_major,
+///     max_frames: 32,
 ///     font: serials::led2d::Led2dFont::Font3x4Trim,
 /// }
 /// # use embassy_executor::Spawner;
@@ -1096,6 +1129,7 @@ macro_rules! led2d_device_simple {
 ///         8, 9, 10, 11,
 ///         12, 13, 14, 15
 ///     ]),
+///     max_frames: 16,
 ///     font: serials::led2d::Led2dFont::Font3x4Trim,
 /// }
 /// # use embassy_executor::Spawner;

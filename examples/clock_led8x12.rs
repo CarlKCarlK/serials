@@ -3,7 +3,6 @@
 //! This example uses two stacked 12x4 LED panels rotated 90° clockwise to create an 8-wide
 //! by 12-tall display. Uses Font4x6Trim for dense 2-line digit display ("12\n34").
 //! The panel is on GPIO4, reset button on GPIO13.
-// cmk000 zero is ugly in some fonts, switch to letter O?
 
 #![no_std]
 #![no_main]
@@ -31,7 +30,7 @@ use serials::wifi_setup::{WifiSetup, WifiSetupStatic};
 use serials::{Error, Result};
 use smart_leds::RGB8;
 
-// cmk000 I think we need to specify the animation max frame number
+// cmk000 confirm the chosen animation max frame number is correct for this panel
 // cmk000 could/should we replace arbitrary with a cat of the zigzag mapping?
 // Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise)
 led2d_device_simple! {
@@ -53,6 +52,7 @@ led2d_device_simple! {
         7, 6, 5, 4, 55, 54, 53, 52,
         0, 1, 2, 3, 48, 49, 50, 51,
     ]),
+    max_frames: 48,
     font: Led2dFont::Font4x6Trim,
 }
 
@@ -111,7 +111,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         &LED_8X12_STATIC,
         p.PIO1,
         p.PIN_4,
-        Milliamps(1000), // 1000mA budget for 96 LEDs
+        Milliamps(250), // 1000mA budget for 96 LEDs
         spawner,
     )
     .await?;

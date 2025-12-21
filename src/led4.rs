@@ -53,6 +53,7 @@ const BLINK_OFF_DELAY: Duration = Duration::from_millis(50);
 /// Delay for the "on" state during blinking.
 const BLINK_ON_DELAY: Duration = Duration::from_millis(150);
 
+// cmk should this be configurable?
 const ANIMATION_MAX_FRAMES: usize = 16;
 
 // ============================================================================

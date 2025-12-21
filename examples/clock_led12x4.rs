@@ -36,6 +36,7 @@ led2d_device_simple! {
     cols: 12,
     pio: PIO1,
     mapping: serpentine_column_major,
+    max_frames: 32,
     font: Led2dFont::Font3x4Trim,
 }
 

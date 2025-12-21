@@ -28,6 +28,7 @@ led2d_device_simple! {
         0, 1, 2,  // Row 0: LEDs 0, 1, 2
         3, 4, 5,  // Row 1: LEDs 3, 4, 5
     ]),
+    max_frames: 6,
     font: serials::led2d::Led2dFont::Font3x4Trim,
 }
 
@@ -45,7 +46,7 @@ async fn test_led2x3_custom_mapping(p: embassy_rp::Peripherals, spawner: Spawner
     led2x3.write_frame(frame).await?;
 
     // Verify animate works
-    let mut frames = heapless::Vec::<_, 6>::new();
+    let mut frames = heapless::Vec::<_, { Led2x3::MAX_FRAMES }>::new();
     for row_index in 0..Led2x3::ROWS {
         for column_index in 0..Led2x3::COLS {
             let mut frame = Led2x3::new_frame();
