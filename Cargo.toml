@@ -6,7 +6,7 @@ default-members = ["."]
 edition = "2024"
 # if this changes, update .vscode/launch.json and .cargo/config.toml
 name = "device-kit"
-version = "0.0.1"
+version = "0.0.1-alpha"
 
 # Pure library crate - all applications are in examples/
 [lib]

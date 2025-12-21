@@ -1,11 +1,25 @@
 # device-kit
 
-An embedded Rust library for Raspberry Pi Pico/Pico W providing async virtual device abstractions for common peripherals.
+An embedded Rust library for Raspberry Pi Pico, Pico W, and Pico 2 that explores
+composable, async device abstractions using the Embassy framework.
 
-## Features
+## Status
+
+⚠️ **Alpha / Experimental**
+
+`device-kit` is an experimental library exploring composable device abstractions
+for embedded Rust. The API is evolving and will change.
+
+The crate is currently focused on Raspberry Pi Pico–class hardware and is intended
+for experimentation, examples, and discussion rather than production use.
+
+**Background:** See [How Rust & Embassy Shine on Embedded Devices](https://medium.com/@carlmkadie/how-rust-embassy-shine-on-embedded-devices-part-1-9f4911c92007) by Carl M. Kadie and Brad Gibson.
+
+## Features (current)
 
 - **Async peripheral drivers** - Non-blocking I/O using Embassy async framework
-- **Virtual device pattern** - Hardware abstraction with message-passing channels
+- **Device abstraction pattern** - Hardware abstraction with message-passing channels
+- **2D LED Matrices** - Addressable LED strip displays with text rendering, animation, and embedded-graphics support
 - **RFID Reader** - MFRC522 SPI reader with card detection events
 - **IR Remote** - NEC protocol decoder with GPIO interrupt edge detection
 - **LCD Display** - HD44780 I2C async driver with timed messages and two-line support
@@ -31,7 +45,7 @@ cargo full
 
 Pico W WiFi clock with automatic time sync:
 
-- Collects WiFi credentials/timezone via on-device captive portal (stored in flash)
+- On-device captive portal provisions WiFi credentials and timezone (stored in flash)
 - Fetches local time with DST support via WorldTimeAPI
 - Displays time in 12-hour format with AM/PM on LCD
 - Keeps local time, syncs with internet hourly
