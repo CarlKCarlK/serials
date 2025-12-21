@@ -7,13 +7,6 @@ edition = "2024"
 # if this changes, update .vscode/launch.json and .cargo/config.toml
 name = "device-kit"
 version = "0.0.1-alpha"
-authors = ["Carl M. Kadie"]
-description = "Experimental composable, async device abstractions for Raspberry Pi Pico using Embassy"
-repository = "https://github.com/CarlKCarlK/device-kit"
-license = "MIT OR Apache-2.0"
-keywords = ["embedded", "pico", "embassy", "async", "no-std"]
-categories = ["embedded", "no-std", "hardware-support"]
-readme = "README.md"
 
 # Pure library crate - all applications are in examples/
 [lib]
@@ -76,19 +69,19 @@ riscv = { version = "0.11", features = [
     "critical-section-single-hart",
 ], optional = true }
 
-embassy-executor = { version = "0.7.0", git = "https://github.com/embassy-rs/embassy", branch = "main", default-features = false, features = [
+embassy-executor = { git = "https://github.com/embassy-rs/embassy", branch = "main", default-features = false, features = [
     "executor-thread",
     "defmt",
 ] }
 embassy-sync = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
-embassy-rp = { version = "0.3.0", git = "https://github.com/embassy-rs/embassy", branch = "main", default-features = false, features = [
+embassy-rp = { git = "https://github.com/embassy-rs/embassy", branch = "main", default-features = false, features = [
     "rt",
     "defmt",
     "time-driver",
     "critical-section-impl",
 ], optional = true }
 embassy-futures = { git = "https://github.com/embassy-rs/embassy", branch = "main" }
-embassy-time = { version = "0.4.1", git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
+embassy-time = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
     "defmt",
     "defmt-timestamp-uptime",
 ] }
@@ -103,7 +96,7 @@ heapless = { version = "0.8.0", features = ["serde"] }
 time = { version = "0.3", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 postcard = { version = "1.0", default-features = false }
-rp235x-hal = { version = "0.4.0", git = "https://github.com/rp-rs/rp-hal", branch = "main", package = "rp235x-hal", features = [
+rp235x-hal = { git = "https://github.com/rp-rs/rp-hal", branch = "main", package = "rp235x-hal", features = [
     "rt",
 ], optional = true }
 smart-leds = "0.4.0"
@@ -121,15 +114,15 @@ portable-atomic = { version = "1.11.1", features = ["critical-section"] }
 hd44780-driver = "0.4.0"
 esp-hal-mfrc522 = "0.3.2"
 fixed = "1.28.0"
-cyw43 = { version = "0.2.1", git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
+cyw43 = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
     "defmt",
     "firmware-logs",
 ], optional = true }
-cyw43-pio = { version = "0.2.0", git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
+cyw43-pio = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
     "defmt",
 ], optional = true }
 cyw43-firmware = { version = "0.1", features = ["wifi"], optional = true }
-embassy-net = { version = "0.5.0", git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
+embassy-net = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
     "defmt",
     "tcp",
     "udp",
@@ -138,7 +131,7 @@ embassy-net = { version = "0.5.0", git = "https://github.com/embassy-rs/embassy"
     "medium-ethernet",
 ], optional = true }
 static_cell = "2.1.0"
-embassy-hal-internal = { version = "0.2.0", git = "https://github.com/embassy-rs/embassy", branch = "main", default-features = false, optional = true }
+embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy", branch = "main", default-features = false, optional = true }
 paste = "1.0"
 embedded-graphics = { version = "0.8", default-features = false }
 png = { version = "0.17", optional = true }
