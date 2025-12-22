@@ -41,7 +41,7 @@ Variables should generally match their type names converted to snake_case. This 
 **Type-based naming:**
 
 - `Led12x4` → `led_12x4` (preserves numeric separators)
-- `WifiSetup` → `wifi_setup`
+- `WifiAuto` → `wifi_auto`
 - `LedStripSimple` → `led_strip_simple`
 - `Led12x4ClockDisplay` → `led_12x4_clock_display`
 
@@ -73,7 +73,7 @@ Avoid single-character variables; use descriptive names:
 When capturing variables in closures or creating references, append `_ref`:
 
 - `led_12x4` → `led_12x4_ref`
-- `wifi_setup` → `wifi_setup_ref`
+- `wifi_auto` → `wifi_auto_ref`
 
 ## Comment Conventions
 

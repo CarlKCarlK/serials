@@ -25,8 +25,8 @@ use device_kit::led_strip_simple::Milliamps;
 use device_kit::led_strip_simple::colors;
 use device_kit::led2d::led2d_device_simple;
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use device_kit::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
-use device_kit::wifi_setup::{WifiSetup, WifiSetupStatic};
+use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
+use device_kit::wifi_auto::{WifiAuto, WifiAutoStatic};
 use device_kit::{Error, Result};
 use smart_leds::RGB8;
 
@@ -63,7 +63,7 @@ pub async fn main(spawner: Spawner) -> ! {
 }
 
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
-    info!("Starting Wi-Fi 12x4 LED clock (WifiSetup)");
+    info!("Starting Wi-Fi 12x4 LED clock (WifiAuto)");
     let p = embassy_rp::init(Default::default());
 
     // Use two blocks of flash storage: Wi-Fi credentials + timezone
@@ -76,9 +76,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
 
     // Set up Wifi via a captive portal. The button pin is used to reset stored credentials.
-    static WIFI_SETUP_STATIC: WifiSetupStatic = WifiSetup::new_static();
-    let wifi_setup = WifiSetup::new(
-        &WIFI_SETUP_STATIC,
+    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
+    let wifi_auto = WifiAuto::new(
+        &WIFI_AUTO_STATIC,
         p.PIN_23,  // CYW43 power
         p.PIN_25,  // CYW43 chip select
         p.PIO1,    // CYW43 PIO interface (swapped to show PIO not hardcoded)
@@ -108,19 +108,19 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     // cmk sometimes I use "led12x4" and sometimes "led_12x4" which is it?
     // Connect Wi-Fi, using the LED panel for status.
     let led_12x4_ref = &led_12x4;
-    let (stack, mut button) = wifi_setup
+    let (stack, mut button) = wifi_auto
         .connect(spawner, move |event| {
             let led_12x4_ref = led_12x4_ref;
             async move {
-                use device_kit::wifi_setup::WifiSetupEvent;
+                use device_kit::wifi_auto::WifiAutoEvent;
                 match event {
-                    WifiSetupEvent::CaptivePortalReady => {
+                    WifiAutoEvent::CaptivePortalReady => {
                         info!("WiFi: captive portal ready, displaying CONN");
                         show_portal_ready(led_12x4_ref)
                             .await
                             .expect("LED display failed during portal-ready");
                     }
-                    WifiSetupEvent::Connecting {
+                    WifiAutoEvent::Connecting {
                         try_index,
                         try_count,
                     } => {
@@ -129,13 +129,13 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                             .await
                             .expect("LED display failed during connecting");
                     }
-                    WifiSetupEvent::Connected => {
+                    WifiAutoEvent::Connected => {
                         info!("WiFi: connected successfully, displaying DONE");
                         show_connected(led_12x4_ref)
                             .await
                             .expect("LED display failed during connected");
                     }
-                    WifiSetupEvent::ConnectionFailed => {
+                    WifiAutoEvent::ConnectionFailed => {
                         info!("WiFi: connection failed, displaying FAIL, device will reset");
                         show_connection_failed(led_12x4_ref)
                             .await

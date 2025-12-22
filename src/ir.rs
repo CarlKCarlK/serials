@@ -10,6 +10,11 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel as EmbassyChannel;
 use embassy_time::Instant;
 
+// cmk0 move ir_kepler and ir_mapping into module ir
+// cmk0 move the two wifi's into the same module
+// cmk0 move the two led_strips into the same module
+// cmk0 move the two servos into the same module (and combine???)
+
 use crate::{Error, Result};
 
 // ===== Public API ===========================================================

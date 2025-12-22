@@ -1,6 +1,6 @@
 //! Wi-Fi enabled clock that visualizes time with two servos.
 //!
-//! This example combines the `WifiSetup` captive-portal workflow with a servo-based
+//! This example combines the `WifiAuto` captive-portal workflow with a servo-based
 //! display. Because the servos are mounted reversed, the left servo shows minutes/seconds
 //! and the right servo shows hours/minutes with 180° reflections applied.
 
@@ -24,8 +24,8 @@ use device_kit::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 use device_kit::servo_animate::{ServoAnimate, ServoAnimateStatic, Step, linear, servo_even};
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use device_kit::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
-use device_kit::wifi_setup::{WifiSetup, WifiSetupStatic};
+use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
+use device_kit::wifi_auto::{WifiAuto, WifiAutoStatic};
 use device_kit::{Error, Result};
 
 const FAST_MODE_SPEED: f32 = 720.0;
@@ -37,7 +37,7 @@ pub async fn main(spawner: Spawner) -> ! {
 }
 
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
-    info!("Starting Wi-Fi servo clock (WifiSetup)");
+    info!("Starting Wi-Fi servo clock (WifiAuto)");
     let p = embassy_rp::init(Default::default());
 
     // Use two blocks of flash storage: Wi-Fi credentials + timezone
@@ -50,9 +50,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
 
     // Set up Wifi via a captive portal. The button pin is used to reset stored credentials.
-    static WIFI_SETUP_STATIC: WifiSetupStatic = WifiSetup::new_static();
-    let wifi_setup = WifiSetup::new(
-        &WIFI_SETUP_STATIC,
+    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
+    let wifi_auto = WifiAuto::new(
+        &WIFI_AUTO_STATIC,
         p.PIN_23,  // CYW43 power
         p.PIN_25,  // CYW43 chip select
         p.PIO0,    // CYW43 PIO interface
@@ -85,20 +85,20 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     // Connect Wi-Fi, using the servos for status indications.
     let servo_display_ref = &servo_display;
-    let (stack, mut button) = wifi_setup
+    let (stack, mut button) = wifi_auto
         .connect(spawner, move |event| {
             let servo_display_ref = servo_display_ref;
             async move {
-                use device_kit::wifi_setup::WifiSetupEvent;
+                use device_kit::wifi_auto::WifiAutoEvent;
                 match event {
-                    WifiSetupEvent::CaptivePortalReady => {
+                    WifiAutoEvent::CaptivePortalReady => {
                         servo_display_ref.show_portal_ready().await
                     }
-                    WifiSetupEvent::Connecting { .. } => servo_display_ref.show_connecting().await,
-                    WifiSetupEvent::Connected => {
+                    WifiAutoEvent::Connecting { .. } => servo_display_ref.show_connecting().await,
+                    WifiAutoEvent::Connected => {
                         // No-op; main loop will immediately render real time.
                     }
-                    WifiSetupEvent::ConnectionFailed => {
+                    WifiAutoEvent::ConnectionFailed => {
                         // No-op; portal remains visible on failure.
                     }
                 }

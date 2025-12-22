@@ -17,8 +17,8 @@ use device_kit::char_lcd::{CharLcd, CharLcdStatic};
 use device_kit::clock::{Clock, ClockStatic, ONE_SECOND};
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use device_kit::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
-use device_kit::wifi_setup::{WifiSetup, WifiSetupStatic};
+use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
+use device_kit::wifi_auto::{WifiAuto, WifiAutoStatic};
 use device_kit::{Error, Result};
 
 // ============================================================================
@@ -52,9 +52,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
 
     // Set up WiFi via captive portal
-    static WIFI_SETUP_STATIC: WifiSetupStatic = WifiSetup::new_static();
-    let wifi_setup = WifiSetup::new(
-        &WIFI_SETUP_STATIC,
+    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
+    let wifi_auto = WifiAuto::new(
+        &WIFI_AUTO_STATIC,
         p.PIN_23,  // CYW43 power
         p.PIN_25,  // CYW43 chip select
         p.PIO0,    // CYW43 PIO interface
@@ -70,7 +70,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     )?;
 
     // Connect to WiFi
-    let (stack, _button) = wifi_setup.connect(spawner, |_event| async move {}).await?;
+    let (stack, _button) = wifi_auto.connect(spawner, |_event| async move {}).await?;
 
     // Create Clock device with timezone from WiFi portal
     // cmk offset must be set or return error

@@ -1,6 +1,6 @@
 //! A device abstraction for Network Time Protocol (NTP) time synchronization over WiFi.
 //!
-//! This version uses an existing network stack (e.g., from [`WifiSetup`](crate::wifi_setup::WifiSetup)).
+//! This version uses an existing network stack (e.g., from [`WifiAuto`](crate::wifi_auto::WifiAuto)).
 //!
 //! See [`TimeSync`] for usage examples.
 
@@ -82,7 +82,7 @@ mod wifi_impl {
 
     /// Device abstraction that manages Network Time Protocol (NTP) synchronization over WiFi.
     ///
-    /// Uses an existing network stack (typically from [`WifiSetup`](crate::wifi_setup::WifiSetup)).
+    /// Uses an existing network stack (typically from [`WifiAuto`](crate::wifi_auto::WifiAuto)).
     ///
     /// # Sync Timing
     ///
@@ -102,7 +102,7 @@ mod wifi_impl {
     ///     stack: &'static embassy_net::Stack<'static>,
     ///     spawner: embassy_executor::Spawner,
     /// ) {
-    ///     // Create TimeSync with an existing network stack (often from WifiSetup)
+    ///     // Create TimeSync with an existing network stack (often from WifiAuto)
     ///     static TIME_SYNC_STATIC: TimeSyncStatic = TimeSync::new_static();
     ///     let time_sync = TimeSync::new(&TIME_SYNC_STATIC, stack, spawner);
     ///
@@ -135,7 +135,7 @@ mod wifi_impl {
 
         /// Create a [`TimeSync`] that uses an existing Embassy stack.
         ///
-        /// WiFi is managed elsewhere (e.g. via [`WifiSetup`](crate::wifi_setup::WifiSetup))
+        /// WiFi is managed elsewhere (e.g. via [`WifiAuto`](crate::wifi_auto::WifiAuto))
         /// and the networking stack is already initialized in client mode.
         pub fn new(
             time_sync_static: &'static TimeSyncStatic,

@@ -68,7 +68,7 @@ pub mod time_sync;
 #[cfg(all(feature = "wifi", not(feature = "host")))]
 pub mod wifi;
 #[cfg(all(feature = "wifi", not(feature = "host")))]
-pub mod wifi_setup;
+pub mod wifi_auto;
 
 // Re-export error types and result (used throughout)
 #[cfg(not(feature = "host"))]

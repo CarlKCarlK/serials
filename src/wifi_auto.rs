@@ -1,7 +1,7 @@
 //! A device abstraction for WiFi auto-provisioning with captive portal fallback.
 //!
-//! See [`WifiSetup`] for the main struct and usage examples.
-// cmk we we really need both wifi and wifi_setup modules? If so, give better names and descriptions.
+//! See [`WifiAuto`] for the main struct and usage examples.
+// cmk we we really need both wifi and wifi_auto modules? If so, give better names and descriptions.
 // cmk understand all top-level files and folder in the gitproject (is barlink there)
 
 #![allow(clippy::future_not_send, reason = "single-threaded")]
@@ -43,11 +43,11 @@ use stack::{WifiStartMode, WifiStatic as InnerWifiStatic};
 pub use credentials::WifiCredentials;
 pub use stack::{Wifi, WifiEvent, WifiPio, WifiStatic};
 
-pub use portal::WifiSetupField;
+pub use portal::WifiAutoField;
 
 /// Events emitted while provisioning or connecting.
 #[derive(Clone, Copy, Debug, defmt::Format)]
-pub enum WifiSetupEvent {
+pub enum WifiAutoEvent {
     /// Captive portal is ready and waiting for user configuration.
     CaptivePortalReady,
     /// Attempting to connect to WiFi network.
@@ -68,26 +68,26 @@ const MAX_CONNECT_ATTEMPTS: u8 = 2;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const RETRY_DELAY: Duration = Duration::from_secs(3);
 
-pub type WifiSetupEvents = Signal<CriticalSectionRawMutex, WifiSetupEvent>;
+pub type WifiAutoEvents = Signal<CriticalSectionRawMutex, WifiAutoEvent>;
 
-const MAX_WIFI_SETUP_FIELDS: usize = 8;
+const MAX_WIFI_AUTO_FIELDS: usize = 8;
 
-/// Static for [`WifiSetup`]. See [`WifiSetup`] for usage example.
-pub struct WifiSetupStatic {
-    events: WifiSetupEvents,
+/// Static for [`WifiAuto`]. See [`WifiAuto`] for usage example.
+pub struct WifiAutoStatic {
+    events: WifiAutoEvents,
     wifi: InnerWifiStatic,
-    wifi_setup_cell: StaticCell<WifiSetup>,
+    wifi_auto_cell: StaticCell<WifiAuto>,
     force_captive_portal: AtomicBool,
     defaults: Mutex<CriticalSectionRawMutex, RefCell<Option<InnerWifiCredentials>>>,
     button: Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>>,
-    fields_storage: StaticCell<Vec<&'static dyn WifiSetupField, MAX_WIFI_SETUP_FIELDS>>,
+    fields_storage: StaticCell<Vec<&'static dyn WifiAutoField, MAX_WIFI_AUTO_FIELDS>>,
 }
 
 /// WiFi auto-provisioning with captive portal and custom configuration fields.
 ///
 /// Manages WiFi connectivity with automatic fallback to a captive portal when credentials
 /// are missing or invalid. Supports collecting additional configuration (e.g., timezone,
-/// device name) through custom [`WifiSetupField`] implementations.
+/// device name) through custom [`WifiAutoField`] implementations.
 ///
 /// # Features
 /// - Automatic captive portal on first boot or failed connections
@@ -108,8 +108,8 @@ pub struct WifiSetupStatic {
 /// # use panic_probe as _;
 /// use device_kit::button::PressedTo;
 /// use device_kit::flash_array::{FlashArray, FlashArrayStatic};
-/// use device_kit::wifi_setup::{WifiSetup, WifiSetupStatic, WifiSetupEvent};
-/// use device_kit::wifi_setup::fields::{TimezoneField, TimezoneFieldStatic};
+/// use device_kit::wifi_auto::{WifiAuto, WifiAutoStatic, WifiAutoEvent};
+/// use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 /// async fn example(
 ///     spawner: embassy_executor::Spawner,
 ///     p: embassy_rp::Peripherals,
@@ -123,10 +123,10 @@ pub struct WifiSetupStatic {
 ///     static TIMEZONE_STATIC: TimezoneFieldStatic = TimezoneField::new_static();
 ///     let timezone_field = TimezoneField::new(&TIMEZONE_STATIC, timezone_flash);
 ///
-///     // Initialize WifiSetup with the custom field
-///     static wifi_setup_STATIC: WifiSetupStatic = WifiSetup::new_static();
-///     let wifi_setup = WifiSetup::new(
-///         &wifi_setup_STATIC,
+///     // Initialize WifiAuto with the custom field
+///     static wifi_auto_STATIC: WifiAutoStatic = WifiAuto::new_static();
+///     let wifi_auto = WifiAuto::new(
+///         &wifi_auto_STATIC,
 ///         p.PIN_23,               // CYW43 power
 ///         p.PIN_25,               // CYW43 chip select
 ///         p.PIO0,                 // CYW43 PIO interface
@@ -145,19 +145,19 @@ pub struct WifiSetupStatic {
 ///     // Note: If capturing variables from outer scope, create a reference first:
 ///     //   let display_ref = &display;
 ///     // Then use display_ref inside the closure.
-///     let (stack, button) = wifi_setup
+///     let (stack, button) = wifi_auto
 ///         .connect(spawner, |event| async move {
 ///             match event {
-///                 WifiSetupEvent::CaptivePortalReady => {
+///                 WifiAutoEvent::CaptivePortalReady => {
 ///                     defmt::info!("Captive portal ready - connect to WiFi network");
 ///                 }
-///                 WifiSetupEvent::Connecting { try_index, try_count } => {
+///                 WifiAutoEvent::Connecting { try_index, try_count } => {
 ///                     defmt::info!("Connecting to WiFi (attempt {} of {})...", try_index + 1, try_count);
 ///                 }
-///                 WifiSetupEvent::Connected => {
+///                 WifiAutoEvent::Connected => {
 ///                     defmt::info!("WiFi connected successfully!");
 ///                 }
-///                 WifiSetupEvent::ConnectionFailed => {
+///                 WifiAutoEvent::ConnectionFailed => {
 ///                     defmt::info!("WiFi connection failed - device will reset");
 ///                 }
 ///             }
@@ -172,22 +172,22 @@ pub struct WifiSetupStatic {
 ///     Ok(())
 /// }
 /// ```
-pub struct WifiSetup {
-    events: &'static WifiSetupEvents,
+pub struct WifiAuto {
+    events: &'static WifiAutoEvents,
     wifi: &'static Wifi,
     force_captive_portal: &'static AtomicBool,
     defaults: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<InnerWifiCredentials>>>,
     button: &'static Mutex<CriticalSectionRawMutex, RefCell<Option<Button<'static>>>>,
-    fields: &'static [&'static dyn WifiSetupField],
+    fields: &'static [&'static dyn WifiAutoField],
 }
 
-impl WifiSetupStatic {
+impl WifiAutoStatic {
     #[must_use]
     pub const fn new() -> Self {
-        WifiSetupStatic {
+        WifiAutoStatic {
             events: Signal::new(),
             wifi: Wifi::new_static(),
-            wifi_setup_cell: StaticCell::new(),
+            wifi_auto_cell: StaticCell::new(),
             force_captive_portal: AtomicBool::new(false),
             defaults: Mutex::new(RefCell::new(None)),
             button: Mutex::new(RefCell::new(None)),
@@ -212,22 +212,22 @@ impl WifiSetupStatic {
     }
 }
 
-impl WifiSetup {
-    /// Create static resources for [`WifiSetup`].
+impl WifiAuto {
+    /// Create static resources for [`WifiAuto`].
     ///
-    /// See [`WifiSetup`] for a complete example.
+    /// See [`WifiAuto`] for a complete example.
     #[must_use]
-    pub const fn new_static() -> WifiSetupStatic {
-        WifiSetupStatic::new()
+    pub const fn new_static() -> WifiAutoStatic {
+        WifiAutoStatic::new()
     }
 
     /// Initialize WiFi auto-provisioning with custom configuration fields.
     ///
-    /// See [`WifiSetup`] for a complete example.
+    /// See [`WifiAuto`] for a complete example.
     // cmk00 PIO0 is hardcoded here (may no longer apply). Could be made generic over any PIO.
     #[allow(clippy::too_many_arguments)]
     pub fn new<const N: usize, PIO: WifiPio>(
-        wifi_setup_static: &'static WifiSetupStatic,
+        wifi_auto_static: &'static WifiAutoStatic,
         pin_23: Peri<'static, PIN_23>,
         pin_25: Peri<'static, PIN_25>,
         pio: Peri<'static, PIO>,
@@ -238,14 +238,14 @@ impl WifiSetup {
         button_pin: Peri<'static, impl Pin>,
         button_pressed_to: PressedTo,
         captive_portal_ssid: &'static str,
-        custom_fields: [&'static dyn WifiSetupField; N],
+        custom_fields: [&'static dyn WifiAutoField; N],
         spawner: Spawner,
     ) -> Result<&'static Self> {
         let stored_credentials = Wifi::peek_credentials(&mut wifi_credentials_flash_block);
         let stored_start_mode = Wifi::peek_start_mode(&mut wifi_credentials_flash_block);
         if matches!(stored_start_mode, WifiStartMode::CaptivePortal) {
             if let Some(creds) = stored_credentials.clone() {
-                wifi_setup_static.defaults.lock(|cell| {
+                wifi_auto_static.defaults.lock(|cell| {
                     *cell.borrow_mut() = Some(creds);
                 });
             }
@@ -255,7 +255,7 @@ impl WifiSetup {
         let force_captive_portal = button.is_pressed();
         if force_captive_portal {
             if let Some(creds) = stored_credentials.clone() {
-                wifi_setup_static.defaults.lock(|cell| {
+                wifi_auto_static.defaults.lock(|cell| {
                     *cell.borrow_mut() = Some(creds);
                 });
             }
@@ -267,7 +267,7 @@ impl WifiSetup {
         }
 
         let wifi = Wifi::new_with_captive_portal_ssid(
-            &wifi_setup_static.wifi,
+            &wifi_auto_static.wifi,
             pin_23,
             pin_25,
             pio,
@@ -279,33 +279,33 @@ impl WifiSetup {
             spawner,
         );
 
-        wifi_setup_static.button.lock(|cell| {
+        wifi_auto_static.button.lock(|cell| {
             *cell.borrow_mut() = Some(button);
         });
 
         // Store fields array and convert to slice
-        let fields_ref: &'static [&'static dyn WifiSetupField] = if N > 0 {
+        let fields_ref: &'static [&'static dyn WifiAutoField] = if N > 0 {
             assert!(
-                N <= MAX_WIFI_SETUP_FIELDS,
-                "WifiSetup supports at most {} custom fields",
-                MAX_WIFI_SETUP_FIELDS
+                N <= MAX_WIFI_AUTO_FIELDS,
+                "WifiAuto supports at most {} custom fields",
+                MAX_WIFI_AUTO_FIELDS
             );
-            let mut storage: Vec<&'static dyn WifiSetupField, MAX_WIFI_SETUP_FIELDS> = Vec::new();
+            let mut storage: Vec<&'static dyn WifiAutoField, MAX_WIFI_AUTO_FIELDS> = Vec::new();
             for field in custom_fields {
                 storage.push(field).unwrap_or_else(|_| unreachable!());
             }
-            let stored_vec = wifi_setup_static.fields_storage.init(storage);
+            let stored_vec = wifi_auto_static.fields_storage.init(storage);
             stored_vec.as_slice()
         } else {
             &[]
         };
 
-        let instance = wifi_setup_static.wifi_setup_cell.init(Self {
-            events: &wifi_setup_static.events,
+        let instance = wifi_auto_static.wifi_auto_cell.init(Self {
+            events: &wifi_auto_static.events,
             wifi,
-            force_captive_portal: wifi_setup_static.force_captive_portal_flag(),
-            defaults: wifi_setup_static.defaults(),
-            button: wifi_setup_static.button(),
+            force_captive_portal: wifi_auto_static.force_captive_portal_flag(),
+            defaults: wifi_auto_static.defaults(),
+            button: wifi_auto_static.button(),
             fields: fields_ref,
         });
 
@@ -321,7 +321,7 @@ impl WifiSetup {
     }
 
     /// Return the underlying WiFi handle for advanced operations such as clearing
-    /// credentials. Avoid waiting on WiFi events while [`WifiSetup`] is running, as it
+    /// credentials. Avoid waiting on WiFi events while [`WifiAuto`] is running, as it
     /// already owns the event stream.
     pub fn wifi(&self) -> &'static Wifi {
         self.wifi
@@ -340,7 +340,7 @@ impl WifiSetup {
         Ok(true)
     }
 
-    async fn wait_event(&self) -> WifiSetupEvent {
+    async fn wait_event(&self) -> WifiAutoEvent {
         self.events.wait().await
     }
 
@@ -361,11 +361,11 @@ impl WifiSetup {
     /// # #![no_main]
     /// # use panic_probe as _;
     /// # use embassy_executor::Spawner;
-    /// # use device_kit::wifi_setup::WifiSetup;
-    /// # use device_kit::wifi_setup::WifiSetupEvent;
+    /// # use device_kit::wifi_auto::WifiAuto;
+    /// # use device_kit::wifi_auto::WifiAutoEvent;
     /// # use device_kit::Result;
-    /// async fn connect_sync(wifi_setup: &WifiSetup, spawner: embassy_executor::Spawner) -> Result<()> {
-    ///     wifi_setup.connect(spawner, |event| async move {
+    /// async fn connect_sync(wifi_auto: &WifiAuto, spawner: embassy_executor::Spawner) -> Result<()> {
+    ///     wifi_auto.connect(spawner, |event| async move {
     ///         defmt::info!("Event: {:?}", event);
     ///     }).await?;
     ///     Ok(())
@@ -378,19 +378,19 @@ impl WifiSetup {
     /// # #![no_main]
     /// # use panic_probe as _;
     /// # use embassy_executor::Spawner;
-    /// # use device_kit::wifi_setup::{WifiSetup, WifiSetupEvent};
+    /// # use device_kit::wifi_auto::{WifiAuto, WifiAutoEvent};
     /// # use device_kit::Result;
-    /// async fn update_display(event: WifiSetupEvent) {
+    /// async fn update_display(event: WifiAutoEvent) {
     ///     // Update UI asynchronously (placeholder)
     ///     core::future::ready(()).await;
     ///     defmt::info!("Updated display: {:?}", event);
     /// }
     ///
     /// async fn connect_async(
-    ///     wifi_setup: &WifiSetup,
+    ///     wifi_auto: &WifiAuto,
     ///     spawner: embassy_executor::Spawner,
     /// ) -> Result<()> {
-    ///     wifi_setup.connect(spawner, |event| async move {
+    ///     wifi_auto.connect(spawner, |event| async move {
     ///         update_display(event).await;
     ///     }).await?;
     ///     Ok(())
@@ -402,7 +402,7 @@ impl WifiSetup {
         mut on_event: F,
     ) -> Result<(&'static Stack<'static>, Button<'static>)>
     where
-        F: FnMut(WifiSetupEvent) -> Fut,
+        F: FnMut(WifiAutoEvent) -> Fut,
         Fut: Future<Output = ()>,
     {
         let ui = async {
@@ -410,7 +410,7 @@ impl WifiSetup {
                 let event = self.wait_event().await;
                 on_event(event).await;
 
-                if matches!(event, WifiSetupEvent::Connected) {
+                if matches!(event, WifiAutoEvent::Connected) {
                     break;
                 }
             }
@@ -441,17 +441,17 @@ impl WifiSetup {
                         });
                     }
                 }
-                self.events.signal(WifiSetupEvent::CaptivePortalReady);
+                self.events.signal(WifiAutoEvent::CaptivePortalReady);
                 self.run_captive_portal(spawner).await?;
                 unreachable!("Device should reset after captive portal submission");
             }
 
             for attempt in 1..=MAX_CONNECT_ATTEMPTS {
                 info!(
-                    "WifiSetup: connection attempt {}/{}",
+                    "WifiAuto: connection attempt {}/{}",
                     attempt, MAX_CONNECT_ATTEMPTS
                 );
-                self.events.signal(WifiSetupEvent::Connecting {
+                self.events.signal(WifiAutoEvent::Connecting {
                     try_index: attempt - 1,
                     try_count: MAX_CONNECT_ATTEMPTS,
                 });
@@ -459,31 +459,31 @@ impl WifiSetup {
                     .wait_for_client_ready_with_timeout(CONNECT_TIMEOUT)
                     .await
                 {
-                    self.events.signal(WifiSetupEvent::Connected);
+                    self.events.signal(WifiAutoEvent::Connected);
                     return Ok(());
                 }
-                warn!("WifiSetup: connection attempt {} timed out", attempt);
+                warn!("WifiAuto: connection attempt {} timed out", attempt);
                 Timer::after(RETRY_DELAY).await;
             }
 
             info!(
-                "WifiSetup: failed to connect after {} attempts, returning to captive portal",
+                "WifiAuto: failed to connect after {} attempts, returning to captive portal",
                 MAX_CONNECT_ATTEMPTS
             );
-            info!("WifiSetup: signaling ConnectionFailed event");
-            self.events.signal(WifiSetupEvent::ConnectionFailed);
+            info!("WifiAuto: signaling ConnectionFailed event");
+            self.events.signal(WifiAutoEvent::ConnectionFailed);
             if let Some(creds) = self.wifi.load_persisted_credentials() {
                 self.defaults.lock(|cell| {
                     *cell.borrow_mut() = Some(creds);
                 });
             }
-            info!("WifiSetup: writing CaptivePortal mode to flash");
+            info!("WifiAuto: writing CaptivePortal mode to flash");
             self.wifi
                 .set_start_mode(WifiStartMode::CaptivePortal)
                 .map_err(|_| Error::StorageCorrupted)?;
-            info!("WifiSetup: flash write complete, waiting 1 second before reset");
+            info!("WifiAuto: flash write complete, waiting 1 second before reset");
             Timer::after_secs(1).await;
-            info!("WifiSetup: resetting device now");
+            info!("WifiAuto: resetting device now");
             SCB::sys_reset();
         }
     }
@@ -495,7 +495,7 @@ impl WifiSetup {
                     WifiEvent::ClientReady => break,
                     WifiEvent::CaptivePortalReady => {
                         info!(
-                            "WifiSetup: received captive-portal-ready event while waiting for client mode"
+                            "WifiAuto: received captive-portal-ready event while waiting for client mode"
                         );
                     }
                 }
@@ -516,7 +516,7 @@ impl WifiSetup {
                 spawner.spawn(dns_token);
             }
             Err(e) => {
-                info!("WifiSetup: DNS server task spawn failed: {:?}", e);
+                info!("WifiAuto: DNS server task spawn failed: {:?}", e);
             }
         }
 

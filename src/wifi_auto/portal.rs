@@ -30,7 +30,7 @@ pub type HtmlBuffer = String<16384>;
 /// - [`render`](Self::render): Generate HTML form elements for the captive portal
 /// - [`parse`](Self::parse): Parse and save submitted form data
 /// - [`is_satisfied`](Self::is_satisfied): Check if field has valid configuration
-pub trait WifiSetupField: Sync {
+pub trait WifiAutoField: Sync {
     /// Render HTML form elements for this field.
     ///
     /// Append form elements (labels, inputs, selects, etc.) to the `page` buffer.
@@ -95,17 +95,17 @@ static FORM_STATE: Mutex<CriticalSectionRawMutex, RefCell<FormState>> =
 
 static FORM_FIELDS: Mutex<
     CriticalSectionRawMutex,
-    RefCell<&'static [&'static dyn WifiSetupField]>,
+    RefCell<&'static [&'static dyn WifiAutoField]>,
 > = Mutex::new(RefCell::new(&[]));
 
 pub async fn collect_credentials(
     stack: &'static Stack<'static>,
     spawner: Spawner,
     defaults: Option<&WifiCredentials>,
-    fields: &'static [&'static dyn WifiSetupField],
+    fields: &'static [&'static dyn WifiAutoField],
 ) -> Result<WifiCredentials> {
     info!(
-        "WifiSetup portal registering {} custom fields",
+        "WifiAuto portal registering {} custom fields",
         fields.len()
     );
     FORM_STATE.lock(|state| {
@@ -124,7 +124,7 @@ pub async fn collect_credentials(
 
 #[embassy_executor::task]
 async fn http_server_task(stack: &'static Stack<'static>) -> ! {
-    info!("WifiSetup HTTP portal starting");
+    info!("WifiAuto HTTP portal starting");
 
     static RX_BUFFER: StaticCell<[u8; 2048]> = StaticCell::new();
     static TX_BUFFER: StaticCell<[u8; 4096]> = StaticCell::new();
@@ -179,7 +179,7 @@ async fn http_server_task(stack: &'static Stack<'static>) -> ! {
                     CREDENTIAL_CHANNEL.send(credentials).await;
                     static_page(generate_success_page())
                 } else {
-                    warn!("WifiSetup portal failed to parse POST");
+                    warn!("WifiAuto portal failed to parse POST");
                     static_page(generate_error_page())
                 }
             }
@@ -196,7 +196,7 @@ async fn http_server_task(stack: &'static Stack<'static>) -> ! {
     }
 }
 
-fn parse_post(request: &str, fields: &[&'static dyn WifiSetupField]) -> Option<WifiCredentials> {
+fn parse_post(request: &str, fields: &[&'static dyn WifiAutoField]) -> Option<WifiCredentials> {
     let body_start = request.find("\r\n\r\n")? + 4;
     let body = &request[body_start..];
 
@@ -233,7 +233,7 @@ fn parse_post(request: &str, fields: &[&'static dyn WifiSetupField]) -> Option<W
     let form = FormData::new(&params);
     for field in fields {
         if let Err(err) = field.parse(&form) {
-            warn!("WifiSetup field parse failed: {}", Debug2Format(&err));
+            warn!("WifiAuto field parse failed: {}", Debug2Format(&err));
             return None;
         }
     }
@@ -241,8 +241,8 @@ fn parse_post(request: &str, fields: &[&'static dyn WifiSetupField]) -> Option<W
     Some(WifiCredentials { ssid, password })
 }
 
-fn generate_config_page(state: &FormState, fields: &[&'static dyn WifiSetupField]) -> HtmlBuffer {
-    info!("WifiSetup portal rendering {} fields", fields.len());
+fn generate_config_page(state: &FormState, fields: &[&'static dyn WifiAutoField]) -> HtmlBuffer {
+    info!("WifiAuto portal rendering {} fields", fields.len());
     let mut page = HtmlBuffer::new();
     let ssid = state
         .defaults
@@ -301,7 +301,7 @@ fn generate_config_page(state: &FormState, fields: &[&'static dyn WifiSetupField
 
     for field in fields {
         if let Err(err) = field.render(&mut page) {
-            warn!("WifiSetup field render failed: {}", Debug2Format(&err));
+            warn!("WifiAuto field render failed: {}", Debug2Format(&err));
         }
     }
 
