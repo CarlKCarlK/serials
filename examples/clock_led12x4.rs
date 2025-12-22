@@ -34,7 +34,7 @@ led2d_device_simple! {
     pub led12x4,
     rows: 4,
     cols: 12,
-    pio: PIO1,
+    pio: PIO0,
     mapping: serpentine_column_major,
     max_frames: 32,
     font: Font3x4Trim,
@@ -81,7 +81,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         &WIFI_SETUP_STATIC,
         p.PIN_23,  // CYW43 power
         p.PIN_25,  // CYW43 chip select
-        p.PIO0,    // CYW43 PIO interface
+        p.PIO1,    // CYW43 PIO interface (swapped to show PIO not hardcoded)
         p.PIN_24,  // CYW43 clock
         p.PIN_29,  // CYW43 data pin
         p.DMA_CH0, // CYW43 DMA channel
@@ -98,7 +98,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     static LED_12X4_STATIC: Led12x4Static = Led12x4::new_static();
     let led_12x4 = Led12x4::new(
         &LED_12X4_STATIC,
-        p.PIO1,
+        p.PIO0,
         p.PIN_3,
         Milliamps(500), // 500mA budget allows ~22% brightness for 48 LEDs
         spawner,

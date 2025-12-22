@@ -14,7 +14,7 @@ use embassy_net::{Ipv4Address, Stack};
 use embassy_rp::{
     Peri,
     gpio::Pin,
-    peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0},
+    peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29},
 };
 use embassy_sync::{
     blocking_mutex::{Mutex, raw::CriticalSectionRawMutex},
@@ -41,7 +41,7 @@ use dns::dns_server_task;
 use stack::{WifiStartMode, WifiStatic as InnerWifiStatic};
 
 pub use credentials::WifiCredentials;
-pub use stack::{Wifi, WifiEvent, WifiStatic};
+pub use stack::{Wifi, WifiEvent, WifiPio, WifiStatic};
 
 pub use portal::WifiSetupField;
 
@@ -94,6 +94,9 @@ pub struct WifiSetupStatic {
 /// - Customizable configuration fields beyond WiFi credentials
 /// - Button-triggered reconfiguration
 /// - Event-driven UI updates via [`connect`](Self::connect)
+///
+/// Supports any PIO instance that implements [`WifiPio`], including `PIO0` and `PIO1`
+/// (and `PIO2` on supported boards).
 ///
 /// # Example
 ///
@@ -221,13 +224,13 @@ impl WifiSetup {
     /// Initialize WiFi auto-provisioning with custom configuration fields.
     ///
     /// See [`WifiSetup`] for a complete example.
-    // cmk00 PIO0 is hardcoded here (and in stack.rs). Could be made generic over any PIO.
+    // cmk00 PIO0 is hardcoded here (may no longer apply). Could be made generic over any PIO.
     #[allow(clippy::too_many_arguments)]
-    pub fn new<const N: usize>(
+    pub fn new<const N: usize, PIO: WifiPio>(
         wifi_setup_static: &'static WifiSetupStatic,
         pin_23: Peri<'static, PIN_23>,
         pin_25: Peri<'static, PIN_25>,
-        pio0: Peri<'static, PIO0>,
+        pio: Peri<'static, PIO>,
         pin_24: Peri<'static, PIN_24>,
         pin_29: Peri<'static, PIN_29>,
         dma_ch0: Peri<'static, DMA_CH0>,
@@ -267,7 +270,7 @@ impl WifiSetup {
             &wifi_setup_static.wifi,
             pin_23,
             pin_25,
-            pio0,
+            pio,
             pin_24,
             pin_29,
             dma_ch0,
