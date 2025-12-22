@@ -574,6 +574,7 @@ dependencies = [
  "hd44780-driver",
  "heapless",
  "itertools 0.13.0",
+ "micromath",
  "panic-probe",
  "paste",
  "png",
