@@ -98,13 +98,15 @@ Preserving comments: When changing code, generally don't remove TODO's and cmk's
 
 - **Markdown formatting**: When creating or editing markdown files, follow these rules to avoid linter warnings:
   - Add blank lines before and after lists (both bulleted and numbered)
-  - Add blank lines before and after code blocks (fenced with triple backticks)
-  - Add blank lines before and after headings
-  - Ensure consistent list marker style within a file
-  - Example violations to avoid:
-    - `**Title:**` followed immediately by a list (needs blank line)
-    - Code block followed immediately by text (needs blank line)
-    - Heading followed immediately by another heading (needs blank line or text between)
+- Add blank lines before and after code blocks (fenced with triple backticks)
+- Add blank lines before and after headings
+- Ensure consistent list marker style within a file
+- Example violations to avoid:
+  - `**Title:**` followed immediately by a list (needs blank line)
+  - Code block followed immediately by text (needs blank line)
+  - Heading followed immediately by another heading (needs blank line or text between)
+
+When adding new examples, also add the standard cargo aliases (run + check for pico1 and pico2 variants) in `.cargo/config.toml` so they stay discoverable.
 
 ### Documentation Spec (for device modules)
 
