@@ -27,7 +27,6 @@ use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_time::Duration;
 use heapless::String;
-use micromath::F32Ext;
 use panic_probe as _;
 use smart_leds::RGB8;
 
@@ -67,10 +66,6 @@ const EDIT_COLORS: [RGB8; 4] = [
     colors::TEAL,
     colors::MAROON,
 ];
-const ANALOG_MINUTE_HAND_COLOR: RGB8 = colors::CYAN;
-const ANALOG_HOUR_HAND_COLOR: RGB8 = colors::ORANGE;
-const ANALOG_MINUTE_HAND_LENGTH: f32 = 3.5;
-const ANALOG_HOUR_HAND_LENGTH: f32 = 2.5;
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -189,16 +184,6 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                     .execute_minutes_seconds(&clock, &mut button, &time_sync, &led_8x12)
                     .await?
             }
-            State::Analog { speed } => {
-                state
-                    .execute_analog(speed, &clock, &mut button, &time_sync, &led_8x12)
-                    .await?
-            }
-            State::ClockDots { speed } => {
-                state
-                    .execute_clock_dots(speed, &clock, &mut button, &time_sync, &led_8x12)
-                    .await?
-            }
             State::EditOffset => {
                 state
                     .execute_edit_offset(&clock, &mut button, &timezone_field, &led_8x12)
@@ -215,8 +200,6 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 pub enum State {
     HoursMinutes { speed: f32 },
     MinutesSeconds,
-    Analog { speed: f32 },
-    ClockDots { speed: f32 },
     EditOffset,
 }
 
@@ -250,8 +233,8 @@ impl State {
                     );
                     match (press_duration, speed.to_bits()) {
                         (PressDuration::Short, bits) if bits == 1.0f32.to_bits() => {
-                            info!("HoursMinutes -> Analog");
-                            return Ok(Self::Analog { speed: 1.0 });
+                            info!("HoursMinutes -> MinutesSeconds");
+                            return Ok(Self::MinutesSeconds);
                         }
                         (PressDuration::Short, _) => {
                             info!("HoursMinutes: Resetting speed to 1.0");
@@ -309,8 +292,8 @@ impl State {
                     );
                     match press_duration {
                         PressDuration::Short => {
-                            info!("MinutesSeconds -> Analog (fast)");
-                            return Ok(Self::Analog {
+                            info!("MinutesSeconds -> HoursMinutes (fast)");
+                            return Ok(Self::HoursMinutes {
                                 speed: FAST_MODE_SPEED,
                             });
                         }
@@ -334,124 +317,6 @@ impl State {
                     clock.set_utc_time(unix_seconds).await;
                 }
                 Either::Second(TimeSyncEvent::Failed(msg)) => {
-                    info!("Time sync failed: {}", msg);
-                }
-            }
-        }
-    }
-
-    async fn execute_analog(
-        self,
-        speed: f32,
-        clock: &Clock,
-        button: &mut Button<'_>,
-        time_sync: &TimeSync,
-        led_8x12: &Led8x12,
-    ) -> Result<Self> {
-        clock.set_speed(speed).await;
-        let (hours, minutes, seconds) = h12_m_s(&clock.now_local());
-        show_analog(led_8x12, hours, minutes, seconds).await?;
-        clock.set_tick_interval(Some(ONE_SECOND)).await;
-        let mut button_press = pin!(button.wait_for_press_duration());
-        loop {
-            match select(
-                &mut button_press,
-                select(clock.wait_for_tick(), time_sync.wait_for_sync()),
-            )
-            .await
-            {
-                Either::First(press_duration) => {
-                    info!(
-                        "Analog: Button press detected: {:?}, speed_bits={}",
-                        press_duration,
-                        speed.to_bits()
-                    );
-                    match (press_duration, speed.to_bits()) {
-                        (PressDuration::Short, bits) if bits == 1.0f32.to_bits() => {
-                            info!("Analog -> ClockDots");
-                            return Ok(Self::ClockDots { speed: 1.0 });
-                        }
-                        (PressDuration::Short, _) => {
-                            info!("Analog: Resetting speed to 1.0");
-                            return Ok(Self::Analog { speed: 1.0 });
-                        }
-                        (PressDuration::Long, _) => {
-                            info!("Analog -> EditOffset");
-                            return Ok(Self::EditOffset);
-                        }
-                    }
-                }
-                Either::Second(Either::First(time_event)) => {
-                    let (hours, minutes, seconds) = h12_m_s(&time_event);
-                    show_analog(led_8x12, hours, minutes, seconds).await?;
-                }
-                Either::Second(Either::Second(TimeSyncEvent::Success { unix_seconds })) => {
-                    info!(
-                        "Time sync success: setting clock to {}",
-                        unix_seconds.as_i64()
-                    );
-                    clock.set_utc_time(unix_seconds).await;
-                }
-                Either::Second(Either::Second(TimeSyncEvent::Failed(msg))) => {
-                    info!("Time sync failed: {}", msg);
-                }
-            }
-        }
-    }
-
-    async fn execute_clock_dots(
-        self,
-        speed: f32,
-        clock: &Clock,
-        button: &mut Button<'_>,
-        time_sync: &TimeSync,
-        led_8x12: &Led8x12,
-    ) -> Result<Self> {
-        clock.set_speed(speed).await;
-        let (hours, minutes, seconds) = h12_m_s(&clock.now_local());
-        show_clock_dots(led_8x12, hours, minutes, seconds).await?;
-        clock.set_tick_interval(Some(ONE_SECOND)).await;
-        let mut button_press = pin!(button.wait_for_press_duration());
-        loop {
-            match select(
-                &mut button_press,
-                select(clock.wait_for_tick(), time_sync.wait_for_sync()),
-            )
-            .await
-            {
-                Either::First(press_duration) => {
-                    info!(
-                        "ClockDots: Button press detected: {:?}, speed_bits={}",
-                        press_duration,
-                        speed.to_bits()
-                    );
-                    match (press_duration, speed.to_bits()) {
-                        (PressDuration::Short, bits) if bits == 1.0f32.to_bits() => {
-                            info!("ClockDots -> MinutesSeconds");
-                            return Ok(Self::MinutesSeconds);
-                        }
-                        (PressDuration::Short, _) => {
-                            info!("ClockDots: Resetting speed to 1.0");
-                            return Ok(Self::ClockDots { speed: 1.0 });
-                        }
-                        (PressDuration::Long, _) => {
-                            info!("ClockDots -> EditOffset");
-                            return Ok(Self::EditOffset);
-                        }
-                    }
-                }
-                Either::Second(Either::First(time_event)) => {
-                    let (hours, minutes, seconds) = h12_m_s(&time_event);
-                    show_clock_dots(led_8x12, hours, minutes, seconds).await?;
-                }
-                Either::Second(Either::Second(TimeSyncEvent::Success { unix_seconds })) => {
-                    info!(
-                        "Time sync success: setting clock to {}",
-                        unix_seconds.as_i64()
-                    );
-                    clock.set_utc_time(unix_seconds).await;
-                }
-                Either::Second(Either::Second(TimeSyncEvent::Failed(msg))) => {
                     info!("Time sync failed: {}", msg);
                 }
             }
@@ -560,183 +425,6 @@ async fn show_minutes_seconds(led_8x12: &Led8x12, minutes: u8, seconds: u8) -> R
     let (seconds_tens, seconds_ones) = two_digit_chars(seconds);
     let text = two_line_text([minutes_tens, minutes_ones], [seconds_tens, seconds_ones]);
     led_8x12.write_text(text.as_str(), &DIGIT_COLORS).await
-}
-
-async fn show_analog(led_8x12: &Led8x12, hours: u8, minutes: u8, seconds: u8) -> Result<()> {
-    use device_kit::led2d::rgb8_to_rgb888;
-
-    let mut frame = Led8x12::new_frame();
-
-    // Draw minute hand first (longer)
-    draw_hand(
-        &mut frame,
-        analog_minute_progress(minutes, seconds),
-        ANALOG_MINUTE_HAND_LENGTH,
-        rgb8_to_rgb888(ANALOG_MINUTE_HAND_COLOR),
-    )?;
-
-    // Draw hour hand second (shorter, on top)
-    draw_hand(
-        &mut frame,
-        analog_hour_progress(hours, minutes, seconds),
-        ANALOG_HOUR_HAND_LENGTH,
-        rgb8_to_rgb888(ANALOG_HOUR_HAND_COLOR),
-    )?;
-
-    led_8x12.write_frame(frame).await
-}
-
-async fn show_clock_dots(led_8x12: &Led8x12, hours: u8, minutes: u8, _seconds: u8) -> Result<()> {
-    use device_kit::led2d::rgb8_to_rgb888;
-    use embedded_graphics::{
-        Drawable,
-        pixelcolor::Rgb888,
-        prelude::*,
-        primitives::{PrimitiveStyle, Rectangle},
-    };
-
-    let mut frame = Led8x12::new_frame();
-
-    // Draw green 7x7 square background (centered in 8-wide display)
-    // Center at column 3.5 (use cols 0-6, leaving 1 pixel on right)
-    // Center vertically in 12-row display: use rows 2-8 (leaving 2 at top, 4 at bottom) for symmetry
-    let square_top_left = Point::new(0, 2);
-    let square_size = Size::new(7, 7);
-    Rectangle::new(square_top_left, square_size)
-        .into_styled(PrimitiveStyle::with_fill(Rgb888::GREEN))
-        .draw(&mut frame)?;
-
-    // Draw 12 white dots for clock positions
-    let minute_position = (minutes as f32 / 60.0 * 12.0).round() as u8 % 12;
-    let hour_position = hours % 12;
-
-    for position in 0..12 {
-        let progress = position as f32 / 12.0;
-        let (row, col) = clock_dot_position(progress);
-
-        let color = if position == minute_position {
-            Rgb888::BLUE
-        } else if position == hour_position {
-            rgb8_to_rgb888(colors::ORANGE)
-        } else {
-            Rgb888::WHITE
-        };
-
-        frame[row][col] = device_kit::led2d::rgb888_to_rgb8(color);
-    }
-
-    led_8x12.write_frame(frame).await
-}
-
-fn clock_dot_position(progress: f32) -> (usize, usize) {
-    // Position dots around perimeter of 7x7 square (rows 2-8, cols 0-6)
-    // 12 positions mapped to square perimeter:
-    // Top row: 11, 12, 1
-    // Right column: 2, 3, 4
-    // Bottom row: 5, 6, 7
-    // Left column: 8, 9, 10
-
-    let position = (progress * 12.0).round() as u8 % 12;
-
-    let (row, col) = match position {
-        0 => (2, 3),  // 12 - top center
-        1 => (2, 5),  // 1 - top right
-        2 => (3, 6),  // 2 - right side upper
-        3 => (5, 6),  // 3 - right side middle
-        4 => (7, 6),  // 4 - right side lower
-        5 => (8, 5),  // 5 - bottom right
-        6 => (8, 3),  // 6 - bottom center
-        7 => (8, 1),  // 7 - bottom left
-        8 => (7, 0),  // 8 - left side lower
-        9 => (5, 0),  // 9 - left side middle
-        10 => (3, 0), // 10 - left side upper
-        11 => (2, 1), // 11 - top left
-        _ => (5, 3),  // Fallback to center (unreachable)
-    };
-
-    (row, col)
-}
-
-fn hour_hand_position(progress: f32) -> (usize, usize) {
-    // Position hour hand endpoints pulled in 1 pixel from perimeter
-    // Same 12 positions as minute hand but closer to center
-
-    let position = (progress * 12.0).round() as u8 % 12;
-
-    let (row, col) = match position {
-        0 => (3, 3),  // 12 - top center (pulled in from 2,3)
-        1 => (3, 5),  // 1 - top right (pulled in from 2,5)
-        2 => (3, 5),  // 2 - right side upper (pulled in from 3,6)
-        3 => (5, 5),  // 3 - right side middle (pulled in from 5,6)
-        4 => (7, 5),  // 4 - right side lower (pulled in from 7,6)
-        5 => (7, 5),  // 5 - bottom right (pulled in from 8,5)
-        6 => (7, 3),  // 6 - bottom center (pulled in from 8,3)
-        7 => (7, 1),  // 7 - bottom left (pulled in from 8,1)
-        8 => (7, 1),  // 8 - left side lower (pulled in from 7,0)
-        9 => (5, 1),  // 9 - left side middle (pulled in from 5,0)
-        10 => (3, 1), // 10 - left side upper (pulled in from 3,0)
-        11 => (3, 1), // 11 - top left (pulled in from 2,1)
-        _ => (5, 3),  // Fallback to center (unreachable)
-    };
-
-    (row, col)
-}
-
-fn draw_hand(
-    frame: &mut LedFrame,
-    progress: f32,
-    length: f32,
-    color: embedded_graphics::pixelcolor::Rgb888,
-) -> Result<()> {
-    use embedded_graphics::{
-        Drawable,
-        prelude::*,
-        primitives::{Line, PrimitiveStyle},
-    };
-
-    assert!(
-        progress >= 0.0 && progress <= 1.0,
-        "analog hand progress must be within 0.0..=1.0"
-    );
-
-    // Center of 7x7 square at rows 2-8, cols 0-6
-    let center_row = 5;
-    let center_col = 3;
-
-    // Get endpoint position based on hand length
-    let (end_row, end_col) = if length >= ANALOG_MINUTE_HAND_LENGTH {
-        // Minute hand: use perimeter positions
-        clock_dot_position(progress)
-    } else {
-        // Hour hand: use pulled-in positions
-        hour_hand_position(progress)
-    };
-
-    let center_point = Point::new(center_col as i32, center_row as i32);
-    let end_point = Point::new(end_col as i32, end_row as i32);
-
-    Line::new(center_point, end_point)
-        .into_styled(PrimitiveStyle::with_stroke(color, 1))
-        .draw(frame)?;
-
-    Ok(())
-}
-
-fn analog_hour_progress(hours: u8, minutes: u8, seconds: u8) -> f32 {
-    assert!(
-        hours >= 1 && hours <= 12,
-        "hours must be 1-12 for analog display"
-    );
-    assert!(minutes < 60, "minutes must be < 60 for analog display");
-    assert!(seconds < 60, "seconds must be < 60 for analog display");
-    let hours_mod = if hours == 12 { 0 } else { hours };
-    (hours_mod as f32 + (minutes as f32 / 60.0) + (seconds as f32 / 3600.0)) / 12.0
-}
-
-fn analog_minute_progress(minutes: u8, seconds: u8) -> f32 {
-    assert!(minutes < 60, "minutes must be < 60 for analog display");
-    assert!(seconds < 60, "seconds must be < 60 for analog display");
-    (minutes as f32 + (seconds as f32 / 60.0)) / 60.0
 }
 
 const PERIMETER_LENGTH: usize = (Led8x12::COLS * 2) + ((Led8x12::ROWS - 2) * 2);
