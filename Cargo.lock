@@ -545,7 +545,7 @@ dependencies = [
 
 [[package]]
 name = "device-kit"
-version = "0.0.1"
+version = "0.0.1-alpha"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",

@@ -360,7 +360,6 @@ impl Led2dFont {
     }
 }
 
-// cmk000 need to tell that compatible with EG and give example
 // cmk0 should also define Default via the trait
 /// A 2D array of RGB pixels representing a single display frame.
 ///
@@ -803,7 +802,6 @@ async fn run_animation_loop<const N: usize, const MAX_FRAMES: usize, S: LedStrip
     }
 }
 
-// cmk000 this appears in the docs? should it? If not, hide it (may no longer apply)
 #[doc(hidden)]
 #[macro_export]
 #[cfg(not(feature = "host"))]
@@ -865,7 +863,6 @@ macro_rules! led2d_device_task {
 #[cfg(not(feature = "host"))]
 pub use led2d_device_task;
 
-// cmk000 this appears in the docs? should it? If not, hide it (may no longer apply)
 #[doc(hidden)]
 #[macro_export]
 #[cfg(not(feature = "host"))]
