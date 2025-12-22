@@ -3,12 +3,12 @@
 
 use defmt::info;
 use defmt_rtt as _;
-use embassy_executor::Spawner;
-use embassy_time::Timer;
-use panic_probe as _;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{Rgb, colors};
 use device_kit::led_strip_simple::Milliamps;
+use embassy_executor::Spawner;
+use embassy_time::Timer;
+use panic_probe as _;
 
 define_led_strips! {
     pio: PIO0,
@@ -38,22 +38,21 @@ define_led_strips! {
 }
 
 const SNAKE_LENGTH: usize = 4;
-const SNAKE_COLORS: [Rgb; SNAKE_LENGTH] = [
-    colors::YELLOW,
-    colors::ORANGE,
-    colors::RED,
-    colors::MAGENTA,
-];
+const SNAKE_COLORS: [Rgb; SNAKE_LENGTH] =
+    [colors::YELLOW, colors::ORANGE, colors::RED, colors::MAGENTA];
 
 #[embassy_executor::main]
-pub async fn main(spawner: Spawner) -> ! {
+async fn main(spawner: Spawner) {
+    if let Err(err) = inner_main(spawner).await {
+        panic!("Initialization failed: {:?}", err);
+    }
+}
+
+async fn inner_main(spawner: Spawner) -> device_kit::Result<()> {
     let p = embassy_rp::init(Default::default());
     let (pio_bus, sm0, sm1, sm2, _sm3) = pio0_split(p.PIO0);
 
     static G0_STRIP_STATIC: g0_strip::Static = g0_strip::new_static();
-    static G3_STRIP_STATIC: g3_strip::Static = g3_strip::new_static();
-    static G4_STRIP_STATIC: g4_strip::Static = g4_strip::new_static();
-
     let mut strip_gpio0 = g0_strip::new(
         spawner,
         &G0_STRIP_STATIC,
@@ -61,9 +60,9 @@ pub async fn main(spawner: Spawner) -> ! {
         sm0,
         p.DMA_CH0.into(),
         p.PIN_0.into(),
-    )
-    .expect("failed to start GPIO0 strip");
+    )?;
 
+    static G3_STRIP_STATIC: g3_strip::Static = g3_strip::new_static();
     let mut strip_gpio3 = g3_strip::new(
         spawner,
         &G3_STRIP_STATIC,
@@ -71,9 +70,9 @@ pub async fn main(spawner: Spawner) -> ! {
         sm1,
         p.DMA_CH1.into(),
         p.PIN_3.into(),
-    )
-    .expect("failed to start GPIO3 strip");
+    )?;
 
+    static G4_STRIP_STATIC: g4_strip::Static = g4_strip::new_static();
     let mut strip_gpio4 = g4_strip::new(
         spawner,
         &G4_STRIP_STATIC,
@@ -81,8 +80,7 @@ pub async fn main(spawner: Spawner) -> ! {
         sm2,
         p.DMA_CH2.into(),
         p.PIN_4.into(),
-    )
-    .expect("failed to start GPIO4 strip");
+    )?;
 
     info!("Running four-segment snakes on three strips (PIO0)");
 
@@ -98,18 +96,9 @@ pub async fn main(spawner: Spawner) -> ! {
         step_snake(&mut frame_g3, &mut pos_g3);
         step_snake(&mut frame_g4, &mut pos_g4);
 
-        strip_gpio0
-            .update_pixels(&frame_g0)
-            .await
-            .expect("update g0 failed");
-        strip_gpio3
-            .update_pixels(&frame_g3)
-            .await
-            .expect("update g3 failed");
-        strip_gpio4
-            .update_pixels(&frame_g4)
-            .await
-            .expect("update g4 failed");
+        strip_gpio0.update_pixels(&frame_g0).await?;
+        strip_gpio3.update_pixels(&frame_g3).await?;
+        strip_gpio4.update_pixels(&frame_g4).await?;
 
         Timer::after_millis(80).await;
     }

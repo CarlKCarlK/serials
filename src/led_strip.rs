@@ -190,6 +190,18 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
 /// using a single PIO peripheral. It handles interrupt bindings, PIO bus sharing, and
 /// per-strip brightness limiting based on current budget.
 ///
+/// The macro generates:
+/// - A `pio0_split()` (or `pio1_split()`, etc.) function that splits the PIO into bus + state machines
+/// - A `new_led_strips!` macro that simplifies construction by handling the split internally
+/// - One module per strip with `new_static()` and `new()` constructors
+///
+/// Note: The split function is generated per-PIO (pio0_split, pio1_split, pio2_split) rather
+/// than being generic because:
+/// - Macro hygiene makes generic implementations complex and error-prone
+/// - Per-PIO functions provide clear, explicit types that improve error messages
+/// - Each PIO has a distinct interrupt binding (Pio0Irqs, Pio1Irqs, etc.)
+/// - The cost of duplicating ~10 lines of code is negligible vs. the complexity of generics
+///
 /// # Example
 /// ```no_run
 /// #![no_std]
@@ -240,6 +252,7 @@ macro_rules! define_led_strips {
                 });
                 (pio_bus, sm0, sm1, sm2, sm3)
             }
+
         }
 
         // Create strip modules
