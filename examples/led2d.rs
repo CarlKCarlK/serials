@@ -13,17 +13,32 @@ use embassy_time::{Duration, Timer};
 use heapless::Vec;
 use panic_probe as _;
 use device_kit::button::{Button, PressedTo};
+use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip_simple::Milliamps;
-use device_kit::led2d::led2d_device_simple;
+use device_kit::led2d::led2d_from_strip;
+use device_kit::pio_split;
 use device_kit::{Error, Result};
 use smart_leds::colors;
 
+define_led_strips! {
+    pio: PIO1,
+    strips: [
+        led4x12_strip {
+            sm: 0,
+            dma: DMA_CH0,
+            pin: PIN_3,
+            len: 48,
+            max_current: Milliamps(500)
+        }
+    ]
+}
+
 // Create the led2d device using the macro
-led2d_device_simple! {
+led2d_from_strip! {
     pub led4x12,
+    strip_module: led4x12_strip,
     rows: 4,
     cols: 12,
-    pio: PIO1,
     mapping: serpentine_column_major,
     max_frames: 32,
     font: Font3x4Trim,
@@ -39,8 +54,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("LED 2D API Exploration (12x4 display)");
     let p = init(Default::default());
 
+    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
+    static LED4X12_STRIP_STATIC: led4x12_strip::Static = led4x12_strip::new_static();
+    let led4x12_strip = led4x12_strip::new(&LED4X12_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_3, spawner)?;
+    
     static LED4X12_STATIC: Led4x12Static = Led4x12::new_static();
-    let led4x12 = Led4x12::new(&LED4X12_STATIC, p.PIO1, p.PIN_3, Milliamps(500), spawner).await?;
+    let led4x12 = Led4x12::new(&LED4X12_STATIC, led4x12_strip, spawner)?;
 
     let mut button = Button::new(p.PIN_13, PressedTo::Ground);
 

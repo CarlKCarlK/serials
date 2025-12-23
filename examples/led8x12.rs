@@ -13,18 +13,33 @@ use embassy_time::{Duration, Timer};
 use heapless::Vec;
 use panic_probe as _;
 use device_kit::button::{Button, PressedTo};
+use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip_simple::Milliamps;
-use device_kit::led2d::led2d_device_simple;
+use device_kit::led2d::led2d_from_strip;
+use device_kit::pio_split;
 use device_kit::{Error, Result};
 use smart_leds::colors;
 
+define_led_strips! {
+    pio: PIO0,
+    strips: [
+        led8x12_strip {
+            sm: 0,
+            dma: DMA_CH0,
+            pin: PIN_4,
+            len: 96,
+            max_current: Milliamps(1000)
+        }
+    ]
+}
+
 // Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise)
 // Better for clock display - can fit 2 lines of 2 digits each
-led2d_device_simple! {
+led2d_from_strip! {
     pub led8x12,
+    strip_module: led8x12_strip,
     rows: 12,
     cols: 8,
-    pio: PIO0,
     mapping: arbitrary([
         47, 46, 45, 44, 95, 94, 93, 92,
         40, 41, 42, 43, 88, 89, 90, 91,
@@ -53,8 +68,12 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("LED 2D API Exploration (8x12 rotated display)");
     let p = init(Default::default());
 
+    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
+    static LED8X12_STRIP_STATIC: led8x12_strip::Static = led8x12_strip::new_static();
+    let led8x12_strip = led8x12_strip::new(&LED8X12_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_4, spawner)?;
+    
     static LED8X12_STATIC: Led8x12Static = Led8x12::new_static();
-    let led8x12 = Led8x12::new(&LED8X12_STATIC, p.PIO0, p.PIN_4, Milliamps(1000), spawner).await?;
+    let led8x12 = Led8x12::new(&LED8X12_STATIC, led8x12_strip, spawner)?;
 
     let mut button = Button::new(p.PIN_13, PressedTo::Ground);
 

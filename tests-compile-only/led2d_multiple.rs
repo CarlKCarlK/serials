@@ -10,31 +10,60 @@
 #![allow(dead_code, reason = "Compile-time verification only")]
 
 use defmt_rtt as _;
+use device_kit::Result;
+use device_kit::led_strip::define_led_strips;
+use device_kit::led_strip_simple::Milliamps;
+use device_kit::led2d::led2d_from_strip;
+use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Duration;
 use panic_probe as _;
-use device_kit::Result;
-use device_kit::led_strip_simple::Milliamps;
-use device_kit::led2d::led2d_device_simple;
 use smart_leds::colors;
 
+// Define strips for both devices
+define_led_strips! {
+    pio: PIO0,
+    strips: [
+        led4x12_strip {
+            sm: 0,
+            dma: DMA_CH0,
+            pin: PIN_3,
+            len: 48,
+            max_current: Milliamps(500)
+        }
+    ]
+}
+
+define_led_strips! {
+    pio: PIO1,
+    strips: [
+        led8x8_strip {
+            sm: 0,
+            dma: DMA_CH1,
+            pin: PIN_4,
+            len: 64,
+            max_current: Milliamps(300)
+        }
+    ]
+}
+
 // First device: 4x12 display
-led2d_device_simple! {
+led2d_from_strip! {
     pub led4x12,
+    strip_module: led4x12_strip,
     rows: 4,
     cols: 12,
-    pio: PIO0,
     mapping: serpentine_column_major,
     max_frames: 32,
     font: Font3x4Trim,
 }
 
 // Second device: 8x8 display
-led2d_device_simple! {
+led2d_from_strip! {
     pub led8x8,
+    strip_module: led8x8_strip,
     rows: 8,
     cols: 8,
-    pio: PIO1,
     mapping: serpentine_column_major,
     max_frames: 32,
     font: Font3x4Trim,
@@ -43,12 +72,19 @@ led2d_device_simple! {
 /// Verify both devices can be constructed and used together
 async fn test_multiple_devices(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
     // Construct first device
+    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
+    static LED4X12_STRIP_STATIC: led4x12_strip::Static = led4x12_strip::new_static();
+    let led4x12_strip =
+        led4x12_strip::new(&LED4X12_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_3, spawner)?;
     static LED4X12_STATIC: Led4x12Static = Led4x12::new_static();
-    let led4x12 = Led4x12::new(&LED4X12_STATIC, p.PIO0, p.PIN_3, Milliamps(500), spawner).await?;
+    let led4x12 = Led4x12::new(&LED4X12_STATIC, led4x12_strip, spawner)?;
 
     // Construct second device
+    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
+    static LED8X8_STRIP_STATIC: led8x8_strip::Static = led8x8_strip::new_static();
+    let led8x8_strip = led8x8_strip::new(&LED8X8_STRIP_STATIC, sm0, p.DMA_CH1, p.PIN_4, spawner)?;
     static LED8X8_STATIC: Led8x8Static = Led8x8::new_static();
-    let led8x8 = Led8x8::new(&LED8X8_STATIC, p.PIO1, p.PIN_4, Milliamps(300), spawner).await?;
+    let led8x8 = Led8x8::new(&LED8X8_STATIC, led8x8_strip, spawner)?;
 
     // Verify associated constants don't collide
     // Create frame for 4x12 display

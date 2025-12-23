@@ -186,12 +186,6 @@ impl<const N: usize> LedStrip<N> {
     }
 }
 
-impl<const N: usize> crate::led2d::LedStrip<N> for LedStrip<N> {
-    async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
-        self.update_pixels(pixels).await
-    }
-}
-
 // cmk likely shouldn't be pub
 /// Driver loop with brightness scaling.
 /// Scales all RGB values by `max_brightness / 255` before writing to LEDs.
