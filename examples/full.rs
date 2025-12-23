@@ -23,7 +23,7 @@ use device_kit::ir::{Ir, IrEvent, IrStatic};
 use device_kit::led_strip_shared::Rgb;
 use device_kit::led_strip_shared::colors;
 use device_kit::led_strip_shared::define_led_strips;
-use device_kit::led_strip_simple::Milliamps;
+use device_kit::led_strip::Milliamps;
 use device_kit::led24x4::Led24x4;
 use device_kit::pio_split;
 use device_kit::rfid::{Rfid, RfidEvent, RfidStatic};

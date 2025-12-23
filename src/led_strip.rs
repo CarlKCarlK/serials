@@ -279,7 +279,7 @@ impl<const N: usize> LedStripSimpleStatic<N> {
 /// # #![no_std]
 /// # use panic_probe as _;
 /// # fn main() {}
-/// use device_kit::led_strip_simple::{
+/// use device_kit::led_strip::{
 ///     LedStripSimple,
 ///     LedStripSimpleStatic,
 ///     Milliamps,
@@ -414,7 +414,7 @@ macro_rules! new_simple_strip {
         $peripherals:ident . PIO0,
         $max_current:expr
     ) => {
-        $crate::led_strip_simple::LedStripSimple::new_pio0(
+        $crate::led_strip::LedStripSimple::new_pio0(
             $strip_static,
             $peripherals.PIO0,
             $peripherals.$pin,
@@ -427,7 +427,7 @@ macro_rules! new_simple_strip {
         $peripherals:ident . PIO1,
         $max_current:expr
     ) => {
-        $crate::led_strip_simple::LedStripSimple::new_pio1(
+        $crate::led_strip::LedStripSimple::new_pio1(
             $strip_static,
             $peripherals.PIO1,
             $peripherals.$pin,
@@ -442,7 +442,7 @@ macro_rules! new_simple_strip {
     ) => {{
         #[cfg(feature = "pico2")]
         {
-            $crate::led_strip_simple::LedStripSimple::new_pio2(
+            $crate::led_strip::LedStripSimple::new_pio2(
                 $strip_static,
                 $peripherals.PIO2,
                 $peripherals.$pin,

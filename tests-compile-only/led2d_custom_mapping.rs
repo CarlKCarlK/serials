@@ -10,7 +10,7 @@
 
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip_simple::Milliamps;
+use device_kit::led_strip::Milliamps;
 use device_kit::led2d;
 use embassy_executor::Spawner;
 use embassy_time::Duration;

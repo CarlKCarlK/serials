@@ -20,8 +20,8 @@
 //! use embassy_executor::Spawner;
 //! use embassy_rp::init;
 //! use device_kit::led2d;
-//! use device_kit::led_strip_simple::Milliamps;
-//! use device_kit::led_strip_simple::colors;
+//! use device_kit::led_strip::Milliamps;
+//! use device_kit::led_strip::colors;
 //!
 //! led2d! {
 //!     pub led12x4,
@@ -78,8 +78,8 @@
 //! use embassy_rp::init;
 //! use device_kit::led_strip_shared::define_led_strips;
 //! use device_kit::led2d::led2d_from_strip;
-//! use device_kit::led_strip_simple::Milliamps;
-//! use device_kit::led_strip_simple::colors;
+//! use device_kit::led_strip::Milliamps;
+//! use device_kit::led_strip::colors;
 //! use device_kit::pio_split;
 //!
 //! // Define LED strip sharing PIO1
@@ -1011,8 +1011,8 @@ pub use led2d_device;
 /// use embassy_executor::Spawner;
 /// use embassy_rp::init;
 /// use device_kit::led2d;
-/// use device_kit::led_strip_simple::Milliamps;
-/// use device_kit::led_strip_simple::colors;
+/// use device_kit::led_strip::Milliamps;
+/// use device_kit::led_strip::colors;
 ///
 /// // Generate a 12×4 LED matrix display
 /// led2d! {
@@ -1221,7 +1221,7 @@ macro_rules! led2d {
 /// # use panic_probe as _;
 /// use device_kit::led_strip_shared::define_led_strips;
 /// use device_kit::led2d::led2d_from_strip;
-/// use device_kit::led_strip_simple::Milliamps;
+/// use device_kit::led_strip::Milliamps;
 /// use device_kit::pio_split;
 /// use embassy_executor::Spawner;
 ///

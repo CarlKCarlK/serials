@@ -42,7 +42,7 @@ Variables should generally match their type names converted to snake_case. This 
 
 - `Led12x4` → `led_12x4` (preserves numeric separators)
 - `WifiAuto` → `wifi_auto`
-- `LedStripSimple` → `led_strip_simple`
+- `LedStripSimple` → `led_strip`
 - `Led12x4ClockDisplay` → `led_12x4_clock_display`
 
 **When to deviate:**
@@ -183,7 +183,7 @@ Setters: set_offset_minutes(), set_text() (with set_ prefix)
 
 ## Colors
 
-For RGB colors, use the predefined constants from `smart_leds::colors` (re-exported from `led_strip_shared::colors` and `led_strip_simple::colors`) rather than creating RGB values manually:
+For RGB colors, use the predefined constants from `smart_leds::colors` (re-exported from `led_strip_shared::colors` and `led_strip::colors`) rather than creating RGB values manually:
 
 ✅ Good:
 
