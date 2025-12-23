@@ -30,8 +30,7 @@ define_led_strips! {
 async fn test_pio0_strip(p: embassy_rp::Peripherals, spawner: Spawner) -> device_kit::Result<()> {
     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
 
-    static TEST_STRIP_STATIC: test_strip::Static = test_strip::new_static();
-    let _strip = test_strip::new(&TEST_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_2, spawner)?;
+    let _strip = test_strip::new(sm0, p.DMA_CH0, p.PIN_2, spawner)?;
 
     Ok(())
 }

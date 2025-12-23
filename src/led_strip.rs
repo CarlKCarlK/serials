@@ -175,7 +175,7 @@ impl<const N: usize> LedStrip<N> {
     }
 
     /// Updates all LEDs at once from the provided array.
-    pub async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
+    pub async fn update_pixels(&self, pixels: &[Rgb; N]) -> Result<()> {
         // Send entire frame as one message (copy array to send through channel)
         self.commands.send(*pixels).await;
 
@@ -343,22 +343,25 @@ macro_rules! define_led_strips {
                     }
                 }
 
-                pub const fn new_static() -> Static {
+                pub(crate) const fn new_static() -> Static {
                     Strip::new_static()
                 }
 
                 paste::paste! {
                     pub fn new(
-                        strip_static: &'static Static,
                         state_machine: $crate::led_strip::StateMachine<::embassy_rp::peripherals::$pio, $sm_index>,
                         dma: impl Into<::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>>,
                         pin: impl Into<::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>>,
                         spawner: Spawner,
-                    ) -> $crate::Result<Strip> {
+                    ) -> $crate::Result<&'static Strip> {
+                        static STRIP_STATIC: Static = new_static();
+                        static STRIP_CELL: ::static_cell::StaticCell<Strip> = ::static_cell::StaticCell::new();
                         let (bus, sm) = state_machine.into_parts();
-                        let token = [<$module _driver>](bus, sm, dma.into(), pin.into(), strip_static.commands()).map_err($crate::Error::TaskSpawn)?;
+                        let token = [<$module _driver>](bus, sm, dma.into(), pin.into(), STRIP_STATIC.commands()).map_err($crate::Error::TaskSpawn)?;
                         spawner.spawn(token);
-                        Strip::new(strip_static)
+                        let strip = Strip::new(&STRIP_STATIC)?;
+                        let instance = STRIP_CELL.init(strip);
+                        Ok(instance)
                     }
                 }
             }

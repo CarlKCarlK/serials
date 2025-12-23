@@ -41,8 +41,7 @@ async fn inner_main(spawner: Spawner) -> device_kit::Result<()> {
     // Initialize PIO1 bus
     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
 
-    static LED_STRIP_STATIC: led_strip2::Static = led_strip2::new_static();
-    let mut led_strip = led_strip2::new(&LED_STRIP_STATIC, sm0, p.DMA_CH1, p.PIN_16, spawner)?;
+    let led_strip = led_strip2::new(sm0, p.DMA_CH1, p.PIN_16, spawner)?;
 
     info!("WS2812B 4x12 Matrix demo starting");
     info!("Using PIO1, DMA_CH1, GPIO16");

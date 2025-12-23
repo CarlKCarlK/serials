@@ -14,10 +14,6 @@ use core::convert::Infallible;
 use core::fmt::Write;
 use defmt::info;
 use defmt_rtt as _;
-use embassy_executor::Spawner;
-use embassy_rp::gpio::Pull;
-use heapless::{FnvIndexMap, String};
-use panic_probe as _;
 use device_kit::Result;
 use device_kit::char_lcd::{CharLcd, CharLcdStatic};
 use device_kit::clock::{Clock, ClockStatic, ONE_SECOND};
@@ -29,11 +25,16 @@ use device_kit::led_strip::colors;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip_simple::Milliamps;
 use device_kit::led24x4::Led24x4;
+use device_kit::pio_split;
 use device_kit::rfid::{Rfid, RfidEvent, RfidStatic};
 use device_kit::servo::servo_a;
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 #[cfg(feature = "wifi")]
 use device_kit::wifi_config::collect_wifi_credentials;
+use embassy_executor::Spawner;
+use embassy_rp::gpio::Pull;
+use heapless::{FnvIndexMap, String};
+use panic_probe as _;
 use time::OffsetDateTime;
 
 use colors::{BLACK, BLUE, GREEN, RED, YELLOW};
@@ -75,30 +76,14 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     servo.set_degrees(90);
 
     // Initialize PIO1 for LED strips (both strips share PIO1)
-    let (pio_bus, sm0, sm1, _sm2, _sm3) = pio1_split(p.PIO1);
+    let (sm0, sm1, _sm2, _sm3) = pio_split!(p.PIO1);
 
-    static LED_STRIP0_STATIC: led_strip0::Static = led_strip0::new_static();
-    let mut led_strip0_device = led_strip0::new(
-        spawner,
-        &LED_STRIP0_STATIC,
-        pio_bus,
-        sm0,
-        p.DMA_CH1.into(),
-        p.PIN_2.into(),
-    )?;
+    let led_strip0_device = led_strip0::new(sm0, p.DMA_CH1, p.PIN_2, spawner)?;
     let mut led_pixels = [BLACK; led_strip0::LEN];
-    initialize_led_strip(&mut led_strip0_device, &mut led_pixels).await?;
+    initialize_led_strip(led_strip0_device, &mut led_pixels).await?;
     let mut led_progress_index: usize = 0;
 
-    static LED_STRIP1_STATIC: led_strip1::Static = led_strip1::new_static();
-    let led_strip1_device = led_strip1::new(
-        spawner,
-        &LED_STRIP1_STATIC,
-        pio_bus,
-        sm1,
-        p.DMA_CH4.into(),
-        p.PIN_14.into(),
-    )?;
+    let led_strip1_device = led_strip1::new(sm1, p.DMA_CH4, p.PIN_14, spawner)?;
     let mut Led24x4 = Led24x4::new(led_strip1_device);
     Led24x4
         .write_text(['0', '0', '0', '0'], [RED, GREEN, BLUE, YELLOW])
@@ -308,7 +293,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 }
 
 async fn initialize_led_strip(
-    strip: &mut led_strip0::Strip,
+    strip: &led_strip0::Strip,
     pixels: &mut [Rgb; led_strip0::LEN],
 ) -> Result<()> {
     for idx in 0..led_strip0::LEN {
@@ -319,7 +304,7 @@ async fn initialize_led_strip(
 }
 
 async fn advance_led_progress(
-    strip: &mut led_strip0::Strip,
+    strip: &led_strip0::Strip,
     pixels: &mut [Rgb; led_strip0::LEN],
     current_red: &mut usize,
 ) -> Result<()> {

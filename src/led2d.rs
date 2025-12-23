@@ -113,8 +113,7 @@
 //!
 //!     // Split PIO and create strip
 //!     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
-//!     static LED12X4_STRIP_STATIC: led12x4_strip::Static = led12x4_strip::new_static();
-//!     let strip = led12x4_strip::new(&LED12X4_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_3, spawner).unwrap();
+//!     let strip = led12x4_strip::new(sm0, p.DMA_CH0, p.PIN_3, spawner).unwrap();
 //!
 //!     // Create Led2d device from strip
 //!     static LED_12X4_STATIC: Led12x4Static = Led12x4::new_static();
@@ -596,13 +595,20 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2dStatic<N, MAX_FRAMES> {
 
 /// Internal trait for types that can update LED pixels.
 trait UpdatePixels<const N: usize> {
-    async fn update_pixels(&mut self, pixels: &[RGB8; N]) -> Result<()>;
+    async fn update_pixels(&self, pixels: &[RGB8; N]) -> Result<()>;
 }
 
 #[cfg(not(feature = "host"))]
 impl<const N: usize> UpdatePixels<N> for crate::led_strip::LedStrip<N> {
-    async fn update_pixels(&mut self, pixels: &[RGB8; N]) -> Result<()> {
+    async fn update_pixels(&self, pixels: &[RGB8; N]) -> Result<()> {
         self.update_pixels(pixels).await
+    }
+}
+
+#[cfg(not(feature = "host"))]
+impl<const N: usize> UpdatePixels<N> for &'static crate::led_strip::LedStrip<N> {
+    async fn update_pixels(&self, pixels: &[RGB8; N]) -> Result<()> {
+        (*self).update_pixels(pixels).await
     }
 }
 
@@ -761,7 +767,7 @@ pub const fn serpentine_column_major_mapping<
 pub async fn led2d_device_loop<const N: usize, const MAX_FRAMES: usize, S>(
     command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
     completion_signal: &'static Led2dCompletionSignal,
-    mut strip: S,
+    strip: S,
 ) -> Result<Infallible>
 where
     S: UpdatePixels<N>,
@@ -785,8 +791,7 @@ where
                     frames.len()
                 );
                 let next_command =
-                    run_animation_loop(frames, command_signal, completion_signal, &mut strip)
-                        .await?;
+                    run_animation_loop(frames, command_signal, completion_signal, &strip).await?;
                 defmt::info!("led2d_device_loop: animation interrupted");
                 match next_command {
                     Command::DisplayStatic(frame) => {
@@ -803,7 +808,7 @@ where
                             new_frames,
                             command_signal,
                             completion_signal,
-                            &mut strip,
+                            &strip,
                         )
                         .await?;
                         // Handle any command that interrupted this animation
@@ -828,7 +833,7 @@ async fn run_animation_loop<const N: usize, const MAX_FRAMES: usize, S>(
     frames: Vec<([RGB8; N], Duration), MAX_FRAMES>,
     command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
     completion_signal: &'static Led2dCompletionSignal,
-    strip: &mut S,
+    strip: &S,
 ) -> Result<Command<N, MAX_FRAMES>>
 where
     S: UpdatePixels<N>,
@@ -1099,11 +1104,8 @@ macro_rules! led2d_simple {
                     // Split PIO into state machines (uses SM0 automatically)
                     let (sm0, _sm1, _sm2, _sm3) = [<$pio:lower _split>](pio);
 
-                    // Create strip static and strip
-                    static [<$name:upper _STRIP_STATIC>]: [<$name _strip>]::Static =
-                        [<$name _strip>]::new_static();
+                    // Create strip (uses interior static)
                     let strip = [<$name _strip>]::new(
-                        &[<$name:upper _STRIP_STATIC>],
                         sm0,
                         dma,
                         pin,
@@ -1180,11 +1182,8 @@ macro_rules! led2d_simple {
                     // Split PIO into state machines (uses SM0 automatically)
                     let (sm0, _sm1, _sm2, _sm3) = [<$pio:lower _split>](pio);
 
-                    // Create strip static and strip
-                    static [<$name:upper _STRIP_STATIC>]: [<$name _strip>]::Static =
-                        [<$name _strip>]::new_static();
+                    // Create strip (uses interior static)
                     let strip = [<$name _strip>]::new(
-                        &[<$name:upper _STRIP_STATIC>],
                         sm0,
                         dma,
                         pin,
@@ -1260,8 +1259,7 @@ macro_rules! led2d_simple {
 /// # async fn main(spawner: Spawner) {
 /// #     let p = embassy_rp::init(Default::default());
 /// #     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
-/// #     static LED12X4_STRIP_STATIC: led12x4_strip::Static = led12x4_strip::new_static();
-/// #     let strip = led12x4_strip::new(&LED12X4_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_3, spawner).unwrap();
+/// #     let strip = led12x4_strip::new(sm0, p.DMA_CH0, p.PIN_3, spawner).unwrap();
 /// #     static LED12X4_STATIC: Led12x4Static = Led12x4::new_static();
 /// #     let led = Led12x4::from_strip(&LED12X4_STATIC, strip, spawner).unwrap();
 /// # }
@@ -1344,7 +1342,7 @@ macro_rules! led2d_from_strip {
             // Generate the task wrapper
             $crate::led2d::led2d_device_task!(
                 [<$name _device_loop>],
-                $strip_module::Strip,
+                &'static $strip_module::Strip,
                 $n_const,
                 $max_frames_const
             );
@@ -1398,7 +1396,7 @@ macro_rules! led2d_from_strip {
                 /// - `spawner`: Task spawner for background operations
                 $vis fn from_strip(
                     static_resources: &'static [<$name:camel Static>],
-                    strip: $strip_module::Strip,
+                    strip: &'static $strip_module::Strip,
                     spawner: ::embassy_executor::Spawner,
                 ) -> $crate::Result<Self> {
                     defmt::info!("Led2d::new: spawning device task");

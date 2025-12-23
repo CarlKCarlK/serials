@@ -207,11 +207,26 @@ Common colors available: `RED`, `GREEN`, `BLUE`, `YELLOW`, `WHITE`, `BLACK`, `CY
 Many drivers expose a `new_static` constructor for resources plus a `new` constructor for the runtime handle. We call this the **Device/Static Pair Pattern** and use it consistently across the repo.
 
 - Always declare the static resources with `Type::new_static()` and name them `FOO_STATIC` when global.
-- When implementing or calling `Type::new`, pass `&TypeStatic` (or equivalent) as the **first** argument and name that parameter `<type>_static` (e.g., `wifi_auto_static: &'static WifiAutoStatic`).
+- **Hardware singletons** (e.g., `WifiAuto` - one WiFi chip per device) hide the static inside `Type::new()` using a function-scoped static, so users never see `TypeStatic`.
+- **Multi-instance devices** (e.g., `Led4` - can have multiple) require passing `&TypeStatic` as the **first** argument when implementing or calling `Type::new`, named `<type>_static` (e.g., `led4_static: &'static Led4Static`).
 - If `Spawner` is needed, place it as the **final** argument so everything else reads naturally between those bookends.
 - **Static placement**: Place the static constructor on the line directly before the struct constructor. Don't group all statics at the top and then all constructors below.
 
-Example:
+Examples:
+
+Hardware singleton (static hidden inside `new()`):
+
+```rust
+// User code - no static needed!
+let wifi_auto = WifiAuto::new(
+    p.PIN_23,
+    p.PIN_25,
+    // ... more pins ...
+    spawner,
+)?;
+```
+
+Multi-instance device (static passed as first argument):
 
 ```rust
 static LED4_STATIC: Led4Static = Led4::new_static();
