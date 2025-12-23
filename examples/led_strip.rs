@@ -3,13 +3,14 @@
 
 use defmt::info;
 use defmt_rtt as _;
-use embassy_executor::Spawner;
-use embassy_time::Timer;
-use panic_probe as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{Rgb, colors};
 use device_kit::led_strip_simple::Milliamps;
+use device_kit::pio_split;
+use embassy_executor::Spawner;
+use embassy_time::Timer;
+use panic_probe as _;
 
 define_led_strips! {
     pio: PIO0,
@@ -26,30 +27,27 @@ define_led_strips! {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
+    match inner_main(spawner).await {
+        Ok(_) => unreachable!(),
+        Err(e) => panic!("Fatal error: {:?}", e),
+    }
+}
+
+async fn inner_main(spawner: Spawner) -> Result<()> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize PIO0 bus
-    let (pio_bus, sm0, _sm1, _sm2, _sm3) = pio0_split(p.PIO0);
+    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
 
     static LED_STRIP_STATIC: led_strip0::Static = led_strip0::new_static();
-    let mut led_strip_0 = led_strip0::new(
-        spawner,
-        &LED_STRIP_STATIC,
-        pio_bus,
-        sm0,
-        p.DMA_CH0.into(),
-        p.PIN_2.into(),
-    )
-    .expect("Failed to start LED strip");
+    let mut led_strip_0 = led_strip0::new(&LED_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_2, spawner)?;
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 
     let mut hue: u8 = 0;
 
     loop {
-        update_rainbow(&mut led_strip_0, hue)
-            .await
-            .expect("pattern update failed");
+        update_rainbow(&mut led_strip_0, hue).await?;
 
         hue = hue.wrapping_add(3);
         Timer::after_millis(80).await;

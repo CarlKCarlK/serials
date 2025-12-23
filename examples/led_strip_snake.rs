@@ -3,11 +3,12 @@
 
 use defmt::info;
 use defmt_rtt as _;
+use device_kit::led_strip::define_led_strips;
+use device_kit::led_strip_simple::Milliamps;
+use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
-use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip_simple::Milliamps;
 use smart_leds::RGB8;
 
 // WS2812B 4x12 LED matrix (48 pixels)
@@ -28,21 +29,20 @@ define_led_strips! {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
+    match inner_main(spawner).await {
+        Ok(_) => unreachable!(),
+        Err(e) => panic!("Fatal error: {:?}", e),
+    }
+}
+
+async fn inner_main(spawner: Spawner) -> device_kit::Result<()> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize PIO1 bus
-    let (pio_bus, sm0, _sm1, _sm2, _sm3) = pio1_split(p.PIO1);
+    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
 
     static LED_STRIP_STATIC: led_strip2::Static = led_strip2::new_static();
-    let mut led_strip = led_strip2::new(
-        spawner,
-        &LED_STRIP_STATIC,
-        pio_bus,
-        sm0,
-        p.DMA_CH1.into(),
-        p.PIN_16.into(),
-    )
-    .expect("Failed to start LED strip");
+    let mut led_strip = led_strip2::new(&LED_STRIP_STATIC, sm0, p.DMA_CH1, p.PIN_16, spawner)?;
 
     info!("WS2812B 4x12 Matrix demo starting");
     info!("Using PIO1, DMA_CH1, GPIO16");
@@ -72,10 +72,7 @@ async fn main(spawner: Spawner) -> ! {
         frame[tail_pos] = BACKGROUND;
 
         // Send entire frame
-        led_strip
-            .update_pixels(&frame)
-            .await
-            .expect("pattern update failed");
+        led_strip.update_pixels(&frame).await?;
 
         position = (position + 1) % led_strip2::LEN;
         Timer::after_millis(100).await;

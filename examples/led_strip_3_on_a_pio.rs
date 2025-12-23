@@ -6,6 +6,7 @@ use defmt_rtt as _;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{Rgb, colors};
 use device_kit::led_strip_simple::Milliamps;
+use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
@@ -50,37 +51,16 @@ async fn main(spawner: Spawner) {
 
 async fn inner_main(spawner: Spawner) -> device_kit::Result<()> {
     let p = embassy_rp::init(Default::default());
-    let (pio_bus, sm0, sm1, sm2, _sm3) = pio0_split(p.PIO0);
+    let (sm0, sm1, sm2, _sm3) = pio_split!(p.PIO0);
 
     static G0_STRIP_STATIC: g0_strip::Static = g0_strip::new_static();
-    let mut strip_gpio0 = g0_strip::new(
-        spawner,
-        &G0_STRIP_STATIC,
-        pio_bus,
-        sm0,
-        p.DMA_CH0.into(),
-        p.PIN_0.into(),
-    )?;
+    let mut strip_gpio0 = g0_strip::new(&G0_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_0, spawner)?;
 
     static G3_STRIP_STATIC: g3_strip::Static = g3_strip::new_static();
-    let mut strip_gpio3 = g3_strip::new(
-        spawner,
-        &G3_STRIP_STATIC,
-        pio_bus,
-        sm1,
-        p.DMA_CH1.into(),
-        p.PIN_3.into(),
-    )?;
+    let mut strip_gpio3 = g3_strip::new(&G3_STRIP_STATIC, sm1, p.DMA_CH1, p.PIN_3, spawner)?;
 
     static G4_STRIP_STATIC: g4_strip::Static = g4_strip::new_static();
-    let mut strip_gpio4 = g4_strip::new(
-        spawner,
-        &G4_STRIP_STATIC,
-        pio_bus,
-        sm2,
-        p.DMA_CH2.into(),
-        p.PIN_4.into(),
-    )?;
+    let mut strip_gpio4 = g4_strip::new(&G4_STRIP_STATIC, sm2, p.DMA_CH2, p.PIN_4, spawner)?;
 
     info!("Running four-segment snakes on three strips (PIO0)");
 

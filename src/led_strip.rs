@@ -23,6 +23,52 @@ pub const MAX_LEDS: usize = 256;
 // PIO Bus - Shared PIO resource for multiple LED strips
 // ============================================================================
 
+/// Trait for PIO peripherals that can be used with LED strips.
+///
+/// This trait is automatically implemented by the `define_led_strips!` macro
+/// for the PIO peripheral specified in the macro invocation.
+pub trait LedStripPio: Instance {
+    /// The interrupt binding type for this PIO
+    type Irqs: embassy_rp::interrupt::typelevel::Binding<
+            <Self as Instance>::Interrupt,
+            embassy_rp::pio::InterruptHandler<Self>,
+        >;
+
+    /// Get the interrupt configuration
+    fn irqs() -> Self::Irqs;
+}
+/// A state machine bundled with its PIO bus.
+///
+/// This is returned by `pio_split!` and passed to strip constructors.
+pub struct StateMachine<PIO: Instance + 'static, const SM: usize> {
+    bus: &'static PioBus<'static, PIO>,
+    sm: embassy_rp::pio::StateMachine<'static, PIO, SM>,
+}
+
+impl<PIO: Instance + 'static, const SM: usize> StateMachine<PIO, SM> {
+    #[doc(hidden)]
+    pub fn new(
+        bus: &'static PioBus<'static, PIO>,
+        sm: embassy_rp::pio::StateMachine<'static, PIO, SM>,
+    ) -> Self {
+        Self { bus, sm }
+    }
+
+    #[doc(hidden)]
+    pub fn bus(&self) -> &'static PioBus<'static, PIO> {
+        self.bus
+    }
+
+    #[doc(hidden)]
+    pub fn into_parts(
+        self,
+    ) -> (
+        &'static PioBus<'static, PIO>,
+        embassy_rp::pio::StateMachine<'static, PIO, SM>,
+    ) {
+        (self.bus, self.sm)
+    }
+}
 /// Shared PIO bus that manages the Common resource and WS2812 program
 pub struct PioBus<'d, PIO: Instance> {
     common: Mutex<CriticalSectionRawMutex, RefCell<Common<'d, PIO>>>,
@@ -191,16 +237,11 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
 /// per-strip brightness limiting based on current budget.
 ///
 /// The macro generates:
-/// - A `pio0_split()` (or `pio1_split()`, etc.) function that splits the PIO into bus + state machines
-/// - A `new_led_strips!` macro that simplifies construction by handling the split internally
+/// - A `pio0_split()` (or `pio1_split()`, `pio2_split()`) function that splits the PIO  
 /// - One module per strip with `new_static()` and `new()` constructors
 ///
-/// Note: The split function is generated per-PIO (pio0_split, pio1_split, pio2_split) rather
-/// than being generic because:
-/// - Macro hygiene makes generic implementations complex and error-prone
-/// - Per-PIO functions provide clear, explicit types that improve error messages
-/// - Each PIO has a distinct interrupt binding (Pio0Irqs, Pio1Irqs, etc.)
-/// - The cost of duplicating ~10 lines of code is negligible vs. the complexity of generics
+/// The split functions use the `LedStripPio` trait (implemented for PIO0, PIO1, PIO2)
+/// to get interrupt bindings, similar to how wifi_auto handles PIO generics.
 ///
 /// # Example
 /// ```no_run
@@ -234,24 +275,31 @@ macro_rules! define_led_strips {
                 $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>
             > = ::static_cell::StaticCell::new();
 
-            // Helper function to split the PIO into bus and state machines
-            // Returns (bus, sm0, sm1, sm2, sm3)
+            /// Split the PIO into bus and state machines.
+            ///
+            /// Returns 4 StateMachines (one for each SM)
+            #[allow(dead_code)]
             pub fn [<$pio:lower _split>](
                 pio: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pio>,
             ) -> (
-                &'static $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>,
-                ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, 0>,
-                ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, 1>,
-                ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, 2>,
-                ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, 3>,
+                $crate::led_strip::StateMachine<::embassy_rp::peripherals::$pio, 0>,
+                $crate::led_strip::StateMachine<::embassy_rp::peripherals::$pio, 1>,
+                $crate::led_strip::StateMachine<::embassy_rp::peripherals::$pio, 2>,
+                $crate::led_strip::StateMachine<::embassy_rp::peripherals::$pio, 3>,
             ) {
                 let ::embassy_rp::pio::Pio { common, sm0, sm1, sm2, sm3, .. } =
-                    ::embassy_rp::pio::Pio::new(pio, $crate::pio_irqs::[<$pio:camel Irqs>]);
+                    ::embassy_rp::pio::Pio::new(pio, <::embassy_rp::peripherals::$pio as $crate::led_strip::LedStripPio>::irqs());
                 let pio_bus = [<$pio _BUS>].init_with(|| {
                     $crate::led_strip::PioBus::new(common)
                 });
-                (pio_bus, sm0, sm1, sm2, sm3)
+                (
+                    $crate::led_strip::StateMachine::new(pio_bus, sm0),
+                    $crate::led_strip::StateMachine::new(pio_bus, sm1),
+                    $crate::led_strip::StateMachine::new(pio_bus, sm2),
+                    $crate::led_strip::StateMachine::new(pio_bus, sm3),
+                )
             }
+
 
         }
 
@@ -307,14 +355,14 @@ macro_rules! define_led_strips {
 
                 paste::paste! {
                     pub fn new(
-                        spawner: Spawner,
                         strip_static: &'static Static,
-                        bus: &'static $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>,
-                        sm: ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, $sm_index>,
-                        dma: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>,
-                        pin: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>,
+                        state_machine: $crate::led_strip::StateMachine<::embassy_rp::peripherals::$pio, $sm_index>,
+                        dma: impl Into<::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>>,
+                        pin: impl Into<::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>>,
+                        spawner: Spawner,
                     ) -> $crate::Result<Strip> {
-                        let token = [<$module _driver>](bus, sm, dma, pin, strip_static.commands()).map_err($crate::Error::TaskSpawn)?;
+                        let (bus, sm) = state_machine.into_parts();
+                        let token = [<$module _driver>](bus, sm, dma.into(), pin.into(), strip_static.commands()).map_err($crate::Error::TaskSpawn)?;
                         spawner.spawn(token);
                         Strip::new(strip_static)
                     }
@@ -325,6 +373,56 @@ macro_rules! define_led_strips {
 }
 
 pub use crate::define_led_strips;
+
+/// Split a PIO peripheral into 4 state machines.
+///
+/// Calls the generated `pio0_split`, `pio1_split`, or `pio2_split`
+/// function based on the field name in the expression.
+///
+/// # Example
+/// ```ignore
+/// let (sm0, sm1, sm2, sm3) = pio_split!(p.PIO0);
+/// ```
+#[macro_export]
+macro_rules! pio_split {
+    ($p:ident . PIO0) => {
+        pio0_split($p.PIO0)
+    };
+    ($p:ident . PIO1) => {
+        pio1_split($p.PIO1)
+    };
+    ($p:ident . PIO2) => {
+        pio2_split($p.PIO2)
+    };
+}
+
+pub use crate::pio_split;
+
+// Implement LedStripPio for all PIO peripherals
+impl LedStripPio for embassy_rp::peripherals::PIO0 {
+    type Irqs = crate::pio_irqs::Pio0Irqs;
+
+    fn irqs() -> Self::Irqs {
+        crate::pio_irqs::Pio0Irqs
+    }
+}
+
+impl LedStripPio for embassy_rp::peripherals::PIO1 {
+    type Irqs = crate::pio_irqs::Pio1Irqs;
+
+    fn irqs() -> Self::Irqs {
+        crate::pio_irqs::Pio1Irqs
+    }
+}
+
+#[cfg(feature = "pico2")]
+impl LedStripPio for embassy_rp::peripherals::PIO2 {
+    type Irqs = crate::pio_irqs::Pio2Irqs;
+
+    fn irqs() -> Self::Irqs {
+        crate::pio_irqs::Pio2Irqs
+    }
+}
 
 /// Predefined RGB color constants (RED, GREEN, BLUE, etc.).
 pub use smart_leds::colors;
