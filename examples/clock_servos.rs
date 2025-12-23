@@ -15,18 +15,18 @@ use core::{
 };
 use defmt::info;
 use defmt_rtt as _;
-use embassy_executor::Spawner;
-use embassy_futures::select::{Either, select};
-use embassy_time::Duration;
-use panic_probe as _;
 use device_kit::button::{Button, PressDuration, PressedTo};
 use device_kit::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 use device_kit::servo_animate::{ServoAnimate, ServoAnimateStatic, Step, linear, servo_even};
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+use device_kit::wifi_auto::WifiAuto;
 use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
-use device_kit::wifi_auto::{WifiAuto, WifiAutoStatic};
 use device_kit::{Error, Result};
+use embassy_executor::Spawner;
+use embassy_futures::select::{Either, select};
+use embassy_time::Duration;
+use panic_probe as _;
 
 const FAST_MODE_SPEED: f32 = 720.0;
 
@@ -50,9 +50,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
 
     // Set up Wifi via a captive portal. The button pin is used to reset stored credentials.
-    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
     let wifi_auto = WifiAuto::new(
-        &WIFI_AUTO_STATIC,
         p.PIN_23,  // CYW43 power
         p.PIN_25,  // CYW43 chip select
         p.PIO0,    // CYW43 PIO interface
@@ -348,7 +346,8 @@ impl ServoClockDisplay {
         let and_back = linear::<2>(0, 180, FIVE_SECONDS);
         let top_sequence = device_kit::servo_animate::concat_steps::<16>(&[&clockwise, &and_back]);
         self.top.animate(&top_sequence).await;
-        let bottom_sequence = device_kit::servo_animate::concat_steps::<16>(&[&and_back, &clockwise]);
+        let bottom_sequence =
+            device_kit::servo_animate::concat_steps::<16>(&[&and_back, &clockwise]);
         self.bottom.animate(&bottom_sequence).await;
     }
 

@@ -1,8 +1,8 @@
 //! A device abstraction for rectangular LED matrix displays with arbitrary size.
 //!
 //! Supports text rendering, animation, and full graphics capabilities. For simple
-//! single-strip displays, use the [`led2d_simple!`] macro. For multi-strip scenarios
-//! where you need to share a PIO with other devices, use [`led2d_from_strip!`] with
+//! single-strip displays, use the `led2d_simple!` macro. For multi-strip scenarios
+//! where you need to share a PIO with other devices, use `led2d_from_strip!` with
 //! [`define_led_strips!`](crate::led_strip::define_led_strips).
 //!
 //! For custom graphics, create a [`Frame`] and use the
@@ -39,7 +39,7 @@
 //! #[embassy_executor::main]
 //! async fn main(spawner: Spawner) {
 //!     let p = init(Default::default());
-//!     let led = Led12x4::new_simple(p.PIO0, p.DMA_CH1, p.PIN_3, spawner).unwrap();
+//!     let led = Led12x4::new(p.PIO0, p.DMA_CH1, p.PIN_3, spawner).unwrap();
 //!     led.write_text("HI", &[colors::RED]).await.unwrap();
 //! }
 //! ```
@@ -118,7 +118,7 @@
 //!
 //!     // Create Led2d device from strip
 //!     static LED_12X4_STATIC: Led12x4Static = Led12x4::new_static();
-//!     let led_12x4 = Led12x4::new(&LED_12X4_STATIC, strip, spawner).unwrap();
+//!     let led_12x4 = Led12x4::from_strip(&LED_12X4_STATIC, strip, spawner).unwrap();
 //!
 //!     // Display colorful text
 //!     led_12x4.write_text("HI!", &[colors::CYAN, colors::MAGENTA, colors::YELLOW])
@@ -128,8 +128,6 @@
 //!     loop {}
 //! }
 //! ```
-//!
-//! See [`Led4x12Example`] for the complete generated API.
 
 // Re-export for macro use
 // Must be `pub` (not `pub(crate)`) because macros expand at the call site in downstream crates, but this is an implementation detail.
@@ -579,8 +577,8 @@ pub enum Command<const N: usize, const MAX_FRAMES: usize> {
 
 /// Static type for the [`Led2d`] device abstraction.
 ///
-/// Most users should use the [`led2d_device_simple!`] macro which generates
-/// a higher-level wrapper. See [`Led4x12Example`] for the recommended API.
+/// Most users should use the `led2d_simple!` or `led2d_from_strip!` macros which generate
+/// a higher-level wrapper.
 pub struct Led2dStatic<const N: usize, const MAX_FRAMES: usize> {
     pub command_signal: Led2dCommandSignal<N, MAX_FRAMES>,
     pub completion_signal: Led2dCompletionSignal,
@@ -618,8 +616,8 @@ impl<const N: usize> UpdatePixels<N> for crate::led_strip::LedStrip<N> {
 /// Rows and columns are metadata used only for indexing - the core type is generic only over
 /// N (total LEDs) and MAX_FRAMES (animation capacity).
 ///
-/// Most users should use the [`led2d_device_simple!`] macro which generates a higher-level
-/// wrapper. See the [module-level example](crate::led2d) and [`Led4x12Example`] for the recommended API.
+/// Most users should use the `led2d_simple!` or `led2d_from_strip!` macros which generate
+/// a higher-level wrapper. See the [module-level documentation](crate::led2d) for examples.
 pub struct Led2d<'a, const N: usize, const MAX_FRAMES: usize> {
     command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
     completion_signal: &'static Led2dCompletionSignal,
@@ -751,11 +749,15 @@ pub const fn serpentine_column_major_mapping<
     mapping
 }
 
+// Must be `pub` (not `pub(crate)`) because called by macro-generated code that expands at the call site in downstream crates.
+// This is an implementation detail, not part of the user-facing API.
 #[doc(hidden)]
-/// Device loop for Led2d. This is exported so users can create their own task wrappers.
+#[allow(private_bounds)]
+/// Device loop for Led2d. Called by macro-generated code.
 ///
-/// Since embassy tasks cannot be generic, users must create a concrete wrapper task.
-/// The strip type must have an `async fn update_pixels(&mut self, &[RGB8; N]) -> Result<()>` method.
+/// Since embassy tasks cannot be generic, the macros generate a concrete wrapper task
+/// that calls this function. Must be `pub` because macro expansion happens in the calling
+/// crate's context, but hidden from docs as it's not part of the public API.
 pub async fn led2d_device_loop<const N: usize, const MAX_FRAMES: usize, S>(
     command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
     completion_signal: &'static Led2dCompletionSignal,
@@ -1202,7 +1204,7 @@ macro_rules! led2d_simple {
 /// Generate a Led2d device abstraction from an existing LED strip module.
 ///
 /// Use this macro when you want to share a PIO across multiple LED strips and treat one as a 2D display.
-/// For simple single-strip displays, use [`led2d_simple!`] instead.
+/// For simple single-strip displays, use `led2d_simple!` instead.
 /// The strip must be created with [`define_led_strips!`](crate::led_strip::define_led_strips).
 ///
 /// # Parameters
@@ -1353,6 +1355,11 @@ macro_rules! led2d_from_strip {
                 font: embedded_graphics::mono_font::MonoFont<'static>,
                 font_variant: $crate::led2d::Led2dFont,
             }
+
+            /// Frame type for this LED matrix display.
+            ///
+            /// This is a convenience type alias for `Frame<ROWS, COLS>` specific to this device.
+            $vis type [<$name:camel Frame>] = $crate::led2d::Frame<$rows_const, $cols_const>;
 
             impl [<$name:camel>] {
                 /// Number of rows in the display.

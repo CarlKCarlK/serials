@@ -21,7 +21,7 @@ use device_kit::led_strip_simple::colors;
 use device_kit::led2d_simple;
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
-use device_kit::wifi_auto::{WifiAuto, WifiAutoStatic};
+use device_kit::wifi_auto::WifiAuto;
 use device_kit::{Error, Result};
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -43,7 +43,7 @@ led2d_simple! {
     font: Font3x4Trim,
 }
 
-type LedFrame = device_kit::led2d::Frame<{ Led12x4::ROWS }, { Led12x4::COLS }>;
+// cmk000 look for '= device_kit::' or 'device_kit::' that could be remove with a use statement.
 
 // cmk use the colors enum
 // cmk use an array of colors
@@ -79,9 +79,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
 
     // Set up Wifi via a captive portal. The button pin is used to reset stored credentials.
-    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
     let wifi_auto = WifiAuto::new(
-        &WIFI_AUTO_STATIC,
         p.PIN_23,  // CYW43 power
         p.PIN_25,  // CYW43 chip select
         p.PIO1,    // CYW43 PIO interface (swapped to show PIO not hardcoded)
@@ -420,7 +418,7 @@ fn chars_to_text(chars: [char; 4]) -> String<4> {
     text
 }
 
-fn text_frame(led_12x4: &Led12x4, text: &str, colors: &[RGB8]) -> Result<LedFrame> {
+fn text_frame(led_12x4: &Led12x4, text: &str, colors: &[RGB8]) -> Result<Led12x4Frame> {
     let mut frame = Led12x4::new_frame();
     led_12x4.write_text_to_frame(text, colors, &mut frame)?;
     Ok(frame)
@@ -430,7 +428,7 @@ fn perimeter_chase_animation(
     clockwise: bool,
     color: RGB8,
     duration: Duration,
-) -> Result<heapless::Vec<(LedFrame, Duration), PERIMETER_LENGTH>> {
+) -> Result<heapless::Vec<(Led12x4Frame, Duration), PERIMETER_LENGTH>> {
     assert!(
         duration.as_micros() > 0,
         "perimeter animation duration must be positive"

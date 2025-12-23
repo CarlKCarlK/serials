@@ -20,8 +20,8 @@ use device_kit::led_strip_simple::Milliamps;
 use device_kit::led_strip_simple::colors;
 use device_kit::led2d_simple;
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+use device_kit::wifi_auto::WifiAuto;
 use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
-use device_kit::wifi_auto::{WifiAuto, WifiAutoStatic};
 use device_kit::{Error, Result};
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -58,7 +58,7 @@ led2d_simple! {
     font: Font4x6Trim,
 }
 
-type LedFrame = device_kit::led2d::Frame<{ Led8x12::ROWS }, { Led8x12::COLS }>;
+// cmk could/should we replace arbitrary with a cat of the zigzag mapping?
 
 const FAST_MODE_SPEED: f32 = 720.0;
 const CONNECTING_COLOR: RGB8 = colors::SADDLE_BROWN;
@@ -90,9 +90,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
 
     // Set up Wifi via a captive portal. The button pin is used to reset stored credentials.
-    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
     let wifi_auto = WifiAuto::new(
-        &WIFI_AUTO_STATIC,
         p.PIN_23,  // CYW43 power
         p.PIN_25,  // CYW43 chip select
         p.PIO0,    // CYW43 PIO interface
@@ -436,7 +434,7 @@ fn two_line_text(top_chars: [char; 2], bottom_chars: [char; 2]) -> String<5> {
     text
 }
 
-fn text_frame(led_8x12: &Led8x12, text: &str, colors: &[RGB8]) -> Result<LedFrame> {
+fn text_frame(led_8x12: &Led8x12, text: &str, colors: &[RGB8]) -> Result<Led8x12Frame> {
     let mut frame = Led8x12::new_frame();
     led_8x12.write_text_to_frame(text, colors, &mut frame)?;
     Ok(frame)
@@ -446,7 +444,7 @@ fn perimeter_chase_animation(
     clockwise: bool,
     color: RGB8,
     duration: Duration,
-) -> Result<heapless::Vec<(LedFrame, Duration), PERIMETER_LENGTH>> {
+) -> Result<heapless::Vec<(Led8x12Frame, Duration), PERIMETER_LENGTH>> {
     assert!(
         duration.as_micros() > 0,
         "perimeter animation duration must be positive"

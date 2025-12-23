@@ -13,19 +13,21 @@
 use core::convert::Infallible;
 use defmt::{info, warn};
 use defmt_rtt as _;
+use device_kit::Result;
+use device_kit::UnixSeconds;
+use device_kit::button::PressedTo;
+use device_kit::flash_array::{FlashArray, FlashArrayStatic};
+use device_kit::led4::{BlinkState, Led4, Led4Static, OutputArray};
+use device_kit::wifi_auto::fields::{
+    TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic,
+};
+use device_kit::wifi_auto::{WifiAuto, WifiAutoEvent};
 use embassy_executor::Spawner;
 use embassy_net::{Stack, dns::DnsQueryType, udp};
 use embassy_rp::gpio::{self, Level};
 use embassy_time::Duration;
 use heapless::String;
 use panic_probe as _;
-use device_kit::Result;
-use device_kit::UnixSeconds;
-use device_kit::button::PressedTo;
-use device_kit::flash_array::{FlashArray, FlashArrayStatic};
-use device_kit::led4::{BlinkState, Led4, Led4Static, OutputArray};
-use device_kit::wifi_auto::fields::{TextField, TextFieldStatic, TimezoneField, TimezoneFieldStatic};
-use device_kit::wifi_auto::{WifiAuto, WifiAutoEvent, WifiAutoStatic};
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -88,9 +90,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         "Living Room",
     );
 
-    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
     let wifi_auto = WifiAuto::new(
-        &WIFI_AUTO_STATIC,
         p.PIN_23,                     // CYW43 power
         p.PIN_25,                     // CYW43 chip select
         p.PIO0,                       // CYW43 PIO interface

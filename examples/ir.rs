@@ -3,10 +3,11 @@
 
 use defmt::info;
 use defmt_rtt as _;
+use device_kit::ir::{Ir, IrEvent, IrStatic};
 use embassy_executor::Spawner;
 use panic_probe as _;
-use device_kit::ir::{Ir, IrEvent, IrStatic};
 
+// cmk make an inner-main and remove the unwrap...panic
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
     let p = embassy_rp::init(Default::default());

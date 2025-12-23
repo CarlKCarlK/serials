@@ -33,7 +33,7 @@ use crate::{Error, Result};
 /// # #![no_main]
 /// use device_kit::button::PressedTo;
 /// use device_kit::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
-/// use device_kit::wifi_auto::{WifiAuto, WifiAutoStatic};
+/// use device_kit::wifi_auto::WifiAuto;
 /// use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 /// # #[panic_handler]
 /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
@@ -51,9 +51,7 @@ use crate::{Error, Result};
 ///     let timezone_field = TimezoneField::new(&TIMEZONE_STATIC, timezone_flash);
 ///
 ///     // Pass to WifiAuto
-///     static wifi_auto_STATIC: WifiAutoStatic = WifiAuto::new_static();
 ///     let wifi_auto = WifiAuto::new(
-///         &wifi_auto_STATIC,
 ///         p.PIN_23,
 ///         p.PIN_25,
 ///         p.PIO0,
@@ -386,7 +384,7 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 /// # #![no_main]
 /// use device_kit::button::PressedTo;
 /// use device_kit::flash_array::{FlashArray, FlashArrayStatic, FlashBlock};
-/// use device_kit::wifi_auto::{WifiAuto, WifiAutoStatic};
+/// use device_kit::wifi_auto::WifiAuto;
 /// use device_kit::wifi_auto::fields::{TextField, TextFieldStatic};
 /// # #[panic_handler]
 /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
@@ -410,9 +408,7 @@ const TIMEZONE_OPTIONS: &[TimezoneOption] = &[
 ///     );
 ///
 ///     // Pass to WifiAuto
-///     static wifi_auto_STATIC: WifiAutoStatic = WifiAuto::new_static();
 ///     let wifi_auto = WifiAuto::new(
-///         &wifi_auto_STATIC,
 ///         p.PIN_23,
 ///         p.PIN_25,
 ///         p.PIO0,

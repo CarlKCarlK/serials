@@ -7,10 +7,8 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::button::{Button, PressedTo};
-use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip_simple::Milliamps;
-use device_kit::led2d::led2d_from_strip;
-use device_kit::pio_split;
+use device_kit::led2d_simple;
 use device_kit::{Error, Result};
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -20,24 +18,13 @@ use heapless::Vec;
 use panic_probe as _;
 use smart_leds::colors;
 
-define_led_strips! {
-    pio: PIO0,
-    strips: [
-        led8x12_strip {
-            sm: 0,
-            dma: DMA_CH0,
-            pin: PIN_4,
-            len: 96,
-            max_current: Milliamps(1000)
-        }
-    ]
-}
-
 // Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise)
 // Better for clock display - can fit 2 lines of 2 digits each
-led2d_from_strip! {
+led2d_simple! {
     pub led8x12,
-    strip_module: led8x12_strip,
+    pio: PIO0,
+    pin: PIN_4,
+    dma: DMA_CH0,
     rows: 12,
     cols: 8,
     mapping: arbitrary([
@@ -54,6 +41,7 @@ led2d_from_strip! {
         7, 6, 5, 4, 55, 54, 53, 52,
         0, 1, 2, 3, 48, 49, 50, 51,
     ]),
+    max_current: Milliamps(1000),
     max_frames: 32,
     font: Font4x6Trim,
 }
@@ -68,13 +56,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     info!("LED 2D API Exploration (8x12 rotated display)");
     let p = init(Default::default());
 
-    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
-    static LED8X12_STRIP_STATIC: led8x12_strip::Static = led8x12_strip::new_static();
-    let led8x12_strip =
-        led8x12_strip::new(&LED8X12_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_4, spawner)?;
-
-    static LED8X12_STATIC: Led8x12Static = Led8x12::new_static();
-    let led8x12 = Led8x12::from_strip(&LED8X12_STATIC, led8x12_strip, spawner)?;
+    let led8x12 = Led8x12::new(p.PIO0, p.DMA_CH0, p.PIN_4, spawner)?;
 
     let mut button = Button::new(p.PIN_13, PressedTo::Ground);
 

@@ -108,7 +108,7 @@ pub struct WifiAutoStatic {
 /// # use panic_probe as _;
 /// use device_kit::button::PressedTo;
 /// use device_kit::flash_array::{FlashArray, FlashArrayStatic};
-/// use device_kit::wifi_auto::{WifiAuto, WifiAutoStatic, WifiAutoEvent};
+/// use device_kit::wifi_auto::{WifiAuto, WifiAutoEvent};
 /// use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 /// async fn example(
 ///     spawner: embassy_executor::Spawner,
@@ -124,9 +124,7 @@ pub struct WifiAutoStatic {
 ///     let timezone_field = TimezoneField::new(&TIMEZONE_STATIC, timezone_flash);
 ///
 ///     // Initialize WifiAuto with the custom field
-///     static wifi_auto_STATIC: WifiAutoStatic = WifiAuto::new_static();
 ///     let wifi_auto = WifiAuto::new(
-///         &wifi_auto_STATIC,
 ///         p.PIN_23,               // CYW43 power
 ///         p.PIN_25,               // CYW43 chip select
 ///         p.PIO0,                 // CYW43 PIO interface
@@ -227,7 +225,6 @@ impl WifiAuto {
     // cmk00 PIO0 is hardcoded here (may no longer apply). Could be made generic over any PIO.
     #[allow(clippy::too_many_arguments)]
     pub fn new<const N: usize, PIO: WifiPio>(
-        wifi_auto_static: &'static WifiAutoStatic,
         pin_23: Peri<'static, PIN_23>,
         pin_25: Peri<'static, PIN_25>,
         pio: Peri<'static, PIO>,
@@ -241,6 +238,9 @@ impl WifiAuto {
         custom_fields: [&'static dyn WifiAutoField; N],
         spawner: Spawner,
     ) -> Result<&'static Self> {
+        static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
+        let wifi_auto_static = &WIFI_AUTO_STATIC;
+
         let stored_credentials = Wifi::peek_credentials(&mut wifi_credentials_flash_block);
         let stored_start_mode = Wifi::peek_start_mode(&mut wifi_credentials_flash_block);
         if matches!(stored_start_mode, WifiStartMode::CaptivePortal) {

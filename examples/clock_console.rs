@@ -11,17 +11,17 @@
 use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
-use embassy_executor::Spawner;
-use embassy_futures::select::{Either, select};
-use panic_probe as _;
 use device_kit::Result;
 use device_kit::button::PressedTo;
 use device_kit::clock::{Clock, ClockStatic, ONE_SECOND};
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
+use device_kit::wifi_auto::WifiAuto;
 use device_kit::wifi_auto::WifiAutoEvent;
 use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
-use device_kit::wifi_auto::{WifiAuto, WifiAutoStatic};
+use embassy_executor::Spawner;
+use embassy_futures::select::{Either, select};
+use panic_probe as _;
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -45,9 +45,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let timezone_field = TimezoneField::new(&TIMEZONE_FIELD_STATIC, timezone_flash_block);
 
     // Set up WiFi via captive portal
-    static WIFI_AUTO_STATIC: WifiAutoStatic = WifiAuto::new_static();
     let wifi_auto = WifiAuto::new(
-        &WIFI_AUTO_STATIC,
         p.PIN_23,  // CYW43 power
         p.PIN_25,  // CYW43 chip select
         p.PIO0,    // CYW43 PIO interface
