@@ -1,6 +1,10 @@
 #![no_std]
 #![no_main]
 
+// cmk000 I don't necessarily like "from_strip"
+// cmk000 we need to document that `led2d_from_strip` can only be used once
+// cmk000 where are are pools? should they be set?
+
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::led_strip::define_led_strips;
@@ -9,7 +13,8 @@ use device_kit::led_strip_simple::Milliamps;
 use device_kit::led2d::led2d_from_strip;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
-use embassy_time::Timer;
+use embassy_time::{Duration, Timer};
+use heapless::Vec;
 use panic_probe as _;
 
 define_led_strips! {
@@ -33,33 +38,30 @@ define_led_strips! {
             sm: 2,
             dma: DMA_CH2,
             pin: PIN_4,
-            len: 96,
-            max_current: Milliamps(800)
+            len: 48,
+            max_current: Milliamps(500)
         }
     ]
 }
 
 led2d_from_strip! {
-    pub led8x12,
-    strip_module: g4_strip,
-    rows: 12,
-    cols: 8,
-    mapping: arbitrary([
-        47, 46, 45, 44, 95, 94, 93, 92,
-        40, 41, 42, 43, 88, 89, 90, 91,
-        39, 38, 37, 36, 87, 86, 85, 84,
-        32, 33, 34, 35, 80, 81, 82, 83,
-        31, 30, 29, 28, 79, 78, 77, 76,
-        24, 25, 26, 27, 72, 73, 74, 75,
-        23, 22, 21, 20, 71, 70, 69, 68,
-        16, 17, 18, 19, 64, 65, 66, 67,
-        15, 14, 13, 12, 63, 62, 61, 60,
-        8, 9, 10, 11, 56, 57, 58, 59,
-        7, 6, 5, 4, 55, 54, 53, 52,
-        0, 1, 2, 3, 48, 49, 50, 51,
-    ]),
+    pub led12x4_gpio3,
+    strip_module: g3_strip,
+    rows: 4,
+    cols: 12,
+    mapping: serpentine_column_major,
     max_frames: 48,
-    font: Font4x6Trim,
+    font: Font3x4Trim,
+}
+
+led2d_from_strip! {
+    pub led12x4_gpio4,
+    strip_module: g4_strip,
+    rows: 4,
+    cols: 12,
+    mapping: serpentine_column_major,
+    max_frames: 48,
+    font: Font3x4Trim,
 }
 
 const SNAKE_LENGTH: usize = 4;
@@ -81,46 +83,50 @@ async fn inner_main(spawner: Spawner) -> device_kit::Result<()> {
     let strip_gpio3 = g3_strip::new(sm1, p.DMA_CH1, p.PIN_3, spawner)?;
     let strip_gpio4 = g4_strip::new(sm2, p.DMA_CH2, p.PIN_4, spawner)?;
 
-    static LED8X12_STATIC: Led8x12Static = Led8x12::new_static();
-    let led8x12 = Led8x12::from_strip(&LED8X12_STATIC, strip_gpio4, spawner)?;
+    let led12x4_gpio3 = Led12x4Gpio3::from_strip(strip_gpio3, spawner)?;
+    let led12x4_gpio4 = Led12x4Gpio4::from_strip(strip_gpio4, spawner)?;
 
-    info!("Running snakes on GPIO0 and GPIO3, GO animation on GPIO4 (2D)");
+    info!("Running snake on GPIO0, GO animations on GPIO3 and GPIO4 (2D)");
 
     let mut frame_g0 = [colors::BLACK; g0_strip::LEN];
-    let mut frame_g3 = [colors::BLACK; g3_strip::LEN];
     let mut pos_g0 = 0usize;
-    let mut pos_g3 = 0usize;
 
-    let crazy_colors = [
-        [colors::MAGENTA, colors::CYAN],
-        [colors::ORANGE, colors::LIME],
-        [colors::HOT_PINK, colors::YELLOW],
-    ];
+    // Create animation frames: "go  " and "  go" with unique colors per character
+    let mut go_frames = Vec::<_, 2>::new();
 
-    let mut go_frames = heapless::Vec::<_, 6>::new();
-    for color_set in &crazy_colors {
-        let mut frame_top = Led8x12::new_frame();
-        led8x12.write_text_to_frame("GO\n  ", color_set, &mut frame_top)?;
-        go_frames
-            .push((frame_top, embassy_time::Duration::from_millis(1000)))
-            .map_err(|_| device_kit::Error::FormatError)?;
+    // Frame 1: "go  " - each character gets its own color
+    let mut frame1 = Led12x4Gpio3::new_frame();
+    led12x4_gpio3.write_text_to_frame(
+        "go  ",
+        &[colors::MAGENTA, colors::CYAN, colors::BLACK, colors::BLACK],
+        &mut frame1,
+    )?;
+    go_frames
+        .push((frame1, Duration::from_millis(1000)))
+        .expect("go_frames has capacity for 2 frames");
 
-        let mut frame_bottom = Led8x12::new_frame();
-        led8x12.write_text_to_frame("  \nGO", color_set, &mut frame_bottom)?;
-        go_frames
-            .push((frame_bottom, embassy_time::Duration::from_millis(1000)))
-            .map_err(|_| device_kit::Error::FormatError)?;
-    }
+    // Frame 2: "  go" - each character gets its own color
+    let mut frame2 = Led12x4Gpio3::new_frame();
+    led12x4_gpio3.write_text_to_frame(
+        "  go",
+        &[
+            colors::BLACK,
+            colors::BLACK,
+            colors::ORANGE,
+            colors::HOT_PINK,
+        ],
+        &mut frame2,
+    )?;
+    go_frames
+        .push((frame2, Duration::from_millis(1000)))
+        .expect("go_frames has capacity for 2 frames");
 
-    led8x12.animate(&go_frames).await?;
+    led12x4_gpio3.animate(&go_frames).await?;
+    led12x4_gpio4.animate(&go_frames).await?;
 
     loop {
         step_snake(&mut frame_g0, &mut pos_g0);
-        step_snake(&mut frame_g3, &mut pos_g3);
-
         strip_gpio0.update_pixels(&frame_g0).await?;
-        strip_gpio3.update_pixels(&frame_g3).await?;
-
         Timer::after_millis(80).await;
     }
 }

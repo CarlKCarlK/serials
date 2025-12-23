@@ -1112,10 +1112,8 @@ macro_rules! led2d_simple {
                         spawner
                     )?;
 
-                    // Create Led2d static and Led2d
-                    static [<$name:upper _STATIC>]: [<$name:camel Static>] =
-                        [<$name:camel>]::new_static();
-                    [<$name:camel>]::from_strip(&[<$name:upper _STATIC>], strip, spawner)
+                    // Create Led2d from strip (uses interior static)
+                    [<$name:camel>]::from_strip(strip, spawner)
                 }
             }
         }
@@ -1190,10 +1188,8 @@ macro_rules! led2d_simple {
                         spawner
                     )?;
 
-                    // Create Led2d static and Led2d
-                    static [<$name:upper _STATIC>]: [<$name:camel Static>] =
-                        [<$name:camel>]::new_static();
-                    [<$name:camel>]::from_strip(&[<$name:upper _STATIC>], strip, spawner)
+                    // Create Led2d from strip (uses interior static)
+                    [<$name:camel>]::from_strip(strip, spawner)
                 }
             }
         }
@@ -1391,25 +1387,25 @@ macro_rules! led2d_from_strip {
                 ///
                 /// # Parameters
                 ///
-                /// - `static_resources`: Static resources created with `new_static()`
                 /// - `strip`: LED strip instance from the specified strip module
                 /// - `spawner`: Task spawner for background operations
                 $vis fn from_strip(
-                    static_resources: &'static [<$name:camel Static>],
                     strip: &'static $strip_module::Strip,
                     spawner: ::embassy_executor::Spawner,
                 ) -> $crate::Result<Self> {
+                    static STATIC: [<$name:camel Static>] = [<$name:camel>]::new_static();
+
                     defmt::info!("Led2d::new: spawning device task");
                     let token = [<$name _device_loop>](
-                        &static_resources.led2d_static.command_signal,
-                        &static_resources.led2d_static.completion_signal,
+                        &STATIC.led2d_static.command_signal,
+                        &STATIC.led2d_static.completion_signal,
                         strip,
                     )?;
                     spawner.spawn(token);
                     defmt::info!("Led2d::new: device task spawned");
 
                     let led2d = $crate::led2d::Led2d::new(
-                        &static_resources.led2d_static,
+                        &STATIC.led2d_static,
                         &$mapping_const,
                         $cols_const,
                     );
