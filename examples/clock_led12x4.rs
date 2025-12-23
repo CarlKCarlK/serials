@@ -30,7 +30,7 @@ use heapless::String;
 use panic_probe as _;
 use smart_leds::RGB8;
 
-led2d_simple! {
+led2d! {
     pub led12x4,
     pio: PIO0,
     pin: PIN_3,

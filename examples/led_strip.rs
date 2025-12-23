@@ -4,8 +4,8 @@
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::{Rgb, colors};
+use device_kit::led_strip_shared::define_led_strips;
+use device_kit::led_strip_shared::{Rgb, colors};
 use device_kit::led_strip_simple::Milliamps;
 use device_kit::pio_split;
 use embassy_executor::Spawner;

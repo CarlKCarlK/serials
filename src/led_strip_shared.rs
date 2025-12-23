@@ -137,7 +137,7 @@ impl<const N: usize> LedStripStatic<N> {
 /// # #![no_std]
 /// # use panic_probe as _;
 /// # fn main() {}
-/// use device_kit::led_strip::{LedStrip, LedStripStatic, Rgb};
+/// use device_kit::led_strip_shared::{LedStrip, LedStripStatic, Rgb};
 ///
 /// async fn example() -> device_kit::Result<()> {
 ///     static LED_STRIP_STATIC: LedStripStatic<8> = LedStrip::new_static();
@@ -266,7 +266,7 @@ macro_rules! define_led_strips {
             // Create the PIO bus
             #[allow(non_upper_case_globals)]
             static [<$pio _BUS>]: ::static_cell::StaticCell<
-                $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>
+                $crate::led_strip_shared::PioBus<'static, ::embassy_rp::peripherals::$pio>
             > = ::static_cell::StaticCell::new();
 
             /// Split the PIO into bus and state machines.
@@ -276,21 +276,21 @@ macro_rules! define_led_strips {
             pub fn [<$pio:lower _split>](
                 pio: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pio>,
             ) -> (
-                $crate::led_strip::StateMachine<::embassy_rp::peripherals::$pio, 0>,
-                $crate::led_strip::StateMachine<::embassy_rp::peripherals::$pio, 1>,
-                $crate::led_strip::StateMachine<::embassy_rp::peripherals::$pio, 2>,
-                $crate::led_strip::StateMachine<::embassy_rp::peripherals::$pio, 3>,
+                $crate::led_strip_shared::StateMachine<::embassy_rp::peripherals::$pio, 0>,
+                $crate::led_strip_shared::StateMachine<::embassy_rp::peripherals::$pio, 1>,
+                $crate::led_strip_shared::StateMachine<::embassy_rp::peripherals::$pio, 2>,
+                $crate::led_strip_shared::StateMachine<::embassy_rp::peripherals::$pio, 3>,
             ) {
                 let ::embassy_rp::pio::Pio { common, sm0, sm1, sm2, sm3, .. } =
-                    ::embassy_rp::pio::Pio::new(pio, <::embassy_rp::peripherals::$pio as $crate::led_strip::LedStripPio>::irqs());
+                    ::embassy_rp::pio::Pio::new(pio, <::embassy_rp::peripherals::$pio as $crate::led_strip_shared::LedStripPio>::irqs());
                 let pio_bus = [<$pio _BUS>].init_with(|| {
-                    $crate::led_strip::PioBus::new(common)
+                    $crate::led_strip_shared::PioBus::new(common)
                 });
                 (
-                    $crate::led_strip::StateMachine::new(pio_bus, sm0),
-                    $crate::led_strip::StateMachine::new(pio_bus, sm1),
-                    $crate::led_strip::StateMachine::new(pio_bus, sm2),
-                    $crate::led_strip::StateMachine::new(pio_bus, sm3),
+                    $crate::led_strip_shared::StateMachine::new(pio_bus, sm0),
+                    $crate::led_strip_shared::StateMachine::new(pio_bus, sm1),
+                    $crate::led_strip_shared::StateMachine::new(pio_bus, sm2),
+                    $crate::led_strip_shared::StateMachine::new(pio_bus, sm3),
                 )
             }
 
@@ -305,8 +305,8 @@ macro_rules! define_led_strips {
                 use ::embassy_executor::Spawner;
 
                 pub const LEN: usize = $len;
-                pub type Strip = $crate::led_strip::LedStrip<LEN>;
-                pub type Static = $crate::led_strip::LedStripStatic<LEN>;
+                pub type Strip = $crate::led_strip_shared::LedStrip<LEN>;
+                pub type Static = $crate::led_strip_shared::LedStripStatic<LEN>;
 
                 // Calculate max brightness from current budget
                 // Each WS2812B LED draws ~60mA at full brightness
@@ -319,11 +319,11 @@ macro_rules! define_led_strips {
                 paste::paste! {
                     #[::embassy_executor::task]
                     async fn [<$module _driver>](
-                        bus: &'static $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>,
+                        bus: &'static $crate::led_strip_shared::PioBus<'static, ::embassy_rp::peripherals::$pio>,
                         sm: ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, $sm_index>,
                         dma: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>,
                         pin: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>,
-                        commands: &'static $crate::led_strip::LedStripCommands<LEN>,
+                        commands: &'static $crate::led_strip_shared::LedStripCommands<LEN>,
                     ) -> ! {
                         let program = bus.get_program();
                         let driver = bus.with_common(|common| {
@@ -334,7 +334,7 @@ macro_rules! define_led_strips {
                                 _
                             >::new(common, sm, dma, pin, program)
                         });
-                        $crate::led_strip::led_strip_driver_loop::<
+                        $crate::led_strip_shared::led_strip_driver_loop::<
                             ::embassy_rp::peripherals::$pio,
                             $sm_index,
                             LEN,
@@ -349,7 +349,7 @@ macro_rules! define_led_strips {
 
                 paste::paste! {
                     pub fn new(
-                        state_machine: $crate::led_strip::StateMachine<::embassy_rp::peripherals::$pio, $sm_index>,
+                        state_machine: $crate::led_strip_shared::StateMachine<::embassy_rp::peripherals::$pio, $sm_index>,
                         dma: impl Into<::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>>,
                         pin: impl Into<::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>>,
                         spawner: Spawner,

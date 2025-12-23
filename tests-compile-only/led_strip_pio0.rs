@@ -1,4 +1,4 @@
-//! Compile-only verification that led_strip works with PIO0.
+//! Compile-only verification that led_strip_shared works with PIO0.
 //!
 //! Run via: `cargo check-all` (xtask compiles this for thumbv6m-none-eabi)
 
@@ -7,7 +7,7 @@
 #![no_main]
 #![allow(dead_code, reason = "Compile-time verification only")]
 
-use device_kit::led_strip::define_led_strips;
+use device_kit::led_strip_shared::define_led_strips;
 use device_kit::led_strip_simple::Milliamps;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
