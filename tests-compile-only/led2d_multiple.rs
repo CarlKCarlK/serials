@@ -75,13 +75,13 @@ async fn test_multiple_devices(p: embassy_rp::Peripherals, spawner: Spawner) -> 
     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
     let led4x12_strip = led4x12_strip::new(sm0, p.DMA_CH0, p.PIN_3, spawner)?;
     static LED4X12_STATIC: Led4x12Static = Led4x12::new_static();
-    let led4x12 = Led4x12::from_strip(&LED4X12_STATIC, led4x12_strip, spawner)?;
+    let led4x12 = Led4x12::from_strip(led4x12_strip, spawner)?;
 
     // Construct second device
     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
     let led8x8_strip = led8x8_strip::new(sm0, p.DMA_CH1, p.PIN_4, spawner)?;
     static LED8X8_STATIC: Led8x8Static = Led8x8::new_static();
-    let led8x8 = Led8x8::from_strip(&LED8X8_STATIC, led8x8_strip, spawner)?;
+    let led8x8 = Led8x8::from_strip(led8x8_strip, spawner)?;
 
     // Verify associated constants don't collide
     // Create frame for 4x12 display

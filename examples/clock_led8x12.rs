@@ -18,7 +18,7 @@ use device_kit::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 use device_kit::led_strip_simple::Milliamps;
 use device_kit::led_strip_simple::colors;
-use device_kit::led2d_simple;
+use device_kit::led2d;
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use device_kit::wifi_auto::WifiAuto;
 use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
@@ -32,7 +32,7 @@ use smart_leds::RGB8;
 
 // cmk could/should we replace arbitrary with a cat of the zigzag mapping?
 // Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise)
-led2d_simple! {
+led2d! {
     pub led8x12,
     pio: PIO1,
     pin: PIN_4,

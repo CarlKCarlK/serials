@@ -18,10 +18,10 @@ use device_kit::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 use device_kit::led_strip_simple::Milliamps;
 use device_kit::led_strip_simple::colors;
-use device_kit::led2d_simple;
+use device_kit::led2d;
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 use device_kit::wifi_auto::WifiAuto;
+use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 use device_kit::{Error, Result};
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -47,7 +47,7 @@ led2d_simple! {
 
 // cmk use the colors enum
 // cmk use an array of colors
-// cmk should edit to blicking or colors
+// cmk should edit to blinking or colors
 
 const FAST_MODE_SPEED: f32 = 720.0;
 const CONNECTING_COLOR: RGB8 = colors::SADDLE_BROWN;

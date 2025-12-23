@@ -8,7 +8,7 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::button::{Button, PressedTo};
 use device_kit::led_strip_simple::Milliamps;
-use device_kit::led2d_simple;
+use device_kit::led2d;
 use device_kit::{Error, Result};
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -18,7 +18,7 @@ use heapless::Vec;
 use panic_probe as _;
 use smart_leds::colors;
 
-led2d_simple! {
+led2d! {
     pub led4x12,
     pio: PIO1,
     pin: PIN_3,

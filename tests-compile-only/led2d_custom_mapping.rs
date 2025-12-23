@@ -11,7 +11,7 @@
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip_simple::Milliamps;
-use device_kit::led2d_simple;
+use device_kit::led2d;
 use embassy_executor::Spawner;
 use embassy_time::Duration;
 use panic_probe as _;
@@ -19,7 +19,7 @@ use smart_leds::colors;
 
 // Example with a custom arbitrary mapping for a 2x3 display (6 LEDs total)
 // This demonstrates a simple row-major ordering: rows go left-to-right
-led2d_simple! {
+led2d! {
     pub led2x3,
     pio: PIO0,
     pin: PIN_3,

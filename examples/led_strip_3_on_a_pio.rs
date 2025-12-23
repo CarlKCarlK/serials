@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 
-// cmk000 I don't necessarily like "from_strip"
 // cmk000 we need to document that `led2d_from_strip` can only be used once
 // cmk000 where are are pools? should they be set?
 

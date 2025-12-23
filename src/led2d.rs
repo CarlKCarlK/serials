@@ -1,7 +1,7 @@
 //! A device abstraction for rectangular LED matrix displays with arbitrary size.
 //!
 //! Supports text rendering, animation, and full graphics capabilities. For simple
-//! single-strip displays, use the `led2d_simple!` macro. For multi-strip scenarios
+//! single-strip displays, use the `led2d!` macro. For multi-strip scenarios
 //! where you need to share a PIO with other devices, use `led2d_from_strip!` with
 //! [`define_led_strips!`](crate::led_strip::define_led_strips).
 //!
@@ -9,7 +9,7 @@
 //! [`embedded-graphics`](https://docs.rs/embedded-graphics) drawing API. See the
 //! [`Frame`] documentation for an example.
 //!
-//! # Quick Start with `led2d_simple!`
+//! # Quick Start with `led2d!`
 //!
 //! The simplest way to create an LED matrix display:
 //!
@@ -19,11 +19,11 @@
 //! # use panic_probe as _;
 //! use embassy_executor::Spawner;
 //! use embassy_rp::init;
-//! use device_kit::led2d_simple;
+//! use device_kit::led2d;
 //! use device_kit::led_strip_simple::Milliamps;
 //! use device_kit::led_strip_simple::colors;
 //!
-//! led2d_simple! {
+//! led2d! {
 //!     pub led12x4,
 //!     pio: PIO0,
 //!     pin: PIN_3,
@@ -116,8 +116,7 @@
 //!     let strip = led12x4_strip::new(sm0, p.DMA_CH0, p.PIN_3, spawner).unwrap();
 //!
 //!     // Create Led2d device from strip
-//!     static LED_12X4_STATIC: Led12x4Static = Led12x4::new_static();
-//!     let led_12x4 = Led12x4::from_strip(&LED_12X4_STATIC, strip, spawner).unwrap();
+//!     let led_12x4 = Led12x4::from_strip(strip, spawner).unwrap();
 //!
 //!     // Display colorful text
 //!     led_12x4.write_text("HI!", &[colors::CYAN, colors::MAGENTA, colors::YELLOW])
@@ -149,7 +148,7 @@ use embedded_graphics::{
         },
         mapping::StrGlyphMapping,
     },
-    pixelcolor::Rgb888,
+    pixelcolor::Rgb888, // cmk should this just be color?
     prelude::*,
 };
 use heapless::Vec;
@@ -576,7 +575,7 @@ pub enum Command<const N: usize, const MAX_FRAMES: usize> {
 
 /// Static type for the [`Led2d`] device abstraction.
 ///
-/// Most users should use the `led2d_simple!` or `led2d_from_strip!` macros which generate
+/// Most users should use the `led2d!` or `led2d_from_strip!` macros which generate
 /// a higher-level wrapper.
 pub struct Led2dStatic<const N: usize, const MAX_FRAMES: usize> {
     pub command_signal: Led2dCommandSignal<N, MAX_FRAMES>,
@@ -622,7 +621,7 @@ impl<const N: usize> UpdatePixels<N> for &'static crate::led_strip::LedStrip<N> 
 /// Rows and columns are metadata used only for indexing - the core type is generic only over
 /// N (total LEDs) and MAX_FRAMES (animation capacity).
 ///
-/// Most users should use the `led2d_simple!` or `led2d_from_strip!` macros which generate
+/// Most users should use the `led2d!` or `led2d_from_strip!` macros which generate
 /// a higher-level wrapper. See the [module-level documentation](crate::led2d) for examples.
 pub struct Led2d<'a, const N: usize, const MAX_FRAMES: usize> {
     command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
@@ -1011,12 +1010,12 @@ pub use led2d_device;
 /// # use panic_probe as _;
 /// use embassy_executor::Spawner;
 /// use embassy_rp::init;
-/// use device_kit::led2d_simple;
+/// use device_kit::led2d;
 /// use device_kit::led_strip_simple::Milliamps;
 /// use device_kit::led_strip_simple::colors;
 ///
 /// // Generate a 12×4 LED matrix display
-/// led2d_simple! {
+/// led2d! {
 ///     pub led12x4,
 ///     pio: PIO0,
 ///     pin: PIN_3,
@@ -1042,7 +1041,7 @@ pub use led2d_device;
 /// ```
 #[macro_export]
 #[cfg(not(feature = "host"))]
-macro_rules! led2d_simple {
+macro_rules! led2d {
     (
         $vis:vis $name:ident,
         pio: $pio:ident,
@@ -1199,7 +1198,7 @@ macro_rules! led2d_simple {
 /// Generate a Led2d device abstraction from an existing LED strip module.
 ///
 /// Use this macro when you want to share a PIO across multiple LED strips and treat one as a 2D display.
-/// For simple single-strip displays, use `led2d_simple!` instead.
+/// For simple single-strip displays, use `led2d!` instead.
 /// The strip must be created with [`define_led_strips!`](crate::led_strip::define_led_strips).
 ///
 /// # Parameters
@@ -1256,8 +1255,7 @@ macro_rules! led2d_simple {
 /// #     let p = embassy_rp::init(Default::default());
 /// #     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
 /// #     let strip = led12x4_strip::new(sm0, p.DMA_CH0, p.PIN_3, spawner).unwrap();
-/// #     static LED12X4_STATIC: Led12x4Static = Led12x4::new_static();
-/// #     let led = Led12x4::from_strip(&LED12X4_STATIC, strip, spawner).unwrap();
+/// #     let led = Led12x4::from_strip(strip, spawner).unwrap();
 /// # }
 /// ```
 #[macro_export]
@@ -1383,7 +1381,7 @@ macro_rules! led2d_from_strip {
                 ///
                 /// The strip must be created from the same module specified in `strip_module`.
                 /// For simpler single-strip setups, see the convenience constructor generated
-                /// by [`led2d_simple!`].
+                /// by [`led2d!`].
                 ///
                 /// # Parameters
                 ///
@@ -1449,6 +1447,9 @@ macro_rules! led2d_from_strip {
     };
 }
 
+#[cfg(not(feature = "host"))]
+#[doc(inline)]
+pub use led2d;
 #[cfg(not(feature = "host"))]
 #[doc(inline)]
 pub use led2d_from_strip;

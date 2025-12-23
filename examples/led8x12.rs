@@ -8,7 +8,7 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::button::{Button, PressedTo};
 use device_kit::led_strip_simple::Milliamps;
-use device_kit::led2d_simple;
+use device_kit::led2d;
 use device_kit::{Error, Result};
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -20,7 +20,7 @@ use smart_leds::colors;
 
 // Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise)
 // Better for clock display - can fit 2 lines of 2 digits each
-led2d_simple! {
+led2d! {
     pub led8x12,
     pio: PIO0,
     pin: PIN_4,
