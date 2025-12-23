@@ -12,7 +12,7 @@ use embassy_time::Timer;
 use panic_probe as _;
 
 define_led_strips! {
-    pio: PIO0,
+    pio: PIO1,
     strips: [
         g0_strip {
             sm: 0,
@@ -51,7 +51,7 @@ async fn main(spawner: Spawner) {
 
 async fn inner_main(spawner: Spawner) -> device_kit::Result<()> {
     let p = embassy_rp::init(Default::default());
-    let (sm0, sm1, sm2, _sm3) = pio_split!(p.PIO0);
+    let (sm0, sm1, sm2, _sm3) = pio_split!(p.PIO1);
 
     static G0_STRIP_STATIC: g0_strip::Static = g0_strip::new_static();
     let mut strip_gpio0 = g0_strip::new(&G0_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_0, spawner)?;

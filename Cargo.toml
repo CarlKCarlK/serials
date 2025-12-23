@@ -29,6 +29,16 @@ name = "led2d_multiple"
 path = "tests-compile-only/led2d_multiple.rs"
 required-features = ["pico1"]
 
+[[bin]]
+name = "led_strip_pio0"
+path = "tests-compile-only/led_strip_pio0.rs"
+required-features = ["pico1"]
+
+[[bin]]
+name = "led_strip_pio1"
+path = "tests-compile-only/led_strip_pio1.rs"
+required-features = ["pico1"]
+
 [features]
 default = ["defmt", "pico1", "arm"]
 defmt = []
