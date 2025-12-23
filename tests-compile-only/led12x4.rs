@@ -8,7 +8,7 @@
 #![allow(dead_code, reason = "Compile-time verification only")]
 
 use defmt_rtt as _;
-use device_kit::led_strip_shared::define_led_strips;
+use device_kit::led_strip::led_strip_shared::define_led_strips;
 use device_kit::led_strip::{Milliamps, colors};
 use device_kit::led2d::led2d_from_strip;
 use device_kit::pio_split;

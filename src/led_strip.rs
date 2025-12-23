@@ -1,5 +1,7 @@
 //! A device abstraction for WS2812-style LED strips.
-//! See [`LedStripSimple`] for the main usage example and [led_strip_shared](crate::led_strip_shared) for the fuller driver if you need more than a couple of strips.
+//! See [`LedStripSimple`] for the main usage example and [led_strip_shared](crate::led_strip::led_strip_shared) for the fuller driver if you need more than a couple of strips.
+
+pub mod led_strip_shared;
 
 use core::cell::RefCell;
 use embassy_rp::clocks::clk_sys_freq;
@@ -272,7 +274,7 @@ impl<const N: usize> LedStripSimpleStatic<N> {
 /// Device abstraction for a single WS2812-style LED strip.
 ///
 /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units.
-/// This driver requires one PIO unit per LED strip. The more complex [led_strip_shared](crate::led_strip_shared) can drive up to four strips per PIO.
+/// This driver requires one PIO unit per LED strip. The more complex [led_strip_shared](crate::led_strip::led_strip_shared) can drive up to four strips per PIO.
 ///
 /// # Example
 /// ```no_run
@@ -339,7 +341,7 @@ impl<'d, PIO: Instance, const N: usize> LedStripSimple<'d, PIO, N> {
 impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO0, N> {
     /// Builds a `LedStripSimple` on PIO0/SM0.
     ///
-    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [led_strip_shared](crate::led_strip_shared) can drive up to four strips per PIO.
+    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [led_strip_shared](crate::led_strip::led_strip_shared) can drive up to four strips per PIO.
     ///
     /// See [`LedStripSimple`] for the usage example.
     pub async fn new_pio0(
@@ -361,7 +363,7 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO0, N> {
 impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO1, N> {
     /// Builds a `LedStripSimple` on PIO1/SM0.
     ///
-    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [led_strip_shared](crate::led_strip_shared) can drive up to four strips per PIO.
+    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [led_strip_shared](crate::led_strip::led_strip_shared) can drive up to four strips per PIO.
     ///
     /// See [`LedStripSimple`] for the usage example.
     pub async fn new_pio1(
@@ -384,7 +386,7 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO1, N> {
 impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO2, N> {
     /// Builds a `LedStripSimple` on PIO2/SM0.
     ///
-    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [led_strip_shared](crate::led_strip_shared) can drive up to four strips per PIO.
+    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [led_strip_shared](crate::led_strip::led_strip_shared) can drive up to four strips per PIO.
     ///
     /// See [`LedStripSimple`] for the usage example.
     pub async fn new_pio2(

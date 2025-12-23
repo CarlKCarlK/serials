@@ -20,9 +20,9 @@ use device_kit::clock::{Clock, ClockStatic, ONE_SECOND};
 #[cfg(feature = "wifi")]
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 use device_kit::ir::{Ir, IrEvent, IrStatic};
-use device_kit::led_strip_shared::Rgb;
-use device_kit::led_strip_shared::colors;
-use device_kit::led_strip_shared::define_led_strips;
+use device_kit::led_strip::led_strip_shared::Rgb;
+use device_kit::led_strip::led_strip_shared::colors;
+use device_kit::led_strip::led_strip_shared::define_led_strips;
 use device_kit::led_strip::Milliamps;
 use device_kit::led24x4::Led24x4;
 use device_kit::pio_split;

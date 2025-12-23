@@ -23,7 +23,7 @@ compile_error!("Cannot enable both 'arm' and 'riscv' features simultaneously");
 #[cfg(all(feature = "pico1", feature = "riscv"))]
 compile_error!("Pico 1 (RP2040) only supports ARM architecture, not RISC-V");
 
-// PIO interrupt bindings - shared by led_strip_shared and led_strip
+// PIO interrupt bindings - shared by led_strip::led_strip_shared and led_strip
 #[cfg(not(feature = "host"))]
 #[doc(hidden)]
 pub mod pio_irqs;
@@ -53,8 +53,6 @@ pub mod ir_mapping;
 pub mod led2d;
 #[cfg(not(feature = "host"))]
 pub mod led4;
-#[cfg(not(feature = "host"))]
-pub mod led_strip_shared;
 #[cfg(not(feature = "host"))]
 pub mod led_strip;
 #[cfg(not(feature = "host"))]
