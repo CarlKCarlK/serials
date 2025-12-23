@@ -6,18 +6,18 @@ use core::convert::Infallible;
 
 use defmt::info;
 use defmt_rtt as _;
-use embassy_executor::Spawner;
-use embassy_futures::select::{Either, select};
-use embassy_rp::init;
-use embassy_time::{Duration, Timer};
-use heapless::Vec;
-use panic_probe as _;
 use device_kit::button::{Button, PressedTo};
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip_simple::Milliamps;
 use device_kit::led2d::led2d_from_strip;
 use device_kit::pio_split;
 use device_kit::{Error, Result};
+use embassy_executor::Spawner;
+use embassy_futures::select::{Either, select};
+use embassy_rp::init;
+use embassy_time::{Duration, Timer};
+use heapless::Vec;
+use panic_probe as _;
 use smart_leds::colors;
 
 define_led_strips! {
@@ -56,10 +56,11 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
     static LED4X12_STRIP_STATIC: led4x12_strip::Static = led4x12_strip::new_static();
-    let led4x12_strip = led4x12_strip::new(&LED4X12_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_3, spawner)?;
-    
+    let led4x12_strip =
+        led4x12_strip::new(&LED4X12_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_3, spawner)?;
+
     static LED4X12_STATIC: Led4x12Static = Led4x12::new_static();
-    let led4x12 = Led4x12::new(&LED4X12_STATIC, led4x12_strip, spawner)?;
+    let led4x12 = Led4x12::from_strip(&LED4X12_STATIC, led4x12_strip, spawner)?;
 
     let mut button = Button::new(p.PIN_13, PressedTo::Ground);
 
@@ -150,13 +151,13 @@ async fn demo_blink_pattern(led4x12: &Led4x12) -> Result<()> {
 
 /// Create a red rectangle border with blue diagonals using embedded-graphics.
 async fn demo_rectangle_diagonals_embedded_graphics(led4x12: &Led4x12) -> Result<()> {
+    use device_kit::led2d::Frame;
     use embedded_graphics::{
         Drawable,
         pixelcolor::Rgb888,
         prelude::*,
         primitives::{Line, PrimitiveStyle, Rectangle},
     };
-    use device_kit::led2d::Frame;
 
     let mut frame = Led4x12::new_frame();
 

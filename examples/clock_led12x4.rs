@@ -16,11 +16,9 @@ use defmt_rtt as _;
 use device_kit::button::{Button, PressDuration, PressedTo};
 use device_kit::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
-use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip_simple::Milliamps;
 use device_kit::led_strip_simple::colors;
-use device_kit::led2d::led2d_from_strip;
-use device_kit::pio_split;
+use device_kit::led2d_simple;
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 use device_kit::wifi_auto::{WifiAuto, WifiAutoStatic};
@@ -32,25 +30,15 @@ use heapless::String;
 use panic_probe as _;
 use smart_leds::RGB8;
 
-define_led_strips! {
-    pio: PIO0,
-    strips: [
-        led12x4_strip {
-            sm: 0,
-            dma: DMA_CH1,
-            pin: PIN_3,
-            len: 48,
-            max_current: Milliamps(500)
-        }
-    ]
-}
-
-led2d_from_strip! {
+led2d_simple! {
     pub led12x4,
-    strip_module: led12x4_strip,
+    pio: PIO0,
+    pin: PIN_3,
+    dma: DMA_CH1,
     rows: 4,
     cols: 12,
     mapping: serpentine_column_major,
+    max_current: Milliamps(500),
     max_frames: 32,
     font: Font3x4Trim,
 }
@@ -110,13 +98,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     // cmk pico1 or pico2 button?
 
     // Set up the 12x4 LED display on GPIO3.
-    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
-    static LED_12X4_STRIP_STATIC: led12x4_strip::Static = led12x4_strip::new_static();
-    let led12x4_strip =
-        led12x4_strip::new(&LED_12X4_STRIP_STATIC, sm0, p.DMA_CH1, p.PIN_3, spawner)?;
-
-    static LED_12X4_STATIC: Led12x4Static = Led12x4::new_static();
-    let led_12x4 = Led12x4::new(&LED_12X4_STATIC, led12x4_strip, spawner)?;
+    let led_12x4 = Led12x4::new(p.PIO0, p.DMA_CH1, p.PIN_3, spawner)?;
 
     // cmk sometimes I use "led12x4" and sometimes "led_12x4" which is it?
     // Connect Wi-Fi, using the LED panel for status.

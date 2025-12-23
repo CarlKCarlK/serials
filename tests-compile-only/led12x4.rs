@@ -75,7 +75,7 @@ async fn test_led12x4_pio0_write_text(
         led12x4_pio0_strip::new(&LED_12X4_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_3, spawner)?;
 
     static LED_12X4_STATIC: Led12x4Pio0Static = Led12x4Pio0::new_static();
-    let led_12x4 = Led12x4Pio0::new(&LED_12X4_STATIC, led12x4_pio0_strip, spawner)?;
+    let led_12x4 = Led12x4Pio0::from_strip(&LED_12X4_STATIC, led12x4_pio0_strip, spawner)?;
 
     led_12x4
         .write_text(
@@ -95,7 +95,7 @@ async fn test_led12x4_pio1(p: embassy_rp::Peripherals, spawner: Spawner) -> devi
         led12x4_pio1_strip::new(&LED_12X4_STRIP_STATIC, sm0, p.DMA_CH1, p.PIN_3, spawner)?;
 
     static LED_12X4_STATIC: Led12x4Pio1Static = Led12x4Pio1::new_static();
-    let _led_12x4 = Led12x4Pio1::new(&LED_12X4_STATIC, led12x4_pio1_strip, spawner)?;
+    let _led_12x4 = Led12x4Pio1::from_strip(&LED_12X4_STATIC, led12x4_pio1_strip, spawner)?;
 
     Ok(())
 }

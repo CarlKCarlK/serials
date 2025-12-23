@@ -53,7 +53,7 @@ async fn test_led2x3_custom_mapping(p: embassy_rp::Peripherals, spawner: Spawner
     static LED2X3_STRIP_STATIC: led2x3_strip::Static = led2x3_strip::new_static();
     let led2x3_strip = led2x3_strip::new(&LED2X3_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_3, spawner)?;
     static LED2X3_STATIC: Led2x3Static = Led2x3::new_static();
-    let led2x3 = Led2x3::new(&LED2X3_STATIC, led2x3_strip, spawner)?;
+    let led2x3 = Led2x3::from_strip(&LED2X3_STATIC, led2x3_strip, spawner)?;
 
     // Verify write_frame works
     let mut frame = Led2x3::new_frame();

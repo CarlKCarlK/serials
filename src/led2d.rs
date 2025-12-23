@@ -1,19 +1,54 @@
 //! A device abstraction for rectangular LED matrix displays with arbitrary size.
 //!
-//! Supports text rendering, animation, and full graphics capabilities. Use the
-//! [`led2d_from_strip!`] macro to generate a complete device abstraction for
-//! your specific display configuration from an LED strip created with
+//! Supports text rendering, animation, and full graphics capabilities. For simple
+//! single-strip displays, use the [`led2d_simple!`] macro. For multi-strip scenarios
+//! where you need to share a PIO with other devices, use [`led2d_from_strip!`] with
 //! [`define_led_strips!`](crate::led_strip::define_led_strips).
 //!
 //! For custom graphics, create a [`Frame`] and use the
 //! [`embedded-graphics`](https://docs.rs/embedded-graphics) drawing API. See the
 //! [`Frame`] documentation for an example.
 //!
-//! # Using the `led2d_from_strip!` Macro
+//! # Quick Start with `led2d_simple!`
 //!
-//! The macro generates a type-safe device abstraction with text rendering, animation,
-//! and graphics support. It creates two types: `YourNameStatic` (for resources) and
-//! `YourName` (the device handle).
+//! The simplest way to create an LED matrix display:
+//!
+//! ```no_run
+//! # #![no_std]
+//! # #![no_main]
+//! # use panic_probe as _;
+//! use embassy_executor::Spawner;
+//! use embassy_rp::init;
+//! use device_kit::led2d_simple;
+//! use device_kit::led_strip_simple::Milliamps;
+//! use device_kit::led_strip_simple::colors;
+//!
+//! led2d_simple! {
+//!     pub led12x4,
+//!     pio: PIO0,
+//!     pin: PIN_3,
+//!     dma: DMA_CH1,
+//!     rows: 4,
+//!     cols: 12,
+//!     mapping: serpentine_column_major,
+//!     max_current: Milliamps(500),
+//!     max_frames: 32,
+//!     font: Font3x4Trim,
+//! }
+//!
+//! #[embassy_executor::main]
+//! async fn main(spawner: Spawner) {
+//!     let p = init(Default::default());
+//!     let led = Led12x4::new_simple(p.PIO0, p.DMA_CH1, p.PIN_3, spawner).unwrap();
+//!     led.write_text("HI", &[colors::RED]).await.unwrap();
+//! }
+//! ```
+//!
+//! # Advanced: Multi-Strip with `led2d_from_strip!`
+//!
+//! When sharing a PIO with multiple LED strips, use `define_led_strips!` and
+//! `led2d_from_strip!` together. The macro generates a type-safe device abstraction
+//! with text rendering, animation, and graphics support.
 //!
 //! ## Macro Parameters
 //!
@@ -933,9 +968,241 @@ macro_rules! led2d_device {
 #[cfg(not(feature = "host"))]
 pub use led2d_device;
 
+/// Generate a complete Led2d display with automatic PIO and strip management.
+///
+/// This macro creates a self-contained LED matrix display with automatic PIO splitting
+/// and internal resource management. For simpler single-strip displays, this is the
+/// recommended approach. For multi-strip scenarios where you need to share a PIO with
+/// other devices, use [`led2d_from_strip!`] instead.
+///
+/// The macro generates everything needed: the LED strip infrastructure, the Led2d
+/// device abstraction, and a simplified constructor that handles all initialization.
+///
+/// # Parameters
+///
+/// - Visibility and base name for generated types (e.g., `pub led12x4`)
+/// - `pio` - PIO peripheral to use (e.g., `PIO0`, `PIO1`)
+/// - `pin` - GPIO pin for LED data signal (e.g., `PIN_3`)
+/// - `dma` - DMA channel for LED data transfer (e.g., `DMA_CH0`)
+/// - `rows` - Number of rows in the display
+/// - `cols` - Number of columns in the display
+/// - `mapping` - LED strip physical layout (currently only `serpentine_column_major` supported)
+/// - `max_current` - Maximum current budget (e.g., `Milliamps(500)`)
+/// - `max_frames` - Maximum animation frames allowed (not buffered)
+/// - `font` - Built-in font variant (see [`Led2dFont`])
+///
+/// # Generated API
+///
+/// The macro generates a type `YourName` with a simplified constructor:
+/// - `YourName::new_simple(pio, dma, pin, spawner)` - Single-call initialization
+///
+/// # Example
+///
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// use embassy_executor::Spawner;
+/// use embassy_rp::init;
+/// use device_kit::led2d_simple;
+/// use device_kit::led_strip_simple::Milliamps;
+/// use device_kit::led_strip_simple::colors;
+///
+/// // Generate a 12×4 LED matrix display
+/// led2d_simple! {
+///     pub led12x4,
+///     pio: PIO0,
+///     pin: PIN_3,
+///     dma: DMA_CH1,
+///     rows: 4,
+///     cols: 12,
+///     mapping: serpentine_column_major,
+///     max_current: Milliamps(500),
+///     max_frames: 32,
+///     font: Font3x4Trim,
+/// }
+///
+/// #[embassy_executor::main]
+/// async fn main(spawner: Spawner) {
+///     let p = init(Default::default());
+///     
+///     // Single-call initialization
+///     let led = Led12x4::new(p.PIO0, p.DMA_CH1, p.PIN_3, spawner).unwrap();
+///     
+///     // Display text
+///     led.write_text("HELLO", &[colors::RED, colors::GREEN, colors::BLUE]).await.unwrap();
+/// }
+/// ```
+#[macro_export]
+#[cfg(not(feature = "host"))]
+macro_rules! led2d_simple {
+    (
+        $vis:vis $name:ident,
+        pio: $pio:ident,
+        pin: $pin:ident,
+        dma: $dma:ident,
+        rows: $rows:expr,
+        cols: $cols:expr,
+        mapping: serpentine_column_major,
+        max_current: $max_current:expr,
+        max_frames: $max_frames:expr,
+        font: $font_variant:ident $(,)?
+    ) => {
+        $crate::led2d::paste::paste! {
+            // Generate the LED strip infrastructure
+            $crate::led_strip::define_led_strips! {
+                pio: $pio,
+                strips: [
+                    [<$name _strip>] {
+                        sm: 0,
+                        dma: $dma,
+                        pin: $pin,
+                        len: $rows * $cols,
+                        max_current: $max_current
+                    }
+                ]
+            }
+
+            // Generate the Led2d device from the strip
+            $crate::led2d::led2d_from_strip! {
+                $vis $name,
+                strip_module: [<$name _strip>],
+                rows: $rows,
+                cols: $cols,
+                mapping: serpentine_column_major,
+                max_frames: $max_frames,
+                font: $font_variant,
+            }
+
+            // Add simplified constructor that handles PIO splitting and both statics
+            impl [<$name:camel>] {
+                /// Create a new LED matrix display with automatic PIO setup.
+                ///
+                /// This is a convenience constructor that handles PIO splitting and static
+                /// resource management automatically. All initialization happens in a single call.
+                ///
+                /// # Parameters
+                ///
+                /// - `pio`: PIO peripheral
+                /// - `dma`: DMA channel for LED data transfer
+                /// - `pin`: GPIO pin for LED data signal
+                /// - `spawner`: Task spawner for background operations
+                #[allow(non_upper_case_globals)]
+                $vis fn new(
+                    pio: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pio>,
+                    dma: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>,
+                    pin: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>,
+                    spawner: ::embassy_executor::Spawner,
+                ) -> $crate::Result<Self> {
+                    // Split PIO into state machines (uses SM0 automatically)
+                    let (sm0, _sm1, _sm2, _sm3) = [<$pio:lower _split>](pio);
+
+                    // Create strip static and strip
+                    static [<$name:upper _STRIP_STATIC>]: [<$name _strip>]::Static =
+                        [<$name _strip>]::new_static();
+                    let strip = [<$name _strip>]::new(
+                        &[<$name:upper _STRIP_STATIC>],
+                        sm0,
+                        dma,
+                        pin,
+                        spawner
+                    )?;
+
+                    // Create Led2d static and Led2d
+                    static [<$name:upper _STATIC>]: [<$name:camel Static>] =
+                        [<$name:camel>]::new_static();
+                    [<$name:camel>]::from_strip(&[<$name:upper _STATIC>], strip, spawner)
+                }
+            }
+        }
+    };
+    // Arbitrary custom mapping variant
+    (
+        $vis:vis $name:ident,
+        pio: $pio:ident,
+        pin: $pin:ident,
+        dma: $dma:ident,
+        rows: $rows:expr,
+        cols: $cols:expr,
+        mapping: arbitrary([$($index:expr),* $(,)?]),
+        max_current: $max_current:expr,
+        max_frames: $max_frames:expr,
+        font: $font_variant:ident $(,)?
+    ) => {
+        $crate::led2d::paste::paste! {
+            // Generate the LED strip infrastructure
+            $crate::led_strip::define_led_strips! {
+                pio: $pio,
+                strips: [
+                    [<$name _strip>] {
+                        sm: 0,
+                        dma: $dma,
+                        pin: $pin,
+                        len: $rows * $cols,
+                        max_current: $max_current
+                    }
+                ]
+            }
+
+            // Generate the Led2d device from the strip with arbitrary mapping
+            $crate::led2d::led2d_from_strip! {
+                $vis $name,
+                strip_module: [<$name _strip>],
+                rows: $rows,
+                cols: $cols,
+                mapping: arbitrary([$($index),*]),
+                max_frames: $max_frames,
+                font: $font_variant,
+            }
+
+            // Add simplified constructor that handles PIO splitting and both statics
+            impl [<$name:camel>] {
+                /// Create a new LED matrix display with automatic PIO setup.
+                ///
+                /// This is a convenience constructor that handles PIO splitting and static
+                /// resource management automatically. All initialization happens in a single call.
+                ///
+                /// # Parameters
+                ///
+                /// - `pio`: PIO peripheral
+                /// - `dma`: DMA channel for LED data transfer
+                /// - `pin`: GPIO pin for LED data signal
+                /// - `spawner`: Task spawner for background operations
+                #[allow(non_upper_case_globals)]
+                $vis fn new(
+                    pio: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pio>,
+                    dma: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>,
+                    pin: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>,
+                    spawner: ::embassy_executor::Spawner,
+                ) -> $crate::Result<Self> {
+                    // Split PIO into state machines (uses SM0 automatically)
+                    let (sm0, _sm1, _sm2, _sm3) = [<$pio:lower _split>](pio);
+
+                    // Create strip static and strip
+                    static [<$name:upper _STRIP_STATIC>]: [<$name _strip>]::Static =
+                        [<$name _strip>]::new_static();
+                    let strip = [<$name _strip>]::new(
+                        &[<$name:upper _STRIP_STATIC>],
+                        sm0,
+                        dma,
+                        pin,
+                        spawner
+                    )?;
+
+                    // Create Led2d static and Led2d
+                    static [<$name:upper _STATIC>]: [<$name:camel Static>] =
+                        [<$name:camel>]::new_static();
+                    [<$name:camel>]::from_strip(&[<$name:upper _STATIC>], strip, spawner)
+                }
+            }
+        }
+    };
+}
+
 /// Generate a Led2d device abstraction from an existing LED strip module.
 ///
 /// Use this macro when you want to share a PIO across multiple LED strips and treat one as a 2D display.
+/// For simple single-strip displays, use [`led2d_simple!`] instead.
 /// The strip must be created with [`define_led_strips!`](crate::led_strip::define_led_strips).
 ///
 /// # Parameters
@@ -994,7 +1261,7 @@ pub use led2d_device;
 /// #     static LED12X4_STRIP_STATIC: led12x4_strip::Static = led12x4_strip::new_static();
 /// #     let strip = led12x4_strip::new(&LED12X4_STRIP_STATIC, sm0, p.DMA_CH0, p.PIN_3, spawner).unwrap();
 /// #     static LED12X4_STATIC: Led12x4Static = Led12x4::new_static();
-/// #     let led = Led12x4::new(&LED12X4_STATIC, strip, spawner).unwrap();
+/// #     let led = Led12x4::from_strip(&LED12X4_STATIC, strip, spawner).unwrap();
 /// # }
 /// ```
 #[macro_export]
@@ -1114,13 +1381,15 @@ macro_rules! led2d_from_strip {
                 /// Create a new LED matrix display instance from an existing strip.
                 ///
                 /// The strip must be created from the same module specified in `strip_module`.
+                /// For simpler single-strip setups, see the convenience constructor generated
+                /// by [`led2d_simple!`].
                 ///
                 /// # Parameters
                 ///
                 /// - `static_resources`: Static resources created with `new_static()`
                 /// - `strip`: LED strip instance from the specified strip module
                 /// - `spawner`: Task spawner for background operations
-                $vis fn new(
+                $vis fn from_strip(
                     static_resources: &'static [<$name:camel Static>],
                     strip: $strip_module::Strip,
                     spawner: ::embassy_executor::Spawner,

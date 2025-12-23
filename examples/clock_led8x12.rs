@@ -16,11 +16,9 @@ use defmt_rtt as _;
 use device_kit::button::{Button, PressDuration, PressedTo};
 use device_kit::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
-use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip_simple::Milliamps;
 use device_kit::led_strip_simple::colors;
-use device_kit::led2d::led2d_from_strip;
-use device_kit::pio_split;
+use device_kit::led2d_simple;
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 use device_kit::wifi_auto::{WifiAuto, WifiAutoStatic};
@@ -32,24 +30,13 @@ use heapless::String;
 use panic_probe as _;
 use smart_leds::RGB8;
 
-define_led_strips! {
-    pio: PIO1,
-    strips: [
-        led8x12_strip {
-            sm: 0,
-            dma: DMA_CH1,
-            pin: PIN_4,
-            len: 96,
-            max_current: Milliamps(250)
-        }
-    ]
-}
-
 // cmk could/should we replace arbitrary with a cat of the zigzag mapping?
 // Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise)
-led2d_from_strip! {
+led2d_simple! {
     pub led8x12,
-    strip_module: led8x12_strip,
+    pio: PIO1,
+    pin: PIN_4,
+    dma: DMA_CH1,
     rows: 12,
     cols: 8,
     mapping: arbitrary([
@@ -66,6 +53,7 @@ led2d_from_strip! {
         7, 6, 5, 4, 55, 54, 53, 52,
         0, 1, 2, 3, 48, 49, 50, 51,
     ]),
+    max_current: Milliamps(250),
     max_frames: 48,
     font: Font4x6Trim,
 }
@@ -120,12 +108,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     )?;
 
     // Set up the 8x12 LED display on GPIO4.
-    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
-    static LED_8X12_STRIP_STATIC: led8x12_strip::Static = led8x12_strip::new_static();
-    let led8x12_strip = led8x12_strip::new(&LED_8X12_STRIP_STATIC, sm0, p.DMA_CH1, p.PIN_4, spawner)?;
-    
-    static LED_8X12_STATIC: Led8x12Static = Led8x12::new_static();
-    let led_8x12 = Led8x12::new(&LED_8X12_STATIC, led8x12_strip, spawner)?;
+    let led_8x12 = Led8x12::new(p.PIO1, p.DMA_CH1, p.PIN_4, spawner)?;
 
     // Connect Wi-Fi, using the LED panel for status.
     let led_8x12_ref = &led_8x12;
