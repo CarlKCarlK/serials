@@ -266,6 +266,15 @@ macro_rules! define_led_strips {
                     pin: $pin:ident,
                     len: $len:expr,
                     max_current: $max_current:expr
+                    $(,
+                        led2d: {
+                            rows: $led2d_rows:expr,
+                            cols: $led2d_cols:expr,
+                            mapping: $led2d_mapping:expr,
+                            max_frames: $led2d_max_frames:expr,
+                            font: $led2d_font:ident $(,)?
+                        }
+                    )?
                 }
             ),+ $(,)?
         ]
@@ -391,6 +400,34 @@ macro_rules! define_led_strips {
                         _
                     >(driver, commands, $module::MAX_BRIGHTNESS).await
                 }
+
+                $(
+                    paste::paste! {
+                        #[cfg(not(feature = "host"))]
+                        $crate::led2d::led2d_from_strip! {
+                            pub [<$module Led2d>],
+                            strip_type: $module,
+                            rows: $led2d_rows,
+                            cols: $led2d_cols,
+                            mapping: $led2d_mapping,
+                            max_frames: $led2d_max_frames,
+                            font: $led2d_font,
+                        }
+
+                        #[cfg(not(feature = "host"))]
+                        impl $module {
+                            pub fn new_led2d(
+                                state_machine: $crate::led_strip::PioStateMachine<::embassy_rp::peripherals::$pio, $sm_index>,
+                                dma: impl Into<::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>>,
+                                pin: impl Into<::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>>,
+                                spawner: ::embassy_executor::Spawner,
+                            ) -> $crate::Result<[<$module Led2d>]> {
+                                let strip = Self::new(state_machine, dma, pin, spawner)?;
+                                [<$module Led2d>]::from_strip(strip, spawner)
+                            }
+                        }
+                    }
+                )?
             )+
         }
     };
