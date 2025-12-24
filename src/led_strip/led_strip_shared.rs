@@ -337,7 +337,7 @@ macro_rules! define_led_strips {
                         static STRIP_STATIC: $crate::led_strip::LedStripSharedStatic<{ $len }> = $module::new_static();
                         static STRIP_CELL: ::static_cell::StaticCell<$module> = ::static_cell::StaticCell::new();
                         let (bus, sm) = state_machine.into_parts();
-                        let token = [<$module _driver>](
+                        let token = [<$module:snake _driver>](
                             bus,
                             sm,
                             dma.into(),
@@ -368,7 +368,7 @@ macro_rules! define_led_strips {
                 }
 
                 #[::embassy_executor::task]
-                async fn [<$module _driver>](
+                async fn [<$module:snake _driver>](
                     bus: &'static $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>,
                     sm: ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, $sm_index>,
                     dma: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>,
