@@ -11,7 +11,7 @@ use embassy_time::Timer;
 use panic_probe as _;
 type PioPeriph = embassy_rp::peripherals::PIO1;
 type StripStatic = LedStripStatic<LEN>;
-type Strip = LedStrip<'static, PioPeriph, LEN>;
+type Gpio2LedStrip = LedStrip<'static, PioPeriph, LEN>;
 
 const LEN: usize = 8;
 const MAX_CURRENT: Milliamps = Milliamps(50);
@@ -28,7 +28,7 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
     // cmk000 LedStripStatic?
     // cmk000 is StripStatic the right place to attach the new_static method?
     static STRIP_STATIC: StripStatic = StripStatic::new_static();
-    let mut simple_strip = new_led_strip!(
+    let mut led_strip = new_led_strip!(
         &STRIP_STATIC, // static resources
         PIN_2,         // data pin
         p.PIO1,        // PIO block
@@ -43,7 +43,7 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
     let mut direction: isize = 1;
 
     loop {
-        update_bounce(&mut simple_strip, position as usize).await?;
+        update_bounce(&mut led_strip, position as usize).await?;
 
         position += direction;
         if position <= 0 {
@@ -60,12 +60,12 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
 
 async fn update_bounce(
     // cmk2ai how to other examles avoid the full type here?
-    strip: &mut Strip,
+    led_strip: &mut Gpio2LedStrip,
     position: usize,
 ) -> Result<()> {
     assert!(position < LEN);
     let mut pixels = [colors::BLACK; LEN];
     pixels[position] = colors::WHITE;
-    strip.update_pixels(&pixels).await?;
+    led_strip.update_pixels(&pixels).await?;
     Ok(())
 }

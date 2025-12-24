@@ -154,7 +154,7 @@ impl<const N: usize> LedStripStatic<N> {
 ///
 /// async fn example(p: embassy_rp::Peripherals) -> Result<()> {
 ///     static STRIP_STATIC: LedStripStatic<8> = LedStripStatic::new_static();
-///     let mut strip = new_led_strip!(
+///     let mut led_strip = new_led_strip!(
 ///         &STRIP_STATIC,  // static resources
 ///         PIN_2,          // data pin
 ///         p.PIO0,         // PIO block (SM0)
@@ -164,7 +164,7 @@ impl<const N: usize> LedStripStatic<N> {
 ///
 ///     let mut frame = [colors::BLACK; 8];
 ///     frame[0] = colors::WHITE;
-///     strip.update_pixels(&frame).await?;
+///     led_strip.update_pixels(&frame).await?;
 ///     Ok(())
 /// }
 /// ```
@@ -223,11 +223,11 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO0, N> {
     {
         let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio0(pio);
-        let mut strip = LedStrip::new(strip_static, bus, sm, dma, pin, max_brightness);
+        let mut led_strip = LedStrip::new(strip_static, bus, sm, dma, pin, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
-        strip.update_pixels(&blank).await.ok();
-        strip
+        led_strip.update_pixels(&blank).await.ok();
+        led_strip
     }
 }
 
@@ -249,11 +249,11 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO1, N> {
     {
         let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio1(pio);
-        let mut strip = LedStrip::new(strip_static, bus, sm, dma, pin, max_brightness);
+        let mut led_strip = LedStrip::new(strip_static, bus, sm, dma, pin, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
-        strip.update_pixels(&blank).await.ok();
-        strip
+        led_strip.update_pixels(&blank).await.ok();
+        led_strip
     }
 }
 
@@ -276,11 +276,11 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO2, N> {
     {
         let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio2(pio);
-        let mut strip = LedStrip::new(strip_static, bus, sm, dma, pin, max_brightness);
+        let mut led_strip = LedStrip::new(strip_static, bus, sm, dma, pin, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
-        strip.update_pixels(&blank).await.ok();
-        strip
+        led_strip.update_pixels(&blank).await.ok();
+        led_strip
     }
 }
 

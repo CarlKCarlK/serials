@@ -21,10 +21,11 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
 
     const MAX_CURRENT: Milliamps = Milliamps(500);
 
+    // cmk000 kill this type of
     // cmk000 stripX to led_strip0, etc
     type StripStatic0 = LedStripStatic<8>;
     static STRIP_STATIC_0: StripStatic0 = StripStatic0::new_static();
-    let mut strip0 = new_led_strip!(
+    let mut led_strip_0 = new_led_strip!(
         &STRIP_STATIC_0, // static resources
         PIN_2,           // data pin
         p.PIO0,          // PIO block
@@ -35,7 +36,7 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
 
     type StripStatic1 = LedStripStatic<48>;
     static STRIP_STATIC_1: StripStatic1 = StripStatic1::new_static();
-    let mut strip1 = new_led_strip!(
+    let mut led_strip_1 = new_led_strip!(
         &STRIP_STATIC_1, // static resources
         PIN_3,           // data pin
         p.PIO1,          // PIO block
@@ -50,8 +51,8 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
     let mut state1 = BounceState::<48>::new();
 
     loop {
-        state0.update(&mut strip0).await?;
-        state1.update(&mut strip1).await?;
+        state0.update(&mut led_strip_0).await?;
+        state1.update(&mut led_strip_1).await?;
 
         Timer::after_millis(500).await;
     }
@@ -86,12 +87,12 @@ impl<const N: usize> BounceState<N> {
 
     async fn update<PIO: embassy_rp::pio::Instance>(
         &mut self,
-        strip: &mut LedStrip<'static, PIO, N>,
+        led_strip: &mut LedStrip<'static, PIO, N>,
     ) -> Result<()> {
         assert!(self.position < N);
         let mut pixels = [colors::BLACK; N];
         pixels[self.position] = colors::WHITE;
-        strip.update_pixels(&pixels).await?;
+        led_strip.update_pixels(&pixels).await?;
         self.advance();
         Ok(())
     }

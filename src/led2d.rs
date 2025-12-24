@@ -769,7 +769,7 @@ pub const fn serpentine_column_major_mapping<
 pub async fn led2d_device_loop<const N: usize, const MAX_FRAMES: usize, S>(
     command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
     completion_signal: &'static Led2dCompletionSignal,
-    strip: S,
+    led_strip: S,
 ) -> Result<Infallible>
 where
     S: UpdatePixels<N>,
@@ -783,7 +783,7 @@ where
         match command {
             Command::DisplayStatic(frame) => {
                 defmt::info!("led2d_device_loop: received DisplayStatic command");
-                strip.update_pixels(&frame).await?;
+                led_strip.update_pixels(&frame).await?;
                 completion_signal.signal(());
                 defmt::info!("led2d_device_loop: DisplayStatic completed");
             }
@@ -793,14 +793,15 @@ where
                     frames.len()
                 );
                 let next_command =
-                    run_animation_loop(frames, command_signal, completion_signal, &strip).await?;
+                    run_animation_loop(frames, command_signal, completion_signal, &led_strip)
+                        .await?;
                 defmt::info!("led2d_device_loop: animation interrupted");
                 match next_command {
                     Command::DisplayStatic(frame) => {
                         defmt::info!(
                             "led2d_device_loop: processing DisplayStatic from animation interrupt"
                         );
-                        strip.update_pixels(&frame).await?;
+                        led_strip.update_pixels(&frame).await?;
                         completion_signal.signal(());
                     }
                     Command::Animate(new_frames) => {
@@ -810,13 +811,13 @@ where
                             new_frames,
                             command_signal,
                             completion_signal,
-                            &strip,
+                            &led_strip,
                         )
                         .await?;
                         // Handle any command that interrupted this animation
                         match next_command {
                             Command::DisplayStatic(frame) => {
-                                strip.update_pixels(&frame).await?;
+                                led_strip.update_pixels(&frame).await?;
                                 completion_signal.signal(());
                             }
                             Command::Animate(_) => {
@@ -835,7 +836,7 @@ async fn run_animation_loop<const N: usize, const MAX_FRAMES: usize, S>(
     frames: Vec<([RGB8; N], Duration), MAX_FRAMES>,
     command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
     completion_signal: &'static Led2dCompletionSignal,
-    strip: &S,
+    led_strip: &S,
 ) -> Result<Command<N, MAX_FRAMES>>
 where
     S: UpdatePixels<N>,
@@ -847,7 +848,7 @@ where
     loop {
         for (frame_index, (pixels, duration)) in frames.iter().enumerate() {
             defmt::trace!("run_animation_loop: displaying frame {}", frame_index);
-            strip.update_pixels(pixels).await?;
+            led_strip.update_pixels(pixels).await?;
 
             match select(command_signal.wait(), Timer::after(*duration)).await {
                 Either::First(new_command) => {
@@ -909,10 +910,10 @@ macro_rules! led2d_device_task {
         $($vis)* async fn $task_name(
             command_signal: &'static $crate::led2d::Led2dCommandSignal<$n, $max_frames>,
             completion_signal: &'static $crate::led2d::Led2dCompletionSignal,
-            strip: $strip_ty,
+            led_strip: $strip_ty,
         ) {
             let err =
-                $crate::led2d::led2d_device_loop(command_signal, completion_signal, strip)
+                $crate::led2d::led2d_device_loop(command_signal, completion_signal, led_strip)
                     .await
                     .unwrap_err();
             panic!("{err}");
@@ -955,13 +956,13 @@ macro_rules! led2d_device {
             /// Construct the `Led2d` handle, spawning the background task automatically.
             pub fn new(
                 &'static self,
-                strip: $strip_ty,
+                led_strip: $strip_ty,
                 spawner: ::embassy_executor::Spawner,
             ) -> $crate::Result<$crate::led2d::Led2d<'static, $n, $max_frames>> {
                 let token = $task_name(
                     &self.led2d_static.command_signal,
                     &self.led2d_static.completion_signal,
-                    strip,
+                    led_strip,
                 )?;
                 spawner.spawn(token);
                 Ok($crate::led2d::Led2d::new(
@@ -1184,7 +1185,7 @@ macro_rules! led2d {
                     let (sm0, _sm1, _sm2, _sm3) = [<$pio:lower _split>](pio);
 
                     // Create strip (uses interior static)
-                    let strip = [<$name:camel Strip>]::new(
+                    let led_strip = [<$name:camel Strip>]::new(
                         sm0,
                         dma,
                         pin,
@@ -1192,7 +1193,7 @@ macro_rules! led2d {
                     )?;
 
                     // Create Led2d from strip (uses interior static)
-                    [<$name:camel>]::from_strip(strip, spawner)
+                    [<$name:camel>]::from_strip(led_strip, spawner)
                 }
             }
         }
@@ -1389,10 +1390,10 @@ macro_rules! led2d_from_strip {
                 ///
                 /// # Parameters
                 ///
-                /// - `strip`: LED strip instance from the specified strip type
+                /// - `led_strip`: LED strip instance from the specified strip type
                 /// - `spawner`: Task spawner for background operations
                 $vis fn from_strip(
-                    strip: &'static $strip_type,
+                    led_strip: &'static $strip_type,
                     spawner: ::embassy_executor::Spawner,
                 ) -> $crate::Result<Self> {
                     static STATIC: [<$name:camel Static>] = [<$name:camel>]::new_static();
@@ -1401,7 +1402,7 @@ macro_rules! led2d_from_strip {
                     let token = [<$name _device_loop>](
                         &STATIC.led2d_static.command_signal,
                         &STATIC.led2d_static.completion_signal,
-                        strip,
+                        led_strip,
                     )?;
                     spawner.spawn(token);
                     defmt::info!("Led2d::new: device task spawned");
