@@ -8,10 +8,8 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::{LedStripStatic, Milliamps, Rgb, colors, new_strip};
-use device_kit::led2d::{
-    Frame, Led2dFont, led2d_from_strip, render_text_to_frame, serpentine_column_major_mapping,
-};
+use device_kit::led_strip::{Milliamps, Rgb, colors};
+use device_kit::led2d::{led2d, led2d_from_strip};
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
@@ -48,6 +46,32 @@ led2d_from_strip! {
     font: Font3x4Trim,
 }
 
+led2d! {
+    pub led12x8_gpio4,
+    pio: PIO0,
+    pin: PIN_4,
+    dma: DMA_CH2,
+    rows: 12,
+    cols: 8,
+    mapping: arbitrary([
+        47, 46, 45, 44, 95, 94, 93, 92,
+        40, 41, 42, 43, 88, 89, 90, 91,
+        39, 38, 37, 36, 87, 86, 85, 84,
+        32, 33, 34, 35, 80, 81, 82, 83,
+        31, 30, 29, 28, 79, 78, 77, 76,
+        24, 25, 26, 27, 72, 73, 74, 75,
+        23, 22, 21, 20, 71, 70, 69, 68,
+        16, 17, 18, 19, 64, 65, 66, 67,
+        15, 14, 13, 12, 63, 62, 61, 60,
+        8, 9, 10, 11, 56, 57, 58, 59,
+        7, 6, 5, 4, 55, 54, 53, 52,
+        0, 1, 2, 3, 48, 49, 50, 51,
+    ]),
+    max_current: Milliamps(200),
+    max_frames: 48,
+    font: Font4x6Trim,
+}
+
 const SNAKE_LENGTH: usize = 4;
 const SNAKE_COLORS: [Rgb; SNAKE_LENGTH] =
     [colors::YELLOW, colors::ORANGE, colors::RED, colors::MAGENTA];
@@ -62,35 +86,17 @@ async fn main(spawner: Spawner) {
 async fn inner_main(spawner: Spawner) -> Result<()> {
     let p = embassy_rp::init(Default::default());
 
-    const MAX_CURRENT_SIMPLE: Milliamps = Milliamps(200);
-
     // Shared PIO1: gpio0 (8 LEDs) and gpio3 (12x4 LEDs)
     let (sm0, sm1, _sm2, _sm3) = pio_split!(p.PIO1);
     let strip_gpio0 = g0_strip::new(sm0, p.DMA_CH0, p.PIN_0, spawner)?;
     let strip_gpio3 = g3_strip::new(sm1, p.DMA_CH1, p.PIN_3, spawner)?;
     let led12x4_gpio3 = Led12x4Gpio3::from_strip(strip_gpio3, spawner)?;
 
-    // Single-strip new_strip! on PIO0/SM0/DMA_CH2: gpio4 (8x12 LEDs = 96)
-    type StripStaticGpio4 = LedStripStatic<96>;
-    static STRIP_STATIC_GPIO4: StripStaticGpio4 = StripStaticGpio4::new_static();
-    let mut strip_gpio4 = new_strip!(
-        &STRIP_STATIC_GPIO4,
-        PIN_4,
-        p.PIO0,
-        DMA_CH2,
-        MAX_CURRENT_SIMPLE
-    )
-    .await;
+    // Single-strip Led2d on PIO0: gpio4 (12x8 LEDs = 96)
+    let led12x8_gpio4 = Led12x8Gpio4::new(p.PIO0, p.DMA_CH2, p.PIN_4, spawner)?;
 
-    // Convert gpio4 new_strip! into a 2D helper by manually mapping frames.
-    const ROWS_GPIO4: usize = 8;
-    const COLS_GPIO4: usize = 12;
-    const N_GPIO4: usize = ROWS_GPIO4 * COLS_GPIO4;
-    const MAPPING_GPIO4: [u16; N_GPIO4] =
-        serpentine_column_major_mapping::<N_GPIO4, ROWS_GPIO4, COLS_GPIO4>();
     let go_frame_duration = Duration::from_millis(600);
     let snake_tick = Duration::from_millis(80);
-    let font = Led2dFont::Font3x4Trim.to_font();
 
     info!(
         "Running snake on GPIO0 (shared), GOGO on GPIO3 (shared->2D), GOGO on GPIO4 (new_strip->2D)"
@@ -104,7 +110,7 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
     let mut go_frames_gpio3 = Vec::<_, 2>::new();
     let mut frame1 = Led12x4Gpio3::new_frame();
     led12x4_gpio3.write_text_to_frame(
-        "gogo",
+        "go  ",
         &[
             colors::MAGENTA,
             colors::CYAN,
@@ -119,7 +125,7 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
 
     let mut frame2 = Led12x4Gpio3::new_frame();
     led12x4_gpio3.write_text_to_frame(
-        " ogo",
+        "  go",
         &[
             colors::CYAN,
             colors::ORANGE,
@@ -132,82 +138,47 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
         .push((frame2, go_frame_duration))
         .expect("go_frames has capacity for 2 frames");
 
-    // Prepare two-frame "gogo" animation for gpio4 (manual 2D -> 1D mapping)
-    let mut go_frames_gpio4 = [Frame::<ROWS_GPIO4, COLS_GPIO4>::new(); 2];
-    render_text_to_frame(
-        &mut go_frames_gpio4[0],
-        &font,
-        "gogo",
+    // Prepare two-frame "go" animation for gpio4 Led2d
+    let mut go_frames_gpio4 = Vec::<_, 2>::new();
+    let mut frame1 = Led12x8Gpio4::new_frame();
+    led12x8_gpio4.write_text_to_frame(
+        "GO\n",
         &[
             colors::MAGENTA,
             colors::CYAN,
             colors::ORANGE,
             colors::HOT_PINK,
         ],
-        (0, 0),
+        &mut frame1,
     )?;
-    render_text_to_frame(
-        &mut go_frames_gpio4[1],
-        &font,
-        " ogo",
-        &[
-            colors::CYAN,
-            colors::ORANGE,
-            colors::HOT_PINK,
-            colors::MAGENTA,
-        ],
-        (0, 0),
-    )?;
+    go_frames_gpio4
+        .push((frame1, go_frame_duration))
+        .expect("go_frames has capacity for 2 frames");
 
-    let go_frames_gpio4 = [
-        (
-            flatten_frame(go_frames_gpio4[0], &MAPPING_GPIO4),
-            Duration::from_millis(600),
-        ),
-        (
-            flatten_frame(go_frames_gpio4[1], &MAPPING_GPIO4),
-            Duration::from_millis(600),
-        ),
-    ];
+    let mut frame2 = Led12x8Gpio4::new_frame();
+    led12x8_gpio4.write_text_to_frame(
+        "\nGO",
+        &[
+            colors::CYAN,
+            colors::ORANGE,
+            colors::HOT_PINK,
+            colors::MAGENTA,
+        ],
+        &mut frame2,
+    )?;
+    go_frames_gpio4
+        .push((frame2, go_frame_duration))
+        .expect("go_frames has capacity for 2 frames");
 
     // Kick off animations
     led12x4_gpio3.animate(&go_frames_gpio3).await?;
+    led12x8_gpio4.animate(&go_frames_gpio4).await?;
 
     loop {
-        for (pixels, frame_duration) in &go_frames_gpio4 {
-            strip_gpio4.update_pixels(pixels).await?;
-
-            let mut elapsed = Duration::from_millis(0);
-            while elapsed < *frame_duration {
-                step_snake(&mut frame_gpio0, &mut position_gpio0);
-                strip_gpio0.update_pixels(&frame_gpio0).await?;
-
-                let remaining = *frame_duration - elapsed;
-                let sleep = if remaining > snake_tick {
-                    snake_tick
-                } else {
-                    remaining
-                };
-
-                Timer::after(sleep).await;
-                elapsed += sleep;
-            }
-        }
+        step_snake(&mut frame_gpio0, &mut position_gpio0);
+        strip_gpio0.update_pixels(&frame_gpio0).await?;
+        Timer::after(snake_tick).await;
     }
-}
-
-fn flatten_frame<const ROWS: usize, const COLS: usize, const N: usize>(
-    frame: Frame<ROWS, COLS>,
-    mapping: &[u16; N],
-) -> [Rgb; N] {
-    let mut out = [colors::BLACK; N];
-    for row in 0..ROWS {
-        for col in 0..COLS {
-            let idx = mapping[row * COLS + col] as usize;
-            out[idx] = frame[row][col];
-        }
-    }
-    out
 }
 
 fn step_snake(frame: &mut [Rgb], position: &mut usize) {
