@@ -15,7 +15,7 @@ use panic_probe as _;
 define_led_strips! {
     pio: PIO0,
     strips: [
-        led_strip0 {
+        LedStrip0 {
             sm: 0,
             dma: DMA_CH0,
             pin: PIN_2,
@@ -39,7 +39,7 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
     // Initialize PIO0 bus
     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
 
-    let led_strip0 = led_strip0::new(sm0, p.DMA_CH0, p.PIN_2, spawner)?;
+    let led_strip0 = LedStrip0::new(sm0, p.DMA_CH0, p.PIN_2, spawner)?;
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 
@@ -53,9 +53,9 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
     }
 }
 
-async fn update_rainbow(strip: &led_strip0, base: u8) -> Result<()> {
-    let mut pixels = [colors::BLACK; led_strip0::LEN];
-    for idx in 0..led_strip0::LEN {
+async fn update_rainbow(strip: &LedStrip0, base: u8) -> Result<()> {
+    let mut pixels = [colors::BLACK; LedStrip0::LEN];
+    for idx in 0..LedStrip0::LEN {
         let offset = base.wrapping_add((idx as u8).wrapping_mul(16));
         pixels[idx] = wheel(offset);
     }

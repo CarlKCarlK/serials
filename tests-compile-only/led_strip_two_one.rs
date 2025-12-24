@@ -22,14 +22,14 @@ use panic_probe as _;
 define_led_strips! {
     pio: PIO1,
     strips: [
-        g0_strip {
+        G0Strip {
             sm: 0,
             dma: DMA_CH0,
             pin: PIN_0,
             len: 8,
             max_current: Milliamps(200)
         },
-        g3_strip {
+        G3Strip {
             sm: 1,
             dma: DMA_CH1,
             pin: PIN_3,
@@ -42,7 +42,7 @@ define_led_strips! {
 define_led_strips! {
     pio: PIO0,
     strips: [
-        g4_strip {
+        G4Strip {
             sm: 0,
             dma: DMA_CH2,
             pin: PIN_4,
@@ -54,7 +54,7 @@ define_led_strips! {
 
 led2d_from_strip! {
     pub led12x4_gpio3,
-    strip_type: g3_strip,
+    strip_type: G3Strip,
     rows: 4,
     cols: 12,
     mapping: serpentine_column_major,
@@ -64,7 +64,7 @@ led2d_from_strip! {
 
 led2d_from_strip! {
     pub led12x8_gpio4,
-    strip_type: g4_strip,
+    strip_type: G4Strip,
     rows: 12,
     cols: 8,
     mapping: arbitrary([
@@ -101,13 +101,13 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
 
     // Shared PIO1: gpio0 (8 LEDs) and gpio3 (12x4 LEDs)
     let (sm0, sm1, _sm2, _sm3) = pio_split!(p.PIO1);
-    let strip_gpio0 = g0_strip::new(sm0, p.DMA_CH0, p.PIN_0, spawner)?;
-    let strip_gpio3 = g3_strip::new(sm1, p.DMA_CH1, p.PIN_3, spawner)?;
+    let strip_gpio0 = G0Strip::new(sm0, p.DMA_CH0, p.PIN_0, spawner)?;
+    let strip_gpio3 = G3Strip::new(sm1, p.DMA_CH1, p.PIN_3, spawner)?;
     let led12x4_gpio3 = Led12x4Gpio3::from_strip(strip_gpio3, spawner)?;
 
     // Single-strip on PIO0: gpio4 (12x8 LEDs = 96)
     let (sm0_pio0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
-    let strip_gpio4 = g4_strip::new(sm0_pio0, p.DMA_CH2, p.PIN_4, spawner)?;
+    let strip_gpio4 = G4Strip::new(sm0_pio0, p.DMA_CH2, p.PIN_4, spawner)?;
     let led12x8_gpio4 = Led12x8Gpio4::from_strip(strip_gpio4, spawner)?;
 
     let go_frame_duration = Duration::from_millis(600);
@@ -118,7 +118,7 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
     );
 
     // Snake on gpio0 (shared strip)
-    let mut frame_gpio0 = [colors::BLACK; g0_strip::LEN];
+    let mut frame_gpio0 = [colors::BLACK; G0Strip::LEN];
     let mut position_gpio0 = 0usize;
 
     // Prepare two-frame "gogo" animation for gpio3 Led2d

@@ -16,7 +16,7 @@ use panic_probe as _;
 define_led_strips! {
     pio: PIO1,
     strips: [
-        test_strip {
+        TestStrip {
             sm: 1,
             dma: DMA_CH3,
             pin: PIN_16,
@@ -30,7 +30,7 @@ define_led_strips! {
 async fn test_pio1_strip(p: embassy_rp::Peripherals, spawner: Spawner) -> device_kit::Result<()> {
     let (_sm0, sm1, _sm2, _sm3) = pio_split!(p.PIO1);
 
-    let _strip = test_strip::new(sm1, p.DMA_CH3, p.PIN_16, spawner)?;
+    let _strip = TestStrip::new(sm1, p.DMA_CH3, p.PIN_16, spawner)?;
 
     Ok(())
 }

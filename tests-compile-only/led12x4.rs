@@ -21,7 +21,7 @@ const LED12X4_COLS: usize = 12;
 define_led_strips! {
     pio: PIO0,
     strips: [
-        led12x4_pio0_strip {
+        Led12x4Pio0Strip {
             sm: 0,
             dma: DMA_CH0,
             pin: PIN_3,
@@ -34,7 +34,7 @@ define_led_strips! {
 define_led_strips! {
     pio: PIO1,
     strips: [
-        led12x4_pio1_strip {
+        Led12x4Pio1Strip {
             sm: 0,
             dma: DMA_CH1,
             pin: PIN_3,
@@ -46,7 +46,7 @@ define_led_strips! {
 
 led2d_from_strip! {
     pub led12x4_pio0,
-    strip_type: led12x4_pio0_strip,
+    strip_type: Led12x4Pio0Strip,
     rows: 4,
     cols: 12,
     mapping: serpentine_column_major,
@@ -56,7 +56,7 @@ led2d_from_strip! {
 
 led2d_from_strip! {
     pub led12x4_pio1,
-    strip_type: led12x4_pio1_strip,
+    strip_type: Led12x4Pio1Strip,
     rows: 4,
     cols: 12,
     mapping: serpentine_column_major,
@@ -70,7 +70,7 @@ async fn test_led12x4_pio0_write_text(
     spawner: Spawner,
 ) -> device_kit::Result<()> {
     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
-    let led12x4_pio0_strip = led12x4_pio0_strip::new(sm0, p.DMA_CH0, p.PIN_3, spawner)?;
+    let led12x4_pio0_strip = Led12x4Pio0Strip::new(sm0, p.DMA_CH0, p.PIN_3, spawner)?;
 
     static LED_12X4_STATIC: Led12x4Pio0Static = Led12x4Pio0::new_static();
     let led_12x4 = Led12x4Pio0::from_strip(led12x4_pio0_strip, spawner)?;
@@ -88,7 +88,7 @@ async fn test_led12x4_pio0_write_text(
 /// Verify Led12x4Pio1 constructor
 async fn test_led12x4_pio1(p: embassy_rp::Peripherals, spawner: Spawner) -> device_kit::Result<()> {
     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
-    let led12x4_pio1_strip = led12x4_pio1_strip::new(sm0, p.DMA_CH1, p.PIN_3, spawner)?;
+    let led12x4_pio1_strip = Led12x4Pio1Strip::new(sm0, p.DMA_CH1, p.PIN_3, spawner)?;
 
     static LED_12X4_STATIC: Led12x4Pio1Static = Led12x4Pio1::new_static();
     let _led_12x4 = Led12x4Pio1::from_strip(led12x4_pio1_strip, spawner)?;

@@ -240,7 +240,9 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
 /// - One type per strip with `new_static()` and `new()` constructors
 ///
 /// Each generated type dereferences to [`LedStripShared`](crate::led_strip::LedStripShared)
-/// so you can call `update_pixels` directly.
+/// so you can call `update_pixels` directly. The type name is exactly the identifier
+/// you supply to the macro; use CamelCase there to satisfy linting and keep types
+/// recognizable (e.g., `LedStrip0`).
 ///
 /// The split functions use the `LedStripPio` trait (implemented for PIO0, PIO1, PIO2)
 /// to get interrupt bindings, similar to how wifi_auto handles PIO generics.
@@ -307,7 +309,6 @@ macro_rules! define_led_strips {
         paste::paste! {
             // Create strip types
             $(
-                #[allow(non_camel_case_types)]
                 pub struct $module {
                     strip: $crate::led_strip::LedStripShared<{ $len }>,
                 }
@@ -415,7 +416,7 @@ pub use define_led_strips;
 /// define_led_strips! {
 ///     pio: PIO0,
 ///     strips: [
-///         led_strip0 {
+///         LedStrip0 {
 ///             sm: 0,
 ///             dma: DMA_CH0,
 ///             pin: PIN_2,
@@ -432,7 +433,7 @@ pub use define_led_strips;
 ///     // Split PIO0 into individual state machines
 ///     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
 ///     
-///     let led_strip_0 = led_strip0::new(sm0, p.DMA_CH0, p.PIN_2, spawner).unwrap();
+///     let led_strip_0 = LedStrip0::new(sm0, p.DMA_CH0, p.PIN_2, spawner).unwrap();
 /// }
 /// ```
 #[macro_export]
