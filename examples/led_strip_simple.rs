@@ -25,6 +25,8 @@ async fn main(spawner: Spawner) -> ! {
 async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
+    // cmk000 LedStripStatic?
+    // cmk000 is StripStatic the right place to attach the new_static method?
     static STRIP_STATIC: StripStatic = StripStatic::new_static();
     let mut simple_strip = new_led_strip!(
         &STRIP_STATIC, // static resources

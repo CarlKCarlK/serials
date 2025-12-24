@@ -21,6 +21,7 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
 
     const MAX_CURRENT: Milliamps = Milliamps(500);
 
+    // cmk000 stripX to led_strip0, etc
     type StripStatic0 = LedStripStatic<8>;
     static STRIP_STATIC_0: StripStatic0 = StripStatic0::new_static();
     let mut strip0 = new_led_strip!(

@@ -1059,11 +1059,11 @@ macro_rules! led2d {
         font: $font_variant:ident $(,)?
     ) => {
         $crate::led2d::paste::paste! {
-            // Generate the LED strip infrastructure
+            // Generate the LED strip infrastructure with a CamelCase strip type
             $crate::led_strip::define_led_strips! {
                 pio: $pio,
                 strips: [
-                    [<$name _strip>] {
+                    [<$name:camel Strip>] {
                         sm: 0,
                         dma: $dma,
                         pin: $pin,
@@ -1076,7 +1076,7 @@ macro_rules! led2d {
             // Generate the Led2d device from the strip
             $crate::led2d::led2d_from_strip! {
                 $vis $name,
-                strip_type: [<$name _strip>],
+                strip_type: [<$name:camel Strip>],
                 rows: $rows,
                 cols: $cols,
                 mapping: serpentine_column_major,
@@ -1108,7 +1108,7 @@ macro_rules! led2d {
                     let (sm0, _sm1, _sm2, _sm3) = [<$pio:lower _split>](pio);
 
                     // Create strip (uses interior static)
-                    let strip = [<$name _strip>]::new(
+                    let strip = [<$name:camel Strip>]::new(
                         sm0,
                         dma,
                         pin,
@@ -1135,11 +1135,11 @@ macro_rules! led2d {
         font: $font_variant:ident $(,)?
     ) => {
         $crate::led2d::paste::paste! {
-            // Generate the LED strip infrastructure
+            // Generate the LED strip infrastructure with a CamelCase strip type
             $crate::led_strip::define_led_strips! {
                 pio: $pio,
                 strips: [
-                    [<$name _strip>] {
+                    [<$name:camel Strip>] {
                         sm: 0,
                         dma: $dma,
                         pin: $pin,
@@ -1152,7 +1152,7 @@ macro_rules! led2d {
             // Generate the Led2d device from the strip with arbitrary mapping
             $crate::led2d::led2d_from_strip! {
                 $vis $name,
-                strip_type: [<$name _strip>],
+                strip_type: [<$name:camel Strip>],
                 rows: $rows,
                 cols: $cols,
                 mapping: arbitrary([$($index),*]),
@@ -1184,7 +1184,7 @@ macro_rules! led2d {
                     let (sm0, _sm1, _sm2, _sm3) = [<$pio:lower _split>](pio);
 
                     // Create strip (uses interior static)
-                    let strip = [<$name _strip>]::new(
+                    let strip = [<$name:camel Strip>]::new(
                         sm0,
                         dma,
                         pin,
