@@ -50,7 +50,7 @@ define_led_strips! {
 // First device: 4x12 display
 led2d_from_strip! {
     pub led4x12,
-    strip_module: led4x12_strip,
+    strip_type: led4x12_strip,
     rows: 4,
     cols: 12,
     mapping: serpentine_column_major,
@@ -61,7 +61,7 @@ led2d_from_strip! {
 // Second device: 8x8 display
 led2d_from_strip! {
     pub led8x8,
-    strip_module: led8x8_strip,
+    strip_type: led8x8_strip,
     rows: 8,
     cols: 8,
     mapping: serpentine_column_major,

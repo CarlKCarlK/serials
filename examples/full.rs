@@ -293,7 +293,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 }
 
 async fn initialize_led_strip(
-    strip: &led_strip0::Strip,
+    strip: &led_strip0,
     pixels: &mut [Rgb; led_strip0::LEN],
 ) -> Result<()> {
     for idx in 0..led_strip0::LEN {
@@ -304,7 +304,7 @@ async fn initialize_led_strip(
 }
 
 async fn advance_led_progress(
-    strip: &led_strip0::Strip,
+    strip: &led_strip0,
     pixels: &mut [Rgb; led_strip0::LEN],
     current_red: &mut usize,
 ) -> Result<()> {

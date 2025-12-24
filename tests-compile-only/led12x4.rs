@@ -46,7 +46,7 @@ define_led_strips! {
 
 led2d_from_strip! {
     pub led12x4_pio0,
-    strip_module: led12x4_pio0_strip,
+    strip_type: led12x4_pio0_strip,
     rows: 4,
     cols: 12,
     mapping: serpentine_column_major,
@@ -56,7 +56,7 @@ led2d_from_strip! {
 
 led2d_from_strip! {
     pub led12x4_pio1,
-    strip_module: led12x4_pio1_strip,
+    strip_type: led12x4_pio1_strip,
     rows: 4,
     cols: 12,
     mapping: serpentine_column_major,

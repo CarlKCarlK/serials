@@ -53,7 +53,7 @@
 //! ## Macro Parameters
 //!
 //! - Visibility and base name for generated types (e.g., `pub led12x4`)
-//! - `strip_module` - Name of the strip module created by `define_led_strips!`
+//! - `strip_type` - Name of the strip type created by `define_led_strips!`
 //! - `rows` - Number of rows in the display
 //! - `cols` - Number of columns in the display
 //! - `mapping` - LED strip physical layout:
@@ -99,7 +99,7 @@
 //! // Generate a complete LED matrix device abstraction
 //! led2d_from_strip! {
 //!     pub led12x4,
-//!     strip_module: led12x4_strip,
+//!     strip_type: led12x4_strip,
 //!     rows: 4,
 //!     cols: 12,
 //!     mapping: serpentine_column_major,
@@ -592,7 +592,8 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2dStatic<N, MAX_FRAMES> {
 }
 
 /// Internal trait for types that can update LED pixels.
-trait UpdatePixels<const N: usize> {
+#[doc(hidden)] // Required pub for macro expansion in downstream crates
+pub trait UpdatePixels<const N: usize> {
     async fn update_pixels(&self, pixels: &[RGB8; N]) -> Result<()>;
 }
 
@@ -604,9 +605,12 @@ impl<const N: usize> UpdatePixels<N> for crate::led_strip::LedStripShared<N> {
 }
 
 #[cfg(not(feature = "host"))]
-impl<const N: usize> UpdatePixels<N> for &crate::led_strip::LedStripShared<N> {
+impl<const N: usize, T> UpdatePixels<N> for &T
+where
+    T: UpdatePixels<N>,
+{
     async fn update_pixels(&self, pixels: &[RGB8; N]) -> Result<()> {
-        (*self).update_pixels(pixels).await
+        T::update_pixels(self, pixels).await
     }
 }
 
@@ -1062,7 +1066,7 @@ macro_rules! led2d {
                         sm: 0,
                         dma: $dma,
                         pin: $pin,
-                        len: $rows * $cols,
+                        len: { $rows * $cols },
                         max_current: $max_current
                     }
                 ]
@@ -1071,7 +1075,7 @@ macro_rules! led2d {
             // Generate the Led2d device from the strip
             $crate::led2d::led2d_from_strip! {
                 $vis $name,
-                strip_module: [<$name _strip>],
+                strip_type: [<$name _strip>],
                 rows: $rows,
                 cols: $cols,
                 mapping: serpentine_column_major,
@@ -1147,7 +1151,7 @@ macro_rules! led2d {
             // Generate the Led2d device from the strip with arbitrary mapping
             $crate::led2d::led2d_from_strip! {
                 $vis $name,
-                strip_module: [<$name _strip>],
+                strip_type: [<$name _strip>],
                 rows: $rows,
                 cols: $cols,
                 mapping: arbitrary([$($index),*]),
@@ -1194,7 +1198,7 @@ macro_rules! led2d {
     };
 }
 
-/// Generate a Led2d device abstraction from an existing LED strip module.
+/// Generate a Led2d device abstraction from an existing LED strip type.
 ///
 /// Use this macro when you want to share a PIO across multiple LED strips and treat one as a 2D display.
 /// For simple single-strip displays, use `led2d!` instead.
@@ -1203,7 +1207,7 @@ macro_rules! led2d {
 /// # Parameters
 ///
 /// - Visibility and base name for generated types (e.g., `pub led12x4`)
-/// - `strip_module` - Name of the strip module created by `define_led_strips!`
+/// - `strip_type` - Name of the strip type created by `define_led_strips!`
 /// - `rows` - Number of rows in the display
 /// - `cols` - Number of columns in the display
 /// - `mapping` - LED strip physical layout:
@@ -1241,7 +1245,7 @@ macro_rules! led2d {
 /// // Wrap the strip as a Led2d surface
 /// led2d_from_strip! {
 ///     pub led12x4,
-///     strip_module: led12x4_strip,
+///     strip_type: led12x4_strip,
 ///     rows: 4,
 ///     cols: 12,
 ///     mapping: serpentine_column_major,
@@ -1263,7 +1267,7 @@ macro_rules! led2d_from_strip {
     // Serpentine column-major mapping variant
     (
         $vis:vis $name:ident,
-        strip_module: $strip_module:ident,
+        strip_type: $strip_type:ident,
         rows: $rows:expr,
         cols: $cols:expr,
         mapping: serpentine_column_major,
@@ -1278,10 +1282,10 @@ macro_rules! led2d_from_strip {
             const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             // Compile-time assertion that strip length matches mapping length
-            const _: () = assert!([<$name:upper _MAPPING>].len() == $strip_module::LEN);
+            const _: () = assert!([<$name:upper _MAPPING>].len() == $strip_type::LEN);
 
             $crate::led2d::led2d_from_strip!(
-                @common $vis, $name, $strip_module, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
+                @common $vis, $name, $strip_type, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
                 $font_variant,
                 [<$name:upper _MAX_FRAMES>]
             );
@@ -1290,7 +1294,7 @@ macro_rules! led2d_from_strip {
     // Arbitrary custom mapping variant
     (
         $vis:vis $name:ident,
-        strip_module: $strip_module:ident,
+        strip_type: $strip_type:ident,
         rows: $rows:expr,
         cols: $cols:expr,
         mapping: arbitrary([$($index:expr),* $(,)?]),
@@ -1305,10 +1309,10 @@ macro_rules! led2d_from_strip {
             const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             // Compile-time assertion that strip length matches mapping length
-            const _: () = assert!([<$name:upper _MAPPING>].len() == $strip_module::LEN);
+            const _: () = assert!([<$name:upper _MAPPING>].len() == $strip_type::LEN);
 
             $crate::led2d::led2d_from_strip!(
-                @common $vis, $name, $strip_module, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
+                @common $vis, $name, $strip_type, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
                 $font_variant,
                 [<$name:upper _MAX_FRAMES>]
             );
@@ -1318,7 +1322,7 @@ macro_rules! led2d_from_strip {
     (
         @common $vis:vis,
         $name:ident,
-        $strip_module:ident,
+        $strip_type:ident,
         $rows_const:ident,
         $cols_const:ident,
         $n_const:ident,
@@ -1335,7 +1339,7 @@ macro_rules! led2d_from_strip {
             // Generate the task wrapper
             $crate::led2d::led2d_device_task!(
                 [<$name _device_loop>],
-                &'static $strip_module::Strip,
+                &'static $strip_type,
                 $n_const,
                 $max_frames_const
             );
@@ -1378,16 +1382,16 @@ macro_rules! led2d_from_strip {
 
                 /// Create a new LED matrix display instance from an existing strip.
                 ///
-                /// The strip must be created from the same module specified in `strip_module`.
+                /// The strip must be created from the same type specified in `strip_type`.
                 /// For simpler single-strip setups, see the convenience constructor generated
                 /// by [`led2d!`].
                 ///
                 /// # Parameters
                 ///
-                /// - `strip`: LED strip instance from the specified strip module
+                /// - `strip`: LED strip instance from the specified strip type
                 /// - `spawner`: Task spawner for background operations
                 $vis fn from_strip(
-                    strip: &'static $strip_module::Strip,
+                    strip: &'static $strip_type,
                     spawner: ::embassy_executor::Spawner,
                 ) -> $crate::Result<Self> {
                     static STATIC: [<$name:camel Static>] = [<$name:camel>]::new_static();

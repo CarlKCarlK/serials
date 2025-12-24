@@ -39,21 +39,21 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
     // Initialize PIO0 bus
     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
 
-    let led_strip_0 = led_strip0::new(sm0, p.DMA_CH0, p.PIN_2, spawner)?;
+    let led_strip0 = led_strip0::new(sm0, p.DMA_CH0, p.PIN_2, spawner)?;
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 
     let mut hue: u8 = 0;
 
     loop {
-        update_rainbow(led_strip_0, hue).await?;
+        update_rainbow(led_strip0, hue).await?;
 
         hue = hue.wrapping_add(3);
         Timer::after_millis(80).await;
     }
 }
 
-async fn update_rainbow(strip: &led_strip0::Strip, base: u8) -> Result<()> {
+async fn update_rainbow(strip: &led_strip0, base: u8) -> Result<()> {
     let mut pixels = [colors::BLACK; led_strip0::LEN];
     for idx in 0..led_strip0::LEN {
         let offset = base.wrapping_add((idx as u8).wrapping_mul(16));

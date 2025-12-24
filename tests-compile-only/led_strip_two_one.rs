@@ -1,6 +1,9 @@
 #![no_std]
 #![no_main]
 
+// cmk000 would be nice to make define_led_strips create 2Ds directly
+// cmk000 names of generated modules/sturcts seems a mess and names are inconsistent.
+
 // cmk000 we need to document that `led2d_from_strip` can only be used once
 // cmk000 where are are pools? should they be set?
 
@@ -51,7 +54,7 @@ define_led_strips! {
 
 led2d_from_strip! {
     pub led12x4_gpio3,
-    strip_module: g3_strip,
+    strip_type: g3_strip,
     rows: 4,
     cols: 12,
     mapping: serpentine_column_major,
@@ -61,7 +64,7 @@ led2d_from_strip! {
 
 led2d_from_strip! {
     pub led12x8_gpio4,
-    strip_module: g4_strip,
+    strip_type: g4_strip,
     rows: 12,
     cols: 8,
     mapping: arbitrary([
