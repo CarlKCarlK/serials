@@ -42,7 +42,7 @@ Variables should generally match their type names converted to snake_case. This 
 
 - `Led12x4` → `led_12x4` (preserves numeric separators)
 - `WifiAuto` → `wifi_auto`
-- `LedStripSimple` → `led_strip`
+- `LedStrip` → `led_strip`
 - `Led12x4ClockDisplay` → `led_12x4_clock_display`
 
 **When to deviate:**

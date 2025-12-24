@@ -1,9 +1,9 @@
-//! A device abstraction for rectangular LED matrix displays with arbitrary size.
+//! A device abstraction for rectangular WS2812-style LED matrix displays with arbitrary size.
 //!
 //! Supports text rendering, animation, and full graphics capabilities. For simple
 //! single-strip displays, use the `led2d!` macro. For multi-strip scenarios
 //! where you need to share a PIO with other devices, use `led2d_from_strip!` with
-//! [`define_led_strips!`](crate::led_strip::led_strip_shared::define_led_strips).
+//! [`define_led_strips!`](crate::led_strip::define_led_strips).
 //!
 //! For custom graphics, create a [`Frame`] and use the
 //! [`embedded-graphics`](https://docs.rs/embedded-graphics) drawing API. See the
@@ -76,7 +76,7 @@
 //! # use panic_probe as _;
 //! use embassy_executor::Spawner;
 //! use embassy_rp::init;
-//! use device_kit::led_strip::led_strip_shared::define_led_strips;
+//! use device_kit::led_strip::define_led_strips;
 //! use device_kit::led2d::led2d_from_strip;
 //! use device_kit::led_strip::Milliamps;
 //! use device_kit::led_strip::colors;
@@ -128,7 +128,6 @@
 //! ```
 
 // Re-export for macro use
-// Must be `pub` (not `pub(crate)`) because macros expand at the call site in downstream crates, but this is an implementation detail.
 #[doc(hidden)]
 pub use paste;
 
@@ -446,7 +445,7 @@ impl Led2dFont {
 /// # }
 /// ```
 ///
-/// See the [module-level documentation](crate::led2d) for more usage examples.
+/// See the [module-level documentation](mod@crate::led2d) for more usage examples.
 #[derive(Clone, Copy, Debug)]
 pub struct Frame<const ROWS: usize, const COLS: usize>(pub [[RGB8; COLS]; ROWS]);
 
@@ -598,14 +597,14 @@ trait UpdatePixels<const N: usize> {
 }
 
 #[cfg(not(feature = "host"))]
-impl<const N: usize> UpdatePixels<N> for crate::led_strip::led_strip_shared::LedStrip<N> {
+impl<const N: usize> UpdatePixels<N> for crate::led_strip::LedStripShared<N> {
     async fn update_pixels(&self, pixels: &[RGB8; N]) -> Result<()> {
-        self.update_pixels(pixels).await
+        crate::led_strip::LedStripShared::update_pixels(self, pixels).await
     }
 }
 
 #[cfg(not(feature = "host"))]
-impl<const N: usize> UpdatePixels<N> for &'static crate::led_strip::led_strip_shared::LedStrip<N> {
+impl<const N: usize> UpdatePixels<N> for &crate::led_strip::LedStripShared<N> {
     async fn update_pixels(&self, pixels: &[RGB8; N]) -> Result<()> {
         (*self).update_pixels(pixels).await
     }
@@ -613,7 +612,7 @@ impl<const N: usize> UpdatePixels<N> for &'static crate::led_strip::led_strip_sh
 
 // cmk000 don't use the phrase 'module-level' in docs.
 // cmk00 this needs a compiled-only doc test.
-/// A device abstraction for rectangular LED matrix displays.
+/// A device abstraction for rectangular WS2812-styleLED matrix displays.
 ///
 /// Supports any size display with arbitrary coordinate-to-LED-index mapping.
 /// The mapping is stored as a runtime slice, allowing stable Rust without experimental features.
@@ -622,7 +621,7 @@ impl<const N: usize> UpdatePixels<N> for &'static crate::led_strip::led_strip_sh
 /// N (total LEDs) and MAX_FRAMES (animation capacity).
 ///
 /// Most users should use the `led2d!` or `led2d_from_strip!` macros which generate
-/// a higher-level wrapper. See the [module-level documentation](crate::led2d) for examples.
+/// a higher-level wrapper. See the [module-level documentation](mod@crate::led2d) for examples.
 pub struct Led2d<'a, const N: usize, const MAX_FRAMES: usize> {
     command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
     completion_signal: &'static Led2dCompletionSignal,
@@ -1056,7 +1055,7 @@ macro_rules! led2d {
     ) => {
         $crate::led2d::paste::paste! {
             // Generate the LED strip infrastructure
-            $crate::led_strip::led_strip_shared::define_led_strips! {
+            $crate::led_strip::define_led_strips! {
                 pio: $pio,
                 strips: [
                     [<$name _strip>] {
@@ -1132,7 +1131,7 @@ macro_rules! led2d {
     ) => {
         $crate::led2d::paste::paste! {
             // Generate the LED strip infrastructure
-            $crate::led_strip::led_strip_shared::define_led_strips! {
+            $crate::led_strip::define_led_strips! {
                 pio: $pio,
                 strips: [
                     [<$name _strip>] {
@@ -1199,7 +1198,7 @@ macro_rules! led2d {
 ///
 /// Use this macro when you want to share a PIO across multiple LED strips and treat one as a 2D display.
 /// For simple single-strip displays, use `led2d!` instead.
-/// The strip must be created with [`define_led_strips!`](crate::led_strip::led_strip_shared::define_led_strips).
+/// The strip must be created with [`define_led_strips!`](crate::led_strip::define_led_strips).
 ///
 /// # Parameters
 ///
@@ -1219,7 +1218,7 @@ macro_rules! led2d {
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// use device_kit::led_strip::led_strip_shared::define_led_strips;
+/// use device_kit::led_strip::define_led_strips;
 /// use device_kit::led2d::led2d_from_strip;
 /// use device_kit::led_strip::Milliamps;
 /// use device_kit::pio_split;

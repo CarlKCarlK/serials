@@ -1,30 +1,22 @@
 //! A device abstraction for WS2812-style LED strips.
-//! See [`LedStripSimple`] for the main usage example and [led_strip_shared](crate::led_strip::led_strip_shared) for the fuller driver if you need more than a couple of strips.
+//!
+//! See [`LedStrip`] for the simple single-strip driver, or use [`define_led_strips!`] for managing multiple strips on one PIO.
 
-pub mod led_strip_shared;
+include!("led_strip/led_strip_shared.rs");
+// See [`LedStrip`] for the main usage example and [`LedStripShared`] / [`define_led_strips!`] for multi-strip setups on one PIO.
 
-use core::cell::RefCell;
 use embassy_rp::clocks::clk_sys_freq;
 use embassy_rp::pio::program::{Assembler, JmpCondition, OutDestination, SetDestination, SideSet};
 use embassy_rp::pio::{
-    Common, Config, FifoJoin, Instance, LoadedProgram, PioPin, ShiftConfig, ShiftDirection,
-    StateMachine,
+    Config, FifoJoin, LoadedProgram, PioPin, ShiftConfig, ShiftDirection,
+    StateMachine as EmbassyStateMachine,
 };
 use embassy_rp::pio_programs::ws2812::{Grb, RgbColorOrder};
-use embassy_sync::blocking_mutex::Mutex;
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::once_lock::OnceLock;
 use embassy_time::{Duration, Timer};
 use fixed::types::U24F8;
-use smart_leds::RGB8;
-/// RGB color constants.
+#[doc(inline)]
 pub use smart_leds::colors;
 use static_cell::StaticCell;
-
-use crate::Result;
-
-/// RGB color representation re-exported from `smart_leds`.
-pub type Rgb = RGB8;
 
 /// Current budget for LED strips, specified in milliamps.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -48,18 +40,21 @@ const RESET_DELAY_US: u64 = 55;
 use crate::pio_irqs::Pio2Irqs;
 use crate::pio_irqs::{Pio0Irqs, Pio1Irqs};
 
-static PIO0_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO0>> = StaticCell::new();
-static PIO1_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO1>> = StaticCell::new();
+static PIO0_BUS_SINGLE: StaticCell<PioBusSingle<'static, embassy_rp::peripherals::PIO0>> =
+    StaticCell::new();
+static PIO1_BUS_SINGLE: StaticCell<PioBusSingle<'static, embassy_rp::peripherals::PIO1>> =
+    StaticCell::new();
 #[cfg(feature = "pico2")]
-static PIO2_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO2>> = StaticCell::new();
+static PIO2_BUS_SINGLE: StaticCell<PioBusSingle<'static, embassy_rp::peripherals::PIO2>> =
+    StaticCell::new();
 
 /// Shared PIO bus that loads and reuses the WS2812 program.
-pub(crate) struct PioBus<'d, PIO: Instance> {
+pub(crate) struct PioBusSingle<'d, PIO: Instance> {
     common: Mutex<CriticalSectionRawMutex, RefCell<Common<'d, PIO>>>,
     program: OnceLock<LoadedProgram<'d, PIO>>,
 }
 
-impl<'d, PIO: Instance> PioBus<'d, PIO> {
+impl<'d, PIO: Instance> PioBusSingle<'d, PIO> {
     /// Creates a bus around a PIO common resource.
     pub fn new(common: Common<'d, PIO>) -> Self {
         Self {
@@ -91,11 +86,11 @@ impl<'d, PIO: Instance> PioBus<'d, PIO> {
 pub(crate) fn init_pio0(
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
 ) -> (
-    &'static PioBus<'static, embassy_rp::peripherals::PIO0>,
-    StateMachine<'static, embassy_rp::peripherals::PIO0, 0>,
+    &'static PioBusSingle<'static, embassy_rp::peripherals::PIO0>,
+    EmbassyStateMachine<'static, embassy_rp::peripherals::PIO0, 0>,
 ) {
     let embassy_rp::pio::Pio { common, sm0, .. } = embassy_rp::pio::Pio::new(pio, Pio0Irqs);
-    let bus = PIO0_BUS.init_with(|| PioBus::new(common));
+    let bus = PIO0_BUS_SINGLE.init_with(|| PioBusSingle::new(common));
     (bus, sm0)
 }
 
@@ -103,11 +98,11 @@ pub(crate) fn init_pio0(
 pub(crate) fn init_pio1(
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
 ) -> (
-    &'static PioBus<'static, embassy_rp::peripherals::PIO1>,
-    StateMachine<'static, embassy_rp::peripherals::PIO1, 0>,
+    &'static PioBusSingle<'static, embassy_rp::peripherals::PIO1>,
+    EmbassyStateMachine<'static, embassy_rp::peripherals::PIO1, 0>,
 ) {
     let embassy_rp::pio::Pio { common, sm0, .. } = embassy_rp::pio::Pio::new(pio, Pio1Irqs);
-    let bus = PIO1_BUS.init_with(|| PioBus::new(common));
+    let bus = PIO1_BUS_SINGLE.init_with(|| PioBusSingle::new(common));
     (bus, sm0)
 }
 
@@ -116,11 +111,11 @@ pub(crate) fn init_pio1(
 pub(crate) fn init_pio2(
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO2>,
 ) -> (
-    &'static PioBus<'static, embassy_rp::peripherals::PIO2>,
-    StateMachine<'static, embassy_rp::peripherals::PIO2, 0>,
+    &'static PioBusSingle<'static, embassy_rp::peripherals::PIO2>,
+    EmbassyStateMachine<'static, embassy_rp::peripherals::PIO2, 0>,
 ) {
     let embassy_rp::pio::Pio { common, sm0, .. } = embassy_rp::pio::Pio::new(pio, Pio2Irqs);
-    let bus = PIO2_BUS.init_with(|| PioBus::new(common));
+    let bus = PIO2_BUS_SINGLE.init_with(|| PioBusSingle::new(common));
     (bus, sm0)
 }
 
@@ -149,7 +144,7 @@ pub(crate) struct PioWs2812Cpu<'d, P: Instance, const S: usize, const N: usize, 
 where
     ORDER: RgbColorOrder,
 {
-    sm: StateMachine<'d, P, S>,
+    sm: EmbassyStateMachine<'d, P, S>,
     _order: core::marker::PhantomData<ORDER>,
 }
 
@@ -160,7 +155,7 @@ where
     /// Configures the state machine and prepares it for writes.
     pub fn new(
         pio: &mut Common<'d, P>,
-        sm: StateMachine<'d, P, S>,
+        sm: EmbassyStateMachine<'d, P, S>,
         pin: embassy_rp::Peri<'d, impl PioPin>,
         program: &LoadedProgram<'d, P>,
     ) -> Self {
@@ -211,8 +206,8 @@ where
 
 /// Builds a GRB-order driver without spawning a task; caller drives frames directly.
 pub(crate) fn new_driver_grb<PIO, const S: usize, const N: usize>(
-    bus: &'static PioBus<'static, PIO>,
-    sm: StateMachine<'static, PIO, S>,
+    bus: &'static PioBusSingle<'static, PIO>,
+    sm: EmbassyStateMachine<'static, PIO, S>,
     pin: embassy_rp::Peri<'static, impl PioPin>,
 ) -> PioWs2812Cpu<'static, PIO, S, N, Grb>
 where
@@ -223,7 +218,7 @@ where
 }
 
 #[inline]
-fn scale_brightness(value: u8, brightness: u8) -> u8 {
+fn scale_brightness_single(value: u8, brightness: u8) -> u8 {
     ((u16::from(value) * u16::from(brightness)) / 255) as u8
 }
 
@@ -247,21 +242,21 @@ fn max_brightness_for<const N: usize>(max_current: Milliamps) -> u8 {
 fn apply_max_brightness<const N: usize>(frame: &mut [Rgb; N], max_brightness: u8) {
     for color in frame.iter_mut() {
         *color = Rgb::new(
-            scale_brightness(color.r, max_brightness),
-            scale_brightness(color.g, max_brightness),
-            scale_brightness(color.b, max_brightness),
+            scale_brightness_single(color.r, max_brightness),
+            scale_brightness_single(color.g, max_brightness),
+            scale_brightness_single(color.b, max_brightness),
         );
     }
 }
 
-/// Static resources backing a [`LedStripSimple`] instance.
+/// Static resources backing a [`LedStrip`] instance.
 ///
-/// See [`LedStripSimple`] for the usage example.
-pub struct LedStripSimpleStatic<const N: usize> {
+/// See [`LedStrip`] for the usage example.
+pub struct LedStripStatic<const N: usize> {
     _priv: (),
 }
 
-impl<const N: usize> LedStripSimpleStatic<N> {
+impl<const N: usize> LedStripStatic<N> {
     /// Number of LEDs in the strip.
     pub const LEN: usize = N;
 
@@ -274,7 +269,7 @@ impl<const N: usize> LedStripSimpleStatic<N> {
 /// Device abstraction for a single WS2812-style LED strip.
 ///
 /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units.
-/// This driver requires one PIO unit per LED strip. The more complex [led_strip_shared](crate::led_strip::led_strip_shared) can drive up to four strips per PIO.
+/// This driver requires one PIO unit per LED strip. The more complex [LedStripShared] can drive up to four strips per PIO.
 ///
 /// # Example
 /// ```no_run
@@ -282,17 +277,17 @@ impl<const N: usize> LedStripSimpleStatic<N> {
 /// # use panic_probe as _;
 /// # fn main() {}
 /// use device_kit::led_strip::{
-///     LedStripSimple,
-///     LedStripSimpleStatic,
+///     LedStrip,
+///     LedStripStatic,
 ///     Milliamps,
 ///     colors,
-///     new_simple_strip,
+///     new_strip,
 /// };
 /// use device_kit::Result;
 ///
 /// async fn example(p: embassy_rp::Peripherals) -> Result<()> {
-///     static STRIP_STATIC: LedStripSimpleStatic<8> = LedStripSimpleStatic::new_static();
-///     let mut strip = new_simple_strip!(
+///     static STRIP_STATIC: LedStripStatic<8> = LedStripStatic::new_static();
+///     let mut strip = new_strip!(
 ///         &STRIP_STATIC,  // static resources
 ///         PIN_2,          // data pin
 ///         p.PIO0,         // PIO block
@@ -305,17 +300,17 @@ impl<const N: usize> LedStripSimpleStatic<N> {
 ///     Ok(())
 /// }
 /// ```
-pub struct LedStripSimple<'d, PIO: Instance, const N: usize> {
+pub struct LedStrip<'d, PIO: Instance, const N: usize> {
     driver: PioWs2812Cpu<'d, PIO, 0, N, Grb>,
     max_brightness: u8,
 }
 
-impl<'d, PIO: Instance, const N: usize> LedStripSimple<'d, PIO, N> {
+impl<'d, PIO: Instance, const N: usize> LedStrip<'d, PIO, N> {
     /// Construct a new inline strip driver from shared bus/state machine and pin.
     pub(crate) fn new(
-        strip_static: &'static LedStripSimpleStatic<N>,
-        bus: &'static PioBus<'static, PIO>,
-        sm: StateMachine<'static, PIO, 0>,
+        strip_static: &'static LedStripStatic<N>,
+        bus: &'static PioBusSingle<'static, PIO>,
+        sm: EmbassyStateMachine<'static, PIO, 0>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_brightness: u8,
     ) -> Self {
@@ -329,7 +324,7 @@ impl<'d, PIO: Instance, const N: usize> LedStripSimple<'d, PIO, N> {
 
     /// Update all pixels at once.
     ///
-    /// See [`LedStripSimple`] for the usage example.
+    /// See [`LedStrip`] for the usage example.
     pub async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
         let mut frame = *pixels;
         apply_max_brightness(&mut frame, self.max_brightness);
@@ -338,21 +333,21 @@ impl<'d, PIO: Instance, const N: usize> LedStripSimple<'d, PIO, N> {
     }
 }
 
-impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO0, N> {
-    /// Builds a `LedStripSimple` on PIO0/SM0.
+impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO0, N> {
+    /// Builds a `LedStrip` on PIO0/SM0.
     ///
-    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [led_strip_shared](crate::led_strip::led_strip_shared) can drive up to four strips per PIO.
+    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [LedStripShared] can drive up to four strips per PIO.
     ///
-    /// See [`LedStripSimple`] for the usage example.
+    /// See [`LedStrip`] for the usage example.
     pub async fn new_pio0(
-        strip_static: &'static LedStripSimpleStatic<N>,
+        strip_static: &'static LedStripStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_current: Milliamps,
     ) -> Self {
         let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio0(pio);
-        let mut strip = LedStripSimple::new(strip_static, bus, sm, pin, max_brightness);
+        let mut strip = LedStrip::new(strip_static, bus, sm, pin, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
         strip.update_pixels(&blank).await.ok();
@@ -360,21 +355,21 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO0, N> {
     }
 }
 
-impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO1, N> {
-    /// Builds a `LedStripSimple` on PIO1/SM0.
+impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO1, N> {
+    /// Builds a `LedStrip` on PIO1/SM0.
     ///
-    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [led_strip_shared](crate::led_strip::led_strip_shared) can drive up to four strips per PIO.
+    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [LedStripShared] can drive up to four strips per PIO.
     ///
-    /// See [`LedStripSimple`] for the usage example.
+    /// See [`LedStrip`] for the usage example.
     pub async fn new_pio1(
-        strip_static: &'static LedStripSimpleStatic<N>,
+        strip_static: &'static LedStripStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_current: Milliamps,
     ) -> Self {
         let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio1(pio);
-        let mut strip = LedStripSimple::new(strip_static, bus, sm, pin, max_brightness);
+        let mut strip = LedStrip::new(strip_static, bus, sm, pin, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
         strip.update_pixels(&blank).await.ok();
@@ -383,21 +378,21 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO1, N> {
 }
 
 #[cfg(feature = "pico2")]
-impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO2, N> {
-    /// Builds a `LedStripSimple` on PIO2/SM0.
+impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO2, N> {
+    /// Builds a `LedStrip` on PIO2/SM0.
     ///
-    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [led_strip_shared](crate::led_strip::led_strip_shared) can drive up to four strips per PIO.
+    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [LedStripShared] can drive up to four strips per PIO.
     ///
-    /// See [`LedStripSimple`] for the usage example.
+    /// See [`LedStrip`] for the usage example.
     pub async fn new_pio2(
-        strip_static: &'static LedStripSimpleStatic<N>,
+        strip_static: &'static LedStripStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO2>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_current: Milliamps,
     ) -> Self {
         let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio2(pio);
-        let mut strip = LedStripSimple::new(strip_static, bus, sm, pin, max_brightness);
+        let mut strip = LedStrip::new(strip_static, bus, sm, pin, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
         strip.update_pixels(&blank).await.ok();
@@ -408,15 +403,15 @@ impl<const N: usize> LedStripSimple<'static, embassy_rp::peripherals::PIO2, N> {
 #[doc(hidden)]
 #[macro_export]
 /// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and fails fast if PIO2 is used on Pico 1.
-/// See the usage example on [`LedStripSimple`].
-macro_rules! new_simple_strip {
+/// See the usage example on [`LedStrip`].
+macro_rules! new_strip {
     (
         $strip_static:expr,
         $pin:ident,
         $peripherals:ident . PIO0,
         $max_current:expr
     ) => {
-        $crate::led_strip::LedStripSimple::new_pio0(
+        $crate::led_strip::LedStrip::new_pio0(
             $strip_static,
             $peripherals.PIO0,
             $peripherals.$pin,
@@ -429,7 +424,7 @@ macro_rules! new_simple_strip {
         $peripherals:ident . PIO1,
         $max_current:expr
     ) => {
-        $crate::led_strip::LedStripSimple::new_pio1(
+        $crate::led_strip::LedStrip::new_pio1(
             $strip_static,
             $peripherals.PIO1,
             $peripherals.$pin,
@@ -444,7 +439,7 @@ macro_rules! new_simple_strip {
     ) => {{
         #[cfg(feature = "pico2")]
         {
-            $crate::led_strip::LedStripSimple::new_pio2(
+            $crate::led_strip::LedStrip::new_pio2(
                 $strip_static,
                 $peripherals.PIO2,
                 $peripherals.$pin,
@@ -459,6 +454,6 @@ macro_rules! new_simple_strip {
 }
 
 /// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and fails fast if PIO2 is used on Pico 1.
-/// See the usage example on [`LedStripSimple`].
+/// See the usage example on [`LedStrip`].
 #[doc(inline)]
-pub use new_simple_strip;
+pub use new_strip;

@@ -1,6 +1,6 @@
-//! A device abstraction for WS2812-style LED strips.
-//!
-//! See [`LedStrip`] for the main usage example.
+// A device abstraction for WS2812-style LED strips.
+//
+// See [`LedStripShared`] for the main usage example.
 
 use core::cell::RefCell;
 use embassy_rp::pio::{Common, Instance};
@@ -16,9 +16,6 @@ use crate::Result;
 /// RGB color representation re-exported from `smart_leds`.
 pub type Rgb = RGB8;
 
-/// Maximum supported LED strip length
-pub const MAX_LEDS: usize = 256;
-
 // ============================================================================
 // PIO Bus - Shared PIO resource for multiple LED strips
 // ============================================================================
@@ -27,6 +24,7 @@ pub const MAX_LEDS: usize = 256;
 ///
 /// This trait is automatically implemented by the `define_led_strips!` macro
 /// for the PIO peripheral specified in the macro invocation.
+#[doc(hidden)] // Required pub for macro expansion in downstream crates
 pub trait LedStripPio: Instance {
     /// The interrupt binding type for this PIO
     type Irqs: embassy_rp::interrupt::typelevel::Binding<
@@ -40,12 +38,14 @@ pub trait LedStripPio: Instance {
 /// A state machine bundled with its PIO bus.
 ///
 /// This is returned by `pio_split!` and passed to strip constructors.
-pub struct StateMachine<PIO: Instance + 'static, const SM: usize> {
+#[doc(hidden)] // Support type for macro-generated modules; not intended as surface API
+pub struct PioStateMachine<PIO: Instance + 'static, const SM: usize> {
     bus: &'static PioBus<'static, PIO>,
     sm: embassy_rp::pio::StateMachine<'static, PIO, SM>,
 }
+// cmk should spell out sm and name bus pio_bus, this this be PioBusStateMachine?ks
 
-impl<PIO: Instance + 'static, const SM: usize> StateMachine<PIO, SM> {
+impl<PIO: Instance + 'static, const SM: usize> PioStateMachine<PIO, SM> {
     #[doc(hidden)]
     pub fn new(
         bus: &'static PioBus<'static, PIO>,
@@ -70,6 +70,7 @@ impl<PIO: Instance + 'static, const SM: usize> StateMachine<PIO, SM> {
     }
 }
 /// Shared PIO bus that manages the Common resource and WS2812 program
+#[doc(hidden)] // Support type for macro-generated modules; not intended as surface API
 pub struct PioBus<'d, PIO: Instance> {
     common: Mutex<CriticalSectionRawMutex, RefCell<Common<'d, PIO>>>,
     ws2812_program: OnceLock<PioWs2812Program<'d, PIO>>,
@@ -87,7 +88,7 @@ impl<'d, PIO: Instance> PioBus<'d, PIO> {
     /// Get or initialize the WS2812 program (only loaded once)
     pub fn get_program(&'static self) -> &'static PioWs2812Program<'d, PIO> {
         self.ws2812_program.get_or_init(|| {
-            self.common.lock(|common_cell| {
+            self.common.lock(|common_cell: &RefCell<Common<'d, PIO>>| {
                 let mut common = common_cell.borrow_mut();
                 PioWs2812Program::new(&mut *common)
             })
@@ -99,7 +100,7 @@ impl<'d, PIO: Instance> PioBus<'d, PIO> {
     where
         F: FnOnce(&mut Common<'d, PIO>) -> R,
     {
-        self.common.lock(|common_cell| {
+        self.common.lock(|common_cell: &RefCell<Common<'d, PIO>>| {
             let mut common = common_cell.borrow_mut();
             f(&mut *common)
         })
@@ -110,14 +111,15 @@ impl<'d, PIO: Instance> PioBus<'d, PIO> {
 // LED Strip Command Channel and Static
 // ============================================================================
 
+#[doc(hidden)] // Required pub for macro expansion in downstream crates
 pub type LedStripCommands<const N: usize> = EmbassyChannel<CriticalSectionRawMutex, [Rgb; N], 2>;
 
 /// Static used to construct LED strip instances.
-pub struct LedStripStatic<const N: usize> {
+pub struct LedStripSharedStatic<const N: usize> {
     commands: LedStripCommands<N>,
 }
 
-impl<const N: usize> LedStripStatic<N> {
+impl<const N: usize> LedStripSharedStatic<N> {
     /// Creates static resources.
     #[must_use]
     pub const fn new_static() -> Self {
@@ -132,43 +134,48 @@ impl<const N: usize> LedStripStatic<N> {
 }
 
 /// A device abstraction for WS2812-style LED strips with configurable length.
+/// See the struct-level example for usage.
 ///
 /// ```no_run
 /// # #![no_std]
 /// # use panic_probe as _;
 /// # fn main() {}
-/// use device_kit::led_strip::led_strip_shared::{LedStrip, LedStripStatic, Rgb};
+/// use device_kit::led_strip::{colors, LedStripShared, LedStripSharedStatic};
 ///
 /// async fn example() -> device_kit::Result<()> {
-///     static LED_STRIP_STATIC: LedStripStatic<8> = LedStrip::new_static();
-///     let mut strip: LedStrip<8> = LedStrip::new(&LED_STRIP_STATIC)?;
+///     static LED_STRIP_SHARED_STATIC: LedStripSharedStatic<8> = LedStripShared::new_static();
+///     let led_strip_shared: LedStripShared<8> = LedStripShared::new(&LED_STRIP_SHARED_STATIC)?;
 ///
-///     let red = Rgb::new(16, 0, 0);
-///     let green = Rgb::new(0, 16, 0);
-///     let blue = Rgb::new(0, 0, 16);
 ///     let frame = [
-///         red, green, blue, red, green, blue, red, green,
+///         colors::RED,
+///         colors::GREEN,
+///         colors::BLUE,
+///         colors::YELLOW,
+///         colors::CYAN,
+///         colors::MAGENTA,
+///         colors::WHITE,
+///         colors::BLACK,
 ///     ];
-///     strip.update_pixels(&frame).await?;
+///     led_strip_shared.update_pixels(&frame).await?;
 ///     Ok(())
 /// }
 /// ```
-pub struct LedStrip<const N: usize> {
+pub struct LedStripShared<const N: usize> {
     commands: &'static LedStripCommands<N>,
 }
 
-impl<const N: usize> LedStrip<N> {
+impl<const N: usize> LedStripShared<N> {
     /// WS2812B timing: ~30µs per LED + 100µs safety margin
     const WRITE_DELAY_US: u64 = (N as u64 * 30) + 100;
 
     /// Creates LED strip resources.
     #[must_use]
-    pub const fn new_static() -> LedStripStatic<N> {
-        LedStripStatic::new_static()
+    pub const fn new_static() -> LedStripSharedStatic<N> {
+        LedStripSharedStatic::new_static()
     }
 
     /// Creates a new LED strip controller bound to the given static resources.
-    pub fn new(led_strip_static: &'static LedStripStatic<N>) -> Result<Self> {
+    pub fn new(led_strip_static: &'static LedStripSharedStatic<N>) -> Result<Self> {
         Ok(Self {
             commands: led_strip_static.commands(),
         })
@@ -186,9 +193,7 @@ impl<const N: usize> LedStrip<N> {
     }
 }
 
-// cmk likely shouldn't be pub
-/// Driver loop with brightness scaling.
-/// Scales all RGB values by `max_brightness / 255` before writing to LEDs.
+#[doc(hidden)] // Required pub for macro expansion in downstream crates
 pub async fn led_strip_driver_loop<PIO, const SM: usize, const N: usize, ORDER>(
     mut driver: PioWs2812<'static, PIO, SM, N, ORDER>,
     commands: &'static LedStripCommands<N>,
@@ -244,7 +249,6 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
 /// // Requires target support and macro imports; no_run to avoid hardware access in doctests.
 /// # fn main() {}
 /// ```
-#[doc(hidden)]
 #[macro_export]
 macro_rules! define_led_strips {
     (
@@ -266,7 +270,7 @@ macro_rules! define_led_strips {
             // Create the PIO bus
             #[allow(non_upper_case_globals)]
             static [<$pio _BUS>]: ::static_cell::StaticCell<
-                $crate::led_strip::led_strip_shared::PioBus<'static, ::embassy_rp::peripherals::$pio>
+                $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>
             > = ::static_cell::StaticCell::new();
 
             /// Split the PIO into bus and state machines.
@@ -276,21 +280,21 @@ macro_rules! define_led_strips {
             pub fn [<$pio:lower _split>](
                 pio: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pio>,
             ) -> (
-                $crate::led_strip::led_strip_shared::StateMachine<::embassy_rp::peripherals::$pio, 0>,
-                $crate::led_strip::led_strip_shared::StateMachine<::embassy_rp::peripherals::$pio, 1>,
-                $crate::led_strip::led_strip_shared::StateMachine<::embassy_rp::peripherals::$pio, 2>,
-                $crate::led_strip::led_strip_shared::StateMachine<::embassy_rp::peripherals::$pio, 3>,
+                $crate::led_strip::PioStateMachine<::embassy_rp::peripherals::$pio, 0>,
+                $crate::led_strip::PioStateMachine<::embassy_rp::peripherals::$pio, 1>,
+                $crate::led_strip::PioStateMachine<::embassy_rp::peripherals::$pio, 2>,
+                $crate::led_strip::PioStateMachine<::embassy_rp::peripherals::$pio, 3>,
             ) {
                 let ::embassy_rp::pio::Pio { common, sm0, sm1, sm2, sm3, .. } =
-                    ::embassy_rp::pio::Pio::new(pio, <::embassy_rp::peripherals::$pio as $crate::led_strip::led_strip_shared::LedStripPio>::irqs());
+                    ::embassy_rp::pio::Pio::new(pio, <::embassy_rp::peripherals::$pio as $crate::led_strip::LedStripPio>::irqs());
                 let pio_bus = [<$pio _BUS>].init_with(|| {
-                    $crate::led_strip::led_strip_shared::PioBus::new(common)
+                    $crate::led_strip::PioBus::new(common)
                 });
                 (
-                    $crate::led_strip::led_strip_shared::StateMachine::new(pio_bus, sm0),
-                    $crate::led_strip::led_strip_shared::StateMachine::new(pio_bus, sm1),
-                    $crate::led_strip::led_strip_shared::StateMachine::new(pio_bus, sm2),
-                    $crate::led_strip::led_strip_shared::StateMachine::new(pio_bus, sm3),
+                    $crate::led_strip::PioStateMachine::new(pio_bus, sm0),
+                    $crate::led_strip::PioStateMachine::new(pio_bus, sm1),
+                    $crate::led_strip::PioStateMachine::new(pio_bus, sm2),
+                    $crate::led_strip::PioStateMachine::new(pio_bus, sm3),
                 )
             }
 
@@ -305,8 +309,8 @@ macro_rules! define_led_strips {
                 use ::embassy_executor::Spawner;
 
                 pub const LEN: usize = $len;
-                pub type Strip = $crate::led_strip::led_strip_shared::LedStrip<LEN>;
-                pub type Static = $crate::led_strip::led_strip_shared::LedStripStatic<LEN>;
+                pub type Strip = $crate::led_strip::LedStripShared<LEN>;
+                pub type Static = $crate::led_strip::LedStripSharedStatic<LEN>;
 
                 // Calculate max brightness from current budget
                 // Each WS2812B LED draws ~60mA at full brightness
@@ -319,11 +323,11 @@ macro_rules! define_led_strips {
                 paste::paste! {
                     #[::embassy_executor::task]
                     async fn [<$module _driver>](
-                        bus: &'static $crate::led_strip::led_strip_shared::PioBus<'static, ::embassy_rp::peripherals::$pio>,
+                        bus: &'static $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>,
                         sm: ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, $sm_index>,
                         dma: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>,
                         pin: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>,
-                        commands: &'static $crate::led_strip::led_strip_shared::LedStripCommands<LEN>,
+                        commands: &'static $crate::led_strip::LedStripCommands<LEN>,
                     ) -> ! {
                         let program = bus.get_program();
                         let driver = bus.with_common(|common| {
@@ -334,7 +338,7 @@ macro_rules! define_led_strips {
                                 _
                             >::new(common, sm, dma, pin, program)
                         });
-                        $crate::led_strip::led_strip_shared::led_strip_driver_loop::<
+                        $crate::led_strip::led_strip_driver_loop::<
                             ::embassy_rp::peripherals::$pio,
                             $sm_index,
                             LEN,
@@ -349,7 +353,7 @@ macro_rules! define_led_strips {
 
                 paste::paste! {
                     pub fn new(
-                        state_machine: $crate::led_strip::led_strip_shared::StateMachine<::embassy_rp::peripherals::$pio, $sm_index>,
+                        state_machine: $crate::led_strip::PioStateMachine<::embassy_rp::peripherals::$pio, $sm_index>,
                         dma: impl Into<::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>>,
                         pin: impl Into<::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>>,
                         spawner: Spawner,
@@ -369,7 +373,7 @@ macro_rules! define_led_strips {
     };
 }
 
-pub use crate::define_led_strips;
+pub use define_led_strips;
 
 /// Split a PIO peripheral into 4 state machines.
 ///
@@ -377,8 +381,37 @@ pub use crate::define_led_strips;
 /// function based on the field name in the expression.
 ///
 /// # Example
-/// ```ignore
-/// let (sm0, sm1, sm2, sm3) = pio_split!(p.PIO0);
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// use embassy_executor::Spawner;
+/// use device_kit::led_strip::define_led_strips;
+/// use device_kit::led_strip::Milliamps;
+/// use device_kit::pio_split;
+///
+/// define_led_strips! {
+///     pio: PIO0,
+///     strips: [
+///         led_strip0 {
+///             sm: 0,
+///             dma: DMA_CH0,
+///             pin: PIN_2,
+///             len: 8,
+///             max_current: Milliamps(50)
+///         }
+///     ]
+/// }
+///
+/// #[embassy_executor::main]
+/// async fn main(spawner: Spawner) {
+///     let p = embassy_rp::init(Default::default());
+///     
+///     // Split PIO0 into individual state machines
+///     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
+///     
+///     let led_strip_0 = led_strip0::new(sm0, p.DMA_CH0, p.PIN_2, spawner).unwrap();
+/// }
 /// ```
 #[macro_export]
 macro_rules! pio_split {
@@ -393,7 +426,7 @@ macro_rules! pio_split {
     };
 }
 
-pub use crate::pio_split;
+pub use pio_split;
 
 // Implement LedStripPio for all PIO peripherals
 impl LedStripPio for embassy_rp::peripherals::PIO0 {
@@ -420,6 +453,3 @@ impl LedStripPio for embassy_rp::peripherals::PIO2 {
         crate::pio_irqs::Pio2Irqs
     }
 }
-
-/// Predefined RGB color constants (RED, GREEN, BLUE, etc.).
-pub use smart_leds::colors;

@@ -9,7 +9,7 @@ use embassy_time::Timer;
 use panic_probe as _;
 use device_kit::Result;
 use device_kit::led_strip::{
-    LedStripSimple, LedStripSimpleStatic, Milliamps, colors, new_simple_strip,
+    LedStrip, LedStripStatic, Milliamps, colors, new_strip,
 };
 
 #[embassy_executor::main]
@@ -23,9 +23,9 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
 
     const MAX_CURRENT: Milliamps = Milliamps(500);
 
-    type StripStatic0 = LedStripSimpleStatic<8>;
+    type StripStatic0 = LedStripStatic<8>;
     static STRIP_STATIC_0: StripStatic0 = StripStatic0::new_static();
-    let mut strip0 = new_simple_strip!(
+    let mut strip0 = new_strip!(
         &STRIP_STATIC_0, // static resources
         PIN_2,           // data pin
         p.PIO0,          // PIO block
@@ -33,9 +33,9 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
     )
     .await;
 
-    type StripStatic1 = LedStripSimpleStatic<48>;
+    type StripStatic1 = LedStripStatic<48>;
     static STRIP_STATIC_1: StripStatic1 = StripStatic1::new_static();
-    let mut strip1 = new_simple_strip!(
+    let mut strip1 = new_strip!(
         &STRIP_STATIC_1, // static resources
         PIN_3,           // data pin
         p.PIO1,          // PIO block
@@ -85,7 +85,7 @@ impl<const N: usize> BounceState<N> {
 
     async fn update<PIO: embassy_rp::pio::Instance>(
         &mut self,
-        strip: &mut LedStripSimple<'static, PIO, N>,
+        strip: &mut LedStrip<'static, PIO, N>,
     ) -> Result<()> {
         assert!(self.position < N);
         let mut pixels = [colors::BLACK; N];

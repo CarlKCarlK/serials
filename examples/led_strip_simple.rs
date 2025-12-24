@@ -9,11 +9,11 @@ use embassy_time::Timer;
 use panic_probe as _;
 use device_kit::Result;
 use device_kit::led_strip::{
-    LedStripSimple, LedStripSimpleStatic, Milliamps, colors, new_simple_strip,
+    LedStrip, LedStripStatic, Milliamps, colors, new_strip,
 };
 type PioPeriph = embassy_rp::peripherals::PIO1;
-type StripStatic = LedStripSimpleStatic<LEN>;
-type Strip = LedStripSimple<'static, PioPeriph, LEN>;
+type StripStatic = LedStripStatic<LEN>;
+type Strip = LedStrip<'static, PioPeriph, LEN>;
 
 const LEN: usize = 8;
 const MAX_CURRENT: Milliamps = Milliamps(50);
@@ -28,7 +28,7 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     static STRIP_STATIC: StripStatic = StripStatic::new_static();
-    let mut simple_strip = new_simple_strip!(
+    let mut simple_strip = new_strip!(
         &STRIP_STATIC, // static resources
         PIN_2,         // data pin
         p.PIO1,        // PIO block
