@@ -5,7 +5,7 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::{LedStrip, LedStripStatic, Milliamps, colors, new_strip};
+use device_kit::led_strip::{LedStrip, LedStripStatic, Milliamps, colors, new_led_strip};
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
@@ -23,7 +23,7 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
 
     type StripStatic0 = LedStripStatic<8>;
     static STRIP_STATIC_0: StripStatic0 = StripStatic0::new_static();
-    let mut strip0 = new_strip!(
+    let mut strip0 = new_led_strip!(
         &STRIP_STATIC_0, // static resources
         PIN_2,           // data pin
         p.PIO0,          // PIO block
@@ -34,7 +34,7 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
 
     type StripStatic1 = LedStripStatic<48>;
     static STRIP_STATIC_1: StripStatic1 = StripStatic1::new_static();
-    let mut strip1 = new_strip!(
+    let mut strip1 = new_led_strip!(
         &STRIP_STATIC_1, // static resources
         PIN_3,           // data pin
         p.PIO1,          // PIO block

@@ -148,13 +148,13 @@ impl<const N: usize> LedStripStatic<N> {
 ///     LedStripStatic,
 ///     Milliamps,
 ///     colors,
-///     new_strip,
+///     new_led_strip,
 /// };
 /// use device_kit::Result;
 ///
 /// async fn example(p: embassy_rp::Peripherals) -> Result<()> {
 ///     static STRIP_STATIC: LedStripStatic<8> = LedStripStatic::new_static();
-///     let mut strip = new_strip!(
+///     let mut strip = new_led_strip!(
 ///         &STRIP_STATIC,  // static resources
 ///         PIN_2,          // data pin
 ///         p.PIO0,         // PIO block (SM0)
@@ -288,7 +288,7 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO2, N> {
 #[macro_export]
 /// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and fails fast if PIO2 is used on Pico 1.
 /// See the usage example on [`LedStrip`].
-macro_rules! new_strip {
+macro_rules! new_led_strip {
     (
         $strip_static:expr,
         $pin:ident,
@@ -346,4 +346,4 @@ macro_rules! new_strip {
 /// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and fails fast if PIO2 is used on Pico 1.
 /// See the usage example on [`LedStrip`].
 #[doc(inline)]
-pub use new_strip;
+pub use new_led_strip;
