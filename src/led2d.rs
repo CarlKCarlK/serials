@@ -905,6 +905,7 @@ macro_rules! led2d_device_task {
         $max_frames:expr $(,)?
     ) => {
         #[embassy_executor::task]
+        #[allow(non_snake_case)]
         $($vis)* async fn $task_name(
             command_signal: &'static $crate::led2d::Led2dCommandSignal<$n, $max_frames>,
             completion_signal: &'static $crate::led2d::Led2dCompletionSignal,

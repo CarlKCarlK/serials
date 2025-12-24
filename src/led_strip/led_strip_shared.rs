@@ -270,7 +270,7 @@ macro_rules! define_led_strips {
                         led2d: {
                             rows: $led2d_rows:expr,
                             cols: $led2d_cols:expr,
-                            mapping: $led2d_mapping:expr,
+                            mapping: $led2d_mapping:ident $( ( $($led2d_mapping_args:tt)* ) )?,
                             max_frames: $led2d_max_frames:expr,
                             font: $led2d_font:ident $(,)?
                         }
@@ -409,7 +409,7 @@ macro_rules! define_led_strips {
                             strip_type: $module,
                             rows: $led2d_rows,
                             cols: $led2d_cols,
-                            mapping: $led2d_mapping,
+                            mapping: $led2d_mapping $( ( $($led2d_mapping_args)* ) )?,
                             max_frames: $led2d_max_frames,
                             font: $led2d_font,
                         }
