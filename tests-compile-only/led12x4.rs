@@ -21,7 +21,7 @@ const LED12X4_COLS: usize = 12;
 define_led_strips! {
     pio: PIO0,
     strips: [
-        Led12x4Pio0Strip {
+        Gpio3Pio0LedStrip {
             sm: 0,
             dma: DMA_CH0,
             pin: PIN_3,
@@ -34,7 +34,7 @@ define_led_strips! {
 define_led_strips! {
     pio: PIO1,
     strips: [
-        Led12x4Pio1Strip {
+        Gpio3Pio1LedStrip {
             sm: 0,
             dma: DMA_CH1,
             pin: PIN_3,
@@ -45,8 +45,8 @@ define_led_strips! {
 }
 
 led2d_from_strip! {
-    pub led12x4_pio0,
-    strip_type: Led12x4Pio0Strip,
+    pub gpio3_pio0_led2d,
+    strip_type: Gpio3Pio0LedStrip,
     rows: 4,
     cols: 12,
     mapping: serpentine_column_major,
@@ -55,8 +55,8 @@ led2d_from_strip! {
 }
 
 led2d_from_strip! {
-    pub led12x4_pio1,
-    strip_type: Led12x4Pio1Strip,
+    pub gpio3_pio1_led2d,
+    strip_type: Gpio3Pio1LedStrip,
     rows: 4,
     cols: 12,
     mapping: serpentine_column_major,
@@ -64,16 +64,16 @@ led2d_from_strip! {
     font: Font3x4Trim,
 }
 
-/// Verify Led12x4Pio0 with write_text
+/// Verify Gpio3Pio0LedStrip with write_text
 async fn test_led12x4_pio0_write_text(
     p: embassy_rp::Peripherals,
     spawner: Spawner,
 ) -> device_kit::Result<()> {
     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
-    let led12x4_pio0_strip = Led12x4Pio0Strip::new(sm0, p.DMA_CH0, p.PIN_3, spawner)?;
+    let gpio3_pio0_led_strip = Gpio3Pio0LedStrip::new(sm0, p.DMA_CH0, p.PIN_3, spawner)?;
 
-    static LED_12X4_STATIC: Led12x4Pio0Static = Led12x4Pio0::new_static();
-    let led_12x4 = Led12x4Pio0::from_strip(led12x4_pio0_strip, spawner)?;
+    static LED_12X4_STATIC: Gpio3Pio0Led2dStatic = Gpio3Pio0Led2d::new_static();
+    let led_12x4 = Gpio3Pio0Led2d::from_strip(gpio3_pio0_led_strip, spawner)?;
 
     led_12x4
         .write_text(
@@ -85,13 +85,13 @@ async fn test_led12x4_pio0_write_text(
     Ok(())
 }
 
-/// Verify Led12x4Pio1 constructor
+/// Verify Gpio3Pio1LedStrip constructor
 async fn test_led12x4_pio1(p: embassy_rp::Peripherals, spawner: Spawner) -> device_kit::Result<()> {
     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
-    let led12x4_pio1_strip = Led12x4Pio1Strip::new(sm0, p.DMA_CH1, p.PIN_3, spawner)?;
+    let gpio3_pio1_led_strip = Gpio3Pio1LedStrip::new(sm0, p.DMA_CH1, p.PIN_3, spawner)?;
 
-    static LED_12X4_STATIC: Led12x4Pio1Static = Led12x4Pio1::new_static();
-    let _led_12x4 = Led12x4Pio1::from_strip(led12x4_pio1_strip, spawner)?;
+    static LED_12X4_STATIC: Gpio3Pio1Led2dStatic = Gpio3Pio1Led2d::new_static();
+    let _led_12x4 = Gpio3Pio1Led2d::from_strip(gpio3_pio1_led_strip, spawner)?;
 
     Ok(())
 }

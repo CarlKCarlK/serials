@@ -9,7 +9,7 @@
 //! **NOTE:** This example is currently disabled as it depends on modules that don't exist yet:
 //! - `led24x4` module
 //! - Updated APIs for `TimeSync`, `CharLcd`
-//! - `define_led_strips!` macro output types `LedStrip0` and `LedStrip1`
+//! - `define_led_strips!` macro output types `Gpio2LedStrip` and `Gpio14LedStrip`
 #![no_std]
 #![no_main]
 #![allow(clippy::future_not_send, reason = "Single-threaded")]
@@ -42,7 +42,7 @@ use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::Rgb;
 use device_kit::led_strip::colors;
 use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::{LedStrip0, LedStrip1};
+use device_kit::led_strip::{Gpio14LedStrip, Gpio2LedStrip};
 use device_kit::led24x4::Led24x4;
 use device_kit::pio_split;
 use device_kit::rfid::{Rfid, RfidEvent, RfidStatic};
@@ -61,14 +61,14 @@ use colors::{BLACK, BLUE, GREEN, RED, YELLOW};
 define_led_strips! {
     pio: PIO1,
     strips: [
-        LedStrip0 {
+        Gpio2LedStrip {
             sm: 0,
             dma: DMA_CH1,
             pin: PIN_2,
             len: 8,
             max_current: Milliamps(50)
         },
-        LedStrip1 {
+        Gpio14LedStrip {
             sm: 1,
             dma: DMA_CH4,
             pin: PIN_14,
@@ -97,13 +97,13 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     // Initialize PIO1 for LED strips (both strips share PIO1)
     let (sm0, sm1, _sm2, _sm3) = pio_split!(p.PIO1);
 
-    let led_strip0_device = LedStrip0::new(sm0, p.DMA_CH1, p.PIN_2, spawner)?;
-    let mut led_pixels = [BLACK; LedStrip0::LEN];
-    initialize_led_strip(led_strip0_device, &mut led_pixels).await?;
+    let gpio2_led_strip = Gpio2LedStrip::new(sm0, p.DMA_CH1, p.PIN_2, spawner)?;
+    let mut led_pixels = [BLACK; Gpio2LedStrip::LEN];
+    initialize_led_strip(gpio2_led_strip, &mut led_pixels).await?;
     let mut led_progress_index: usize = 0;
 
-    let led_strip1_device = LedStrip1::new(sm1, p.DMA_CH4, p.PIN_14, spawner)?;
-    let mut led_24x4 = Led24x4::new(led_strip1_device);
+    let gpio14_led_strip = Gpio14LedStrip::new(sm1, p.DMA_CH4, p.PIN_14, spawner)?;
+    let mut led_24x4 = Led24x4::new(gpio14_led_strip);
     led_24x4
         .write_text(['0', '0', '0', '0'], [RED, GREEN, BLUE, YELLOW])
         .await?;
@@ -225,7 +225,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                     }
 
                     advance_led_progress(
-                        &mut led_strip0_device,
+                        &mut gpio2_led_strip,
                         &mut led_pixels,
                         &mut led_progress_index,
                     )
@@ -311,8 +311,11 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     }
 }
 
-async fn initialize_led_strip(strip: &LedStrip0, pixels: &mut [Rgb; LedStrip0::LEN]) -> Result<()> {
-    for idx in 0..LedStrip0::LEN {
+async fn initialize_led_strip(
+    strip: &Gpio2LedStrip,
+    pixels: &mut [Rgb; Gpio2LedStrip::LEN],
+) -> Result<()> {
+    for idx in 0..Gpio2LedStrip::LEN {
         pixels[idx] = if idx == 0 { RED } else { BLACK };
     }
     strip.update_pixels(pixels).await?;
@@ -320,14 +323,14 @@ async fn initialize_led_strip(strip: &LedStrip0, pixels: &mut [Rgb; LedStrip0::L
 }
 
 async fn advance_led_progress(
-    strip: &LedStrip0,
-    pixels: &mut [Rgb; LedStrip0::LEN],
+    strip: &Gpio2LedStrip,
+    pixels: &mut [Rgb; Gpio2LedStrip::LEN],
     current_red: &mut usize,
 ) -> Result<()> {
     info!("Turning {} to green", *current_red);
     pixels[*current_red] = GREEN;
     strip.update_pixels(pixels).await?;
-    let next = (*current_red + 1) % LedStrip0::LEN;
+    let next = (*current_red + 1) % Gpio2LedStrip::LEN;
     if next == 0 {
         initialize_led_strip(strip, pixels).await?;
         *current_red = 0;
