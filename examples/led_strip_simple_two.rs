@@ -4,13 +4,11 @@ use core::convert::Infallible;
 
 use defmt::info;
 use defmt_rtt as _;
+use device_kit::Result;
+use device_kit::led_strip::{LedStrip, LedStripStatic, Milliamps, colors, new_strip};
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
-use device_kit::Result;
-use device_kit::led_strip::{
-    LedStrip, LedStripStatic, Milliamps, colors, new_strip,
-};
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
@@ -29,6 +27,7 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
         &STRIP_STATIC_0, // static resources
         PIN_2,           // data pin
         p.PIO0,          // PIO block
+        DMA_CH0,         // DMA channel
         MAX_CURRENT      // max current budget (mA)
     )
     .await;
@@ -39,6 +38,7 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
         &STRIP_STATIC_1, // static resources
         PIN_3,           // data pin
         p.PIO1,          // PIO block
+        DMA_CH1,         // DMA channel
         MAX_CURRENT      // max current budget (mA)
     )
     .await;

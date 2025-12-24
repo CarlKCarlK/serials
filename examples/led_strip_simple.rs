@@ -4,13 +4,11 @@ use core::convert::Infallible;
 
 use defmt::info;
 use defmt_rtt as _;
+use device_kit::Result;
+use device_kit::led_strip::{LedStrip, LedStripStatic, Milliamps, colors, new_strip};
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
-use device_kit::Result;
-use device_kit::led_strip::{
-    LedStrip, LedStripStatic, Milliamps, colors, new_strip,
-};
 type PioPeriph = embassy_rp::peripherals::PIO1;
 type StripStatic = LedStripStatic<LEN>;
 type Strip = LedStrip<'static, PioPeriph, LEN>;
@@ -32,6 +30,7 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
         &STRIP_STATIC, // static resources
         PIN_2,         // data pin
         p.PIO1,        // PIO block
+        DMA_CH0,       // DMA channel
         MAX_CURRENT    // max current budget (mA)
     )
     .await;

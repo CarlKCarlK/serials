@@ -5,15 +5,8 @@
 include!("led_strip/led_strip_shared.rs");
 // See [`LedStrip`] for the main usage example and [`LedStripShared`] / [`define_led_strips!`] for multi-strip setups on one PIO.
 
-use embassy_rp::clocks::clk_sys_freq;
-use embassy_rp::pio::program::{Assembler, JmpCondition, OutDestination, SetDestination, SideSet};
-use embassy_rp::pio::{
-    Config, FifoJoin, LoadedProgram, PioPin, ShiftConfig, ShiftDirection,
-    StateMachine as EmbassyStateMachine,
-};
-use embassy_rp::pio_programs::ws2812::{Grb, RgbColorOrder};
-use embassy_time::{Duration, Timer};
-use fixed::types::U24F8;
+use embassy_rp::pio::{Pio, PioPin, StateMachine as EmbassyStateMachine};
+use embassy_rp::pio_programs::ws2812::Grb;
 #[doc(inline)]
 pub use smart_leds::colors;
 use static_cell::StaticCell;
@@ -29,68 +22,25 @@ impl Milliamps {
     }
 }
 
-const T1: u8 = 2;
-const T2: u8 = 5;
-const T3: u8 = 3;
-const CYCLES_PER_BIT: u32 = (T1 + T2 + T3) as u32;
-const RESET_DELAY_US: u64 = 55;
-
 // PIO interrupt bindings are defined in lib.rs and imported via crate::pio_irqs
 #[cfg(feature = "pico2")]
 use crate::pio_irqs::Pio2Irqs;
 use crate::pio_irqs::{Pio0Irqs, Pio1Irqs};
 
-static PIO0_BUS_SINGLE: StaticCell<PioBusSingle<'static, embassy_rp::peripherals::PIO0>> =
-    StaticCell::new();
-static PIO1_BUS_SINGLE: StaticCell<PioBusSingle<'static, embassy_rp::peripherals::PIO1>> =
-    StaticCell::new();
+static PIO0_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO0>> = StaticCell::new();
+static PIO1_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO1>> = StaticCell::new();
 #[cfg(feature = "pico2")]
-static PIO2_BUS_SINGLE: StaticCell<PioBusSingle<'static, embassy_rp::peripherals::PIO2>> =
-    StaticCell::new();
-
-/// Shared PIO bus that loads and reuses the WS2812 program.
-pub(crate) struct PioBusSingle<'d, PIO: Instance> {
-    common: Mutex<CriticalSectionRawMutex, RefCell<Common<'d, PIO>>>,
-    program: OnceLock<LoadedProgram<'d, PIO>>,
-}
-
-impl<'d, PIO: Instance> PioBusSingle<'d, PIO> {
-    /// Creates a bus around a PIO common resource.
-    pub fn new(common: Common<'d, PIO>) -> Self {
-        Self {
-            common: Mutex::new(RefCell::new(common)),
-            program: OnceLock::new(),
-        }
-    }
-
-    /// Returns the loaded WS2812 program, initializing it once.
-    pub fn program(&'static self) -> &'static LoadedProgram<'d, PIO> {
-        self.program.get_or_init(|| {
-            self.common.lock(|cell| {
-                let mut common = cell.borrow_mut();
-                load_ws2812_program(&mut *common)
-            })
-        })
-    }
-
-    /// Grants temporary mutable access to the shared common resource.
-    pub fn with_common<R>(&self, f: impl FnOnce(&mut Common<'d, PIO>) -> R) -> R {
-        self.common.lock(|cell| {
-            let mut common = cell.borrow_mut();
-            f(&mut *common)
-        })
-    }
-}
+static PIO2_BUS: StaticCell<PioBus<'static, embassy_rp::peripherals::PIO2>> = StaticCell::new();
 
 /// Initializes PIO0 with its IRQ bound and returns the shared bus plus SM0.
 pub(crate) fn init_pio0(
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
 ) -> (
-    &'static PioBusSingle<'static, embassy_rp::peripherals::PIO0>,
+    &'static PioBus<'static, embassy_rp::peripherals::PIO0>,
     EmbassyStateMachine<'static, embassy_rp::peripherals::PIO0, 0>,
 ) {
-    let embassy_rp::pio::Pio { common, sm0, .. } = embassy_rp::pio::Pio::new(pio, Pio0Irqs);
-    let bus = PIO0_BUS_SINGLE.init_with(|| PioBusSingle::new(common));
+    let Pio { common, sm0, .. } = Pio::new(pio, Pio0Irqs);
+    let bus = PIO0_BUS.init_with(|| PioBus::new(common));
     (bus, sm0)
 }
 
@@ -98,11 +48,11 @@ pub(crate) fn init_pio0(
 pub(crate) fn init_pio1(
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
 ) -> (
-    &'static PioBusSingle<'static, embassy_rp::peripherals::PIO1>,
+    &'static PioBus<'static, embassy_rp::peripherals::PIO1>,
     EmbassyStateMachine<'static, embassy_rp::peripherals::PIO1, 0>,
 ) {
-    let embassy_rp::pio::Pio { common, sm0, .. } = embassy_rp::pio::Pio::new(pio, Pio1Irqs);
-    let bus = PIO1_BUS_SINGLE.init_with(|| PioBusSingle::new(common));
+    let Pio { common, sm0, .. } = Pio::new(pio, Pio1Irqs);
+    let bus = PIO1_BUS.init_with(|| PioBus::new(common));
     (bus, sm0)
 }
 
@@ -111,110 +61,27 @@ pub(crate) fn init_pio1(
 pub(crate) fn init_pio2(
     pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO2>,
 ) -> (
-    &'static PioBusSingle<'static, embassy_rp::peripherals::PIO2>,
+    &'static PioBus<'static, embassy_rp::peripherals::PIO2>,
     EmbassyStateMachine<'static, embassy_rp::peripherals::PIO2, 0>,
 ) {
-    let embassy_rp::pio::Pio { common, sm0, .. } = embassy_rp::pio::Pio::new(pio, Pio2Irqs);
-    let bus = PIO2_BUS_SINGLE.init_with(|| PioBusSingle::new(common));
+    let Pio { common, sm0, .. } = Pio::new(pio, Pio2Irqs);
+    let bus = PIO2_BUS.init_with(|| PioBus::new(common));
     (bus, sm0)
 }
 
-fn load_ws2812_program<'d, PIO: Instance>(common: &mut Common<'d, PIO>) -> LoadedProgram<'d, PIO> {
-    let side_set = SideSet::new(false, 1, false);
-    let mut assembler: Assembler<32> = Assembler::new_with_side_set(side_set);
-
-    let mut wrap_target = assembler.label();
-    let mut wrap_source = assembler.label();
-    let mut do_zero = assembler.label();
-    assembler.set_with_side_set(SetDestination::PINDIRS, 1, 0);
-    assembler.bind(&mut wrap_target);
-    assembler.out_with_delay_and_side_set(OutDestination::X, 1, T3 - 1, 0);
-    assembler.jmp_with_delay_and_side_set(JmpCondition::XIsZero, &mut do_zero, T1 - 1, 1);
-    assembler.jmp_with_delay_and_side_set(JmpCondition::Always, &mut wrap_target, T2 - 1, 1);
-    assembler.bind(&mut do_zero);
-    assembler.nop_with_delay_and_side_set(T2 - 1, 0);
-    assembler.bind(&mut wrap_source);
-
-    let program = assembler.assemble_with_wrap(wrap_source, wrap_target);
-    common.load_program(&program)
-}
-
-/// CPU-fed WS2812 driver for a single state machine.
-pub(crate) struct PioWs2812Cpu<'d, P: Instance, const S: usize, const N: usize, ORDER = Grb>
-where
-    ORDER: RgbColorOrder,
-{
-    sm: EmbassyStateMachine<'d, P, S>,
-    _order: core::marker::PhantomData<ORDER>,
-}
-
-impl<'d, P: Instance, const S: usize, const N: usize, ORDER> PioWs2812Cpu<'d, P, S, N, ORDER>
-where
-    ORDER: RgbColorOrder,
-{
-    /// Configures the state machine and prepares it for writes.
-    pub fn new(
-        pio: &mut Common<'d, P>,
-        sm: EmbassyStateMachine<'d, P, S>,
-        pin: embassy_rp::Peri<'d, impl PioPin>,
-        program: &LoadedProgram<'d, P>,
-    ) -> Self {
-        let mut cfg = Config::default();
-
-        let out_pin = pio.make_pio_pin(pin);
-        cfg.set_out_pins(&[&out_pin]);
-        cfg.set_set_pins(&[&out_pin]);
-        cfg.use_program(program, &[&out_pin]);
-
-        let clock_freq = U24F8::from_num(clk_sys_freq() / 1000);
-        let ws2812_freq = U24F8::from_num(800);
-        let bit_freq = ws2812_freq * CYCLES_PER_BIT;
-        cfg.clock_divider = clock_freq / bit_freq;
-
-        cfg.fifo_join = FifoJoin::TxOnly;
-        cfg.shift_out = ShiftConfig {
-            auto_fill: true,
-            threshold: 24,
-            direction: ShiftDirection::Left,
-        };
-
-        let mut sm = sm;
-        sm.set_config(&cfg);
-        sm.set_enable(true);
-
-        Self {
-            sm,
-            _order: core::marker::PhantomData,
-        }
-    }
-
-    /// Writes a full frame to the TX FIFO.
-    pub async fn write(&mut self, colors: &[Rgb; N]) {
-        let mut words = [0u32; N];
-        for (idx, color) in colors.iter().enumerate() {
-            words[idx] = ORDER::pack(*color);
-        }
-
-        let tx = self.sm.tx();
-        for word in words {
-            tx.wait_push(word).await;
-        }
-
-        Timer::after(Duration::from_micros(RESET_DELAY_US)).await;
-    }
-}
-
-/// Builds a GRB-order driver without spawning a task; caller drives frames directly.
-pub(crate) fn new_driver_grb<PIO, const S: usize, const N: usize>(
-    bus: &'static PioBusSingle<'static, PIO>,
-    sm: EmbassyStateMachine<'static, PIO, S>,
+/// Builds a GRB-order DMA driver without spawning a task; caller drives frames directly.
+pub(crate) fn new_driver_grb<PIO, const N: usize, Dma>(
+    bus: &'static PioBus<'static, PIO>,
+    sm: EmbassyStateMachine<'static, PIO, 0>,
+    dma: embassy_rp::Peri<'static, Dma>,
     pin: embassy_rp::Peri<'static, impl PioPin>,
-) -> PioWs2812Cpu<'static, PIO, S, N, Grb>
+) -> PioWs2812<'static, PIO, 0, N, Grb>
 where
     PIO: Instance,
+    Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
 {
-    let program = bus.program();
-    bus.with_common(|common| PioWs2812Cpu::<PIO, S, N, Grb>::new(common, sm, pin, program))
+    let program = bus.get_program();
+    bus.with_common(|common| PioWs2812::<PIO, 0, N, _>::new(common, sm, dma, pin, program))
 }
 
 #[inline]
@@ -269,7 +136,7 @@ impl<const N: usize> LedStripStatic<N> {
 /// Device abstraction for a single WS2812-style LED strip.
 ///
 /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units.
-/// This driver requires one PIO unit per LED strip. The more complex [LedStripShared] can drive up to four strips per PIO.
+/// This driver consumes one PIO (SM0) and one DMA channel. The more complex [LedStripShared] can drive up to four strips per PIO.
 ///
 /// # Example
 /// ```no_run
@@ -290,7 +157,8 @@ impl<const N: usize> LedStripStatic<N> {
 ///     let mut strip = new_strip!(
 ///         &STRIP_STATIC,  // static resources
 ///         PIN_2,          // data pin
-///         p.PIO0,         // PIO block
+///         p.PIO0,         // PIO block (SM0)
+///         DMA_CH0,        // DMA channel
 ///         Milliamps(50)   // max current budget (mA)
 ///     ).await;
 ///
@@ -301,21 +169,25 @@ impl<const N: usize> LedStripStatic<N> {
 /// }
 /// ```
 pub struct LedStrip<'d, PIO: Instance, const N: usize> {
-    driver: PioWs2812Cpu<'d, PIO, 0, N, Grb>,
+    driver: PioWs2812<'d, PIO, 0, N, Grb>,
     max_brightness: u8,
 }
 
 impl<'d, PIO: Instance, const N: usize> LedStrip<'d, PIO, N> {
     /// Construct a new inline strip driver from shared bus/state machine and pin.
-    pub(crate) fn new(
+    pub(crate) fn new<Dma>(
         strip_static: &'static LedStripStatic<N>,
-        bus: &'static PioBusSingle<'static, PIO>,
+        bus: &'static PioBus<'static, PIO>,
         sm: EmbassyStateMachine<'static, PIO, 0>,
+        dma: embassy_rp::Peri<'static, Dma>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_brightness: u8,
-    ) -> Self {
+    ) -> Self
+    where
+        Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
+    {
         let _ = strip_static; // marker to match Device/Static pattern
-        let driver = new_driver_grb::<PIO, 0, N>(bus, sm, pin);
+        let driver = new_driver_grb::<PIO, N, _>(bus, sm, dma, pin);
         Self {
             driver,
             max_brightness,
@@ -336,18 +208,22 @@ impl<'d, PIO: Instance, const N: usize> LedStrip<'d, PIO, N> {
 impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO0, N> {
     /// Builds a `LedStrip` on PIO0/SM0.
     ///
-    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [LedStripShared] can drive up to four strips per PIO.
+    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO (SM0) and one DMA channel. The more complex [LedStripShared] can drive up to four strips per PIO.
     ///
     /// See [`LedStrip`] for the usage example.
-    pub async fn new_pio0(
+    pub async fn new_pio0<Dma>(
         strip_static: &'static LedStripStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
+        dma: embassy_rp::Peri<'static, Dma>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_current: Milliamps,
-    ) -> Self {
+    ) -> Self
+    where
+        Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
+    {
         let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio0(pio);
-        let mut strip = LedStrip::new(strip_static, bus, sm, pin, max_brightness);
+        let mut strip = LedStrip::new(strip_static, bus, sm, dma, pin, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
         strip.update_pixels(&blank).await.ok();
@@ -358,18 +234,22 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO0, N> {
 impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO1, N> {
     /// Builds a `LedStrip` on PIO1/SM0.
     ///
-    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [LedStripShared] can drive up to four strips per PIO.
+    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO (SM0) and one DMA channel. The more complex [LedStripShared] can drive up to four strips per PIO.
     ///
     /// See [`LedStrip`] for the usage example.
-    pub async fn new_pio1(
+    pub async fn new_pio1<Dma>(
         strip_static: &'static LedStripStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
+        dma: embassy_rp::Peri<'static, Dma>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_current: Milliamps,
-    ) -> Self {
+    ) -> Self
+    where
+        Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
+    {
         let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio1(pio);
-        let mut strip = LedStrip::new(strip_static, bus, sm, pin, max_brightness);
+        let mut strip = LedStrip::new(strip_static, bus, sm, dma, pin, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
         strip.update_pixels(&blank).await.ok();
@@ -381,18 +261,22 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO1, N> {
 impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO2, N> {
     /// Builds a `LedStrip` on PIO2/SM0.
     ///
-    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO unit per LED strip. The more complex [LedStripShared] can drive up to four strips per PIO.
+    /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO (SM0) and one DMA channel. The more complex [LedStripShared] can drive up to four strips per PIO.
     ///
     /// See [`LedStrip`] for the usage example.
-    pub async fn new_pio2(
+    pub async fn new_pio2<Dma>(
         strip_static: &'static LedStripStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO2>,
+        dma: embassy_rp::Peri<'static, Dma>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_current: Milliamps,
-    ) -> Self {
+    ) -> Self
+    where
+        Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
+    {
         let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio2(pio);
-        let mut strip = LedStrip::new(strip_static, bus, sm, pin, max_brightness);
+        let mut strip = LedStrip::new(strip_static, bus, sm, dma, pin, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
         strip.update_pixels(&blank).await.ok();
@@ -409,11 +293,13 @@ macro_rules! new_strip {
         $strip_static:expr,
         $pin:ident,
         $peripherals:ident . PIO0,
+        $dma:ident,
         $max_current:expr
     ) => {
         $crate::led_strip::LedStrip::new_pio0(
             $strip_static,
             $peripherals.PIO0,
+            $peripherals.$dma,
             $peripherals.$pin,
             $max_current,
         )
@@ -422,11 +308,13 @@ macro_rules! new_strip {
         $strip_static:expr,
         $pin:ident,
         $peripherals:ident . PIO1,
+        $dma:ident,
         $max_current:expr
     ) => {
         $crate::led_strip::LedStrip::new_pio1(
             $strip_static,
             $peripherals.PIO1,
+            $peripherals.$dma,
             $peripherals.$pin,
             $max_current,
         )
@@ -435,6 +323,7 @@ macro_rules! new_strip {
         $strip_static:expr,
         $pin:ident,
         $peripherals:ident . PIO2,
+        $dma:ident,
         $max_current:expr
     ) => {{
         #[cfg(feature = "pico2")]
@@ -442,6 +331,7 @@ macro_rules! new_strip {
             $crate::led_strip::LedStrip::new_pio2(
                 $strip_static,
                 $peripherals.PIO2,
+                $peripherals.$dma,
                 $peripherals.$pin,
                 $max_current,
             )
