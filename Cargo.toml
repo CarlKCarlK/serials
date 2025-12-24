@@ -128,8 +128,6 @@ embedded-hal-bus = { version = "0.3.0", features = [
 portable-atomic = { version = "1.11.1", features = ["critical-section"] }
 hd44780-driver = "0.4.0"
 esp-hal-mfrc522 = "0.3.2"
-fixed = "1.28.0"
-micromath = "2.1.0"
 cyw43 = { git = "https://github.com/embassy-rs/embassy", branch = "main", features = [
     "defmt",
     "firmware-logs",
@@ -187,6 +185,9 @@ unfulfilled_lint_expectations = "warn"
 unknown_lints = "warn"
 unsafe_code = "deny"
 unused_variables = "warn"
+non_snake_case = "warn"
+non_camel_case_types = "warn"
+non_upper_case_globals = "warn"
 # TODO: Determine why `#[expect(unexpected_cfgs)]` at the site of the problem
 #       (`target_pointer_width = 128`) is ineffective; the setting below is overly broad
 unexpected_cfgs = "warn"
@@ -194,7 +195,7 @@ unexpected_cfgs = "warn"
 # Uncomment before ship to reconcile use of possibly redundant crates, debug remnants, missing
 # license files and more
 #missing_docs = "warn"
-#warnings = "deny"
+warnings = "deny"
 
 [lints.clippy]
 # Safety-critical application lints
@@ -206,7 +207,6 @@ semicolon_if_nothing_returned = "warn"
 semicolon_inside_block = "warn"
 str_to_string = "warn"
 unwrap_used = "deny"
-unused_result = "deny"
 wildcard_imports = "deny"
 
 all = { level = "warn", priority = -2 }
@@ -250,7 +250,6 @@ too_long_first_doc_paragraph = "warn"
 unnecessary_wraps = "warn"
 unreachable = "warn"
 must_use_candidate = "warn"
-unused_must_use = "warn"
 # TODO: Uncomment before ship to reconcile use of possibly redundant crates, debug remnants, missing
 # license files and more
 # blanket_clippy_restriction_lints = "warn"

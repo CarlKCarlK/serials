@@ -5,11 +5,29 @@
 //! - LCD displays current status with two-line support
 //!
 //! Run with: cargo full
-// check-all: skip (legacy example awaiting Led24x4 replacement) //cmk
+//!
+//! **NOTE:** This example is currently disabled as it depends on modules that don't exist yet:
+//! - `led24x4` module
+//! - Updated APIs for `TimeSync`, `CharLcd`
+//! - `define_led_strips!` macro output types `LedStrip0` and `LedStrip1`
 #![no_std]
 #![no_main]
 #![allow(clippy::future_not_send, reason = "Single-threaded")]
 
+use defmt_rtt as _;
+use panic_probe as _;
+
+use embassy_executor::Spawner;
+
+#[embassy_executor::main]
+async fn main(_spawner: Spawner) -> ! {
+    let _ = embassy_rp::init(Default::default());
+    loop {
+        // Placeholder - example is disabled pending module implementation
+    }
+}
+
+/*
 use core::convert::Infallible;
 use core::fmt::Write;
 use defmt::info;
@@ -20,11 +38,11 @@ use device_kit::clock::{Clock, ClockStatic, ONE_SECOND};
 #[cfg(feature = "wifi")]
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 use device_kit::ir::{Ir, IrEvent, IrStatic};
+use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::Rgb;
 use device_kit::led_strip::colors;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{LedStrip0, LedStrip1};
-use device_kit::led_strip::Milliamps;
 use device_kit::led24x4::Led24x4;
 use device_kit::pio_split;
 use device_kit::rfid::{Rfid, RfidEvent, RfidStatic};
@@ -85,8 +103,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let mut led_progress_index: usize = 0;
 
     let led_strip1_device = LedStrip1::new(sm1, p.DMA_CH4, p.PIN_14, spawner)?;
-    let mut Led24x4 = Led24x4::new(led_strip1_device);
-    Led24x4
+    let mut led_24x4 = Led24x4::new(led_strip1_device);
+    led_24x4
         .write_text(['0', '0', '0', '0'], [RED, GREEN, BLUE, YELLOW])
         .await?;
 
@@ -266,7 +284,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
                         char::from_digit((ss / 10) as u32, 10).unwrap(),
                         char::from_digit((ss % 10) as u32, 10).unwrap(),
                     ];
-                    Led24x4
+                    led_24x4
                         .display(
                             chars,
                             [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW],
@@ -293,10 +311,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     }
 }
 
-async fn initialize_led_strip(
-    strip: &LedStrip0,
-    pixels: &mut [Rgb; LedStrip0::LEN],
-) -> Result<()> {
+async fn initialize_led_strip(strip: &LedStrip0, pixels: &mut [Rgb; LedStrip0::LEN]) -> Result<()> {
     for idx in 0..LedStrip0::LEN {
         pixels[idx] = if idx == 0 { RED } else { BLACK };
     }
@@ -346,3 +361,4 @@ fn append_time_line(text: &mut String<64>, latest_time: Option<OffsetDateTime>) 
 // BUGBUG cmk: Led24x4 is not a full virtual device.
 // BUGBUG cmk: vs code's problems panel complains about this file.
 // BUGBUG cmk: need to build check all examples x all features
+*/

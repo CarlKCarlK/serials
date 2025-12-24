@@ -2,7 +2,7 @@
 #![no_main]
 
 // cmk000 would be nice to make define_led_strips create 2Ds directly
-// cmk000 names of generated modules/sturcts seems a mess and names are inconsistent.
+// cmk000 names of generated modules/structs seems a mess and names are inconsistent.
 
 // cmk000 we need to document that `led2d_from_strip` can only be used once
 // cmk000 where are are pools? should they be set?
