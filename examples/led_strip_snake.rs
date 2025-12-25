@@ -3,8 +3,8 @@
 
 use defmt::info;
 use defmt_rtt as _;
-use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::Milliamps;
+use device_kit::led_strip::define_led_strips_shared;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
@@ -14,7 +14,7 @@ use smart_leds::RGB8;
 // WS2812B 4x12 LED matrix (48 pixels)
 // Uses PIO1, State Machine 0, DMA_CH1, GPIO16 (pin 21)
 // Max 500mA current budget (safe for USB 2.0)
-define_led_strips! {
+define_led_strips_shared! {
     pio: PIO1,
     strips: [
         Gpio16LedStrip {
@@ -67,8 +67,7 @@ async fn inner_main(spawner: Spawner) -> device_kit::Result<()> {
         frame[head_pos] = SNAKE_COLOR;
 
         // Turn off the tail
-        let tail_pos =
-            (position + Gpio16LedStrip::LEN - SNAKE_LENGTH) % Gpio16LedStrip::LEN;
+        let tail_pos = (position + Gpio16LedStrip::LEN - SNAKE_LENGTH) % Gpio16LedStrip::LEN;
         frame[tail_pos] = BACKGROUND;
 
         // Send entire frame

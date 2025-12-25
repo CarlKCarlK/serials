@@ -11,8 +11,8 @@
 
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::Milliamps;
+use device_kit::led_strip::define_led_strips_shared;
 use device_kit::led2d::led2d_from_strip;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
@@ -21,7 +21,7 @@ use panic_probe as _;
 use smart_leds::colors;
 
 // Define strips for both devices
-define_led_strips! {
+define_led_strips_shared! {
     pio: PIO0,
     strips: [
         Gpio3LedStrip {
@@ -34,7 +34,7 @@ define_led_strips! {
     ]
 }
 
-define_led_strips! {
+define_led_strips_shared! {
     pio: PIO1,
     strips: [
         Gpio4LedStrip {

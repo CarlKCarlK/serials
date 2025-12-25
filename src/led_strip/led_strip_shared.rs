@@ -22,7 +22,7 @@ pub type Rgb = RGB8;
 
 /// Trait for PIO peripherals that can be used with LED strips.
 ///
-/// This trait is automatically implemented by the `define_led_strips!` macro
+/// This trait is automatically implemented by the `define_led_strips_shared!` macro
 /// for the PIO peripheral specified in the macro invocation.
 #[doc(hidden)] // Required pub for macro expansion in downstream crates
 pub trait LedStripPio: Instance {
@@ -134,7 +134,7 @@ impl<const N: usize> LedStripSharedStatic<N> {
     }
 }
 
-/// Device abstraction for WS2812-style LED strips created by [`define_led_strips!`] (multiple strips can share one PIO).
+/// Device abstraction for WS2812-style LED strips created by [`define_led_strips_shared!`] (multiple strips can share one PIO).
 ///
 /// ```no_run
 /// # #![no_std]
@@ -226,7 +226,7 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
 }
 
 // ============================================================================
-// Macro: define_led_strips - Creates interrupts, PIO bus, and LED strips
+// Macro: define_led_strips_shared - Creates interrupts, PIO bus, and LED strips
 // ============================================================================
 
 /// Creates PIO-based LED strip configurations with automatic brightness limiting.
@@ -255,7 +255,7 @@ fn scale_brightness(value: u8, brightness: u8) -> u8 {
 /// # fn main() {}
 /// ```
 #[macro_export]
-macro_rules! define_led_strips {
+macro_rules! define_led_strips_shared {
     (
         pio: $pio:ident,
         strips: [
@@ -433,9 +433,9 @@ macro_rules! define_led_strips {
     };
 }
 
-pub use define_led_strips;
+pub use define_led_strips_shared;
 
-/// Used with [`define_led_strips!`] to split a PIO peripheral into 4 state machines.
+/// Used with [`define_led_strips_shared!`] to split a PIO peripheral into 4 state machines.
 ///
 /// cmk000 users don't need to see the name of hidden functions!
 /// Calls the generated `pio0_split`, `pio1_split`, or `pio2_split`
@@ -448,11 +448,11 @@ pub use define_led_strips;
 /// # #![no_main]
 /// # use panic_probe as _;
 /// use embassy_executor::Spawner;
-/// use device_kit::led_strip::define_led_strips;
+/// use device_kit::led_strip::define_led_strips_shared;
 /// use device_kit::led_strip::Milliamps;
 /// use device_kit::pio_split;
 ///
-/// define_led_strips! {
+/// define_led_strips_shared! {
 ///     pio: PIO0,
 ///     strips: [
 ///         Gpio2LedStrip {

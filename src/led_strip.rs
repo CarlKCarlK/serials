@@ -1,9 +1,9 @@
 //! A device abstraction for WS2812-style LED strips.
 //!
-//! See [`LedStrip`] for the simple single-strip driver, or use [`define_led_strips!`] for managing multiple strips on one PIO.
+//! See [`LedStrip`] for the simple single-strip driver, or use [`define_led_strips_shared!`] for managing multiple strips on one PIO.
 
 include!("led_strip/led_strip_shared.rs");
-// See [`LedStrip`] for the main usage example and [`LedStripShared`] / [`define_led_strips!`] for multi-strip setups on one PIO.
+// See [`LedStrip`] for the main usage example and [`LedStripShared`] / [`define_led_strips_shared!`] for multi-strip setups on one PIO.
 
 use embassy_rp::pio::{Pio, PioPin, StateMachine as EmbassyStateMachine};
 use embassy_rp::pio_programs::ws2812::Grb;
@@ -11,7 +11,7 @@ use embassy_rp::pio_programs::ws2812::Grb;
 pub use smart_leds::colors;
 use static_cell::StaticCell;
 
-/// Used by [`new_led_strip!`] and [`define_led_strips!`] to budget current for LED strips.
+/// Used by [`new_led_strip!`] and [`define_led_strips_shared!`] to budget current for LED strips.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Milliamps(pub u16);
 
@@ -137,7 +137,7 @@ impl<const N: usize> LedStripStatic<N> {
 /// Standalone device abstraction for a single WS2812-style LED strip created by [`new_led_strip!`] (one strip per PIO).
 ///
 /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units.
-/// This driver consumes one PIO (SM0) and one DMA channel. The more complex [`LedStripShared`] can drive up to four strips per PIO using [`define_led_strips!`].
+/// This driver consumes one PIO (SM0) and one DMA channel. The more complex [`LedStripShared`] can drive up to four strips per PIO using [`define_led_strips_shared!`].
 ///
 /// # Example
 /// ```no_run

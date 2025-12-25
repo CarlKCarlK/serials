@@ -6,9 +6,9 @@
 
 use defmt::info;
 use defmt_rtt as _;
-use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::{Rgb, colors};
 use device_kit::led_strip::Milliamps;
+use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::{Rgb, colors};
 use device_kit::led2d::led2d_from_strip;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
@@ -16,7 +16,7 @@ use embassy_time::{Duration, Timer};
 use heapless::Vec;
 use panic_probe as _;
 
-define_led_strips! {
+define_led_strips_shared! {
     pio: PIO1,
     strips: [
         Gpio0LedStrip {

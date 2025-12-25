@@ -8,7 +8,7 @@
 #![allow(dead_code, reason = "Compile-time verification only")]
 
 use defmt_rtt as _;
-use device_kit::led_strip::define_led_strips;
+use device_kit::led_strip::define_led_strips_shared;
 use device_kit::led_strip::{Milliamps, colors};
 use device_kit::led2d::led2d_from_strip;
 use device_kit::pio_split;
@@ -18,7 +18,7 @@ use panic_probe as _;
 const LED12X4_ROWS: usize = 4;
 const LED12X4_COLS: usize = 12;
 
-define_led_strips! {
+define_led_strips_shared! {
     pio: PIO0,
     strips: [
         Gpio3Pio0LedStrip {
@@ -31,7 +31,7 @@ define_led_strips! {
     ]
 }
 
-define_led_strips! {
+define_led_strips_shared! {
     pio: PIO1,
     strips: [
         Gpio3Pio1LedStrip {
