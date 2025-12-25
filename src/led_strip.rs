@@ -11,7 +11,7 @@ use embassy_rp::pio_programs::ws2812::Grb;
 pub use smart_leds::colors;
 use static_cell::StaticCell;
 
-/// Current budget for LED strips, specified in milliamps.
+/// Used by [`new_led_strip!`] and [`define_led_strips!`] to budget current for LED strips.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Milliamps(pub u16);
 
