@@ -128,7 +128,7 @@ impl<const N: usize> LedStripStatic<N> {
     pub const LEN: usize = N;
 
     #[must_use]
-    pub const fn new_static() -> Self {
+    pub const fn new() -> Self {
         Self { _priv: () }
     }
 }
@@ -153,12 +153,12 @@ impl<const N: usize> LedStripStatic<N> {
 /// use device_kit::Result;
 ///
 /// async fn example(p: embassy_rp::Peripherals) -> Result<()> {
-///     static STRIP_STATIC: LedStripStatic<8> = LedStripStatic::new_static();
 ///     let mut led_strip = new_led_strip!(
-///         &STRIP_STATIC,  // static resources
-///         PIN_2,          // data pin
-///         p.PIO0,         // PIO block (SM0)
-///         DMA_CH0,        // DMA channel
+///         LED_STRIP,      // static name
+///         8,              // LED count
+///         p.PIN_2,        // data pin
+///         PIO0,           // PIO block (SM0)
+///         p.DMA_CH0,      // DMA channel
 ///         Milliamps(50)   // max current budget (mA)
 ///     ).await;
 ///
@@ -284,62 +284,92 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO2, N> {
     }
 }
 
+/// Helper trait for dispatching to the correct `new_pioX()` constructor.
+/// Implementation detail of the [`new_led_strip!`] macro.
+#[doc(hidden)]
+pub trait LedStripNew<const N: usize> {
+    async fn new_from_pio<Dma>(
+        strip_static: &'static LedStripStatic<N>,
+        pio: embassy_rp::Peri<'static, Self>,
+        dma: embassy_rp::Peri<'static, Dma>,
+        pin: embassy_rp::Peri<'static, impl PioPin>,
+        max_current: Milliamps,
+    ) -> LedStrip<'static, Self, N>
+    where
+        Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
+        Self: embassy_rp::pio::Instance;
+}
+
+impl<const N: usize> LedStripNew<N> for embassy_rp::peripherals::PIO0 {
+    async fn new_from_pio<Dma>(
+        strip_static: &'static LedStripStatic<N>,
+        pio: embassy_rp::Peri<'static, Self>,
+        dma: embassy_rp::Peri<'static, Dma>,
+        pin: embassy_rp::Peri<'static, impl PioPin>,
+        max_current: Milliamps,
+    ) -> LedStrip<'static, Self, N>
+    where
+        Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
+    {
+        LedStrip::new_pio0(strip_static, pio, dma, pin, max_current).await
+    }
+}
+
+impl<const N: usize> LedStripNew<N> for embassy_rp::peripherals::PIO1 {
+    async fn new_from_pio<Dma>(
+        strip_static: &'static LedStripStatic<N>,
+        pio: embassy_rp::Peri<'static, Self>,
+        dma: embassy_rp::Peri<'static, Dma>,
+        pin: embassy_rp::Peri<'static, impl PioPin>,
+        max_current: Milliamps,
+    ) -> LedStrip<'static, Self, N>
+    where
+        Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
+    {
+        LedStrip::new_pio1(strip_static, pio, dma, pin, max_current).await
+    }
+}
+
+#[cfg(feature = "pico2")]
+impl<const N: usize> LedStripNew<N> for embassy_rp::peripherals::PIO2 {
+    async fn new_from_pio<Dma>(
+        strip_static: &'static LedStripStatic<N>,
+        pio: embassy_rp::Peri<'static, Self>,
+        dma: embassy_rp::Peri<'static, Dma>,
+        pin: embassy_rp::Peri<'static, impl PioPin>,
+        max_current: Milliamps,
+    ) -> LedStrip<'static, Self, N>
+    where
+        Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
+    {
+        LedStrip::new_pio2(strip_static, pio, dma, pin, max_current).await
+    }
+}
+
 #[doc(hidden)]
 #[macro_export]
-/// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and fails fast if PIO2 is used on Pico 1.
+/// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and hides static creation.
 /// See the usage example on [`LedStrip`].
 macro_rules! new_led_strip {
+    // Main API: name, len, pin, pio, dma, max_current
     (
-        $strip_static:expr,
-        $pin:ident,
-        $peripherals:ident . PIO0,
-        $dma:ident,
-        $max_current:expr
-    ) => {
-        $crate::led_strip::LedStrip::new_pio0(
-            $strip_static,
-            $peripherals.PIO0,
-            $peripherals.$dma,
-            $peripherals.$pin,
-            $max_current,
-        )
-    };
-    (
-        $strip_static:expr,
-        $pin:ident,
-        $peripherals:ident . PIO1,
-        $dma:ident,
-        $max_current:expr
-    ) => {
-        $crate::led_strip::LedStrip::new_pio1(
-            $strip_static,
-            $peripherals.PIO1,
-            $peripherals.$dma,
-            $peripherals.$pin,
-            $max_current,
-        )
-    };
-    (
-        $strip_static:expr,
-        $pin:ident,
-        $peripherals:ident . PIO2,
-        $dma:ident,
+        $name:ident,
+        $len:literal,
+        $pin:expr,
+        $pio:expr,
+        $dma:expr,
         $max_current:expr
     ) => {{
-        #[cfg(feature = "pico2")]
-        {
-            $crate::led_strip::LedStrip::new_pio2(
-                $strip_static,
-                $peripherals.PIO2,
-                $peripherals.$dma,
-                $peripherals.$pin,
-                $max_current,
-            )
-        }
-        #[cfg(not(feature = "pico2"))]
-        {
-            compile_error!("PIO2 is only available on Pico 2 (rp235x); enable the pico2 feature or choose PIO0/PIO1");
-        }
+        use $crate::led_strip::LedStripNew as _;
+        static $name: $crate::led_strip::LedStripStatic<$len> =
+            $crate::led_strip::LedStripStatic::new();
+        <_ as $crate::led_strip::LedStripNew<$len>>::new_from_pio(
+            &$name,
+            $pio,
+            $dma,
+            $pin,
+            $max_current,
+        )
     }};
 }
 

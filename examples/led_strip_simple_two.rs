@@ -5,7 +5,7 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::{LedStrip, LedStripStatic, Milliamps, colors, new_led_strip};
+use device_kit::led_strip::{LedStrip, Milliamps, colors, new_led_strip};
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
@@ -23,24 +23,22 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
 
     // cmk000 kill this type of
     // cmk000 stripX to led_strip0, etc
-    type StripStatic0 = LedStripStatic<8>;
-    static STRIP_STATIC_0: StripStatic0 = StripStatic0::new_static();
     let mut led_strip_0 = new_led_strip!(
-        &STRIP_STATIC_0, // static resources
-        PIN_2,           // data pin
-        p.PIO0,          // PIO block
-        DMA_CH0,         // DMA channel
+        LED_STRIP_0,     // static name
+        8,               // LED count
+        p.PIN_2,         // data pin
+        p.PIO0,          // PIO peripheral
+        p.DMA_CH0,       // DMA channel
         MAX_CURRENT      // max current budget (mA)
     )
     .await;
 
-    type StripStatic1 = LedStripStatic<48>;
-    static STRIP_STATIC_1: StripStatic1 = StripStatic1::new_static();
     let mut led_strip_1 = new_led_strip!(
-        &STRIP_STATIC_1, // static resources
-        PIN_3,           // data pin
-        p.PIO1,          // PIO block
-        DMA_CH1,         // DMA channel
+        LED_STRIP_1,     // static name
+        48,              // LED count
+        p.PIN_3,         // data pin
+        p.PIO1,          // PIO peripheral
+        p.DMA_CH1,       // DMA channel
         MAX_CURRENT      // max current budget (mA)
     )
     .await;

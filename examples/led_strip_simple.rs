@@ -5,13 +5,10 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::{LedStrip, LedStripStatic, Milliamps, colors, new_led_strip};
+use device_kit::led_strip::{LedStrip, Milliamps, colors, new_led_strip};
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
-type PioPeriph = embassy_rp::peripherals::PIO1;
-type StripStatic = LedStripStatic<LEN>;
-type Gpio2LedStrip = LedStrip<'static, PioPeriph, LEN>;
 
 const LEN: usize = 8;
 const MAX_CURRENT: Milliamps = Milliamps(50);
@@ -27,13 +24,13 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
 
     // cmk000 LedStripStatic?
     // cmk000 is StripStatic the right place to attach the new_static method?
-    static STRIP_STATIC: StripStatic = StripStatic::new_static();
     let mut led_strip = new_led_strip!(
-        &STRIP_STATIC, // static resources
-        PIN_2,         // data pin
-        p.PIO1,        // PIO block
-        DMA_CH0,       // DMA channel
-        MAX_CURRENT    // max current budget (mA)
+        LED_STRIP,   // static name
+        8,           // LED count
+        p.PIN_2,     // data pin
+        p.PIO1,      // PIO block
+        p.DMA_CH0,   // DMA channel
+        MAX_CURRENT  // max current budget (mA)
     )
     .await;
 
@@ -59,8 +56,7 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
 }
 
 async fn update_bounce(
-    // cmk2ai how to other examles avoid the full type here?
-    led_strip: &mut Gpio2LedStrip,
+    led_strip: &mut LedStrip<'static, embassy_rp::peripherals::PIO1, LEN>,
     position: usize,
 ) -> Result<()> {
     assert!(position < LEN);
