@@ -115,6 +115,7 @@ impl<'d, PIO: Instance> PioBus<'d, PIO> {
 pub type LedStripCommands<const N: usize> = EmbassyChannel<CriticalSectionRawMutex, [Rgb; N], 2>;
 
 /// Static used to construct LED strip instances.
+#[doc(hidden)] // Must be pub for method signatures and macro expansion in downstream crates
 pub struct LedStripSharedStatic<const N: usize> {
     commands: LedStripCommands<N>,
 }

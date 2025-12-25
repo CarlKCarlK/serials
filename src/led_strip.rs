@@ -119,6 +119,7 @@ fn apply_max_brightness<const N: usize>(frame: &mut [Rgb; N], max_brightness: u8
 /// Static resources backing a [`LedStrip`] instance.
 ///
 /// See [`LedStrip`] for the usage example.
+#[doc(hidden)] // Must be pub for method signatures, but users interact via macro
 pub struct LedStripStatic<const N: usize> {
     _priv: (),
 }
