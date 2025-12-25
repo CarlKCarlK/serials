@@ -134,10 +134,10 @@ impl<const N: usize> LedStripStatic<N> {
     }
 }
 
-/// Device abstraction for a single WS2812-style LED strip.
+/// Standalone device abstraction for a single WS2812-style LED strip created by [`new_led_strip!`] (one strip per PIO).
 ///
 /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units.
-/// This driver consumes one PIO (SM0) and one DMA channel. The more complex [LedStripShared] can drive up to four strips per PIO.
+/// This driver consumes one PIO (SM0) and one DMA channel. The more complex [`LedStripShared`] can drive up to four strips per PIO using [`define_led_strips!`].
 ///
 /// # Example
 /// ```no_run

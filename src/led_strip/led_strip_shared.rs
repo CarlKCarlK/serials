@@ -134,8 +134,7 @@ impl<const N: usize> LedStripSharedStatic<N> {
     }
 }
 
-/// A device abstraction for WS2812-style LED strips with configurable length.
-/// See the struct-level example for usage.
+/// Device abstraction for WS2812-style LED strips created by [`define_led_strips!`] (multiple strips can share one PIO).
 ///
 /// ```no_run
 /// # #![no_std]
