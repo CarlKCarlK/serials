@@ -436,11 +436,13 @@ macro_rules! define_led_strips {
 
 pub use define_led_strips;
 
-/// Split a PIO peripheral into 4 state machines.
+/// Used with [`define_led_strips!`] to split a PIO peripheral into 4 state machines.
 ///
+/// cmk000 users don't need to see the name of hidden functions!
 /// Calls the generated `pio0_split`, `pio1_split`, or `pio2_split`
 /// function based on the field name in the expression.
 ///
+/// cmk000 want a link not an example
 /// # Example
 /// ```no_run
 /// # #![no_std]
