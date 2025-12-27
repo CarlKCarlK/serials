@@ -78,6 +78,7 @@ async fn inner_main(spawner: Spawner) -> device_kit::Result<()> {
     let p = embassy_rp::init(Default::default());
     let (sm0, sm1, sm2, _sm3) = pio_split!(p.PIO1);
 
+    // cmk000 we should have _shared/Shared here
     let gpio0_led_strip = Gpio0LedStrip::new(sm0, p.DMA_CH0, p.PIN_0, spawner)?;
     let gpio3_led_strip = Gpio3LedStrip::new(sm1, p.DMA_CH1, p.PIN_3, spawner)?;
     let gpio4_led_strip = Gpio4LedStrip::new(sm2, p.DMA_CH2, p.PIN_4, spawner)?;

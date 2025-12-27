@@ -1,6 +1,6 @@
 //! A device abstraction for Network Time Protocol (NTP) time synchronization over WiFi.
 //!
-//! This version uses an existing network stack (e.g., from [`WifiAuto`](crate::wifi_auto::WifiAuto)).
+//! This version uses an existing network stack (e.g., from `WifiAuto`).
 //!
 //! See [`TimeSync`] for usage examples.
 

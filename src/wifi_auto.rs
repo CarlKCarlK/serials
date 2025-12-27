@@ -63,9 +63,9 @@ pub enum WifiAutoEvent {
     ConnectionFailed,
 }
 
-const MAX_CONNECT_ATTEMPTS: u8 = 2;
+const MAX_CONNECT_ATTEMPTS: u8 = 4;
 // cmk0 reduced from 30s since WiFi join now fails immediately instead of retrying
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(40);
 const RETRY_DELAY: Duration = Duration::from_secs(3);
 
 pub type WifiAutoEvents = Signal<CriticalSectionRawMutex, WifiAutoEvent>;
