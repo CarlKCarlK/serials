@@ -11,8 +11,8 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips_shared;
-use device_kit::led_strip::{Milliamps, Rgb, colors};
 use device_kit::led_strip::gamma::Gamma;
+use device_kit::led_strip::{Milliamps, Rgb, colors};
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
@@ -181,8 +181,8 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
         .expect("go_frames has capacity for 2 frames");
 
     // Kick off animations
-    gpio3_led_strip.animate(&go_frames_gpio3).await?;
-    gpio4_led_strip.animate(&go_frames_gpio4).await?;
+    gpio3_led_strip.animate(go_frames_gpio3.clone()).await?;
+    gpio4_led_strip.animate(go_frames_gpio4).await?;
 
     loop {
         step_snake(&mut frame_gpio0, &mut position_gpio0);

@@ -103,10 +103,10 @@ async fn demo_blink_text(led8x12: &Led8x12) -> Result<()> {
     let mut on_frame = Led8x12::new_frame();
     led8x12.write_text_to_frame("HI", &[colors::YELLOW], &mut on_frame)?;
     led8x12
-        .animate(&[
+        .animate([
             (on_frame, Duration::from_millis(500)),
             (Led8x12::new_frame(), Duration::from_millis(500)),
-        ])
+        ].into_iter())
         .await
 }
 
@@ -136,10 +136,10 @@ async fn demo_blink_pattern(led8x12: &Led8x12) -> Result<()> {
     }
 
     led8x12
-        .animate(&[
+        .animate([
             (on_frame, Duration::from_millis(500)),
             (Led8x12::new_frame(), Duration::from_millis(500)),
-        ])
+        ].into_iter())
         .await
 }
 
@@ -243,5 +243,5 @@ async fn demo_bouncing_dot_animation(led8x12: &Led8x12) -> Result<()> {
         }
     }
 
-    led8x12.animate(&frames).await
+    led8x12.animate(frames).await
 }

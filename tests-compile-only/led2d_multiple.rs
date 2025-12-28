@@ -101,10 +101,10 @@ async fn test_multiple_devices(p: embassy_rp::Peripherals, spawner: Spawner) -> 
 
     // Verify animations work with both
     let frames_4x12 = [(frame_4x12, Duration::from_millis(100))];
-    led4x12.animate(&frames_4x12).await?;
+    led4x12.animate(frames_4x12).await?;
 
     let frames_8x8 = [(frame_8x8, Duration::from_millis(100))];
-    led8x8.animate(&frames_8x8).await?;
+    led8x8.animate(frames_8x8).await?;
 
     // Verify N constant is correct for each
     const _N_4X12: usize = Led4x12::N; // Should be 48

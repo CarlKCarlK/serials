@@ -92,10 +92,10 @@ async fn demo_blink_text(led4x12: &Led4x12) -> Result<()> {
         &mut on_frame,
     )?;
     led4x12
-        .animate(&[
+        .animate([
             (on_frame, Duration::from_millis(500)),
             (Led4x12::new_frame(), Duration::from_millis(500)),
-        ])
+        ].into_iter())
         .await
 }
 
@@ -125,10 +125,10 @@ async fn demo_blink_pattern(led4x12: &Led4x12) -> Result<()> {
     }
 
     led4x12
-        .animate(&[
+        .animate([
             (on_frame, Duration::from_millis(500)),
             (Led4x12::new_frame(), Duration::from_millis(500)),
-        ])
+        ].into_iter())
         .await
 }
 
@@ -232,5 +232,5 @@ async fn demo_bouncing_dot_animation(led4x12: &Led4x12) -> Result<()> {
         }
     }
 
-    led4x12.animate(&frames).await
+    led4x12.animate(frames).await
 }

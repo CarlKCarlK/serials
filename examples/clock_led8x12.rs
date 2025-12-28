@@ -376,7 +376,7 @@ impl State {
 async fn show_portal_ready(led_8x12: &Led8x12) -> Result<()> {
     let on_frame = text_frame(led_8x12, "CO\nNN", &DIGIT_COLORS)?;
     led_8x12
-        .animate(&[
+        .animate([
             (on_frame, Duration::from_millis(700)),
             (Led8x12::new_frame(), Duration::from_millis(300)),
         ])
@@ -390,7 +390,7 @@ async fn show_connecting(led_8x12: &Led8x12, try_index: u8, _try_count: u8) -> R
     let clockwise = try_index % 2 == 0;
     const FRAME_DURATION: Duration = Duration::from_millis(90);
     let animation = perimeter_chase_animation(clockwise, CONNECTING_COLOR, FRAME_DURATION)?;
-    led_8x12.animate(&animation).await
+    led_8x12.animate(animation).await
 }
 
 async fn show_connected(led_8x12: &Led8x12) -> Result<()> {

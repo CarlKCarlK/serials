@@ -125,8 +125,8 @@ async fn inner_main(spawner: Spawner) -> device_kit::Result<()> {
         .push((frame2, Duration::from_millis(1000)))
         .expect("go_frames has capacity for 2 frames");
 
-    led12x4_gpio3.animate(&go_frames).await?;
-    led12x4_gpio4.animate(&go_frames).await?;
+    led12x4_gpio3.animate(go_frames.clone()).await?;
+    led12x4_gpio4.animate(go_frames).await?;
 
     loop {
         step_snake(&mut frame_g0, &mut pos_g0);

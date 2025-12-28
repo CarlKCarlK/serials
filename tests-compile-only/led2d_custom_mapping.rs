@@ -58,7 +58,7 @@ async fn test_led2x3_custom_mapping(p: embassy_rp::Peripherals, spawner: Spawner
             frames.push((frame, Duration::from_millis(200))).ok();
         }
     }
-    led2x3.animate(&frames).await?;
+    led2x3.animate(frames).await?;
 
     Ok(())
 }

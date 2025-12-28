@@ -693,29 +693,33 @@ impl<'a, const N: usize, const MAX_FRAMES: usize> Led2d<'a, N, MAX_FRAMES> {
 
     /// Loop through a sequence of animation frames until interrupted by another command.
     ///
-    /// Each frame is a tuple of (Frame, duration).
+    /// Each frame is a tuple of `(Frame, Duration)`. Accepts arrays, `Vec`s, or any
+    /// iterator that produces `(Frame, Duration)` tuples. For best efficiency with large
+    /// frame sequences, pass an iterator to avoid intermediate allocations.
     pub async fn animate<const ROWS: usize, const COLS: usize>(
         &self,
-        frames: &[(Frame<ROWS, COLS>, Duration)],
+        frames: impl IntoIterator<Item = (Frame<ROWS, COLS>, Duration)>,
     ) -> Result<()> {
         assert!(
             MAX_FRAMES > 0,
             "max_frames must be positive for Led2d animations"
         );
-        assert!(!frames.is_empty(), "animation requires at least one frame");
-        defmt::info!("Led2d::animate: preparing {} frames", frames.len());
         let mut sequence: Vec<([RGB8; N], Duration), MAX_FRAMES> = Vec::new();
         for (frame, duration) in frames {
             assert!(
                 duration.as_micros() > 0,
                 "animation frame duration must be positive"
             );
-            let frame_1d = self.convert_frame(*frame);
+            let frame_1d = self.convert_frame(frame);
             sequence
-                .push((frame_1d, *duration))
+                .push((frame_1d, duration))
                 .expect("animation sequence fits");
         }
-        defmt::info!("Led2d::animate: sending Animate command");
+        assert!(
+            !sequence.is_empty(),
+            "animation requires at least one frame"
+        );
+        defmt::info!("Led2d::animate: sending {} frames", sequence.len());
         self.command_signal.signal(Command::Animate(sequence));
         defmt::info!("Led2d::animate: waiting for completion");
         self.completion_signal.wait().await;
@@ -1430,8 +1434,8 @@ macro_rules! led2d_from_strip {
                     self.led2d.write_frame(frame).await
                 }
 
-                /// Loop through a sequence of animation frames.
-                $vis async fn animate(&self, frames: &[($crate::led2d::Frame<$rows_const, $cols_const>, ::embassy_time::Duration)]) -> $crate::Result<()> {
+                /// Loop through a sequence of animation frames. Pass arrays by value or Vecs/iters.
+                $vis async fn animate(&self, frames: impl IntoIterator<Item = ($crate::led2d::Frame<$rows_const, $cols_const>, ::embassy_time::Duration)>) -> $crate::Result<()> {
                     self.led2d.animate(frames).await
                 }
 

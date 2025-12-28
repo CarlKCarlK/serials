@@ -101,17 +101,15 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
 
     info!("Video player initialized - gamma correction applied automatically");
 
-    // Convert video frames to Led12x8Frame format
-    let mut animation_frames = heapless::Vec::<(Led12x8Frame, Duration), 70>::new();
-    for video_frame in &VIDEO_FRAMES {
-        let frame = Led12x8Frame::from(*video_frame);
-        animation_frames
-            .push((frame, FRAME_DURATION))
-            .expect("animation frames fit in buffer");
-    }
-
-    // Start animation in background - it will loop forever
-    led_12x8.animate(&animation_frames).await?;
+    // Convert video frames to Led12x8Frame format and animate
+    // The animate method accepts an iterator, so we convert frames on-the-fly without allocation
+    led_12x8
+        .animate(
+            VIDEO_FRAMES
+                .iter()
+                .map(|video_frame| (Led12x8Frame::from(*video_frame), FRAME_DURATION)),
+        )
+        .await?;
 
     // Keep the task alive
     loop {
