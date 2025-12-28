@@ -15,21 +15,24 @@
 //!
 //! # Converting Your Video to LED Frames
 //!
-//! The frames are embedded from `target/video_frames_data.rs`, which is generated from
-//! your PNG files using:
+//! The frames are embedded from `video_frames_data.rs`, which is **auto-generated**
+//! during the build process from PNG files in `~/programs/ffmpeg-test/frames12x8_landscape/`.
 //!
-//! ```bash
-//! cargo xtask video-frames-gen 2>/dev/null > target/video_frames_data.rs
-//! ```
-//!
-//! This reads the 65 PNG files from `~/programs/ffmpeg-test/frames12x8_landscape/` and converts
-//! them to a Rust array. The generated file contains all frame data as
-//! compile-time constants.
+//! The build system automatically:
+//! 1. Detects when building the `video` example
+//! 2. Runs `cargo xtask video-frames-gen` to convert 65 PNG files to Rust code
+//! 3. Writes the result to `video_frames_data.rs` in the crate root
+//! 4. Includes it at compile time
 //!
 //! To use different frames:
 //! 1. Replace the PNG files in `~/programs/ffmpeg-test/frames12x8_landscape/`
-//! 2. Run the command above to regenerate `target/video_frames_data.rs`
-//! 3. Rebuild the example
+//! 2. Delete `video_frames_data.rs` to force regeneration (or run `cargo clean`)
+//! 3. Rebuild the example - frames will be regenerated automatically
+//!
+//! Manual generation (if needed):
+//! ```bash
+//! cargo xtask video-frames-gen > video_frames_data.rs
+//! ```
 
 #![no_std]
 #![no_main]
@@ -83,8 +86,9 @@ const FRAME_COUNT: usize = 65;
 const FRAME_DURATION: Duration = Duration::from_millis(100);
 
 // Video frames embedded at compile time
-// Generated from PNG files using: cargo xtask video-frames-gen
-include!("../target/video_frames_data.rs");
+// Auto-generated during build from PNG files in ~/programs/ffmpeg-test/frames12x8_landscape/
+// See build.rs for generation logic
+include!("../video_frames_data.rs");
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
