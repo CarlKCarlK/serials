@@ -152,27 +152,29 @@ fn generate_frames_from_directory(
     name: &str,
     frame_count: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    const FRAME_DURATION_MILLIS: u64 = 100;
+    let upper_name = name.to_uppercase();
+    let frame_duration_name = format!("{}_FRAME_DURATION", upper_name);
+    let frame_count_name = format!("{}_FRAME_COUNT", upper_name);
+    let frames_name = format!("{}_FRAMES", upper_name);
+
     println!("// Video frames generated from PNG files ({} video)", name);
     println!("// Auto-generated - do not edit manually");
     println!();
 
-    // Only output FRAME_DURATION once (shared by all videos)
-    if name == "santa" {
-        println!("// Frame duration for 10 FPS (100ms per frame)");
-        println!("const FRAME_DURATION: Duration = Duration::from_millis(100);");
-        println!();
-    }
-
+    println!("#[allow(dead_code)]");
     println!(
-        "const {}_FRAME_COUNT: usize = {};",
-        name.to_uppercase(),
-        frame_count
+        "// Frame duration for 10 FPS (100ms per frame)\nconst {}: Duration = Duration::from_millis({});",
+        frame_duration_name, FRAME_DURATION_MILLIS
     );
     println!();
+
+    println!("#[allow(dead_code)]");
+    println!("const {}: usize = {};", frame_count_name, frame_count);
+    println!();
     println!(
-        "const {}_FRAMES_RAW: [[[RGB8; 12]; 8]; {}_FRAME_COUNT] = [",
-        name.to_uppercase(),
-        name.to_uppercase()
+        "#[allow(dead_code)]\nconst {}: [([[RGB8; 12]; 8], Duration); {}] = [",
+        frames_name, frame_count_name
     );
 
     for frame_num in 1..=frame_count {
@@ -201,7 +203,8 @@ fn generate_frames_from_directory(
         reader.next_frame(&mut buf)?;
 
         println!("    // Frame {}", frame_num);
-        println!("    [");
+        println!("    (");
+        println!("        [");
 
         // Flip rows vertically (row 0 in PNG becomes row 7 in output)
         for row in (0..8).rev() {
@@ -226,7 +229,9 @@ fn generate_frames_from_directory(
             println!("],");
         }
 
-        print!("    ]");
+        println!("        ],");
+        println!("        {},", frame_duration_name);
+        print!("    )");
         if frame_num < frame_count {
             println!(",");
         } else {

@@ -100,7 +100,7 @@ led2d! {
 }
 
 // Total frames in the video
-// Now defined in generated files: SANTA_FRAME_COUNT, CAT_FRAME_COUNT
+// Now defined in generated files: SANTA_FRAME_COUNT, CAT_FRAME_COUNT (with per-frame durations)
 
 // Video frames and frame duration embedded at compile time
 // Auto-generated during build from PNG files in ~/programs/ffmpeg-test/frames12x8_landscape/
@@ -184,17 +184,17 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
                 mode = mode.next();
             }
             Mode::Santa => {
-                let frames_with_duration = SANTA_FRAMES_RAW
+                let frames_with_duration = SANTA_FRAMES
                     .iter()
-                    .map(|&frame| (frame.into(), FRAME_DURATION));
+                    .map(|&(frame, duration)| (frame.into(), duration));
                 led_12x8.animate(frames_with_duration).await?;
                 button.wait_for_press_duration().await;
                 mode = mode.next();
             }
             Mode::Clock => {
-                let frames_with_duration = CLOCK_FRAMES_RAW
+                let frames_with_duration = CLOCK_FRAMES
                     .iter()
-                    .map(|&frame| (frame.into(), FRAME_DURATION));
+                    .map(|&(frame, duration)| (frame.into(), duration));
                 led_12x8.animate(frames_with_duration).await?;
                 button.wait_for_press_duration().await;
                 mode = mode.next();
