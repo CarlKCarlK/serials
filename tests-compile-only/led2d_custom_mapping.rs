@@ -19,7 +19,7 @@ use panic_probe as _;
 use smart_leds::colors;
 
 // Example with a custom arbitrary mapping for a 2x3 display (6 LEDs total)
-// This demonstrates a simple row-major ordering: rows go left-to-right
+// LED indices 0..5 map row-major, rows left-to-right
 led2d! {
     pub led2x3,
     pio: PIO0,
@@ -28,8 +28,8 @@ led2d! {
     rows: 2,
     cols: 3,
     mapping: arbitrary([
-        0, 1, 2,  // Row 0: LEDs 0, 1, 2
-        3, 4, 5,  // Row 1: LEDs 3, 4, 5
+        (0, 0), (1, 0), (2, 0),  // Row 0: LEDs 0, 1, 2
+        (0, 1), (1, 1), (2, 1),  // Row 1: LEDs 3, 4, 5
     ]),
     max_current: Milliamps(100),
     gamma: Gamma::Linear,

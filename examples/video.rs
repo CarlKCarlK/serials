@@ -82,16 +82,16 @@ led2d! {
     rows: 8,
     cols: 12,
     mapping: arbitrary([
-        // Rotated 90° clockwise from clock_led8x12 mapping
+        // LED index → (col, row); rotated 90° clockwise from clock_led8x12 mapping
         // Original was 12 rows × 8 cols, now 8 rows × 12 cols
-        47, 40, 39, 32, 31, 24, 23, 16, 15, 8, 7, 0,
-        46, 41, 38, 33, 30, 25, 22, 17, 14, 9, 6, 1,
-        45, 42, 37, 34, 29, 26, 21, 18, 13, 10, 5, 2,
-        44, 43, 36, 35, 28, 27, 20, 19, 12, 11, 4, 3,
-        95, 88, 87, 80, 79, 72, 71, 64, 63, 56, 55, 48,
-        94, 89, 86, 81, 78, 73, 70, 65, 62, 57, 54, 49,
-        93, 90, 85, 82, 77, 74, 69, 66, 61, 58, 53, 50,
-        92, 91, 84, 83, 76, 75, 68, 67, 60, 59, 52, 51,
+        (11, 0), (11, 1), (11, 2), (11, 3), (10, 3), (10, 2), (10, 1), (10, 0), (9, 0), (9, 1), (9, 2), (9, 3),
+        (8, 3), (8, 2), (8, 1), (8, 0), (7, 0), (7, 1), (7, 2), (7, 3), (6, 3), (6, 2), (6, 1), (6, 0),
+        (5, 0), (5, 1), (5, 2), (5, 3), (4, 3), (4, 2), (4, 1), (4, 0), (3, 0), (3, 1), (3, 2), (3, 3),
+        (2, 3), (2, 2), (2, 1), (2, 0), (1, 0), (1, 1), (1, 2), (1, 3), (0, 3), (0, 2), (0, 1), (0, 0),
+        (11, 4), (11, 5), (11, 6), (11, 7), (10, 7), (10, 6), (10, 5), (10, 4), (9, 4), (9, 5), (9, 6), (9, 7),
+        (8, 7), (8, 6), (8, 5), (8, 4), (7, 4), (7, 5), (7, 6), (7, 7), (6, 7), (6, 6), (6, 5), (6, 4),
+        (5, 4), (5, 5), (5, 6), (5, 7), (4, 7), (4, 6), (4, 5), (4, 4), (3, 4), (3, 5), (3, 6), (3, 7),
+        (2, 7), (2, 6), (2, 5), (2, 4), (1, 4), (1, 5), (1, 6), (1, 7), (0, 7), (0, 6), (0, 5), (0, 4),
     ]),
     max_current: Milliamps(250),
     gamma: Gamma::Gamma2_2,
@@ -140,7 +140,7 @@ impl Mode {
 fn create_test_pattern() -> Led12x8Frame {
     let mut frame = Led12x8::new_frame();
 
-    // Test: columns appear reversed based on GRYB observation
+    // cmk000 delete Test: columns appear reversed based on GRYB observation
     frame[0][Led12x8::COLS - 1] = colors::RED; // Top-left (reversed col)
     frame[0][0] = colors::GREEN; // Top-right (reversed col)
     frame[Led12x8::ROWS - 1][Led12x8::COLS - 1] = colors::BLUE; // Bottom-left (reversed col)

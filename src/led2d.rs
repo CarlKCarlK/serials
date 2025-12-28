@@ -60,7 +60,7 @@
 //! - `cols` - Number of columns in the display
 //! - `mapping` - LED strip physical layout:
 //!   - `serpentine_column_major` - Common serpentine wiring pattern
-//!   - `arbitrary([indices...])` - Custom mapping array
+//!   - `arbitrary([(col, row), ...])` - Custom mapping array in LED-index order
 //! - `max_frames` - Maximum animation frames allowed (not buffered)
 //! - `font` - Built-in font variant (see [`Led2dFont`])
 //!
@@ -449,7 +449,7 @@ impl Led2dFont {
 /// # }
 /// ```
 ///
-/// See the [module-level documentation](mod@crate::led2d) for more usage examples.
+/// See the [mod@crate::led2d] module docs for more usage examples.
 #[derive(Clone, Copy, Debug)]
 pub struct Frame<const ROWS: usize, const COLS: usize>(pub [[RGB8; COLS]; ROWS]);
 
@@ -622,38 +622,71 @@ where
 // cmk00 this needs a compiled-only doc test.
 /// A device abstraction for rectangular WS2812-styleLED matrix displays.
 ///
-/// Supports any size display with arbitrary coordinate-to-LED-index mapping.
-/// The mapping is stored as a runtime slice, allowing stable Rust without experimental features.
+/// Supports any size display with arbitrary LED-index-to-coordinate mapping. The provided mapping
+/// is reversed during initialization into an internal (row, col) → LED index lookup so frame
+/// conversion stays fast.
 ///
 /// Rows and columns are metadata used only for indexing - the core type is generic only over
 /// N (total LEDs) and MAX_FRAMES (animation capacity).
 ///
 /// Most users should use the `led2d!` or `led2d_from_strip!` macros which generate
-/// a higher-level wrapper. See the [module-level documentation](mod@crate::led2d) for examples.
-pub struct Led2d<'a, const N: usize, const MAX_FRAMES: usize> {
+/// a higher-level wrapper. See the [mod@crate::led2d] module docs for examples.
+pub struct Led2d<const N: usize, const MAX_FRAMES: usize> {
     command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
     completion_signal: &'static Led2dCompletionSignal,
-    mapping: &'a [u16],
+    mapping_by_xy: [u16; N],
     cols: usize,
 }
 
-impl<'a, const N: usize, const MAX_FRAMES: usize> Led2d<'a, N, MAX_FRAMES> {
+impl<const N: usize, const MAX_FRAMES: usize> Led2d<N, MAX_FRAMES> {
     /// Create Led2d device handle.
     ///
-    /// The `mapping` slice defines how (column, row) coordinates map to LED strip indices.
-    /// Index `row * cols + col` gives the LED index for that position.
-    /// Length must equal N (checked with debug_assert).
+    /// The `mapping` slice defines how LED indices map to (column, row) coordinates. Entry `i`
+    /// provides the `(col, row)` destination for LED `i`. Length must equal N (checked with
+    /// debug_assert). The mapping is reversed into an internal lookup so (row, col) queries are
+    /// O(1) when converting frames. Provide the display dimensions via `rows` and `cols` to
+    /// validate coverage and bounds.
     #[must_use]
     pub fn new(
         led2d_static: &'static Led2dStatic<N, MAX_FRAMES>,
-        mapping: &'a [u16],
+        mapping: &[(u16, u16)],
+        rows: usize,
         cols: usize,
     ) -> Self {
         debug_assert_eq!(mapping.len(), N, "mapping length must equal N (total LEDs)");
+        let expected_leds = rows
+            .checked_mul(cols)
+            .expect("rows * cols must fit in usize");
+        assert_eq!(
+            expected_leds, N,
+            "rows * cols must equal N (total LEDs for mapping reversal)"
+        );
+        let mut mapping_by_xy = [None; N];
+        let mut led_index = 0;
+        while led_index < mapping.len() {
+            let (col, row) = mapping[led_index];
+            let col = usize::from(col);
+            let row = usize::from(row);
+            assert!(col < cols, "mapping column must be within cols");
+            assert!(row < rows, "mapping row must be within rows");
+            let target_index = row
+                .checked_mul(cols)
+                .expect("row * cols must fit in usize")
+                + col;
+            let slot = &mut mapping_by_xy[target_index];
+            assert!(slot.is_none(), "duplicate mapping entry for (row, col) coordinate");
+            *slot = Some(u16::try_from(led_index).expect("total LEDs must fit in u16 mapping"));
+            led_index += 1;
+        }
+        let mut finalized_mapping_by_xy = [0_u16; N];
+        for (slot_index, entry) in mapping_by_xy.iter().copied().enumerate() {
+            finalized_mapping_by_xy[slot_index] =
+                entry.expect("mapping must cover every coordinate exactly once");
+        }
         Self {
             command_signal: &led2d_static.command_signal,
             completion_signal: &led2d_static.completion_signal,
-            mapping,
+            mapping_by_xy: finalized_mapping_by_xy,
             cols,
         }
     }
@@ -661,7 +694,7 @@ impl<'a, const N: usize, const MAX_FRAMES: usize> Led2d<'a, N, MAX_FRAMES> {
     /// Convert (column, row) coordinates to LED strip index using the stored mapping.
     #[must_use]
     fn xy_to_index(&self, column_index: usize, row_index: usize) -> usize {
-        self.mapping[row_index * self.cols + column_index] as usize
+        self.mapping_by_xy[row_index * self.cols + column_index] as usize
     }
 
     /// Convert 2D frame to 1D array using the mapping.
@@ -737,15 +770,15 @@ impl<'a, const N: usize, const MAX_FRAMES: usize> Led2d<'a, N, MAX_FRAMES> {
 /// Even columns go top-to-bottom (row 0→ROWS-1), odd columns go bottom-to-top (row ROWS-1→0).
 /// This matches typical WS2812 LED strip wiring patterns.
 ///
-/// Returns a flat array where index `row * COLS + col` gives the LED index for that position.
+/// Returns a flat array where index `led_index` gives the `(col, row)` destination for that LED.
 #[must_use]
 #[doc(hidden)]
 pub const fn serpentine_column_major_mapping<
     const N: usize,
     const ROWS: usize,
     const COLS: usize,
->() -> [u16; N] {
-    let mut mapping = [0_u16; N];
+>() -> [(u16, u16); N] {
+    let mut mapping = [(0_u16, 0_u16); N];
     let mut row_index = 0;
     while row_index < ROWS {
         let mut column_index = 0;
@@ -757,7 +790,7 @@ pub const fn serpentine_column_major_mapping<
                 // Odd column: bottom-to-top
                 column_index * ROWS + (ROWS - 1 - row_index)
             };
-            mapping[row_index * COLS + column_index] = led_index as u16;
+            mapping[led_index] = (column_index as u16, row_index as u16);
             column_index += 1;
         }
         row_index += 1;
@@ -966,16 +999,23 @@ macro_rules! led2d_device {
                 &'static self,
                 led_strip: $strip_ty,
                 spawner: ::embassy_executor::Spawner,
-            ) -> $crate::Result<$crate::led2d::Led2d<'static, $n, $max_frames>> {
+            ) -> $crate::Result<$crate::led2d::Led2d<$n, $max_frames>> {
                 let token = $task_name(
                     &self.led2d_static.command_signal,
                     &self.led2d_static.completion_signal,
                     led_strip,
                 )?;
                 spawner.spawn(token);
+                let rows = $n / $cols;
+                assert_eq!(
+                    rows * $cols,
+                    $n,
+                    "cols must evenly divide total LED count to derive rows"
+                );
                 Ok($crate::led2d::Led2d::new(
                     &self.led2d_static,
                     $mapping,
+                    rows,
                     $cols,
                 ))
             }
@@ -1005,7 +1045,9 @@ pub use led2d_device;
 /// - `dma` - DMA channel for LED data transfer (e.g., `DMA_CH0`)
 /// - `rows` - Number of rows in the display
 /// - `cols` - Number of columns in the display
-/// - `mapping` - LED strip physical layout (currently only `serpentine_column_major` supported)
+/// - `mapping` - LED strip physical layout:
+///   - `serpentine_column_major` - Common serpentine wiring pattern (LED index → `(col, row)`)
+///   - `arbitrary([(col, row), ...])` - Custom mapping array in LED-index order
 /// - `max_current` - Maximum current budget (e.g., `Milliamps(500)`)
 /// - `max_frames` - Maximum animation frames allowed (not buffered)
 /// - `font` - Built-in font variant (see [`Led2dFont`])
@@ -1227,8 +1269,8 @@ macro_rules! led2d {
 /// - `rows` - Number of rows in the display
 /// - `cols` - Number of columns in the display
 /// - `mapping` - LED strip physical layout:
-///   - `serpentine_column_major` - Common serpentine wiring pattern
-///   - `arbitrary([indices...])` - Custom mapping array
+///   - `serpentine_column_major` - Common serpentine wiring pattern (LED index → `(col, row)`)
+///   - `arbitrary([(col, row), ...])` - Custom mapping array in LED-index order
 /// - `max_frames` - Maximum animation frames allowed (not buffered)
 /// - `font` - Built-in font variant (see [`Led2dFont`])
 ///
@@ -1296,7 +1338,7 @@ macro_rules! led2d_from_strip {
             const [<$name:upper _ROWS>]: usize = $rows;
             const [<$name:upper _COLS>]: usize = $cols;
             const [<$name:upper _N>]: usize = [<$name:upper _ROWS>] * [<$name:upper _COLS>];
-            const [<$name:upper _MAPPING>]: [u16; [<$name:upper _N>]] = $crate::led2d::serpentine_column_major_mapping::<[<$name:upper _N>], [<$name:upper _ROWS>], [<$name:upper _COLS>]>();
+            const [<$name:upper _MAPPING>]: [(u16, u16); [<$name:upper _N>]] = $crate::led2d::serpentine_column_major_mapping::<[<$name:upper _N>], [<$name:upper _ROWS>], [<$name:upper _COLS>]>();
             const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             // Compile-time assertion that strip length matches mapping length
@@ -1323,7 +1365,7 @@ macro_rules! led2d_from_strip {
             const [<$name:upper _ROWS>]: usize = $rows;
             const [<$name:upper _COLS>]: usize = $cols;
             const [<$name:upper _N>]: usize = [<$name:upper _ROWS>] * [<$name:upper _COLS>];
-            const [<$name:upper _MAPPING>]: [u16; [<$name:upper _N>]] = [$($index),*];
+            const [<$name:upper _MAPPING>]: [(u16, u16); [<$name:upper _N>]] = [$($index),*];
             const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             // Compile-time assertion that strip length matches mapping length
@@ -1364,7 +1406,7 @@ macro_rules! led2d_from_strip {
 
             /// LED matrix device handle generated by [`led2d_from_strip!`](crate::led2d::led2d_from_strip).
             $vis struct [<$name:camel>] {
-                led2d: $crate::led2d::Led2d<'static, $n_const, $max_frames_const>,
+                led2d: $crate::led2d::Led2d<$n_const, $max_frames_const>,
                 font: embedded_graphics::mono_font::MonoFont<'static>,
                 font_variant: $crate::led2d::Led2dFont,
             }
@@ -1426,6 +1468,7 @@ macro_rules! led2d_from_strip {
                     let led2d = $crate::led2d::Led2d::new(
                         &STATIC.led2d_static,
                         &$mapping_const,
+                        $rows_const,
                         $cols_const,
                     );
 
