@@ -1,18 +1,181 @@
-//! Generate Rust code for embedded video frames from PNG files.
+//! Generate Rust code for embedded video frames from PNG files or video files.
 
-use std::fs::File;
+use std::fs::{self, File};
 use std::path::Path;
+use std::process::Command;
 
 pub fn generate_frames() -> Result<(), Box<dyn std::error::Error>> {
+    generate_frames_from_pngs("santa")
+}
+
+pub fn generate_cat_frames() -> Result<(), Box<dyn std::error::Error>> {
+    // Path to the cat video - check environment variable first, then default locations
+    let video_path = std::env::var("CAT_VIDEO_PATH").unwrap_or_else(|_| {
+        // Try WSL path first (most likely on your system)
+        let wsl_path =
+            "/mnt/c/Users/carlk/OneDrive/SkyDrive camera roll/PXL_20251227_031845967.mp4";
+        if Path::new(wsl_path).exists() {
+            eprintln!("Found video at: {}", wsl_path);
+            return wsl_path.to_string();
+        }
+
+        // Try common OneDrive locations on Linux
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let candidates = [
+            format!("{}/OneDrive/SkyDrive camera roll/cat.mp4", home),
+            format!("{}/OneDrive/Camera Roll/cat.mp4", home),
+            format!(
+                "{}/.local/share/onedrive/SkyDrive camera roll/cat.mp4",
+                home
+            ),
+        ];
+
+        for candidate in &candidates {
+            if Path::new(candidate).exists() {
+                eprintln!("Found video at: {}", candidate);
+                return candidate.clone();
+            }
+        }
+
+        // Default fallback - show helpful error
+        eprintln!("Could not find cat video in standard OneDrive locations.");
+        eprintln!("Set CAT_VIDEO_PATH environment variable to specify the video location.");
+        eprintln!("Example: CAT_VIDEO_PATH=\"/path/to/cat.mp4\" cargo xtask cat-frames-gen");
+        wsl_path.to_string()
+    });
+
+    generate_video_frames(&video_path, "cat")
+}
+
+pub fn generate_hand_frames() -> Result<(), Box<dyn std::error::Error>> {
+    let video_path = std::env::var("HAND_VIDEO_PATH").unwrap_or_else(|_| {
+        let wsl_path =
+            "/mnt/c/Users/carlk/OneDrive/SkyDrive camera roll/PXL_20251227_040453557.mp4";
+        if Path::new(wsl_path).exists() {
+            eprintln!("Found video at: {}", wsl_path);
+            return wsl_path.to_string();
+        }
+
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let candidates = [
+            format!("{}/OneDrive/SkyDrive camera roll/hand.mp4", home),
+            format!("{}/OneDrive/Camera Roll/hand.mp4", home),
+        ];
+
+        for candidate in &candidates {
+            if Path::new(candidate).exists() {
+                eprintln!("Found video at: {}", candidate);
+                return candidate.clone();
+            }
+        }
+
+        eprintln!("Could not find hand video in standard OneDrive locations.");
+        eprintln!("Set HAND_VIDEO_PATH environment variable to specify the video location.");
+        wsl_path.to_string()
+    });
+
+    generate_video_frames(&video_path, "hand")
+}
+
+pub fn generate_clock_frames() -> Result<(), Box<dyn std::error::Error>> {
+    let video_path = std::env::var("CLOCK_VIDEO_PATH").unwrap_or_else(|_| {
+        let wsl_path = "/mnt/c/Users/carlk/Downloads/PXL_20251228_220608546.mp4";
+        if Path::new(wsl_path).exists() {
+            eprintln!("Found video at: {}", wsl_path);
+            return wsl_path.to_string();
+        }
+
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let candidates = [
+            format!("{}/OneDrive/SkyDrive camera roll/clock.mp4", home),
+            format!("{}/Downloads/clock.mp4", home),
+        ];
+
+        for candidate in &candidates {
+            if Path::new(candidate).exists() {
+                eprintln!("Found video at: {}", candidate);
+                return candidate.clone();
+            }
+        }
+
+        eprintln!("Could not find clock video in standard locations.");
+        eprintln!("Set CLOCK_VIDEO_PATH environment variable to specify the video location.");
+        wsl_path.to_string()
+    });
+
+    generate_video_frames(&video_path, "clock")
+}
+
+fn generate_video_frames(video_path: &str, name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // Create temporary directory for extracted frames
+    let temp_dir = std::env::temp_dir().join(format!("{}_frames_12x8", name));
+    if temp_dir.exists() {
+        fs::remove_dir_all(&temp_dir)?;
+    }
+    fs::create_dir_all(&temp_dir)?;
+
+    eprintln!("Extracting frames from video: {}", video_path);
+    eprintln!("Output directory: {}", temp_dir.display());
+
+    // Use ffmpeg to extract frames at 10 FPS, scaled to 12x8
+    let status = Command::new("ffmpeg")
+        .args([
+            "-i",
+            &video_path,
+            "-vf",
+            "fps=10,scale=12:8:flags=lanczos",
+            "-q:v",
+            "2",
+            &format!("{}/frame_%06d.png", temp_dir.display()),
+        ])
+        .status()?;
+
+    if !status.success() {
+        return Err("ffmpeg failed to extract frames".into());
+    }
+
+    // Count extracted frames
+    let frame_count = fs::read_dir(&temp_dir)?.count();
+    eprintln!("Extracted {} frames", frame_count);
+
+    generate_frames_from_directory(&temp_dir, name, frame_count)
+}
+
+fn generate_frames_from_pngs(name: &str) -> Result<(), Box<dyn std::error::Error>> {
     let frames_dir =
         Path::new(&std::env::var("HOME")?).join("programs/ffmpeg-test/frames12x8_landscape");
+    generate_frames_from_directory(&frames_dir, name, 65)
+}
 
-    println!("// Video frames generated from PNG files");
+fn generate_frames_from_directory(
+    frames_dir: &Path,
+    name: &str,
+    frame_count: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("// Video frames generated from PNG files ({} video)", name);
     println!("// Auto-generated - do not edit manually");
     println!();
-    println!("const VIDEO_FRAMES: [VideoFrame; FRAME_COUNT] = [");
 
-    for frame_num in 1..=65 {
+    // Only output FRAME_DURATION once (shared by all videos)
+    if name == "santa" {
+        println!("// Frame duration for 10 FPS (100ms per frame)");
+        println!("const FRAME_DURATION: Duration = Duration::from_millis(100);");
+        println!();
+    }
+
+    println!(
+        "const {}_FRAME_COUNT: usize = {};",
+        name.to_uppercase(),
+        frame_count
+    );
+    println!();
+    println!(
+        "const {}_FRAMES_RAW: [[[RGB8; 12]; 8]; {}_FRAME_COUNT] = [",
+        name.to_uppercase(),
+        name.to_uppercase()
+    );
+
+    for frame_num in 1..=frame_count {
         let filename = frames_dir.join(format!("frame_{:06}.png", frame_num));
 
         if !filename.exists() {
@@ -64,7 +227,7 @@ pub fn generate_frames() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         print!("    ]");
-        if frame_num < 65 {
+        if frame_num < frame_count {
             println!(",");
         } else {
             println!();

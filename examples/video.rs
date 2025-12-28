@@ -1,21 +1,24 @@
-//! LED matrix video player - plays a looping 12x8 video at 10 FPS.
+//! LED matrix video player - plays looping 12x8 videos with button-controlled mode switching.
 //!
-//! This example loads 65 pre-encoded frames and displays them in a continuous loop
-//! on a 12-wide by 8-tall LED2D display. The display is wired like clock_led8x12.rs
-//! but rotated 90 degrees (so 12 columns × 8 rows instead of 8 columns × 12 rows).
+//! This example cycles through multiple display modes using a button:
+//! 1. **Test Pattern**: RGBY corners (Red top-left, Green top-right, Blue bottom-left, Yellow bottom-right)
+//! 2. **Santa**: 65-frame video at 10 FPS
+//! 3. **Cat**: Video converted from user's camera roll (when generated)
 //!
-//! The display uses `gamma: Gamma::Gamma2_2` for automatic gamma correction of all
-//! frames, which provides more natural perceived brightness on LEDs.
+//! Press the button at any time to advance to the next mode.
 //!
 //! # Hardware Setup
 //!
 //! - Two 12x4 LED panels creating a 12x8 display (rotated 90° from clock_led8x12)
 //! - LED data on GPIO4
+//! - Button on GPIO13 (wired to ground)
 //! - Same physical wiring as clock_led8x12.rs but logically rotated
 //!
 //! # Converting Your Video to LED Frames
 //!
-//! The frames are embedded from `video_frames_data.rs`, which is **auto-generated**
+//! ## Santa Video (Pre-configured)
+//!
+//! The santa frames are embedded from `video_frames_data.rs`, which is **auto-generated**
 //! during the build process from PNG files in `~/programs/ffmpeg-test/frames12x8_landscape/`.
 //!
 //! The build system automatically:
@@ -29,10 +32,29 @@
 //! 2. Delete `video_frames_data.rs` to force regeneration (or run `cargo clean`)
 //! 3. Rebuild the example - frames will be regenerated automatically
 //!
-//! Manual generation (if needed):
+//! Manual generation:
 //! ```bash
 //! cargo xtask video-frames-gen > video_frames_data.rs
 //! ```
+//!
+//! ## Cat Video (From Video File)
+//!
+//! To add the cat video mode:
+//! 1. Place your video file at: `C:\Users\carlk\OneDrive\SkyDrive camera roll\cat.mp4`
+//!    (or update the path in `xtask/src/video_frames_gen.rs`)
+//! 2. Generate frames:
+//!    ```bash
+//!    cargo xtask cat-frames-gen > cat_frames_data.rs
+//!    ```
+//! 3. Uncomment the cat-related lines in this file:
+//!    - `include!("../cat_frames_data.rs");`
+//!    - `Mode::Cat` enum variant
+//!    - Cat playback logic in the match statement
+//!
+//! The xtask command uses ffmpeg to:
+//! - Extract frames at 10 FPS
+//! - Scale to 12x8 pixels
+//! - Convert to embedded Rust arrays
 
 #![no_std]
 #![no_main]
@@ -41,13 +63,14 @@
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
+use device_kit::button::{Button, PressedTo};
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
 use embassy_executor::Spawner;
 use embassy_time::Duration;
 use panic_probe as _;
-use smart_leds::RGB8;
+use smart_leds::{RGB8, colors};
 
 // Display: 12 wide × 8 tall (rotated 90° from clock_led8x12)
 // The mapping is the clock_led8x12 mapping but reinterpreted for 12x8 instead of 8x12
@@ -72,23 +95,62 @@ led2d! {
     ]),
     max_current: Milliamps(250),
     gamma: Gamma::Gamma2_2,
-    max_frames: 65,
+    max_frames: 70,
     font: Font3x4Trim,
 }
 
-// Frame data structure: each frame is 8 rows × 12 columns of RGB8 pixels
-type VideoFrame = [[RGB8; 12]; 8];
-
 // Total frames in the video
-const FRAME_COUNT: usize = 65;
+// Now defined in generated files: SANTA_FRAME_COUNT, CAT_FRAME_COUNT
 
-// Frame duration for 10 FPS (100ms per frame)
-const FRAME_DURATION: Duration = Duration::from_millis(100);
-
-// Video frames embedded at compile time
+// Video frames and frame duration embedded at compile time
 // Auto-generated during build from PNG files in ~/programs/ffmpeg-test/frames12x8_landscape/
 // See build.rs for generation logic
 include!("../video_frames_data.rs");
+
+// Cat video frames - generated from OneDrive camera roll
+// include!("../cat_frames_data.rs");
+
+// Hand video frames - generated from OneDrive camera roll
+// include!("../hand_frames_data.rs");
+
+// Clock video frames
+include!("../clock_frames_data.rs");
+
+/// Video display modes.
+#[derive(defmt::Format, Clone, Copy)]
+enum Mode {
+    TestPattern,
+    Santa,
+    Clock,
+}
+
+impl Mode {
+    /// Advance to the next mode in the cycle.
+    fn next(self) -> Self {
+        match self {
+            Self::TestPattern => Self::Santa,
+            Self::Santa => Self::Clock,
+            Self::Clock => Self::TestPattern,
+        }
+    }
+}
+
+/// Create a test pattern frame with RGBY corners.
+/// Tests all 4 corners and center cross to verify coordinate mapping.
+fn create_test_pattern() -> Led12x8Frame {
+    let mut frame = Led12x8::new_frame();
+
+    // Test: columns appear reversed based on GRYB observation
+    frame[0][Led12x8::COLS - 1] = colors::RED; // Top-left (reversed col)
+    frame[0][0] = colors::GREEN; // Top-right (reversed col)
+    frame[Led12x8::ROWS - 1][Led12x8::COLS - 1] = colors::BLUE; // Bottom-left (reversed col)
+    frame[Led12x8::ROWS - 1][0] = colors::YELLOW; // Bottom-right (reversed col)
+
+    // Center cross for additional verification
+    frame[Led12x8::ROWS / 2][Led12x8::COLS / 2] = colors::WHITE;
+
+    frame.into()
+}
 
 #[embassy_executor::main]
 pub async fn main(spawner: Spawner) -> ! {
@@ -103,20 +165,40 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
     // Set up the 12x8 LED display on GPIO4 with gamma 2.2 correction
     let led_12x8 = Led12x8::new(p.PIO1, p.DMA_CH1, p.PIN_4, spawner)?;
 
+    // Set up button on GPIO13 (wired to ground)
+    let mut button = Button::new(p.PIN_13, PressedTo::Ground);
+
     info!("Video player initialized - gamma correction applied automatically");
 
-    // Convert video frames to Led12x8Frame format and animate
-    // The animate method accepts an iterator, so we convert frames on-the-fly without allocation
-    led_12x8
-        .animate(
-            VIDEO_FRAMES
-                .iter()
-                .map(|video_frame| (Led12x8Frame::from(*video_frame), FRAME_DURATION)),
-        )
-        .await?;
+    let mut mode = Mode::TestPattern;
 
-    // Keep the task alive
     loop {
-        embassy_time::Timer::after(Duration::from_secs(60)).await;
+        info!("Entering mode: {:?}", mode);
+
+        match mode {
+            Mode::TestPattern => {
+                let test_pattern = create_test_pattern();
+                led_12x8.write_frame(test_pattern).await?;
+
+                button.wait_for_press_duration().await;
+                mode = mode.next();
+            }
+            Mode::Santa => {
+                let frames_with_duration = SANTA_FRAMES_RAW
+                    .iter()
+                    .map(|&frame| (frame.into(), FRAME_DURATION));
+                led_12x8.animate(frames_with_duration).await?;
+                button.wait_for_press_duration().await;
+                mode = mode.next();
+            }
+            Mode::Clock => {
+                let frames_with_duration = CLOCK_FRAMES_RAW
+                    .iter()
+                    .map(|&frame| (frame.into(), FRAME_DURATION));
+                led_12x8.animate(frames_with_duration).await?;
+                button.wait_for_press_duration().await;
+                mode = mode.next();
+            }
+        }
     }
 }

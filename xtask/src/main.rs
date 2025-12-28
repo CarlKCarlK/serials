@@ -24,8 +24,14 @@ struct Cli {
 enum Commands {
     /// Run all checks: build lib, examples, run tests, generate docs
     CheckAll,
-    /// Generate video frames from PNG files
+    /// Generate video frames from PNG files (santa video)
     VideoFramesGen,
+    /// Generate cat video frames from video file
+    CatFramesGen,
+    /// Generate hand video frames from video file
+    HandFramesGen,
+    /// Generate clock video frames from video file
+    ClockFramesGen,
     /// Build library with specified features
     Build {
         #[arg(long, default_value = "pico1")]
@@ -108,6 +114,30 @@ fn main() -> ExitCode {
         Commands::VideoFramesGen => {
             if let Err(e) = video_frames_gen::generate_frames() {
                 eprintln!("Error generating video frames: {}", e);
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
+        Commands::CatFramesGen => {
+            if let Err(e) = video_frames_gen::generate_cat_frames() {
+                eprintln!("Error generating cat video frames: {}", e);
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
+        Commands::HandFramesGen => {
+            if let Err(e) = video_frames_gen::generate_hand_frames() {
+                eprintln!("Error generating hand video frames: {}", e);
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
+        Commands::ClockFramesGen => {
+            if let Err(e) = video_frames_gen::generate_clock_frames() {
+                eprintln!("Error generating clock video frames: {}", e);
                 ExitCode::FAILURE
             } else {
                 ExitCode::SUCCESS
