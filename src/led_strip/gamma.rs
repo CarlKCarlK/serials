@@ -14,7 +14,10 @@ pub enum Gamma {
 
 /// Gamma 2.2 lookup table for 8-bit values.
 /// Pre-computed to avoid floating point math: corrected = (value/255)^2.2 * 255
-const GAMMA_2_2_TABLE: [u8; 256] = [
+///
+/// This table is used internally by the LED strip driver, but is also exported
+/// for applications that need to apply gamma correction manually.
+pub const GAMMA_2_2_TABLE: [u8; 256] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2,
     3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 11, 11,
     11, 12, 12, 13, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19, 19, 20, 20, 21, 22, 22, 23,
