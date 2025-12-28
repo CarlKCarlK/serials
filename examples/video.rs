@@ -1,13 +1,28 @@
 //! LED matrix video player - plays a looping 12x8 video at 10 FPS.
 //!
-//! This example loads 70 pre-encoded frames and displays them in a continuous loop
+//! This example loads 65 pre-encoded frames and displays them in a continuous loop
 //! on a 12-wide by 8-tall LED2D display. The display is wired like clock_led8x12.rs
 //! but rotated 90 degrees (so 12 columns × 8 rows instead of 8 columns × 12 rows).
+//!
+//! The example demonstrates three modes:
+//! - Test pattern: RGBY corner markers
+//! - Gamma 1.0 (linear): No gamma correction
+//! - Gamma 2.2: Standard gamma correction for perceived brightness
+//!
+//! Press the button on GPIO13 to cycle through modes.
+//!
+//! # Gamma Correction
+//!
+//! This example uses `gamma: Gamma::Linear` in the macro and applies gamma 2.2
+//! correction at the application level for one mode. For simpler use cases, you can
+//! set `gamma: Gamma::Gamma2_2` directly in the led2d! macro to have correction
+//! applied automatically for all frames.
 //!
 //! # Hardware Setup
 //!
 //! - Two 12x4 LED panels creating a 12x8 display (rotated 90° from clock_led8x12)
 //! - LED data on GPIO4
+//! - Button on GPIO13 (pressed to ground)
 //! - Same physical wiring as clock_led8x12.rs but logically rotated
 //!
 //! # Converting Your Video to LED Frames
@@ -37,6 +52,7 @@ use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::button::{Button, PressedTo};
 use device_kit::led_strip::Milliamps;
+use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
 use embassy_executor::Spawner;
 use embassy_time::Duration;
@@ -76,6 +92,7 @@ led2d! {
         92, 91, 84, 83, 76, 75, 68, 67, 60, 59, 52, 51,
     ]),
     max_current: Milliamps(250),
+    gamma: Gamma::Linear,
     max_frames: 65,
     font: Font3x4Trim,
 }

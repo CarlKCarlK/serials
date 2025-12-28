@@ -2,6 +2,8 @@
 //!
 //! See [`LedStrip`] for the simple single-strip driver, or use [`define_led_strips_shared!`] for managing multiple strips on one PIO.
 
+pub mod gamma;
+
 include!("led_strip/led_strip_shared.rs");
 // See [`LedStrip`] for the main usage example and [`LedStripShared`] / [`define_led_strips_shared!`] for multi-strip setups on one PIO.
 
@@ -84,11 +86,6 @@ where
     bus.with_common(|common| PioWs2812::<PIO, 0, N, _>::new(common, sm, dma, pin, program))
 }
 
-#[inline]
-fn scale_brightness_single(value: u8, brightness: u8) -> u8 {
-    ((u16::from(value) * u16::from(brightness)) / 255) as u8
-}
-
 fn max_brightness_for<const N: usize>(max_current: Milliamps) -> u8 {
     assert!(N > 0, "strip must contain at least one LED");
     assert!(max_current.0 > 0, "max_current must be positive");
@@ -105,13 +102,13 @@ fn max_brightness_for<const N: usize>(max_current: Milliamps) -> u8 {
     }
 }
 
-/// Applies a brightness cap to an entire frame in place.
-fn apply_max_brightness<const N: usize>(frame: &mut [Rgb; N], max_brightness: u8) {
+/// Applies a combined gamma correction and brightness cap to an entire frame in place.
+fn apply_combo_table<const N: usize>(frame: &mut [Rgb; N], combo_table: &[u8; 256]) {
     for color in frame.iter_mut() {
         *color = Rgb::new(
-            scale_brightness_single(color.r, max_brightness),
-            scale_brightness_single(color.g, max_brightness),
-            scale_brightness_single(color.b, max_brightness),
+            combo_table[usize::from(color.r)],
+            combo_table[usize::from(color.g)],
+            combo_table[usize::from(color.b)],
         );
     }
 }
@@ -149,18 +146,20 @@ impl<const N: usize> LedStripStatic<N> {
 ///     LedStripStatic,
 ///     Milliamps,
 ///     colors,
+///     gamma::Gamma,
 ///     new_led_strip,
 /// };
 /// use device_kit::Result;
 ///
 /// async fn example(p: embassy_rp::Peripherals) -> Result<()> {
 ///     let mut led_strip = new_led_strip!(
-///         LED_STRIP,      // static name
-///         8,              // LED count
-///         p.PIN_2,        // data pin
-///         PIO0,           // PIO block (SM0)
-///         p.DMA_CH0,      // DMA channel
-///         Milliamps(50)   // max current budget (mA)
+///         LED_STRIP,        // static name
+///         8,                // LED count
+///         p.PIN_2,          // data pin
+///         PIO0,             // PIO block (SM0)
+///         p.DMA_CH0,        // DMA channel
+///         Milliamps(50),    // max current budget (mA)
+///         Gamma::Linear     // gamma correction (Linear or Gamma2_2)
 ///     ).await;
 ///
 ///     let mut frame = [colors::BLACK; 8];
@@ -171,7 +170,7 @@ impl<const N: usize> LedStripStatic<N> {
 /// ```
 pub struct LedStrip<'d, PIO: Instance, const N: usize> {
     driver: PioWs2812<'d, PIO, 0, N, Grb>,
-    max_brightness: u8,
+    combo_table: [u8; 256],
 }
 
 impl<'d, PIO: Instance, const N: usize> LedStrip<'d, PIO, N> {
@@ -182,6 +181,7 @@ impl<'d, PIO: Instance, const N: usize> LedStrip<'d, PIO, N> {
         sm: EmbassyStateMachine<'static, PIO, 0>,
         dma: embassy_rp::Peri<'static, Dma>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
+        gamma: gamma::Gamma,
         max_brightness: u8,
     ) -> Self
     where
@@ -189,9 +189,10 @@ impl<'d, PIO: Instance, const N: usize> LedStrip<'d, PIO, N> {
     {
         let _ = strip_static; // marker to match Device/Static pattern
         let driver = new_driver_grb::<PIO, N, _>(bus, sm, dma, pin);
+        let combo_table = gamma::generate_combo_table(gamma, max_brightness);
         Self {
             driver,
-            max_brightness,
+            combo_table,
         }
     }
 
@@ -200,7 +201,7 @@ impl<'d, PIO: Instance, const N: usize> LedStrip<'d, PIO, N> {
     /// See [`LedStrip`] for the usage example.
     pub async fn update_pixels(&mut self, pixels: &[Rgb; N]) -> Result<()> {
         let mut frame = *pixels;
-        apply_max_brightness(&mut frame, self.max_brightness);
+        apply_combo_table(&mut frame, &self.combo_table);
         self.driver.write(&frame).await;
         Ok(())
     }
@@ -218,13 +219,14 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO0, N> {
         dma: embassy_rp::Peri<'static, Dma>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_current: Milliamps,
+        gamma: gamma::Gamma,
     ) -> Self
     where
         Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
     {
         let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio0(pio);
-        let mut led_strip = LedStrip::new(strip_static, bus, sm, dma, pin, max_brightness);
+        let mut led_strip = LedStrip::new(strip_static, bus, sm, dma, pin, gamma, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
         led_strip.update_pixels(&blank).await.ok();
@@ -244,13 +246,14 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO1, N> {
         dma: embassy_rp::Peri<'static, Dma>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_current: Milliamps,
+        gamma: gamma::Gamma,
     ) -> Self
     where
         Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
     {
         let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio1(pio);
-        let mut led_strip = LedStrip::new(strip_static, bus, sm, dma, pin, max_brightness);
+        let mut led_strip = LedStrip::new(strip_static, bus, sm, dma, pin, gamma, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
         led_strip.update_pixels(&blank).await.ok();
@@ -271,13 +274,14 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO2, N> {
         dma: embassy_rp::Peri<'static, Dma>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_current: Milliamps,
+        gamma: gamma::Gamma,
     ) -> Self
     where
         Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
     {
         let max_brightness = max_brightness_for::<N>(max_current);
         let (bus, sm) = init_pio2(pio);
-        let mut led_strip = LedStrip::new(strip_static, bus, sm, dma, pin, max_brightness);
+        let mut led_strip = LedStrip::new(strip_static, bus, sm, dma, pin, gamma, max_brightness);
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
         led_strip.update_pixels(&blank).await.ok();
@@ -295,6 +299,7 @@ pub trait LedStripNew<const N: usize> {
         dma: embassy_rp::Peri<'static, Dma>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_current: Milliamps,
+        gamma: gamma::Gamma,
     ) -> LedStrip<'static, Self, N>
     where
         Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
@@ -308,11 +313,12 @@ impl<const N: usize> LedStripNew<N> for embassy_rp::peripherals::PIO0 {
         dma: embassy_rp::Peri<'static, Dma>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_current: Milliamps,
+        gamma: gamma::Gamma,
     ) -> LedStrip<'static, Self, N>
     where
         Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
     {
-        LedStrip::new_pio0(strip_static, pio, dma, pin, max_current).await
+        LedStrip::new_pio0(strip_static, pio, dma, pin, max_current, gamma).await
     }
 }
 
@@ -323,11 +329,12 @@ impl<const N: usize> LedStripNew<N> for embassy_rp::peripherals::PIO1 {
         dma: embassy_rp::Peri<'static, Dma>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_current: Milliamps,
+        gamma: gamma::Gamma,
     ) -> LedStrip<'static, Self, N>
     where
         Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
     {
-        LedStrip::new_pio1(strip_static, pio, dma, pin, max_current).await
+        LedStrip::new_pio1(strip_static, pio, dma, pin, max_current, gamma).await
     }
 }
 
@@ -339,11 +346,12 @@ impl<const N: usize> LedStripNew<N> for embassy_rp::peripherals::PIO2 {
         dma: embassy_rp::Peri<'static, Dma>,
         pin: embassy_rp::Peri<'static, impl PioPin>,
         max_current: Milliamps,
+        gamma: gamma::Gamma,
     ) -> LedStrip<'static, Self, N>
     where
         Dma: embassy_rp::dma::Channel + embassy_rp::PeripheralType,
     {
-        LedStrip::new_pio2(strip_static, pio, dma, pin, max_current).await
+        LedStrip::new_pio2(strip_static, pio, dma, pin, max_current, gamma).await
     }
 }
 
@@ -352,14 +360,15 @@ impl<const N: usize> LedStripNew<N> for embassy_rp::peripherals::PIO2 {
 /// Macro wrapper that routes to `new_pio0`/`new_pio1`/`new_pio2` and hides static creation.
 /// See the usage example on [`LedStrip`].
 macro_rules! new_led_strip {
-    // Main API: name, len, pin, pio, dma, max_current
+    // Main API: name, len, pin, pio, dma, max_current, gamma
     (
         $name:ident,
         $len:literal,
         $pin:expr,
         $pio:expr,
         $dma:expr,
-        $max_current:expr
+        $max_current:expr,
+        $gamma:expr
     ) => {{
         use $crate::led_strip::LedStripNew as _;
         static $name: $crate::led_strip::LedStripStatic<$len> =
@@ -370,6 +379,7 @@ macro_rules! new_led_strip {
             $dma,
             $pin,
             $max_current,
+            $gamma,
         )
     }};
 }

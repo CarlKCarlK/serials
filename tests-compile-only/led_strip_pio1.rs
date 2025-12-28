@@ -9,6 +9,7 @@
 
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::gamma::Gamma;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use panic_probe as _;
@@ -21,7 +22,8 @@ define_led_strips_shared! {
             dma: DMA_CH3,
             pin: PIN_16,
             len: 48,
-            max_current: Milliamps(100)
+            max_current: Milliamps(100),
+            gamma: Gamma::Linear
         }
     ]
 }

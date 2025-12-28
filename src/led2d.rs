@@ -1056,6 +1056,7 @@ macro_rules! led2d {
         cols: $cols:expr,
         mapping: serpentine_column_major,
         max_current: $max_current:expr,
+        gamma: $gamma:expr,
         max_frames: $max_frames:expr,
         font: $font_variant:ident $(,)?
     ) => {
@@ -1069,7 +1070,8 @@ macro_rules! led2d {
                         dma: $dma,
                         pin: $pin,
                         len: { $rows * $cols },
-                        max_current: $max_current
+                        max_current: $max_current,
+                        gamma: $gamma
                     }
                 ]
             }
@@ -1132,6 +1134,7 @@ macro_rules! led2d {
         cols: $cols:expr,
         mapping: arbitrary([$($index:expr),* $(,)?]),
         max_current: $max_current:expr,
+        gamma: $gamma:expr,
         max_frames: $max_frames:expr,
         font: $font_variant:ident $(,)?
     ) => {
@@ -1145,7 +1148,8 @@ macro_rules! led2d {
                         dma: $dma,
                         pin: $pin,
                         len: $rows * $cols,
-                        max_current: $max_current
+                        max_current: $max_current,
+                        gamma: $gamma
                     }
                 ]
             }

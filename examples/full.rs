@@ -41,6 +41,7 @@ use device_kit::ir::{Ir, IrEvent, IrStatic};
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::Rgb;
 use device_kit::led_strip::colors;
+use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::define_led_strips_shared;
 use device_kit::led_strip::{Gpio14LedStrip, Gpio2LedStrip};
 use device_kit::led24x4::Led24x4;
@@ -66,14 +67,16 @@ define_led_strips_shared! {
             dma: DMA_CH1,
             pin: PIN_2,
             len: 8,
-            max_current: Milliamps(50)
+            max_current: Milliamps(50),
+            gamma: Gamma::Linear
         },
         Gpio14LedStrip {
             sm: 1,
             dma: DMA_CH4,
             pin: PIN_14,
             len: 48,
-            max_current: Milliamps(100)
+            max_current: Milliamps(100),
+            gamma: Gamma::Linear
         }
     ]
 }

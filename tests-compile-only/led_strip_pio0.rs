@@ -8,6 +8,7 @@
 #![allow(dead_code, reason = "Compile-time verification only")]
 
 use device_kit::led_strip::Milliamps;
+use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::define_led_strips_shared;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
@@ -21,7 +22,8 @@ define_led_strips_shared! {
             dma: DMA_CH0,
             pin: PIN_2,
             len: 8,
-            max_current: Milliamps(50)
+            max_current: Milliamps(50),
+            gamma: Gamma::Linear
         }
     ]
 }

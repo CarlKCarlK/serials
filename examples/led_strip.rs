@@ -5,6 +5,7 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::Milliamps;
+use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::define_led_strips_shared;
 use device_kit::led_strip::{Rgb, colors};
 use device_kit::pio_split;
@@ -20,7 +21,8 @@ define_led_strips_shared! {
             dma: DMA_CH0,
             pin: PIN_2,
             len: 8,
-            max_current: Milliamps(50)
+            max_current: Milliamps(50),
+            gamma: Gamma::Linear
         }
     ]
 }

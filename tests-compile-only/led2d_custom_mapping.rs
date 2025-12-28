@@ -11,6 +11,7 @@
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::Milliamps;
+use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
 use embassy_executor::Spawner;
 use embassy_time::Duration;
@@ -31,6 +32,7 @@ led2d! {
         3, 4, 5,  // Row 1: LEDs 3, 4, 5
     ]),
     max_current: Milliamps(100),
+    gamma: Gamma::Linear,
     max_frames: 6,
     font: Font3x4Trim,
 }

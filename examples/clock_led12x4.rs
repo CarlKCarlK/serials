@@ -18,6 +18,7 @@ use device_kit::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::colors;
+use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use device_kit::wifi_auto::WifiAuto;
@@ -39,6 +40,7 @@ led2d! {
     cols: 12,
     mapping: serpentine_column_major,
     max_current: Milliamps(500),
+    gamma: Gamma::Linear,
     max_frames: 32,
     font: Font3x4Trim,
 }

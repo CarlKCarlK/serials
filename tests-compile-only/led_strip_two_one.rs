@@ -12,6 +12,7 @@ use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips_shared;
 use device_kit::led_strip::{Milliamps, Rgb, colors};
+use device_kit::led_strip::gamma::Gamma;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
@@ -26,7 +27,8 @@ define_led_strips_shared! {
             dma: DMA_CH0,
             pin: PIN_0,
             len: 8,
-            max_current: Milliamps(200)
+            max_current: Milliamps(200),
+            gamma: Gamma::Linear
         },
         Gpio3LedStrip {
             sm: 1,
@@ -34,6 +36,7 @@ define_led_strips_shared! {
             pin: PIN_3,
             len: 48,
             max_current: Milliamps(500),
+            gamma: Gamma::Linear,
             led2d: {
                 rows: 4,
                 cols: 12,
@@ -54,6 +57,7 @@ define_led_strips_shared! {
             pin: PIN_4,
             len: 96,
             max_current: Milliamps(200),
+            gamma: Gamma::Linear,
             led2d: {
                 rows: 12,
                 cols: 8,

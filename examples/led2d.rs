@@ -8,6 +8,7 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::button::{Button, PressedTo};
 use device_kit::led_strip::Milliamps;
+use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
 use device_kit::{Error, Result};
 use embassy_executor::Spawner;
@@ -27,6 +28,7 @@ led2d! {
     cols: 12,
     mapping: serpentine_column_major,
     max_current: Milliamps(500),
+    gamma: Gamma::Linear,
     max_frames: 32,
     font: Font3x4Trim,
 }

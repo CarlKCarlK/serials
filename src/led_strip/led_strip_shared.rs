@@ -177,7 +177,7 @@ impl<const N: usize> LedStripShared<N> {
 pub async fn led_strip_driver_loop<PIO, const SM: usize, const N: usize, ORDER>(
     mut driver: PioWs2812<'static, PIO, SM, N, ORDER>,
     commands: &'static LedStripCommands<N>,
-    max_brightness: u8,
+    combo_table: &'static [u8; 256],
 ) -> !
 where
     PIO: Instance,
@@ -186,23 +186,17 @@ where
     loop {
         let mut frame = commands.receive().await;
 
-        // Scale all pixels by brightness in place
+        // Apply combined gamma and brightness correction
         for color in frame.iter_mut() {
             *color = Rgb::new(
-                scale_brightness(color.r, max_brightness),
-                scale_brightness(color.g, max_brightness),
-                scale_brightness(color.b, max_brightness),
+                combo_table[usize::from(color.r)],
+                combo_table[usize::from(color.g)],
+                combo_table[usize::from(color.b)],
             );
         }
 
         driver.write(&frame).await;
     }
-}
-
-/// Scale a single color component by brightness (0-255).
-#[inline]
-fn scale_brightness(value: u8, brightness: u8) -> u8 {
-    ((u16::from(value) * u16::from(brightness)) / 255) as u8
 }
 
 // ============================================================================
@@ -245,7 +239,8 @@ macro_rules! define_led_strips_shared {
                     dma: $dma:ident,
                     pin: $pin:ident,
                     len: $len:expr,
-                    max_current: $max_current:expr
+                    max_current: $max_current:expr,
+                    gamma: $gamma:expr
                     $(,
                         led2d: {
                             rows: $led2d_rows:expr,
@@ -318,6 +313,9 @@ macro_rules! define_led_strips_shared {
                         if scale > 255 { 255 } else { scale as u8 }
                     };
 
+                    // Combined gamma correction and brightness scaling table
+                    const COMBO_TABLE: [u8; 256] = $crate::led_strip::gamma::generate_combo_table($gamma, Self::MAX_BRIGHTNESS);
+
                     pub(crate) const fn new_static() -> $crate::led_strip::LedStripSharedStatic<{ $len }> {
                         $crate::led_strip::LedStripShared::new_static()
                     }
@@ -383,7 +381,7 @@ macro_rules! define_led_strips_shared {
                         $sm_index,
                         { $len },
                         _
-                    >(driver, commands, $module::MAX_BRIGHTNESS).await
+                    >(driver, commands, &$module::COMBO_TABLE).await
                 }
 
                 $(

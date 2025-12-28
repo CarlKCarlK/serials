@@ -5,6 +5,7 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
+use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::{LedStrip, Milliamps, colors, new_led_strip};
 use embassy_executor::Spawner;
 use embassy_time::Timer;
@@ -25,12 +26,13 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
     // cmk000 LedStripStatic?
     // cmk000 is StripStatic the right place to attach the new_static method?
     let mut led_strip = new_led_strip!(
-        LED_STRIP,   // static name
-        8,           // LED count
-        p.PIN_2,     // data pin
-        p.PIO1,      // PIO block
-        p.DMA_CH0,   // DMA channel
-        MAX_CURRENT  // max current budget (mA)
+        LED_STRIP,     // static name
+        8,             // LED count
+        p.PIN_2,       // data pin
+        p.PIO1,        // PIO block
+        p.DMA_CH0,     // DMA channel
+        MAX_CURRENT,   // max current budget (mA)
+        Gamma::Linear  // gamma correction
     )
     .await;
 

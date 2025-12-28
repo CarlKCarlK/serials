@@ -5,6 +5,7 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
+use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::{LedStrip, Milliamps, colors, new_led_strip};
 use embassy_executor::Spawner;
 use embassy_time::Timer;
@@ -24,24 +25,26 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
     // cmk000 kill this type of
     // cmk000 stripX to led_strip0, etc
     let mut led_strip_0 = new_led_strip!(
-        LED_STRIP_0, // static name
-        8,           // LED count
-        p.PIN_2,     // data pin
-        p.PIO0,      // PIO peripheral
-        p.DMA_CH0,   // DMA channel
-        MAX_CURRENT  // max current budget (mA)
+        LED_STRIP_0,   // static name
+        8,             // LED count
+        p.PIN_2,       // data pin
+        p.PIO0,        // PIO peripheral
+        p.DMA_CH0,     // DMA channel
+        MAX_CURRENT,   // max current budget (mA)
+        Gamma::Linear  // gamma correction
     )
     .await;
 
     // cmk000 make these the same order as shared's new
 
     let mut led_strip_1 = new_led_strip!(
-        LED_STRIP_1, // static name
-        48,          // LED count
-        p.PIN_3,     // data pin
-        p.PIO1,      // PIO peripheral
-        p.DMA_CH1,   // DMA channel
-        MAX_CURRENT  // max current budget (mA)
+        LED_STRIP_1,   // static name
+        48,            // LED count
+        p.PIN_3,       // data pin
+        p.PIO1,        // PIO peripheral
+        p.DMA_CH1,     // DMA channel
+        MAX_CURRENT,   // max current budget (mA)
+        Gamma::Linear  // gamma correction
     )
     .await;
 
