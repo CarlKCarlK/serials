@@ -21,6 +21,7 @@
 //! use embassy_rp::init;
 //! use device_kit::led2d;
 //! use device_kit::led_strip::Milliamps;
+//! use device_kit::led_strip::gamma::Gamma;
 //! use device_kit::led_strip::colors;
 //!
 //! led2d! {
@@ -32,6 +33,7 @@
 //!     cols: 12,
 //!     mapping: serpentine_column_major,
 //!     max_current: Milliamps(500),
+//!     gamma: Gamma::Linear,
 //!     max_frames: 32,
 //!     font: Font3x4Trim,
 //! }
@@ -79,6 +81,7 @@
 //! use device_kit::led_strip::define_led_strips_shared;
 //! use device_kit::led2d::led2d_from_strip;
 //! use device_kit::led_strip::Milliamps;
+//! use device_kit::led_strip::gamma::Gamma;
 //! use device_kit::led_strip::colors;
 //! use device_kit::pio_split;
 //!
@@ -91,7 +94,8 @@
 //!             dma: DMA_CH0,
 //!             pin: PIN_3,
 //!             len: 48,
-//!             max_current: Milliamps(500)
+//!             max_current: Milliamps(500),
+//!             gamma: Gamma::Linear
 //!         }
 //!     ]
 //! }
@@ -1021,6 +1025,7 @@ pub use led2d_device;
 /// use embassy_rp::init;
 /// use device_kit::led2d;
 /// use device_kit::led_strip::Milliamps;
+/// use device_kit::led_strip::gamma::Gamma;
 /// use device_kit::led_strip::colors;
 ///
 /// // Generate a 12×4 LED matrix display
@@ -1033,6 +1038,7 @@ pub use led2d_device;
 ///     cols: 12,
 ///     mapping: serpentine_column_major,
 ///     max_current: Milliamps(500),
+///     gamma: Gamma::Linear,
 ///     max_frames: 32,
 ///     font: Font3x4Trim,
 /// }
@@ -1235,6 +1241,7 @@ macro_rules! led2d {
 /// use device_kit::led_strip::define_led_strips_shared;
 /// use device_kit::led2d::led2d_from_strip;
 /// use device_kit::led_strip::Milliamps;
+/// use device_kit::led_strip::gamma::Gamma;
 /// use device_kit::pio_split;
 /// use embassy_executor::Spawner;
 ///
@@ -1247,7 +1254,8 @@ macro_rules! led2d {
 ///             dma: DMA_CH0,
 ///             pin: PIN_3,
 ///             len: 48,
-///             max_current: Milliamps(500)
+///             max_current: Milliamps(500),
+///             gamma: Gamma::Linear
 ///         }
 ///     ]
 /// }

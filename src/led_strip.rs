@@ -156,7 +156,7 @@ impl<const N: usize> LedStripStatic<N> {
 ///         LED_STRIP,        // static name
 ///         8,                // LED count
 ///         p.PIN_2,          // data pin
-///         PIO0,             // PIO block (SM0)
+///         p.PIO0,           // PIO block (SM0)
 ///         p.DMA_CH0,        // DMA channel
 ///         Milliamps(50),    // max current budget (mA)
 ///         Gamma::Linear     // gamma correction (Linear or Gamma2_2)

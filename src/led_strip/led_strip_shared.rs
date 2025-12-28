@@ -433,6 +433,7 @@ pub use define_led_strips_shared;
 /// use embassy_executor::Spawner;
 /// use device_kit::led_strip::define_led_strips_shared;
 /// use device_kit::led_strip::Milliamps;
+/// use device_kit::led_strip::gamma::Gamma;
 /// use device_kit::pio_split;
 ///
 /// define_led_strips_shared! {
@@ -443,7 +444,8 @@ pub use define_led_strips_shared;
 ///             dma: DMA_CH0,
 ///             pin: PIN_2,
 ///             len: 8,
-///             max_current: Milliamps(50)
+///             max_current: Milliamps(50),
+///             gamma: Gamma::Linear
 ///         }
 ///     ]
 /// }
@@ -458,6 +460,7 @@ pub use define_led_strips_shared;
 ///     let gpio2_led_strip =
 ///         Gpio2LedStrip::new(sm0, p.DMA_CH0, p.PIN_2, spawner).unwrap();
 /// }
+///
 /// ```
 #[macro_export]
 macro_rules! pio_split {
