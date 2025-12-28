@@ -175,7 +175,7 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
                 led_12x8.write_frame(test_frame).await?;
 
                 // Wait for button press to switch to next mode
-                button.wait_for_press().await;
+                let _ = button.wait_for_press_duration().await;
                 mode = Mode::Gamma1;
             }
 
@@ -191,12 +191,11 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
                         .expect("animation frames fit in buffer");
                 }
 
-                // Play animation until button press
-                led_12x8
-                    .animate_until(&animation_frames, async {
-                        button.wait_for_press().await;
-                    })
-                    .await?;
+                // Start animation in background
+                led_12x8.animate(&animation_frames).await?;
+
+                // Wait for button press to switch to next mode
+                let _ = button.wait_for_press_duration().await;
                 mode = Mode::Gamma2_2;
             }
 
@@ -213,12 +212,11 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
                         .expect("animation frames fit in buffer");
                 }
 
-                // Play animation until button press
-                led_12x8
-                    .animate_until(&animation_frames, async {
-                        button.wait_for_press().await;
-                    })
-                    .await?;
+                // Start animation in background
+                led_12x8.animate(&animation_frames).await?;
+
+                // Wait for button press to switch to next mode
+                let _ = button.wait_for_press_duration().await;
                 mode = Mode::TestPattern;
             }
         }

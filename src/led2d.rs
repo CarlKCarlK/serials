@@ -722,88 +722,6 @@ impl<'a, const N: usize, const MAX_FRAMES: usize> Led2d<'a, N, MAX_FRAMES> {
         defmt::info!("Led2d::animate: completed (animation started)");
         Ok(())
     }
-
-    /// Loop through a sequence of animation frames until interrupted by the provided future.
-    ///
-    /// This method races between the animation loop and the provided future (typically a button
-    /// press or timeout). When the future completes, the animation is interrupted and this
-    /// method returns.
-    ///
-    /// Each frame is a tuple of (Frame, duration).
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use device_kit::led2d;
-    /// # use device_kit::led_strip::Milliamps;
-    /// # use device_kit::button::{Button, PressedTo};
-    /// # use embassy_executor::Spawner;
-    /// # use embassy_time::Duration;
-    /// # use smart_leds::RGB8;
-    /// # led2d! {
-    /// #     pub led8x8,
-    /// #     pio: PIO0,
-    /// #     pin: PIN_3,
-    /// #     dma: DMA_CH0,
-    /// #     rows: 8,
-    /// #     cols: 8,
-    /// #     mapping: serpentine_column_major,
-    /// #     max_current: Milliamps(500),
-    /// #     max_frames: 10,
-    /// #     font: Font3x4Trim,
-    /// # }
-    /// # async fn example(led: Led8x8, mut button: Button) -> device_kit::Result<()> {
-    /// // Create animation frames
-    /// let frames = [
-    ///     (Led8x8::new_frame(), Duration::from_millis(100)),
-    ///     // ... more frames
-    /// ];
-    ///
-    /// // Play animation until button is pressed
-    /// led.animate_until(&frames, async {
-    ///     button.wait_for_press().await;
-    /// }).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn animate_until<const ROWS: usize, const COLS: usize, F>(
-        &self,
-        frames: &[(Frame<ROWS, COLS>, Duration)],
-        interrupt: F,
-    ) -> Result<()>
-    where
-        F: core::future::Future<Output = ()>,
-    {
-        assert!(
-            MAX_FRAMES > 0,
-            "max_frames must be positive for Led2d animations"
-        );
-        assert!(!frames.is_empty(), "animation requires at least one frame");
-        defmt::info!("Led2d::animate_until: preparing {} frames", frames.len());
-        let mut sequence: Vec<([RGB8; N], Duration), MAX_FRAMES> = Vec::new();
-        for (frame, duration) in frames {
-            assert!(
-                duration.as_micros() > 0,
-                "animation frame duration must be positive"
-            );
-            let frame_1d = self.convert_frame(*frame);
-            sequence
-                .push((frame_1d, *duration))
-                .expect("animation sequence fits");
-        }
-        defmt::info!("Led2d::animate_until: sending Animate command");
-        self.command_signal.signal(Command::Animate(sequence));
-        defmt::info!("Led2d::animate_until: waiting for completion or interrupt");
-
-        // Wait for animation to start
-        self.completion_signal.wait().await;
-
-        // Now wait for the interrupt future
-        interrupt.await;
-
-        defmt::info!("Led2d::animate_until: interrupt received");
-        Ok(())
-    }
 }
 
 /// Creates a serpentine column-major mapping for rectangular displays.
@@ -1511,18 +1429,6 @@ macro_rules! led2d_from_strip {
                 /// Loop through a sequence of animation frames.
                 $vis async fn animate(&self, frames: &[($crate::led2d::Frame<$rows_const, $cols_const>, ::embassy_time::Duration)]) -> $crate::Result<()> {
                     self.led2d.animate(frames).await
-                }
-
-                /// Loop through a sequence of animation frames until interrupted by the provided future.
-                $vis async fn animate_until<F>(
-                    &self,
-                    frames: &[($crate::led2d::Frame<$rows_const, $cols_const>, ::embassy_time::Duration)],
-                    interrupt: F,
-                ) -> $crate::Result<()>
-                where
-                    F: core::future::Future<Output = ()>,
-                {
-                    self.led2d.animate_until(frames, interrupt).await
                 }
 
                 /// Render text into a frame using the configured font and spacing.
