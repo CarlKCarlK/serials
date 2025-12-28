@@ -2,6 +2,8 @@
 //!
 //! Run with: `cargo xtask <command>`
 
+mod video_frames_gen;
+
 use clap::{Parser, Subcommand};
 use owo_colors::OwoColorize;
 use rayon::prelude::*;
@@ -22,6 +24,8 @@ struct Cli {
 enum Commands {
     /// Run all checks: build lib, examples, run tests, generate docs
     CheckAll,
+    /// Generate video frames from PNG files
+    VideoFramesGen,
     /// Build library with specified features
     Build {
         #[arg(long, default_value = "pico1")]
@@ -101,6 +105,14 @@ fn main() -> ExitCode {
 
     match cli.command {
         Commands::CheckAll => check_all(),
+        Commands::VideoFramesGen => {
+            if let Err(e) = video_frames_gen::generate_frames() {
+                eprintln!("Error generating video frames: {}", e);
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
         Commands::Build { board, arch, wifi } => build_lib(board, arch, wifi),
         Commands::Example {
             name,
