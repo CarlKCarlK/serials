@@ -20,6 +20,7 @@ use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::colors;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
+use device_kit::led2d::Mapping;
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use device_kit::wifi_auto::WifiAuto;
 use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
@@ -31,8 +32,15 @@ use heapless::String;
 use panic_probe as _;
 use smart_leds::RGB8;
 
-// cmk could/should we replace arbitrary with a cat of the zigzag mapping?
-// Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise)
+// Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise).
+// Reuse the 12x8 mapping from video.rs and rotate clockwise to 8x12.
+const LED12X8_CUSTOM_MAPPING: Mapping<96, 8, 12> =
+    led2d::concat_v::<48, 48, 96, 12, 4, 4, 8>(
+        led2d::serpentine_12x4_mapping(),
+        led2d::serpentine_12x4_mapping(),
+    );
+const CLOCK_LED8X12_MAPPING: Mapping<96, 12, 8> = LED12X8_CUSTOM_MAPPING.rotate_cw();
+
 led2d! {
     pub led8x12,
     pio: PIO1,
@@ -40,21 +48,7 @@ led2d! {
     dma: DMA_CH1,
     rows: 12,
     cols: 8,
-    mapping: arbitrary([
-        // LED index → (col, row) mapping for rotated 8×12 layout
-        (0, 11), (1, 11), (2, 11), (3, 11), (3, 10), (2, 10), (1, 10), (0, 10),
-        (0, 9), (1, 9), (2, 9), (3, 9), (3, 8), (2, 8), (1, 8), (0, 8),
-        (0, 7), (1, 7), (2, 7), (3, 7), (3, 6), (2, 6), (1, 6), (0, 6),
-        (0, 5), (1, 5), (2, 5), (3, 5), (3, 4), (2, 4), (1, 4), (0, 4),
-        (0, 3), (1, 3), (2, 3), (3, 3), (3, 2), (2, 2), (1, 2), (0, 2),
-        (0, 1), (1, 1), (2, 1), (3, 1), (3, 0), (2, 0), (1, 0), (0, 0),
-        (4, 11), (5, 11), (6, 11), (7, 11), (7, 10), (6, 10), (5, 10), (4, 10),
-        (4, 9), (5, 9), (6, 9), (7, 9), (7, 8), (6, 8), (5, 8), (4, 8),
-        (4, 7), (5, 7), (6, 7), (7, 7), (7, 6), (6, 6), (5, 6), (4, 6),
-        (4, 5), (5, 5), (6, 5), (7, 5), (7, 4), (6, 4), (5, 4), (4, 4),
-        (4, 3), (5, 3), (6, 3), (7, 3), (7, 2), (6, 2), (5, 2), (4, 2),
-        (4, 1), (5, 1), (6, 1), (7, 1), (7, 0), (6, 0), (5, 0), (4, 0),
-    ]),
+    mapping: arbitrary(CLOCK_LED8X12_MAPPING.map),
     max_current: Milliamps(250),
     gamma: Gamma::Linear,
     max_frames: 48,
