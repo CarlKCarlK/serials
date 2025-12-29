@@ -798,6 +798,179 @@ pub const fn serpentine_column_major_mapping<
     mapping
 }
 
+/// Checked LED index→(col,row) mapping for a fixed grid size.
+#[derive(Clone, Copy)]
+pub struct Mapping<const N: usize, const ROWS: usize, const COLS: usize> {
+    pub map: [(u16, u16); N],
+}
+
+impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS> {
+    /// Checked constructor: verifies mapping is a bijection from indices 0..N onto the ROWS×COLS grid.
+    #[must_use]
+    pub const fn new_checked(map: [(u16, u16); N]) -> Self {
+        assert!(ROWS > 0 && COLS > 0, "ROWS and COLS must be positive");
+        assert!(ROWS * COLS == N, "ROWS*COLS must equal N");
+
+        let mut seen = [false; N];
+
+        let mut i = 0;
+        while i < N {
+            let (c, r) = map[i];
+            let c = c as usize;
+            let r = r as usize;
+
+            assert!(c < COLS, "column out of bounds");
+            assert!(r < ROWS, "row out of bounds");
+
+            let cell = r * COLS + c;
+            assert!(!seen[cell], "duplicate (col,row) in mapping");
+            seen[cell] = true;
+
+            i += 1;
+        }
+
+        let mut k = 0;
+        while k < N {
+            assert!(seen[k], "mapping does not cover every cell");
+            k += 1;
+        }
+
+        Self { map }
+    }
+
+    /// Unchecked constructor for already-validated mappings.
+    #[must_use]
+    pub const fn new_unchecked(map: [(u16, u16); N]) -> Self {
+        Self { map }
+    }
+}
+
+impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS> {
+    /// Rotate 90° clockwise (dims swap).
+    #[must_use]
+    pub const fn rotate_cw(self) -> Mapping<N, COLS, ROWS> {
+        let mut out = [(0u16, 0u16); N];
+        let mut i = 0;
+        while i < N {
+            let (c, r) = self.map[i];
+            let c = c as usize;
+            let r = r as usize;
+            out[i] = ((ROWS - 1 - r) as u16, c as u16);
+            i += 1;
+        }
+        Mapping::<N, COLS, ROWS>::new_unchecked(out)
+    }
+
+    /// Flip horizontally (mirror columns).
+    #[must_use]
+    pub const fn flip_h(self) -> Self {
+        let mut out = [(0u16, 0u16); N];
+        let mut i = 0;
+        while i < N {
+            let (c, r) = self.map[i];
+            let c = c as usize;
+            out[i] = ((COLS - 1 - c) as u16, r);
+            i += 1;
+        }
+        Self::new_unchecked(out)
+    }
+
+    /// Rotate 180° derived from rotate_cw.
+    #[must_use]
+    pub const fn rotate_180(self) -> Self {
+        self.rotate_cw().rotate_cw()
+    }
+
+    /// Rotate 90° counter-clockwise derived from rotate_cw.
+    #[must_use]
+    pub const fn rotate_ccw(self) -> Mapping<N, COLS, ROWS> {
+        self.rotate_cw().rotate_cw().rotate_cw()
+    }
+
+    /// Flip vertically derived from rotation + horizontal flip.
+    #[must_use]
+    pub const fn flip_v(self) -> Self {
+        self.rotate_cw().flip_h().rotate_ccw()
+    }
+}
+
+/// Concatenate two mappings horizontally.
+#[must_use]
+pub const fn concat_h<
+    const LEFT: usize,
+    const RIGHT: usize,
+    const TOTAL: usize,
+    const ROWS: usize,
+    const LCOLS: usize,
+    const RCOLS: usize,
+    const TCOLS: usize,
+>(
+    left: Mapping<LEFT, ROWS, LCOLS>,
+    right: Mapping<RIGHT, ROWS, RCOLS>,
+) -> Mapping<TOTAL, ROWS, TCOLS> {
+    assert!(TOTAL == LEFT + RIGHT, "TOTAL must equal LEFT + RIGHT");
+    assert!(TCOLS == LCOLS + RCOLS, "TCOLS must equal LCOLS + RCOLS");
+
+    let mut out = [(0u16, 0u16); TOTAL];
+
+    let mut i = 0;
+    while i < LEFT {
+        out[i] = left.map[i];
+        i += 1;
+    }
+
+    let mut j = 0;
+    while j < RIGHT {
+        let (c, r) = right.map[j];
+        out[LEFT + j] = ((c as usize + LCOLS) as u16, r);
+        j += 1;
+    }
+
+    Mapping::<TOTAL, ROWS, TCOLS>::new_unchecked(out)
+}
+
+/// Concatenate two mappings vertically (derived via rotation + concat_h).
+#[must_use]
+pub const fn concat_v<
+    const TOP: usize,
+    const BOTTOM: usize,
+    const TOTAL: usize,
+    const COLS: usize,
+    const TOP_ROWS: usize,
+    const BOT_ROWS: usize,
+    const TROWS: usize,
+>(
+    top: Mapping<TOP, TOP_ROWS, COLS>,
+    bottom: Mapping<BOTTOM, BOT_ROWS, COLS>,
+) -> Mapping<TOTAL, TROWS, COLS> {
+    assert!(TOTAL == TOP + BOTTOM, "TOTAL must equal TOP + BOTTOM");
+    assert!(TROWS == TOP_ROWS + BOT_ROWS, "TROWS must equal TOP_ROWS + BOT_ROWS");
+
+    // Derive vertical concat via transpose + horizontal concat + transpose back.
+    // Transpose is implemented as rotate_cw + flip_h.
+    let top_t = top.rotate_cw().flip_h(); // TOP_ROWS cols, COLS rows
+    let bot_t = bottom.rotate_cw().flip_h(); // BOT_ROWS cols, COLS rows
+
+    let combined_t: Mapping<TOTAL, COLS, TROWS> = concat_h::<
+        TOP,
+        BOTTOM,
+        TOTAL,
+        COLS,
+        TOP_ROWS,
+        BOT_ROWS,
+        TROWS
+    >(top_t, bot_t);
+
+    combined_t.rotate_cw().flip_h() // transpose back to TROWS x COLS
+}
+
+/// Serpentine column-major mapping specialized for 4×12, returned as a checked Mapping.
+#[must_use]
+#[doc(hidden)]
+pub const fn serpentine_12x4_mapping() -> Mapping<48, 4, 12> {
+    Mapping::<48, 4, 12>::new_checked(serpentine_column_major_mapping::<48, 4, 12>())
+}
+
 // Must be `pub` (not `pub(crate)`) because called by macro-generated code that expands at the call site in downstream crates.
 // This is an implementation detail, not part of the user-facing API.
 #[doc(hidden)]
@@ -1176,7 +1349,7 @@ macro_rules! led2d {
             }
         }
     };
-    // Arbitrary custom mapping variant
+    // Arbitrary custom mapping variant (array literal)
     (
         $vis:vis $name:ident,
         pio: $pio:ident,
@@ -1213,6 +1386,84 @@ macro_rules! led2d {
                 rows: $rows,
                 cols: $cols,
                 mapping: arbitrary([$($index),*]),
+                max_frames: $max_frames,
+                font: $font_variant,
+            }
+
+            // Add simplified constructor that handles PIO splitting and both statics
+            impl [<$name:camel>] {
+                /// Create a new LED matrix display with automatic PIO setup.
+                ///
+                /// This is a convenience constructor that handles PIO splitting and static
+                /// resource management automatically. All initialization happens in a single call.
+                ///
+                /// # Parameters
+                ///
+                /// - `pio`: PIO peripheral
+                /// - `dma`: DMA channel for LED data transfer
+                /// - `pin`: GPIO pin for LED data signal
+                /// - `spawner`: Task spawner for background operations
+                #[allow(non_upper_case_globals)]
+                $vis fn new(
+                    pio: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pio>,
+                    dma: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>,
+                    pin: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>,
+                    spawner: ::embassy_executor::Spawner,
+                ) -> $crate::Result<Self> {
+                    // Split PIO into state machines (uses SM0 automatically)
+                    let (sm0, _sm1, _sm2, _sm3) = [<$pio:lower _split>](pio);
+
+                    // Create strip (uses interior static)
+                    let led_strip = [<$name:camel Strip>]::new(
+                        sm0,
+                        dma,
+                        pin,
+                        spawner
+                    )?;
+
+                    // Create Led2d from strip (uses interior static)
+                    [<$name:camel>]::from_strip(led_strip, spawner)
+                }
+            }
+        }
+    };
+    // Arbitrary custom mapping variant (expression)
+    (
+        $vis:vis $name:ident,
+        pio: $pio:ident,
+        pin: $pin:ident,
+        dma: $dma:ident,
+        rows: $rows:expr,
+        cols: $cols:expr,
+        mapping: arbitrary($mapping:expr),
+        max_current: $max_current:expr,
+        gamma: $gamma:expr,
+        max_frames: $max_frames:expr,
+        font: $font_variant:ident $(,)?
+    ) => {
+        $crate::led2d::paste::paste! {
+            // Generate the LED strip infrastructure with a CamelCase strip type
+            $crate::led_strip::define_led_strips_shared! {
+                pio: $pio,
+                strips: [
+                    [<$name:camel Strip>] {
+                        sm: 0,
+                        dma: $dma,
+                        pin: $pin,
+                        len: $rows * $cols,
+                        max_current: $max_current,
+                        gamma: $gamma
+                    }
+                ]
+            }
+
+            // Generate the Led2d device from the strip with arbitrary mapping
+            $crate::led2d::led2d_from_strip! {
+                $vis $name,
+                strip_type: [<$name:camel Strip>],
+                rows: $rows,
+                cols: $cols,
+                mapping: arbitrary($mapping),
                 max_frames: $max_frames,
                 font: $font_variant,
             }
@@ -1366,6 +1617,33 @@ macro_rules! led2d_from_strip {
             const [<$name:upper _COLS>]: usize = $cols;
             const [<$name:upper _N>]: usize = [<$name:upper _ROWS>] * [<$name:upper _COLS>];
             const [<$name:upper _MAPPING>]: [(u16, u16); [<$name:upper _N>]] = [$($index),*];
+            const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
+
+            // Compile-time assertion that strip length matches mapping length
+            const _: () = assert!([<$name:upper _MAPPING>].len() == $strip_type::LEN);
+
+            $crate::led2d::led2d_from_strip!(
+                @common $vis, $name, $strip_type, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
+                $font_variant,
+                [<$name:upper _MAX_FRAMES>]
+            );
+        }
+    };
+    // Arbitrary custom mapping variant (expression)
+    (
+        $vis:vis $name:ident,
+        strip_type: $strip_type:ident,
+        rows: $rows:expr,
+        cols: $cols:expr,
+        mapping: arbitrary($mapping:expr),
+        max_frames: $max_frames:expr,
+        font: $font_variant:ident $(,)?
+    ) => {
+        $crate::led2d::paste::paste! {
+            const [<$name:upper _ROWS>]: usize = $rows;
+            const [<$name:upper _COLS>]: usize = $cols;
+            const [<$name:upper _N>]: usize = [<$name:upper _ROWS>] * [<$name:upper _COLS>];
+            const [<$name:upper _MAPPING>]: [(u16, u16); [<$name:upper _N>]] = $mapping;
             const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             // Compile-time assertion that strip length matches mapping length

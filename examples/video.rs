@@ -72,8 +72,13 @@ use embassy_time::Duration;
 use panic_probe as _;
 use smart_leds::{RGB8, colors};
 
-// Display: 12 wide × 8 tall (rotated 90° from clock_led8x12)
-// The mapping is the clock_led8x12 mapping but reinterpreted for 12x8 instead of 8x12
+// Display: 12 wide × 8 tall built from two 12×4 serpentine panels stacked vertically.
+const LED12X8_CUSTOM_MAPPING: led2d::Mapping<96, 8, 12> =
+    led2d::concat_v::<48, 48, 96, 12, 4, 4, 8>(
+        led2d::serpentine_12x4_mapping(),
+        led2d::serpentine_12x4_mapping(),
+    );
+
 led2d! {
     pub led12x8,
     pio: PIO1,
@@ -81,18 +86,7 @@ led2d! {
     dma: DMA_CH1,
     rows: 8,
     cols: 12,
-    mapping: arbitrary([
-        // LED index → (col, row); rotated 90° clockwise from clock_led8x12 mapping
-        // Original was 12 rows × 8 cols, now 8 rows × 12 cols
-        (11, 0), (11, 1), (11, 2), (11, 3), (10, 3), (10, 2), (10, 1), (10, 0), (9, 0), (9, 1), (9, 2), (9, 3),
-        (8, 3), (8, 2), (8, 1), (8, 0), (7, 0), (7, 1), (7, 2), (7, 3), (6, 3), (6, 2), (6, 1), (6, 0),
-        (5, 0), (5, 1), (5, 2), (5, 3), (4, 3), (4, 2), (4, 1), (4, 0), (3, 0), (3, 1), (3, 2), (3, 3),
-        (2, 3), (2, 2), (2, 1), (2, 0), (1, 0), (1, 1), (1, 2), (1, 3), (0, 3), (0, 2), (0, 1), (0, 0),
-        (11, 4), (11, 5), (11, 6), (11, 7), (10, 7), (10, 6), (10, 5), (10, 4), (9, 4), (9, 5), (9, 6), (9, 7),
-        (8, 7), (8, 6), (8, 5), (8, 4), (7, 4), (7, 5), (7, 6), (7, 7), (6, 7), (6, 6), (6, 5), (6, 4),
-        (5, 4), (5, 5), (5, 6), (5, 7), (4, 7), (4, 6), (4, 5), (4, 4), (3, 4), (3, 5), (3, 6), (3, 7),
-        (2, 7), (2, 6), (2, 5), (2, 4), (1, 4), (1, 5), (1, 6), (1, 7), (0, 7), (0, 6), (0, 5), (0, 4),
-    ]),
+    mapping: arbitrary(LED12X8_CUSTOM_MAPPING.map),
     max_current: Milliamps(250),
     gamma: Gamma::Gamma2_2,
     max_frames: 70,
@@ -120,6 +114,7 @@ include!("../clock_frames_data.rs");
 #[derive(defmt::Format, Clone, Copy)]
 enum Mode {
     TestPattern,
+    TestText,
     Santa,
     Clock,
 }
@@ -128,7 +123,8 @@ impl Mode {
     /// Advance to the next mode in the cycle.
     fn next(self) -> Self {
         match self {
-            Self::TestPattern => Self::Santa,
+            Self::TestPattern => Self::TestText,
+            Self::TestText => Self::Santa,
             Self::Santa => Self::Clock,
             Self::Clock => Self::TestPattern,
         }
@@ -140,11 +136,11 @@ impl Mode {
 fn create_test_pattern() -> Led12x8Frame {
     let mut frame = Led12x8::new_frame();
 
-    // cmk000 delete Test: columns appear reversed based on GRYB observation
-    frame[0][Led12x8::COLS - 1] = colors::RED; // Top-left (reversed col)
-    frame[0][0] = colors::GREEN; // Top-right (reversed col)
-    frame[Led12x8::ROWS - 1][Led12x8::COLS - 1] = colors::BLUE; // Bottom-left (reversed col)
-    frame[Led12x8::ROWS - 1][0] = colors::YELLOW; // Bottom-right (reversed col)
+    // cmk000 delete Test: columns appear reversed based on GRYB observation (may no longer apply)
+    frame[0][0] = colors::RED; // Top-left
+    frame[0][Led12x8::COLS - 1] = colors::GREEN; // Top-right
+    frame[Led12x8::ROWS - 1][0] = colors::BLUE; // Bottom-left
+    frame[Led12x8::ROWS - 1][Led12x8::COLS - 1] = colors::YELLOW; // Bottom-right
 
     // Center cross for additional verification
     frame[Led12x8::ROWS / 2][Led12x8::COLS / 2] = colors::WHITE;
@@ -179,6 +175,15 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
             Mode::TestPattern => {
                 let test_pattern = create_test_pattern();
                 led_12x8.write_frame(test_pattern).await?;
+
+                button.wait_for_press_duration().await;
+                mode = mode.next();
+            }
+            Mode::TestText => {
+                let mut frame = Led12x8::new_frame();
+                led_12x8
+                    .write_text_to_frame("HELLO\nWORLD", &[colors::CYAN, colors::MAGENTA], &mut frame)?;
+                led_12x8.write_frame(frame).await?;
 
                 button.wait_for_press_duration().await;
                 mode = mode.next();
