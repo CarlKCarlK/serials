@@ -73,11 +73,10 @@ use panic_probe as _;
 use smart_leds::{RGB8, colors};
 
 // Display: 12 wide × 8 tall built from two 12×4 serpentine panels stacked vertically.
-const LED12X8_CUSTOM_MAPPING: led2d::Mapping<96, 8, 12> =
-    led2d::concat_v::<48, 48, 96, 12, 4, 4, 8>(
-        led2d::serpentine_12x4_mapping(),
-        led2d::serpentine_12x4_mapping(),
-    );
+const LED12X8_CUSTOM_MAPPING: led2d::Mapping<96, 8, 12> = led2d::concat_v::<48, 48, 96, 12, 4, 4, 8>(
+    led2d::serpentine_12x4_mapping(),
+    led2d::serpentine_12x4_mapping(),
+);
 
 led2d! {
     pub led12x8,

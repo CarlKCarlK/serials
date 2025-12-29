@@ -34,11 +34,10 @@ use smart_leds::RGB8;
 
 // Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise).
 // Reuse the 12x8 mapping from video.rs and rotate clockwise to 8x12.
-const LED12X8_CUSTOM_MAPPING: Mapping<96, 8, 12> =
-    led2d::concat_v::<48, 48, 96, 12, 4, 4, 8>(
-        led2d::serpentine_12x4_mapping(),
-        led2d::serpentine_12x4_mapping(),
-    );
+const LED12X8_CUSTOM_MAPPING: Mapping<96, 8, 12> = led2d::concat_v::<48, 48, 96, 12, 4, 4, 8>(
+    led2d::serpentine_12x4_mapping(),
+    led2d::serpentine_12x4_mapping(),
+);
 const CLOCK_LED8X12_MAPPING: Mapping<96, 12, 8> = LED12X8_CUSTOM_MAPPING.rotate_cw();
 
 led2d! {
