@@ -64,6 +64,7 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::button::{Button, PressedTo};
+use device_kit::mapping::Mapping;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
@@ -73,10 +74,9 @@ use panic_probe as _;
 use smart_leds::{RGB8, colors};
 
 // Display: 12 wide × 8 tall built from two 12×4 serpentine panels stacked vertically.
-const LED12X8_CUSTOM_MAPPING: led2d::Mapping<96, 8, 12> = led2d::concat_v::<48, 48, 96, 12, 4, 4, 8>(
-    led2d::serpentine_12x4_mapping(),
-    led2d::serpentine_12x4_mapping(),
-);
+const PANEL_12X4: Mapping<48, 4, 12> = Mapping::<48, 4, 12>::serpentine_column_major();
+const LED12X8_CUSTOM_MAPPING: Mapping<96, 8, 12> =
+    PANEL_12X4.concat_v::<48, 96, 4, 8>(PANEL_12X4);
 
 led2d! {
     pub led12x8,
@@ -85,7 +85,7 @@ led2d! {
     dma: DMA_CH1,
     rows: 8,
     cols: 12,
-    mapping: arbitrary(LED12X8_CUSTOM_MAPPING.map),
+    mapping: LED12X8_CUSTOM_MAPPING,
     max_current: Milliamps(250),
     gamma: Gamma::Gamma2_2,
     max_frames: 70,

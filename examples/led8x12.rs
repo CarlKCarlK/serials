@@ -7,10 +7,10 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::button::{Button, PressedTo};
+use device_kit::mapping::Mapping;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
-use device_kit::led2d::Mapping;
 use device_kit::{Error, Result};
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -22,10 +22,9 @@ use smart_leds::colors;
 
 // Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise)
 // Better for clock display - can fit 2 lines of 2 digits each
-const LED12X8_CUSTOM_MAPPING: Mapping<96, 8, 12> = led2d::concat_v::<48, 48, 96, 12, 4, 4, 8>(
-    led2d::serpentine_12x4_mapping(),
-    led2d::serpentine_12x4_mapping(),
-);
+const PANEL_12X4: Mapping<48, 4, 12> = Mapping::<48, 4, 12>::serpentine_column_major();
+const LED12X8_CUSTOM_MAPPING: Mapping<96, 8, 12> =
+    PANEL_12X4.concat_v::<48, 96, 4, 8>(PANEL_12X4);
 const LED8X12_CUSTOM_MAPPING: Mapping<96, 12, 8> = LED12X8_CUSTOM_MAPPING.rotate_cw();
 
 led2d! {
@@ -35,7 +34,7 @@ led2d! {
     dma: DMA_CH0,
     rows: 12,
     cols: 8,
-    mapping: arbitrary(LED8X12_CUSTOM_MAPPING.map),
+    mapping: LED8X12_CUSTOM_MAPPING,
     max_current: Milliamps(1000),
     gamma: Gamma::Linear,
     max_frames: 32,

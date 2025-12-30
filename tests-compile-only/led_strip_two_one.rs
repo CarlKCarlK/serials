@@ -13,6 +13,7 @@ use device_kit::Result;
 use device_kit::led_strip::define_led_strips_shared;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::{Milliamps, Rgb, colors};
+use device_kit::mapping::Mapping;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
@@ -61,20 +62,7 @@ define_led_strips_shared! {
             led2d: {
                 rows: 12,
                 cols: 8,
-                mapping: arbitrary([
-                    (0, 11), (1, 11), (2, 11), (3, 11), (3, 10), (2, 10), (1, 10), (0, 10),
-                    (0, 9), (1, 9), (2, 9), (3, 9), (3, 8), (2, 8), (1, 8), (0, 8),
-                    (0, 7), (1, 7), (2, 7), (3, 7), (3, 6), (2, 6), (1, 6), (0, 6),
-                    (0, 5), (1, 5), (2, 5), (3, 5), (3, 4), (2, 4), (1, 4), (0, 4),
-                    (0, 3), (1, 3), (2, 3), (3, 3), (3, 2), (2, 2), (1, 2), (0, 2),
-                    (0, 1), (1, 1), (2, 1), (3, 1), (3, 0), (2, 0), (1, 0), (0, 0),
-                    (4, 11), (5, 11), (6, 11), (7, 11), (7, 10), (6, 10), (5, 10), (4, 10),
-                    (4, 9), (5, 9), (6, 9), (7, 9), (7, 8), (6, 8), (5, 8), (4, 8),
-                    (4, 7), (5, 7), (6, 7), (7, 7), (7, 6), (6, 6), (5, 6), (4, 6),
-                    (4, 5), (5, 5), (6, 5), (7, 5), (7, 4), (6, 4), (5, 4), (4, 4),
-                    (4, 3), (5, 3), (6, 3), (7, 3), (7, 2), (6, 2), (5, 2), (4, 2),
-                    (4, 1), (5, 1), (6, 1), (7, 1), (7, 0), (6, 0), (5, 0), (4, 0),
-                ]),
+                mapping: LED8X12_MAPPING,
                 max_frames: 48,
                 font: Font4x6Trim,
             }
@@ -85,6 +73,11 @@ define_led_strips_shared! {
 const SNAKE_LENGTH: usize = 4;
 const SNAKE_COLORS: [Rgb; SNAKE_LENGTH] =
     [colors::YELLOW, colors::ORANGE, colors::RED, colors::MAGENTA];
+
+const PANEL_12X4: Mapping<48, 4, 12> = Mapping::<48, 4, 12>::serpentine_column_major();
+const PANEL_12X4_ORIENTED: Mapping<48, 12, 4> = PANEL_12X4.rotate_cw().flip_h().flip_v();
+const LED8X12_MAPPING: Mapping<96, 12, 8> =
+    PANEL_12X4_ORIENTED.concat_h::<48, 96, 4, 8>(PANEL_12X4_ORIENTED);
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {

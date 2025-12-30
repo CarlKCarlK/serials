@@ -3,8 +3,7 @@
 //! Verifies that the clock-style 8x12 mapping matches a composition of
 //! serpentine_12x4 panels using the const Mapping primitives.
 
-use device_kit::led2d::{concat_h, Mapping};
-use device_kit::led2d::serpentine_12x4_mapping;
+use device_kit::mapping::Mapping;
 
 const CLOCK_EXPECTED: [(u16, u16); 96] = [
     (0, 11), (1, 11), (2, 11), (3, 11), (3, 10), (2, 10), (1, 10), (0, 10),
@@ -26,12 +25,11 @@ const CLOCK_EXPECTED: [(u16, u16); 96] = [
 // 2) rotate clockwise to get 12 rows x 4 cols
 // 3) flip horizontally and vertically (panel orientation)
 // 4) concat horizontally two panels to reach 8 cols (12 rows)
+const PANEL_12X4: Mapping<48, 4, 12> = Mapping::<48, 4, 12>::serpentine_column_major();
 const PANEL_12X4_ORIENTED: Mapping<48, 12, 4> =
-    serpentine_12x4_mapping().rotate_cw().flip_h().flip_v();
-const CLOCK_COMPOSED: Mapping<96, 12, 8> = concat_h::<48, 48, 96, 12, 4, 4, 8>(
-    PANEL_12X4_ORIENTED,
-    PANEL_12X4_ORIENTED,
-);
+    PANEL_12X4.rotate_cw().flip_h().flip_v();
+const CLOCK_COMPOSED: Mapping<96, 12, 8> =
+    PANEL_12X4_ORIENTED.concat_h::<48, 96, 4, 8>(PANEL_12X4_ORIENTED);
 
 #[test]
 fn clock_mapping_matches_composition() {

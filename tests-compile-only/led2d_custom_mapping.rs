@@ -1,6 +1,6 @@
 //! Compile-only verification for Led2d with custom mapping.
 //!
-//! This verifies that led2d_from_strip! macro works with arbitrary custom mappings.
+//! This verifies that led2d_from_strip! macro works with custom mappings.
 //! Run via: `cargo check-all` (xtask compiles this for thumbv6m-none-eabi)
 
 #![cfg(not(feature = "host"))]
@@ -13,13 +13,16 @@ use device_kit::Result;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
+use device_kit::mapping::Mapping;
 use embassy_executor::Spawner;
 use embassy_time::Duration;
 use panic_probe as _;
 use smart_leds::colors;
 
-// Example with a custom arbitrary mapping for a 2x3 display (6 LEDs total)
+// Example with a custom mapping for a 2x3 display (6 LEDs total)
 // LED indices 0..5 map row-major, rows left-to-right
+const LED2X3_ROW_MAJOR: Mapping<6, 2, 3> = Mapping::<6, 2, 3>::linear_row_major();
+
 led2d! {
     pub led2x3,
     pio: PIO0,
@@ -27,10 +30,7 @@ led2d! {
     dma: DMA_CH0,
     rows: 2,
     cols: 3,
-    mapping: arbitrary([
-        (0, 0), (1, 0), (2, 0),  // Row 0: LEDs 0, 1, 2
-        (0, 1), (1, 1), (2, 1),  // Row 1: LEDs 3, 4, 5
-    ]),
+    mapping: LED2X3_ROW_MAJOR,
     max_current: Milliamps(100),
     gamma: Gamma::Linear,
     max_frames: 6,

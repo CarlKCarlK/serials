@@ -5,19 +5,19 @@
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
+use device_kit::mapping::Mapping;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
-use device_kit::led2d::{self, Mapping, led2d};
+use device_kit::led2d::led2d;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use panic_probe as _;
 use smart_leds::colors;
 
 // Build a 24x4 display by concatenating two 12x4 serpentine panels horizontally.
-const LED24X4_MAPPING: Mapping<96, 4, 24> = led2d::concat_h::<48, 48, 96, 4, 12, 12, 24>(
-    led2d::serpentine_12x4_mapping(),
-    led2d::serpentine_12x4_mapping(),
-);
+const PANEL_12X4: Mapping<48, 4, 12> = Mapping::<48, 4, 12>::serpentine_column_major();
+const LED24X4_MAPPING: Mapping<96, 4, 24> =
+    PANEL_12X4.concat_h::<48, 96, 12, 24>(PANEL_12X4);
 
 led2d! {
     pub led24x4_concat,
@@ -26,7 +26,7 @@ led2d! {
     dma: DMA_CH1,
     rows: 4,
     cols: 24,
-    mapping: arbitrary(LED24X4_MAPPING.map),
+    mapping: LED24X4_MAPPING,
     max_current: Milliamps(1000),
     gamma: Gamma::Gamma2_2,
     max_frames: 8,
