@@ -26,15 +26,12 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Constructor: verifies mapping is a bijection from indices 0..N onto the ROWS×COLS grid.
     ///
-    /// ```rust,no_run
-    /// # #![cfg_attr(target_os = "none", no_std)]
-    /// # #![cfg_attr(target_os = "none", no_main)]
-    /// use device_kit::mapping::Mapping;
-    /// # #[cfg(target_os = "none")]
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
     /// # #[panic_handler]
-    /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
-    /// # #[cfg(target_os = "none")]
-    /// # pub fn main() -> ! { loop {} }
+    /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+    /// use device_kit::mapping::Mapping;
     ///
     /// const MAP: Mapping<6, 2, 3> = Mapping::new([
     ///     (0, 0),
@@ -82,15 +79,12 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Serpentine column-major mapping returned as a checked `Mapping`.
     ///
-    /// ```rust,no_run
-    /// # #![cfg_attr(target_os = "none", no_std)]
-    /// # #![cfg_attr(target_os = "none", no_main)]
-    /// use device_kit::mapping::Mapping;
-    /// # #[cfg(target_os = "none")]
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
     /// # #[panic_handler]
-    /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
-    /// # #[cfg(target_os = "none")]
-    /// # pub fn main() -> ! { loop {} }
+    /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+    /// use device_kit::mapping::Mapping;
     ///
     /// const MAP: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
     /// const EXPECTED: Mapping<6, 2, 3> =
@@ -124,15 +118,12 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Rotate 90° clockwise (dims swap).
     ///
-    /// ```rust,no_run
-    /// # #![cfg_attr(target_os = "none", no_std)]
-    /// # #![cfg_attr(target_os = "none", no_main)]
-    /// use device_kit::mapping::Mapping;
-    /// # #[cfg(target_os = "none")]
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
     /// # #[panic_handler]
-    /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
-    /// # #[cfg(target_os = "none")]
-    /// # pub fn main() -> ! { loop {} }
+    /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+    /// use device_kit::mapping::Mapping;
     ///
     /// const ROTATED: Mapping<6, 3, 2> = Mapping::serpentine_column_major().rotate_cw();
     /// const EXPECTED: Mapping<6, 3, 2> =
@@ -155,15 +146,12 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Flip horizontally (mirror columns).
     ///
-    /// ```rust,no_run
-    /// # #![cfg_attr(target_os = "none", no_std)]
-    /// # #![cfg_attr(target_os = "none", no_main)]
-    /// use device_kit::mapping::Mapping;
-    /// # #[cfg(target_os = "none")]
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
     /// # #[panic_handler]
-    /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
-    /// # #[cfg(target_os = "none")]
-    /// # pub fn main() -> ! { loop {} }
+    /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+    /// use device_kit::mapping::Mapping;
     ///
     /// const FLIPPED: Mapping<6, 2, 3> = Mapping::serpentine_column_major().flip_h();
     /// const EXPECTED: Mapping<6, 2, 3> =
@@ -185,15 +173,12 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Rotate 180° derived from rotate_cw.
     ///
-    /// ```rust,no_run
-    /// # #![cfg_attr(target_os = "none", no_std)]
-    /// # #![cfg_attr(target_os = "none", no_main)]
-    /// use device_kit::mapping::Mapping;
-    /// # #[cfg(target_os = "none")]
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
     /// # #[panic_handler]
-    /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
-    /// # #[cfg(target_os = "none")]
-    /// # pub fn main() -> ! { loop {} }
+    /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+    /// use device_kit::mapping::Mapping;
     ///
     /// const ROTATED: Mapping<6, 2, 3> = Mapping::serpentine_column_major().rotate_180();
     /// const EXPECTED: Mapping<6, 2, 3> =
@@ -207,15 +192,12 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Rotate 90° counter-clockwise derived from rotate_cw.
     ///
-    /// ```rust,no_run
-    /// # #![cfg_attr(target_os = "none", no_std)]
-    /// # #![cfg_attr(target_os = "none", no_main)]
-    /// use device_kit::mapping::Mapping;
-    /// # #[cfg(target_os = "none")]
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
     /// # #[panic_handler]
-    /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
-    /// # #[cfg(target_os = "none")]
-    /// # pub fn main() -> ! { loop {} }
+    /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+    /// use device_kit::mapping::Mapping;
     ///
     /// const ROTATED: Mapping<6, 3, 2> = Mapping::serpentine_column_major().rotate_ccw();
     /// const EXPECTED: Mapping<6, 3, 2> =
@@ -229,15 +211,12 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Flip vertically derived from rotation + horizontal flip.
     ///
-    /// ```rust,no_run
-    /// # #![cfg_attr(target_os = "none", no_std)]
-    /// # #![cfg_attr(target_os = "none", no_main)]
-    /// use device_kit::mapping::Mapping;
-    /// # #[cfg(target_os = "none")]
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
     /// # #[panic_handler]
-    /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
-    /// # #[cfg(target_os = "none")]
-    /// # pub fn main() -> ! { loop {} }
+    /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+    /// use device_kit::mapping::Mapping;
     ///
     /// const FLIPPED: Mapping<6, 2, 3> = Mapping::serpentine_column_major().flip_v();
     /// const EXPECTED: Mapping<6, 2, 3> =
@@ -251,15 +230,12 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Concatenate horizontally with another mapping sharing the same rows.
     ///
-    /// ```rust,no_run
-    /// # #![cfg_attr(target_os = "none", no_std)]
-    /// # #![cfg_attr(target_os = "none", no_main)]
-    /// use device_kit::mapping::Mapping;
-    /// # #[cfg(target_os = "none")]
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
     /// # #[panic_handler]
-    /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
-    /// # #[cfg(target_os = "none")]
-    /// # pub fn main() -> ! { loop {} }
+    /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+    /// use device_kit::mapping::Mapping;
     ///
     /// const LEFT: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
     /// const RIGHT: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
@@ -313,15 +289,12 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Concatenate vertically with another mapping sharing the same columns.
     ///
-    /// ```rust,no_run
-    /// # #![cfg_attr(target_os = "none", no_std)]
-    /// # #![cfg_attr(target_os = "none", no_main)]
-    /// use device_kit::mapping::Mapping;
-    /// # #[cfg(target_os = "none")]
+    /// ```no_run
+    /// # #![no_std]
+    /// # #![no_main]
     /// # #[panic_handler]
-    /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
-    /// # #[cfg(target_os = "none")]
-    /// # pub fn main() -> ! { loop {} }
+    /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+    /// use device_kit::mapping::Mapping;
     ///
     /// const TOP: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
     /// const BOTTOM: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
