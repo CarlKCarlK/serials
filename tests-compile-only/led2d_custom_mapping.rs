@@ -21,7 +21,14 @@ use smart_leds::colors;
 
 // Example with a custom mapping for a 2x3 display (6 LEDs total)
 // LED indices 0..5 map row-major, rows left-to-right
-const LED2X3_ROW_MAJOR: Mapping<6, 2, 3> = Mapping::<6, 2, 3>::linear_row_major();
+const LED2X3_ROW_MAJOR: Mapping<6, 2, 3> = Mapping::new([
+    (0, 0),
+    (1, 0),
+    (2, 0),
+    (0, 1),
+    (1, 1),
+    (2, 1),
+]);
 
 led2d! {
     pub led2x3,

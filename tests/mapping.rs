@@ -4,19 +4,26 @@ use device_kit::mapping::Mapping;
 
 #[test]
 fn linear_single_row_matches_expected() {
-    const LINEAR: Mapping<4, 1, 4> = Mapping::<4, 1, 4>::linear_h();
+    const LINEAR: Mapping<4, 1, 4> = Mapping::new([(0, 0), (1, 0), (2, 0), (3, 0)]);
     assert_eq!(LINEAR.map, [(0, 0), (1, 0), (2, 0), (3, 0)]);
 }
 
 #[test]
 fn linear_single_column_matches_expected() {
-    const LINEAR: Mapping<4, 4, 1> = Mapping::<4, 4, 1>::linear_v();
+    const LINEAR: Mapping<4, 4, 1> = Mapping::new([(0, 0), (0, 1), (0, 2), (0, 3)]);
     assert_eq!(LINEAR.map, [(0, 0), (0, 1), (0, 2), (0, 3)]);
 }
 
 #[test]
 fn linear_row_major_3x2_matches_expected() {
-    const MAP: Mapping<6, 2, 3> = Mapping::<6, 2, 3>::linear_row_major();
+    const MAP: Mapping<6, 2, 3> = Mapping::new([
+        (0, 0),
+        (1, 0),
+        (2, 0),
+        (0, 1),
+        (1, 1),
+        (2, 1),
+    ]);
     assert_eq!(
         MAP.map,
         [
@@ -32,7 +39,14 @@ fn linear_row_major_3x2_matches_expected() {
 
 #[test]
 fn rotate_and_flip_small_grid() {
-    const MAP: Mapping<6, 2, 3> = Mapping::<6, 2, 3>::linear_row_major();
+    const MAP: Mapping<6, 2, 3> = Mapping::new([
+        (0, 0),
+        (1, 0),
+        (2, 0),
+        (0, 1),
+        (1, 1),
+        (2, 1),
+    ]);
     let rotated = MAP.rotate_cw();
     assert_eq!(
         rotated.map,
@@ -61,14 +75,122 @@ fn rotate_and_flip_small_grid() {
 }
 
 #[test]
+fn serpentine_transforms_match_expected() {
+    const SERPENTINE: Mapping<6, 2, 3> = Mapping::<6, 2, 3>::serpentine_column_major();
+
+    let rotated_cw = SERPENTINE.rotate_cw();
+    assert_eq!(
+        rotated_cw.map,
+        [
+            (1, 0),
+            (0, 0),
+            (0, 1),
+            (1, 1),
+            (1, 2),
+            (0, 2),
+        ]
+    );
+
+    let rotated_180 = SERPENTINE.rotate_180();
+    assert_eq!(
+        rotated_180.map,
+        [
+            (2, 1),
+            (2, 0),
+            (1, 0),
+            (1, 1),
+            (0, 1),
+            (0, 0),
+        ]
+    );
+
+    let rotated_ccw = SERPENTINE.rotate_ccw();
+    assert_eq!(
+        rotated_ccw.map,
+        [
+            (0, 2),
+            (1, 2),
+            (1, 1),
+            (0, 1),
+            (0, 0),
+            (1, 0),
+        ]
+    );
+
+    let flipped_h = SERPENTINE.flip_h();
+    assert_eq!(
+        flipped_h.map,
+        [
+            (2, 0),
+            (2, 1),
+            (1, 1),
+            (1, 0),
+            (0, 0),
+            (0, 1),
+        ]
+    );
+
+    let flipped_v = SERPENTINE.flip_v();
+    assert_eq!(
+        flipped_v.map,
+        [
+            (0, 1),
+            (0, 0),
+            (1, 0),
+            (1, 1),
+            (2, 1),
+            (2, 0),
+        ]
+    );
+
+    let concat_h = SERPENTINE.concat_h::<6, 12, 3, 6>(SERPENTINE);
+    assert_eq!(
+        concat_h.map,
+        [
+            (0, 0),
+            (0, 1),
+            (1, 1),
+            (1, 0),
+            (2, 0),
+            (2, 1),
+            (3, 0),
+            (3, 1),
+            (4, 1),
+            (4, 0),
+            (5, 0),
+            (5, 1),
+        ]
+    );
+
+    let concat_v = SERPENTINE.concat_v::<6, 12, 2, 4>(SERPENTINE);
+    assert_eq!(
+        concat_v.map,
+        [
+            (0, 0),
+            (0, 1),
+            (1, 1),
+            (1, 0),
+            (2, 0),
+            (2, 1),
+            (0, 2),
+            (0, 3),
+            (1, 3),
+            (1, 2),
+            (2, 2),
+            (2, 3),
+        ]
+    );
+}
+
+#[test]
 fn concat_horizontal_and_vertical() {
-    const LEFT: Mapping<2, 1, 2> = Mapping::<2, 1, 2>::linear_h();
-    const RIGHT: Mapping<4, 1, 4> = Mapping::<4, 1, 4>::linear_h();
+    const LEFT: Mapping<2, 1, 2> = Mapping::new([(0, 0), (1, 0)]);
+    const RIGHT: Mapping<4, 1, 4> = Mapping::new([(0, 0), (1, 0), (2, 0), (3, 0)]);
     let combined_h = LEFT.concat_h::<4, 6, 4, 6>(RIGHT);
     assert_eq!(combined_h.map, [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0)]);
 
-    const TOP: Mapping<2, 2, 1> = Mapping::<2, 2, 1>::linear_v();
-    const BOTTOM: Mapping<3, 3, 1> = Mapping::<3, 3, 1>::linear_v();
+    const TOP: Mapping<2, 2, 1> = Mapping::new([(0, 0), (0, 1)]);
+    const BOTTOM: Mapping<3, 3, 1> = Mapping::new([(0, 0), (0, 1), (0, 2)]);
     let combined_v = TOP.concat_v::<3, 5, 3, 5>(BOTTOM);
     assert_eq!(
         combined_v.map,
