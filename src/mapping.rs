@@ -46,7 +46,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// ]);
     /// const EXPECTED: Mapping<6, 2, 3> =
     ///     Mapping::new([(0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1)]);
-    /// const _: [(); 1] = [(); MAP.equals(&EXPECTED) as usize];
+    /// const _: () = assert!(MAP.equals(&EXPECTED));
     /// ```
     #[must_use]
     pub const fn new(map: [(u16, u16); N]) -> Self {
@@ -95,7 +95,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// const MAP: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
     /// const EXPECTED: Mapping<6, 2, 3> =
     ///     Mapping::new([(0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1)]);
-    /// const _: [(); 1] = [(); MAP.equals(&EXPECTED) as usize];
+    /// const _: () = assert!(MAP.equals(&EXPECTED));
     /// ```
     #[must_use]
     pub const fn serpentine_column_major() -> Self {
@@ -137,7 +137,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// const ROTATED: Mapping<6, 3, 2> = Mapping::serpentine_column_major().rotate_cw();
     /// const EXPECTED: Mapping<6, 3, 2> =
     ///     Mapping::new([(1, 0), (0, 0), (0, 1), (1, 1), (1, 2), (0, 2)]);
-    /// const _: [(); 1] = [(); ROTATED.equals(&EXPECTED) as usize];
+    /// const _: () = assert!(ROTATED.equals(&EXPECTED));
     /// ```
     #[must_use]
     pub const fn rotate_cw(self) -> Mapping<N, COLS, ROWS> {
@@ -168,7 +168,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// const FLIPPED: Mapping<6, 2, 3> = Mapping::serpentine_column_major().flip_h();
     /// const EXPECTED: Mapping<6, 2, 3> =
     ///     Mapping::new([(2, 0), (2, 1), (1, 1), (1, 0), (0, 0), (0, 1)]);
-    /// const _: [(); 1] = [(); FLIPPED.equals(&EXPECTED) as usize];
+    /// const _: () = assert!(FLIPPED.equals(&EXPECTED));
     /// ```
     #[must_use]
     pub const fn flip_h(self) -> Self {
@@ -197,8 +197,8 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     ///
     /// const ROTATED: Mapping<6, 2, 3> = Mapping::serpentine_column_major().rotate_180();
     /// const EXPECTED: Mapping<6, 2, 3> =
-///     Mapping::new([(2, 1), (2, 0), (1, 0), (1, 1), (0, 1), (0, 0)]);
-/// const _: [(); 1] = [(); ROTATED.equals(&EXPECTED) as usize];
+    ///     Mapping::new([(2, 1), (2, 0), (1, 0), (1, 1), (0, 1), (0, 0)]);
+    /// const _: () = assert!(ROTATED.equals(&EXPECTED));
     /// ```
     #[must_use]
     pub const fn rotate_180(self) -> Self {
@@ -219,8 +219,8 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     ///
     /// const ROTATED: Mapping<6, 3, 2> = Mapping::serpentine_column_major().rotate_ccw();
     /// const EXPECTED: Mapping<6, 3, 2> =
-///     Mapping::new([(0, 2), (1, 2), (1, 1), (0, 1), (0, 0), (1, 0)]);
-/// const _: [(); 1] = [(); ROTATED.equals(&EXPECTED) as usize];
+    ///     Mapping::new([(0, 2), (1, 2), (1, 1), (0, 1), (0, 0), (1, 0)]);
+    /// const _: () = assert!(ROTATED.equals(&EXPECTED));
     /// ```
     #[must_use]
     pub const fn rotate_ccw(self) -> Mapping<N, COLS, ROWS> {
@@ -241,8 +241,8 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     ///
     /// const FLIPPED: Mapping<6, 2, 3> = Mapping::serpentine_column_major().flip_v();
     /// const EXPECTED: Mapping<6, 2, 3> =
-///     Mapping::new([(0, 1), (0, 0), (1, 0), (1, 1), (2, 1), (2, 0)]);
-/// const _: [(); 1] = [(); FLIPPED.equals(&EXPECTED) as usize];
+    ///     Mapping::new([(0, 1), (0, 0), (1, 0), (1, 1), (2, 1), (2, 0)]);
+    /// const _: () = assert!(FLIPPED.equals(&EXPECTED));
     /// ```
     #[must_use]
     pub const fn flip_v(self) -> Self {
@@ -263,22 +263,22 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     ///
     /// const LEFT: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
     /// const RIGHT: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
-/// const COMBINED: Mapping<12, 2, 6> = LEFT.concat_h::<6, 12, 3, 6>(RIGHT);
-/// const EXPECTED: Mapping<12, 2, 6> = Mapping::new([
-///     (0, 0),
-///     (0, 1),
-///     (1, 1),
-///     (1, 0),
-///     (2, 0),
-///     (2, 1),
-///     (3, 0),
-///     (3, 1),
-///     (4, 1),
-///     (4, 0),
-///     (5, 0),
-///     (5, 1),
-/// ]);
-/// const _: [(); 1] = [(); COMBINED.equals(&EXPECTED) as usize];
+    /// const COMBINED: Mapping<12, 2, 6> = LEFT.concat_h::<6, 12, 3, 6>(RIGHT);
+    /// const EXPECTED: Mapping<12, 2, 6> = Mapping::new([
+    ///     (0, 0),
+    ///     (0, 1),
+    ///     (1, 1),
+    ///     (1, 0),
+    ///     (2, 0),
+    ///     (2, 1),
+    ///     (3, 0),
+    ///     (3, 1),
+    ///     (4, 1),
+    ///     (4, 0),
+    ///     (5, 0),
+    ///     (5, 1),
+    /// ]);
+    /// const _: () = assert!(COMBINED.equals(&EXPECTED));
     /// ```
     #[must_use]
     pub const fn concat_h<
@@ -325,23 +325,23 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     ///
     /// const TOP: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
     /// const BOTTOM: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
-/// const COMBINED: Mapping<12, 4, 3> = TOP.concat_v::<6, 12, 2, 4>(BOTTOM);
-/// const EXPECTED: Mapping<12, 4, 3> = Mapping::new([
-///     (0, 0),
-///     (0, 1),
-///     (1, 1),
-///     (1, 0),
-///     (2, 0),
-///     (2, 1),
-///     (0, 2),
-///     (0, 3),
-///     (1, 3),
-///     (1, 2),
-///     (2, 2),
-///     (2, 3),
-/// ]);
-/// const _: [(); 1] = [(); COMBINED.equals(&EXPECTED) as usize];
-/// ```
+    /// const COMBINED: Mapping<12, 4, 3> = TOP.concat_v::<6, 12, 2, 4>(BOTTOM);
+    /// const EXPECTED: Mapping<12, 4, 3> = Mapping::new([
+    ///     (0, 0),
+    ///     (0, 1),
+    ///     (1, 1),
+    ///     (1, 0),
+    ///     (2, 0),
+    ///     (2, 1),
+    ///     (0, 2),
+    ///     (0, 3),
+    ///     (1, 3),
+    ///     (1, 2),
+    ///     (2, 2),
+    ///     (2, 3),
+    /// ]);
+    /// const _: () = assert!(COMBINED.equals(&EXPECTED));
+    /// ```
     #[must_use]
     pub const fn concat_v<
         const BOTTOM: usize,
