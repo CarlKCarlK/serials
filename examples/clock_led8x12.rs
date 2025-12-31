@@ -50,8 +50,6 @@ led2d! {
     font: Font4x6Trim,
 }
 
-// cmk could/should we replace arbitrary with a cat of the zigzag mapping?
-
 const FAST_MODE_SPEED: f32 = 720.0;
 const CONNECTING_COLOR: RGB8 = colors::SADDLE_BROWN;
 const DIGIT_COLORS: [RGB8; 4] = [colors::CYAN, colors::MAGENTA, colors::ORANGE, colors::LIME];

@@ -27,8 +27,6 @@
 ///     LED1  LED2  LED5    LED2  LED3
 ///                         LED5  LED4
 /// ```
-// cmk0 consider renaming LedLayout to better distinguish type vs instances.
-// cmk0 consider renaming the map field for clarity (may no longer apply once API settles).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LedLayout<const N: usize, const W: usize, const H: usize> {
     map: [(u16, u16); N],
@@ -39,6 +37,62 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     #[must_use]
     pub const fn map(&self) -> &[(u16, u16); N] {
         &self.map
+    }
+
+    /// Reverse lookup: (row, col) → LED index in row-major order.
+    ///
+    /// See the [struct-level example](Self) for usage.
+    ///
+    /// ```rust,no_run
+    /// # #![no_std]
+    /// # #![no_main]
+    /// # #[panic_handler]
+    /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+    /// use device_kit::led_layout::LedLayout;
+    ///
+    /// const LAYOUT: LedLayout<6, 3, 2> = LedLayout::serpentine_column_major();
+    /// const MAPPING_BY_XY: [u16; 6] = LAYOUT.mapping_by_xy();
+    ///
+    /// const _: () = assert!(MAPPING_BY_XY[0] == 0);
+    /// const _: () = assert!(MAPPING_BY_XY[5] == 5);
+    /// ```
+    #[must_use]
+    pub const fn mapping_by_xy(&self) -> [u16; N] {
+        assert!(
+            N <= u16::MAX as usize,
+            "total LEDs must fit in u16 for mapping_by_xy"
+        );
+
+        let mut mapping = [None; N];
+
+        let mut led_index = 0;
+        while led_index < N {
+            let (col, row) = self.map[led_index];
+            let col = col as usize;
+            let row = row as usize;
+            assert!(col < W, "column out of bounds in mapping_by_xy");
+            assert!(row < H, "row out of bounds in mapping_by_xy");
+            let target_index = row * W + col;
+
+            let slot = &mut mapping[target_index];
+            assert!(
+                slot.is_none(),
+                "duplicate (col,row) in mapping_by_xy inversion"
+            );
+            *slot = Some(led_index as u16);
+
+            led_index += 1;
+        }
+
+        let mut finalized = [0u16; N];
+        let mut i = 0;
+        while i < N {
+            finalized[i] =
+                mapping[i].expect("mapping_by_xy requires every (col,row) to be covered");
+            i += 1;
+        }
+
+        finalized
     }
 
     /// Const equality helper for doctests/examples.
@@ -541,18 +595,14 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
         bottom: LedLayout<N2, W, H2>,
     ) -> LedLayout<OUT_N, W, OUT_H> {
         assert!(OUT_N == N + N2, "OUT_N must equal TOP + BOTTOM");
-        assert!(
-            OUT_H == H + H2,
-            "OUT_H must equal H + H2"
-        );
+        assert!(OUT_H == H + H2, "OUT_H must equal H + H2");
 
         // Derive vertical concat via transpose + horizontal concat + transpose back.
         // Transpose is implemented as rotate_cw + flip_h.
         let top_t = self.rotate_cw().flip_h(); // H width, W height
         let bot_t = bottom.rotate_cw().flip_h(); // H2 width, W height
 
-        let combined_t: LedLayout<OUT_N, OUT_H, W> =
-            top_t.concat_h::<N2, OUT_N, H2, OUT_H>(bot_t);
+        let combined_t: LedLayout<OUT_N, OUT_H, W> = top_t.concat_h::<N2, OUT_N, H2, OUT_H>(bot_t);
 
         combined_t.rotate_cw().flip_h() // transpose back to W x OUT_H
     }

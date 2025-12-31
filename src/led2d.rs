@@ -643,62 +643,26 @@ pub struct Led2d<const N: usize, const MAX_FRAMES: usize> {
 impl<const N: usize, const MAX_FRAMES: usize> Led2d<N, MAX_FRAMES> {
     /// Create Led2d device handle.
     ///
-    /// The `led_layout` slice defines how LED indices map to (column, row) coordinates. Entry `i`
-    /// provides the `(col, row)` destination for LED `i`. Length must equal N (checked with
-    /// debug_assert). The led layout is reversed into an internal lookup so (row, col) queries are
-    /// O(1) when converting frames. Provide the display dimensions via `width` and `height` to
-    /// validate coverage and bounds, matching the [`LedLayout`] dimensions.
+    /// The `led_layout` defines how LED indices map to `(column, row)` coordinates. Entry `i`
+    /// provides the `(col, row)` destination for LED `i`. The layout is inverted via
+    /// [`LedLayout::mapping_by_xy`] so (row, col) queries are O(1) when converting frames.
+    ///
+    /// See the [struct-level example](Self) for usage.
     #[must_use]
-    pub fn new(
+    pub fn new<const W: usize, const H: usize>(
         led2d_static: &'static Led2dStatic<N, MAX_FRAMES>,
-        led_layout: &[(u16, u16)],
-        width: usize,
-        height: usize,
+        led_layout: &LedLayout<N, W, H>,
     ) -> Self {
-        debug_assert_eq!(
-            led_layout.len(),
-            N,
-            "led_layout length must equal N (total LEDs)"
-        );
-        let expected_leds = width
-            .checked_mul(height)
-            .expect("width * height must fit in usize");
         assert_eq!(
-            expected_leds, N,
+            W.checked_mul(H).expect("width * height must fit in usize"),
+            N,
             "width * height must equal N (total LEDs for led_layout reversal)"
         );
-        let mut mapping_by_xy = [None; N];
-        let mut led_index = 0;
-        while led_index < led_layout.len() {
-            let (col, row) = led_layout[led_index];
-            let col = usize::from(col);
-            let row = usize::from(row);
-            assert!(col < width, "led_layout column must be within width");
-            assert!(row < height, "led_layout row must be within height");
-            let target_index = row
-                .checked_mul(width)
-                .expect("row * width must fit in usize")
-                + col;
-            let slot = &mut mapping_by_xy[target_index];
-            assert!(
-                slot.is_none(),
-                "duplicate led_layout entry for (row, col) coordinate"
-            );
-            *slot = Some(
-                u16::try_from(led_index).expect("total LEDs must fit in u16 led_layout index"),
-            );
-            led_index += 1;
-        }
-        let mut finalized_mapping_by_xy = [0_u16; N];
-        for (slot_index, entry) in mapping_by_xy.iter().copied().enumerate() {
-            finalized_mapping_by_xy[slot_index] =
-                entry.expect("led_layout must cover every coordinate exactly once");
-        }
         Self {
             command_signal: &led2d_static.command_signal,
             completion_signal: &led2d_static.completion_signal,
-            mapping_by_xy: finalized_mapping_by_xy,
-            width,
+            mapping_by_xy: led_layout.mapping_by_xy(),
+            width: W,
         }
     }
 
@@ -992,9 +956,7 @@ macro_rules! led2d_device {
                 );
                 Ok($crate::led2d::Led2d::new(
                     &self.led2d_static,
-                    $led_layout,
-                    $width,
-                    height,
+                    &$led_layout,
                 ))
             }
         }
@@ -1446,9 +1408,7 @@ macro_rules! led2d_from_strip {
 
                     let led2d = $crate::led2d::Led2d::new(
                         &STATIC.led2d_static,
-                        $led_layout_const.map(),
-                        $cols_const,
-                        $rows_const,
+                        &$led_layout_const,
                     );
 
                     defmt::info!("Led2d::new: device created successfully");
