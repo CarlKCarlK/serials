@@ -13,8 +13,7 @@
 /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
 /// use device_kit::led_layout::LedLayout;
 ///
-/// const ROTATED: LedLayout<6, 2, 3> =
-///     LedLayout::<6, 3, 2>::serpentine_column_major().rotate_cw();
+/// const ROTATED: LedLayout<6, 2, 3> = LedLayout::serpentine_column_major().rotate_cw();
 /// const EXPECTED: LedLayout<6, 2, 3> =
 ///     LedLayout::new([(1, 0), (0, 0), (0, 1), (1, 1), (1, 2), (0, 2)]);
 /// const _: () = assert!(ROTATED.equals(&EXPECTED));
@@ -105,7 +104,8 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     /// use device_kit::led_layout::LedLayout;
     ///
     /// const LINEAR: LedLayout<4, 4, 1> = LedLayout::linear_h();
-    /// const ROTATED: LedLayout<4, 4, 1> = LedLayout::<4, 1, 4>::linear_v().rotate_cw();
+    /// const LAYOUT: LedLayout<4, 1, 4> = LedLayout::linear_v();
+    /// const ROTATED: LedLayout<4, 4, 1> = LAYOUT.rotate_cw();
     ///
     /// const _: () = assert!(LINEAR.equals(&LINEAR));
     /// const _: () = assert!(!LINEAR.equals(&ROTATED));
