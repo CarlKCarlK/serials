@@ -1,8 +1,27 @@
-//! Mapping primitives for LED index → (col,row) layouts.
+//! A device abstraction for LED index → (col,row) layouts. See [`Mapping`] for examples and transforms.
 //!
-//! Exposes a const-friendly `Mapping` type plus generators and transforms used by led2d devices.
+//! Exposes a const-friendly [`Mapping`] type plus generators and transforms used by led2d devices,
+//! including [`Mapping::linear_h`], [`Mapping::linear_v`], [`Mapping::serpentine_column_major`],
+//! [`Mapping::rotate_cw`], [`Mapping::flip_h`], [`Mapping::concat_h`], and [`Mapping::concat_v`].
 
 /// Checked LED index→(col,row) mapping for a fixed grid size.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # #[panic_handler]
+/// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+/// use device_kit::mapping::Mapping;
+///
+/// const BASE: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
+/// const FLIPPED: Mapping<6, 2, 3> = BASE.flip_h();
+/// const ROTATED: Mapping<6, 3, 2> = FLIPPED.rotate_cw();
+/// const EXPECTED: Mapping<6, 3, 2> =
+///     Mapping::new([(1, 2), (0, 2), (0, 1), (1, 1), (1, 0), (0, 0)]);
+/// const _: () = assert!(ROTATED.equals(&EXPECTED));
+/// ```
 // cmk0 consider renaming Mapping to better distinguish type vs instances.
 // cmk0 consider renaming the map field for clarity (may no longer apply once API settles).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -24,23 +43,17 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
         true
     }
 
-    /// Constructor: verifies mapping is a bijection from indices 0..N onto the ROWS×COLS grid.
+    /// Constructor: verifies mapping covers every cell exactly once across the ROWS×COLS grid.
     ///
-    /// ```no_run
+    /// ```rust,no_run
     /// # #![no_std]
     /// # #![no_main]
     /// # #[panic_handler]
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
     /// use device_kit::mapping::Mapping;
     ///
-    /// const MAP: Mapping<6, 2, 3> = Mapping::new([
-    ///     (0, 0),
-    ///     (0, 1),
-    ///     (1, 1),
-    ///     (1, 0),
-    ///     (2, 0),
-    ///     (2, 1),
-    /// ]);
+    /// const MAP: Mapping<6, 2, 3> =
+    ///     Mapping::new([(0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1)]);
     /// const EXPECTED: Mapping<6, 2, 3> =
     ///     Mapping::new([(0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1)]);
     /// const _: () = assert!(MAP.equals(&EXPECTED));
@@ -77,9 +90,69 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
         Self { map }
     }
 
+    /// Linear row-major mapping (left-to-right across each row, then rows top-to-bottom).
+    ///
+    /// ```rust,no_run
+    /// # #![no_std]
+    /// # #![no_main]
+    /// # #[panic_handler]
+    /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+    /// use device_kit::mapping::Mapping;
+    ///
+    /// const LINEAR: Mapping<6, 2, 3> = Mapping::linear_h();
+    /// const EXPECTED: Mapping<6, 2, 3> =
+    ///     Mapping::new([(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)]);
+    /// const _: () = assert!(LINEAR.equals(&EXPECTED));
+    /// ```
+    #[must_use]
+    pub const fn linear_h() -> Self {
+        Self::linear(true)
+    }
+
+    /// Linear column-major mapping (top-to-bottom down each column, then columns left-to-right).
+    ///
+    /// ```rust,no_run
+    /// # #![no_std]
+    /// # #![no_main]
+    /// # #[panic_handler]
+    /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+    /// use device_kit::mapping::Mapping;
+    ///
+    /// const LINEAR: Mapping<6, 2, 3> = Mapping::linear_v();
+    /// const EXPECTED: Mapping<6, 2, 3> =
+    ///     Mapping::new([(0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1)]);
+    /// const _: () = assert!(LINEAR.equals(&EXPECTED));
+    /// ```
+    #[must_use]
+    pub const fn linear_v() -> Self {
+        Self::linear(false)
+    }
+
+    const fn linear(row_major: bool) -> Self {
+        assert!(ROWS > 0 && COLS > 0, "ROWS and COLS must be positive");
+        assert!(ROWS * COLS == N, "ROWS*COLS must equal N");
+
+        let mut mapping = [(0_u16, 0_u16); N];
+        let mut row_index = 0;
+        while row_index < ROWS {
+            let mut column_index = 0;
+            while column_index < COLS {
+                let led_index = if row_major {
+                    row_index * COLS + column_index
+                } else {
+                    column_index * ROWS + row_index
+                };
+                mapping[led_index] = (column_index as u16, row_index as u16);
+                column_index += 1;
+            }
+            row_index += 1;
+        }
+        Self::new(mapping)
+    }
+
     /// Serpentine column-major mapping returned as a checked `Mapping`.
     ///
-    /// ```no_run
+    /// ```rust,no_run
     /// # #![no_std]
     /// # #![no_main]
     /// # #[panic_handler]
@@ -118,7 +191,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Rotate 90° clockwise (dims swap).
     ///
-    /// ```no_run
+    /// ```rust,no_run
     /// # #![no_std]
     /// # #![no_main]
     /// # #[panic_handler]
@@ -146,7 +219,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Flip horizontally (mirror columns).
     ///
-    /// ```no_run
+    /// ```rust,no_run
     /// # #![no_std]
     /// # #![no_main]
     /// # #[panic_handler]
@@ -173,7 +246,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Rotate 180° derived from rotate_cw.
     ///
-    /// ```no_run
+    /// ```rust,no_run
     /// # #![no_std]
     /// # #![no_main]
     /// # #[panic_handler]
@@ -192,7 +265,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Rotate 90° counter-clockwise derived from rotate_cw.
     ///
-    /// ```no_run
+    /// ```rust,no_run
     /// # #![no_std]
     /// # #![no_main]
     /// # #[panic_handler]
@@ -211,7 +284,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Flip vertically derived from rotation + horizontal flip.
     ///
-    /// ```no_run
+    /// ```rust,no_run
     /// # #![no_std]
     /// # #![no_main]
     /// # #[panic_handler]
@@ -230,7 +303,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Concatenate horizontally with another mapping sharing the same rows.
     ///
-    /// ```no_run
+    /// ```rust,no_run
     /// # #![no_std]
     /// # #![no_main]
     /// # #[panic_handler]
@@ -241,18 +314,8 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// const RIGHT: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
     /// const COMBINED: Mapping<12, 2, 6> = LEFT.concat_h::<6, 12, 3, 6>(RIGHT);
     /// const EXPECTED: Mapping<12, 2, 6> = Mapping::new([
-    ///     (0, 0),
-    ///     (0, 1),
-    ///     (1, 1),
-    ///     (1, 0),
-    ///     (2, 0),
-    ///     (2, 1),
-    ///     (3, 0),
-    ///     (3, 1),
-    ///     (4, 1),
-    ///     (4, 0),
-    ///     (5, 0),
-    ///     (5, 1),
+    ///     (0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1), (3, 0), (3, 1), (4, 1),
+    ///     (4, 0), (5, 0), (5, 1),
     /// ]);
     /// const _: () = assert!(COMBINED.equals(&EXPECTED));
     /// ```
@@ -289,7 +352,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
 
     /// Concatenate vertically with another mapping sharing the same columns.
     ///
-    /// ```no_run
+    /// ```rust,no_run
     /// # #![no_std]
     /// # #![no_main]
     /// # #[panic_handler]
@@ -300,18 +363,8 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// const BOTTOM: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
     /// const COMBINED: Mapping<12, 4, 3> = TOP.concat_v::<6, 12, 2, 4>(BOTTOM);
     /// const EXPECTED: Mapping<12, 4, 3> = Mapping::new([
-    ///     (0, 0),
-    ///     (0, 1),
-    ///     (1, 1),
-    ///     (1, 0),
-    ///     (2, 0),
-    ///     (2, 1),
-    ///     (0, 2),
-    ///     (0, 3),
-    ///     (1, 3),
-    ///     (1, 2),
-    ///     (2, 2),
-    ///     (2, 3),
+    ///     (0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1), (0, 2), (0, 3), (1, 3),
+    ///     (1, 2), (2, 2), (2, 3),
     /// ]);
     /// const _: () = assert!(COMBINED.equals(&EXPECTED));
     /// ```
