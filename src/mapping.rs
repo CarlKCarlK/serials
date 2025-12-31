@@ -1,8 +1,6 @@
-//! A device abstraction for LED index → (col,row) layouts. See [`Mapping`] for examples and transforms.
+//! LED index → (col,row) mapping utilities. See [`Mapping`] for examples and transforms.
 //!
-//! Exposes a const-friendly [`Mapping`] type plus generators and transforms used by led2d devices,
-//! including [`Mapping::linear_h`], [`Mapping::linear_v`], [`Mapping::serpentine_column_major`],
-//! [`Mapping::rotate_cw`], [`Mapping::flip_h`], [`Mapping::concat_h`], and [`Mapping::concat_v`].
+//! Exposes a const-friendly [`Mapping`] type plus generators and transforms used by led2d devices.
 
 /// Checked LED index→(col,row) mapping for a fixed grid size.
 ///
@@ -15,11 +13,9 @@
 /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
 /// use device_kit::mapping::Mapping;
 ///
-/// const BASE: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
-/// const FLIPPED: Mapping<6, 2, 3> = BASE.flip_h();
-/// const ROTATED: Mapping<6, 3, 2> = FLIPPED.rotate_cw();
+/// const ROTATED: Mapping<6, 3, 2> = Mapping::serpentine_column_major().rotate_cw();
 /// const EXPECTED: Mapping<6, 3, 2> =
-///     Mapping::new([(1, 2), (0, 2), (0, 1), (1, 1), (1, 0), (0, 0)]);
+///     Mapping::new([(1, 0), (0, 0), (0, 1), (1, 1), (1, 2), (0, 2)]);
 /// const _: () = assert!(ROTATED.equals(&EXPECTED));
 /// ```
 // cmk0 consider renaming Mapping to better distinguish type vs instances.
@@ -31,6 +27,20 @@ pub struct Mapping<const N: usize, const ROWS: usize, const COLS: usize> {
 
 impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS> {
     /// Const equality helper for doctests/examples.
+    ///
+    /// ```rust,no_run
+    /// # #![no_std]
+    /// # #![no_main]
+    /// # #[panic_handler]
+    /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
+    /// use device_kit::mapping::Mapping;
+    ///
+    /// const LINEAR: Mapping<4, 2, 2> = Mapping::linear_h();
+    /// const ROTATED: Mapping<4, 2, 2> = LINEAR.rotate_cw();
+    ///
+    /// const _: () = assert!(LINEAR.equals(&LINEAR));
+    /// const _: () = assert!(!LINEAR.equals(&ROTATED));
+/// ```
     #[must_use]
     pub const fn equals(&self, other: &Self) -> bool {
         let mut i = 0;
@@ -52,11 +62,18 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
     /// use device_kit::mapping::Mapping;
     ///
+    /// // 3×2 grid (landscape)
     /// const MAP: Mapping<6, 2, 3> =
-    ///     Mapping::new([(0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1)]);
-    /// const EXPECTED: Mapping<6, 2, 3> =
-    ///     Mapping::new([(0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1)]);
-    /// const _: () = assert!(MAP.equals(&EXPECTED));
+    ///     Mapping::new([(0, 0), (1, 0), (2, 0), (2, 1), (1, 1), (0, 1)]);
+    ///
+    /// // Rotate to portrait (CW)
+    /// const ROTATED: Mapping<6, 3, 2> = MAP.rotate_cw();
+    ///
+    /// // Expected: 2×3 grid
+    /// const EXPECTED: Mapping<6, 3, 2> =
+    ///     Mapping::new([(1, 0), (1, 1), (1, 2), (0, 2), (0, 1), (0, 0)]);
+    ///
+    /// const _: () = assert!(ROTATED.equals(&EXPECTED));
     /// ```
     #[must_use]
     pub const fn new(map: [(u16, u16); N]) -> Self {
