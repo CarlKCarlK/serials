@@ -134,7 +134,6 @@ impl Mode {
 fn create_test_pattern() -> Led12x8Frame {
     let mut frame = Led12x8::new_frame();
 
-    // cmk000 delete Test: columns appear reversed based on GRYB observation (may no longer apply)
     frame[0][0] = colors::RED; // Top-left
     frame[0][Led12x8::W - 1] = colors::GREEN; // Top-right
     frame[Led12x8::H - 1][0] = colors::BLUE; // Bottom-left
