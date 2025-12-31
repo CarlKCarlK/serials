@@ -1,6 +1,6 @@
-//! LED index → (col,row) mapping utilities. See [`LedLayout`] for examples and transforms.
-//!
-//! Exposes a const-friendly [`LedLayout`] type plus generators and transforms used by led2d devices.
+//! LED index → (col,row) layout utilities for 2D LED panels. See [`LedLayout`] for const-checked
+//! grid layouts plus the common patterns (linear strips, serpentine grids, rotations, flips, and
+//! concatenation) used throughout led2d devices.
 
 /// Checked LED index→(col,row) mapping for a fixed grid size.
 ///
