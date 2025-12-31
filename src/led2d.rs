@@ -110,7 +110,7 @@
 //!     max_frames: 32,
 //!     font: Font3x4Trim,
 //! }
-//! 
+//!
 //! #[embassy_executor::main]
 //! async fn main(spawner: Spawner) {
 //!     let p = init(Default::default());
@@ -673,10 +673,7 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2d<N, MAX_FRAMES> {
     }
 
     /// Convert 2D frame to 1D array using the LED layout.
-    fn convert_frame<const W: usize, const H: usize>(
-        &self,
-        frame_2d: Frame<W, H>,
-    ) -> [RGB8; N] {
+    fn convert_frame<const W: usize, const H: usize>(&self, frame_2d: Frame<W, H>) -> [RGB8; N] {
         let mut frame_1d = [RGB8::new(0, 0, 0); N];
         for row_index in 0..H {
             for column_index in 0..W {
@@ -1283,7 +1280,7 @@ macro_rules! led2d_from_strip {
             const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             // Compile-time assertion that strip length matches led_layout length
-            const _ = assert!([<$name:upper _LED_LAYOUT>].map().len() == $strip_type::LEN);
+            const _: () = assert!([<$name:upper _LED_LAYOUT>].map().len() == $strip_type::LEN);
 
             $crate::led2d::led2d_from_strip!(
                 @common $vis, $name, $strip_type, [<$name:upper _W>], [<$name:upper _H>], [<$name:upper _N>], [<$name:upper _LED_LAYOUT>],
@@ -1310,7 +1307,7 @@ macro_rules! led2d_from_strip {
             const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             // Compile-time assertion that strip length matches led_layout length
-            const _ = assert!([<$name:upper _LED_LAYOUT>].map().len() == $strip_type::LEN);
+            const _: () = assert!([<$name:upper _LED_LAYOUT>].map().len() == $strip_type::LEN);
 
             $crate::led2d::led2d_from_strip!(
                 @common $vis, $name, $strip_type, [<$name:upper _W>], [<$name:upper _H>], [<$name:upper _N>], [<$name:upper _LED_LAYOUT>],
