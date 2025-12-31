@@ -264,18 +264,36 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> LedLayout<N, ROWS, CO
     ///
     /// const MAP: LedLayout<6, 2, 3> = LedLayout::serpentine_row_major();
     /// const EXPECTED: LedLayout<6, 2, 3> =
-    ///     LedLayout::new([(2, 1), (2, 0), (1, 0), (1, 1), (0, 1), (0, 0)]);
+    ///     LedLayout::new([(0, 0), (1, 0), (2, 0), (2, 1), (1, 1), (0, 1)]);
     /// const _: () = assert!(MAP.equals(&EXPECTED));
     /// ```
     ///
     /// ```text
     /// Strip snakes across rows (2×3 example):
-    ///   LED5  LED2  LED1
-    ///   LED4  LED3  LED0
+    ///   LED0  LED1  LED2
+    ///   LED5  LED4  LED3
     /// ```
     #[must_use]
     pub const fn serpentine_row_major() -> Self {
-        Self::serpentine_column_major().rotate_cw().rotate_cw()
+        assert!(ROWS > 0 && COLS > 0, "ROWS and COLS must be positive");
+        assert!(ROWS * COLS == N, "ROWS*COLS must equal N");
+
+        let mut mapping = [(0_u16, 0_u16); N];
+        let mut row_index = 0;
+        while row_index < ROWS {
+            let mut column_index = 0;
+            while column_index < COLS {
+                let led_index = if row_index % 2 == 0 {
+                    row_index * COLS + column_index
+                } else {
+                    row_index * COLS + (COLS - 1 - column_index)
+                };
+                mapping[led_index] = (column_index as u16, row_index as u16);
+                column_index += 1;
+            }
+            row_index += 1;
+        }
+        Self::new(mapping)
     }
 
     /// Rotate 90° clockwise (dims swap).
