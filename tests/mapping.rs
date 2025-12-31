@@ -15,6 +15,18 @@ fn linear_single_column_matches_expected() {
 }
 
 #[test]
+fn linear_h_returns_expected() {
+    const LINEAR: LedLayout<5, 1, 5> = LedLayout::linear_h();
+    assert_eq!(LINEAR.map, [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]);
+}
+
+#[test]
+fn linear_v_returns_expected() {
+    const LINEAR: LedLayout<5, 5, 1> = LedLayout::linear_v();
+    assert_eq!(LINEAR.map, [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4)]);
+}
+
+#[test]
 fn linear_row_major_3x2_matches_expected() {
     const MAP: LedLayout<6, 2, 3> = LedLayout::new([
         (0, 0),
@@ -202,4 +214,28 @@ fn concat_horizontal_and_vertical() {
             (0, 4),
         ]
     );
+}
+
+#[test]
+#[should_panic(expected = "duplicate (col,row) in mapping")]
+fn new_panics_on_duplicate_cell() {
+    let _ = LedLayout::<3, 1, 3>::new([(0, 0), (1, 0), (1, 0)]);
+}
+
+#[test]
+#[should_panic(expected = "column out of bounds")]
+fn new_panics_on_out_of_bounds_column() {
+    let _ = LedLayout::<3, 1, 2>::new([(0, 0), (1, 0), (2, 0)]);
+}
+
+#[test]
+#[should_panic(expected = "mapping does not cover every cell")]
+fn new_panics_on_missing_cells() {
+    let _ = LedLayout::<3, 2, 2>::new([(0, 0), (1, 0), (0, 1)]);
+}
+
+#[test]
+#[should_panic(expected = "ROWS*COLS must equal N")]
+fn new_panics_on_mismatched_dimensions() {
+    let _ = LedLayout::<5, 2, 3>::new([(0, 0), (1, 0), (2, 0), (0, 1), (1, 1)]);
 }
