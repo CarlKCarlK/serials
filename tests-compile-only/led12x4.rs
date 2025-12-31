@@ -8,11 +8,12 @@
 #![allow(dead_code, reason = "Compile-time verification only")]
 
 use defmt_rtt as _;
-use device_kit::led_strip::define_led_strips_shared;
-use device_kit::led_strip::{Milliamps, colors};
-use device_kit::led_strip::gamma::Gamma;
-use device_kit::led2d::led2d_from_strip;
+use device_kit::Result;
 use device_kit::led_layout::LedLayout;
+use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::gamma::Gamma;
+use device_kit::led_strip::{Milliamps, colors};
+use device_kit::led2d::led2d_from_strip;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use panic_probe as _;
@@ -70,10 +71,7 @@ led2d_from_strip! {
 }
 
 /// Verify Gpio3Pio0LedStrip with write_text
-async fn test_led12x4_pio0_write_text(
-    p: embassy_rp::Peripherals,
-    spawner: Spawner,
-) -> device_kit::Result<()> {
+async fn test_led12x4_pio0_write_text(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
     let gpio3_pio0_led_strip = Gpio3Pio0LedStrip::new(sm0, p.DMA_CH0, p.PIN_3, spawner)?;
 
@@ -91,7 +89,7 @@ async fn test_led12x4_pio0_write_text(
 }
 
 /// Verify Gpio3Pio1LedStrip constructor
-async fn test_led12x4_pio1(p: embassy_rp::Peripherals, spawner: Spawner) -> device_kit::Result<()> {
+async fn test_led12x4_pio1(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
     let gpio3_pio1_led_strip = Gpio3Pio1LedStrip::new(sm0, p.DMA_CH1, p.PIN_3, spawner)?;
 

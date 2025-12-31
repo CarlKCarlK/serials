@@ -7,6 +7,7 @@ use core::convert::Infallible;
 
 use defmt::info;
 use defmt_rtt as _;
+use device_kit::Result;
 use embassy_executor::Spawner;
 use panic_probe as _;
 use device_kit::UnixSeconds;
@@ -18,7 +19,7 @@ pub async fn main(spawner: Spawner) -> ! {
     core::panic!("{err}");
 }
 
-async fn run(spawner: Spawner) -> device_kit::Result<Infallible> {
+async fn run(spawner: Spawner) -> Result<Infallible> {
     // Initialize RP2040 peripherals to start the time driver.
     let _p = embassy_rp::init(Default::default());
 

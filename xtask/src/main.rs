@@ -24,6 +24,8 @@ struct Cli {
 enum Commands {
     /// Run all checks: build lib, examples, run tests, generate docs
     CheckAll,
+    /// Check all examples (pico1 + pico2, with and without wifi)
+    CheckExamples,
     /// Generate video frames from PNG files (santa video)
     VideoFramesGen,
     /// Generate cat video frames from video file
@@ -111,6 +113,7 @@ fn main() -> ExitCode {
 
     match cli.command {
         Commands::CheckAll => check_all(),
+        Commands::CheckExamples => check_examples(),
         Commands::VideoFramesGen => {
             if let Err(e) = video_frames_gen::generate_frames() {
                 eprintln!("Error generating video frames: {}", e);
@@ -363,6 +366,104 @@ fn check_all() -> ExitCode {
     }
 
     println!("\n{}", "==> All checks passed! 🎉".green().bold());
+    ExitCode::SUCCESS
+}
+
+fn check_examples() -> ExitCode {
+    let workspace_root = workspace_root();
+    let examples = discover_examples(&workspace_root);
+    let no_wifi_examples: Vec<_> = examples
+        .iter()
+        .filter(|example| !example.wifi_required)
+        .collect();
+    let arch = Arch::Arm;
+    let board_pico2 = Board::Pico2;
+    let board_pico1 = Board::Pico1;
+    let target_pico2 = arch.target(board_pico2);
+    let target_pico1 = arch.target(board_pico1);
+    let features_no_wifi = build_features(board_pico2, arch, false);
+    let features_wifi_pico2 = build_features(board_pico2, arch, true);
+    let features_wifi_pico1 = build_features(board_pico1, arch, true);
+
+    println!("{}", "==> Checking all examples in parallel...".cyan());
+
+    let failures = Mutex::new(Vec::new());
+
+    rayon::scope(|s| {
+        // 1. Examples (pico2, no wifi)
+        s.spawn(|_| {
+            println!("{}", "  [1/3] Examples (pico2, no wifi)...".bright_black());
+            no_wifi_examples.par_iter().for_each(|example| {
+                if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
+                    "build",
+                    "--example",
+                    &example.name,
+                    "--target",
+                    target_pico2,
+                    "--features",
+                    features_no_wifi.as_str(),
+                    "--no-default-features",
+                ])) {
+                    failures.lock().unwrap().push("pico2 no-wifi examples");
+                }
+            });
+        });
+
+        // 2. Examples (pico2, with wifi)
+        s.spawn(|_| {
+            println!(
+                "{}",
+                "  [2/3] Examples (pico2, with wifi)...".bright_black()
+            );
+            examples.par_iter().for_each(|example| {
+                if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
+                    "build",
+                    "--example",
+                    &example.name,
+                    "--target",
+                    target_pico2,
+                    "--features",
+                    features_wifi_pico2.as_str(),
+                    "--no-default-features",
+                ])) {
+                    failures.lock().unwrap().push("pico2 wifi examples");
+                }
+            });
+        });
+
+        // 3. Examples (pico1, with wifi)
+        s.spawn(|_| {
+            println!(
+                "{}",
+                "  [3/3] Examples (pico1, with wifi)...".bright_black()
+            );
+            examples.par_iter().for_each(|example| {
+                if !run_command(Command::new("cargo").current_dir(&workspace_root).args([
+                    "build",
+                    "--example",
+                    &example.name,
+                    "--target",
+                    target_pico1,
+                    "--features",
+                    features_wifi_pico1.as_str(),
+                    "--no-default-features",
+                ])) {
+                    failures.lock().unwrap().push("pico1 wifi examples");
+                }
+            });
+        });
+    });
+
+    let failures = failures.lock().unwrap();
+    if !failures.is_empty() {
+        eprintln!("\n{}", "Failed checks:".red().bold());
+        for failure in failures.iter() {
+            eprintln!("  - {}", failure.red());
+        }
+        return ExitCode::FAILURE;
+    }
+
+    println!("\n{}", "==> All examples passed! 🎉".green().bold());
     ExitCode::SUCCESS
 }
 

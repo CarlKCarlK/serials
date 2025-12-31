@@ -5,6 +5,7 @@ use core::convert::Infallible;
 
 use defmt::info;
 use defmt_rtt as _;
+use device_kit::Result;
 use embassy_executor::Spawner;
 use panic_probe as _;
 use device_kit::ir_kepler::{IrKepler, IrKeplerStatic};
@@ -15,7 +16,7 @@ async fn main(spawner: Spawner) -> ! {
     panic!("{err}");
 }
 
-async fn inner_main(spawner: Spawner) -> device_kit::Result<Infallible> {
+async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     info!("Starting Kepler IR Remote Example");

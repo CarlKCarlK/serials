@@ -14,7 +14,7 @@ use core::pin::pin;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::button::{Button, PressDuration, PressedTo};
-use device_kit::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
+use device_kit::clock::{Clock, ClockStatic, ONE_DAY, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::Milliamps;
@@ -22,8 +22,8 @@ use device_kit::led_strip::colors;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use device_kit::wifi_auto::WifiAuto;
 use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
+use device_kit::wifi_auto::{WifiAuto, WifiAutoEvent};
 use device_kit::{Error, Result};
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -104,7 +104,6 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         .connect(spawner, move |event| {
             let led_8x12_ref = led_8x12_ref;
             async move {
-                use device_kit::wifi_auto::WifiAutoEvent;
                 match event {
                     WifiAutoEvent::CaptivePortalReady => {
                         info!("WiFi: captive portal ready, displaying CONN");
@@ -332,7 +331,7 @@ impl State {
                     info!("Short press detected - incrementing offset");
                     // Increment the offset by 1 hour
                     offset_minutes += 60;
-                    const ONE_DAY_MINUTES: i32 = device_kit::clock::ONE_DAY.as_secs() as i32 / 60;
+                    const ONE_DAY_MINUTES: i32 = ONE_DAY.as_secs() as i32 / 60;
                     if offset_minutes >= ONE_DAY_MINUTES {
                         offset_minutes -= ONE_DAY_MINUTES;
                     }

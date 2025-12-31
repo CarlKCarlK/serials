@@ -13,11 +13,11 @@ use core::{convert::Infallible, pin::pin};
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::button::{Button, PressDuration, PressedTo};
-use device_kit::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
+use device_kit::clock::{Clock, ClockStatic, ONE_DAY, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 use device_kit::led4::{BlinkState, Led4, Led4Static, OutputArray, circular_outline_animation};
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use device_kit::wifi_auto::WifiAuto;
+use device_kit::wifi_auto::{WifiAuto, WifiAutoEvent};
 use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
 use device_kit::{Error, Result};
 use embassy_executor::Spawner;
@@ -88,7 +88,6 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let led4_ref = &led4;
     let (stack, mut button) = wifi_auto
         .connect(spawner, move |event| async move {
-            use device_kit::wifi_auto::WifiAutoEvent;
             match event {
                 WifiAutoEvent::CaptivePortalReady => {
                     led4_ref.write_text(['C', 'O', 'N', 'N'], BlinkState::BlinkingAndOn);
@@ -320,7 +319,7 @@ impl State {
                     info!("Short press detected - incrementing offset");
                     // Increment the offset by 1 hour
                     offset_minutes += 60;
-                    const ONE_DAY_MINUTES: i32 = device_kit::clock::ONE_DAY.as_secs() as i32 / 60;
+                    const ONE_DAY_MINUTES: i32 = ONE_DAY.as_secs() as i32 / 60;
                     if offset_minutes >= ONE_DAY_MINUTES {
                         offset_minutes -= ONE_DAY_MINUTES;
                     }

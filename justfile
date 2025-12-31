@@ -17,6 +17,10 @@ test-docs:
 check-all:
 	cargo xtask check-all
 
+# Check all examples (faster than check-all)
+check-examples:
+	cargo xtask check-examples
+
 # Generate video frames data
 video-frames:
 	cargo xtask video-frames-gen > video_frames_data.rs

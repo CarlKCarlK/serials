@@ -16,12 +16,14 @@ use core::{
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::button::{Button, PressDuration, PressedTo};
-use device_kit::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
+use device_kit::clock::{Clock, ClockStatic, ONE_DAY, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
-use device_kit::servo_animate::{ServoAnimate, ServoAnimateStatic, Step, linear, servo_even};
+use device_kit::servo_animate::{
+    ServoAnimate, ServoAnimateStatic, Step, concat_steps, linear, servo_even,
+};
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use device_kit::wifi_auto::WifiAuto;
 use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
+use device_kit::wifi_auto::{WifiAuto, WifiAutoEvent};
 use device_kit::{Error, Result};
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -87,7 +89,6 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         .connect(spawner, move |event| {
             let servo_display_ref = servo_display_ref;
             async move {
-                use device_kit::wifi_auto::WifiAutoEvent;
                 match event {
                     WifiAutoEvent::CaptivePortalReady => {
                         servo_display_ref.show_portal_ready().await
@@ -292,7 +293,7 @@ impl State {
                     info!("Short press detected - incrementing offset");
                     // Increment the offset by 1 hour
                     offset_minutes += 60;
-                    const ONE_DAY_MINUTES: i32 = device_kit::clock::ONE_DAY.as_secs() as i32 / 60;
+                    const ONE_DAY_MINUTES: i32 = ONE_DAY.as_secs() as i32 / 60;
                     if offset_minutes >= ONE_DAY_MINUTES {
                         offset_minutes -= ONE_DAY_MINUTES;
                     }
@@ -344,10 +345,9 @@ impl ServoClockDisplay {
         const FIVE_SECONDS: Duration = Duration::from_secs(5);
         let clockwise = linear::<10>(180 - 18, 0, FIVE_SECONDS);
         let and_back = linear::<2>(0, 180, FIVE_SECONDS);
-        let top_sequence = device_kit::servo_animate::concat_steps::<16>(&[&clockwise, &and_back]);
+        let top_sequence = concat_steps::<16>(&[&clockwise, &and_back]);
         self.top.animate(&top_sequence).await;
-        let bottom_sequence =
-            device_kit::servo_animate::concat_steps::<16>(&[&and_back, &clockwise]);
+        let bottom_sequence = concat_steps::<16>(&[&and_back, &clockwise]);
         self.bottom.animate(&bottom_sequence).await;
     }
 

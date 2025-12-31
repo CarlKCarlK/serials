@@ -3,9 +3,10 @@
 
 use defmt::info;
 use defmt_rtt as _;
+use device_kit::Result;
 use device_kit::led_strip::Milliamps;
-use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::gamma::Gamma;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
@@ -37,7 +38,7 @@ async fn main(spawner: Spawner) -> ! {
     }
 }
 
-async fn inner_main(spawner: Spawner) -> device_kit::Result<()> {
+async fn inner_main(spawner: Spawner) -> Result<()> {
     let p = embassy_rp::init(Default::default());
 
     // Initialize PIO1 bus

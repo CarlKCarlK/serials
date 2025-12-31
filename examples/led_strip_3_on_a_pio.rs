@@ -6,10 +6,11 @@
 
 use defmt::info;
 use defmt_rtt as _;
+use device_kit::Result;
 use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::Milliamps;
-use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::{Rgb, colors};
 use device_kit::led2d::led2d_from_strip;
 use device_kit::pio_split;
@@ -82,7 +83,7 @@ async fn main(spawner: Spawner) {
     }
 }
 
-async fn inner_main(spawner: Spawner) -> device_kit::Result<()> {
+async fn inner_main(spawner: Spawner) -> Result<()> {
     let p = embassy_rp::init(Default::default());
     let (sm0, sm1, sm2, _sm3) = pio_split!(p.PIO1);
 

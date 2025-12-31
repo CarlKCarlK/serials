@@ -50,6 +50,8 @@ use device_kit::rfid::{Rfid, RfidEvent, RfidStatic};
 use device_kit::servo::servo_a;
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 #[cfg(feature = "wifi")]
+use device_kit::wifi::DEFAULT_CAPTIVE_PORTAL_SSID;
+#[cfg(feature = "wifi")]
 use device_kit::wifi_config::collect_wifi_credentials;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::Pull;
@@ -142,7 +144,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
             p.PIN_29, // WiFi CLK
             p.DMA_CH0,
             wifi_block,
-            device_kit::wifi::DEFAULT_CAPTIVE_PORTAL_SSID,
+            DEFAULT_CAPTIVE_PORTAL_SSID,
             spawner,
         )
     };

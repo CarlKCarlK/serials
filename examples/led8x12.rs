@@ -11,6 +11,7 @@ use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
+use device_kit::led2d::Frame;
 use device_kit::{Error, Result};
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -141,7 +142,6 @@ async fn demo_blink_pattern(led8x12: &Led8x12) -> Result<()> {
 
 /// Create a red rectangle border with blue diagonals using embedded-graphics.
 async fn demo_rectangle_diagonals_embedded_graphics(led8x12: &Led8x12) -> Result<()> {
-    use device_kit::led2d::Frame;
     use embedded_graphics::{
         Drawable,
         pixelcolor::Rgb888,

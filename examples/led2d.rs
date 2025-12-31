@@ -11,6 +11,7 @@ use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
+use device_kit::led2d::Frame;
 use device_kit::{Error, Result};
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -96,10 +97,13 @@ async fn demo_blink_text(led4x12: &Led4x12) -> Result<()> {
         &mut on_frame,
     )?;
     led4x12
-        .animate([
-            (on_frame, Duration::from_millis(500)),
-            (Led4x12::new_frame(), Duration::from_millis(500)),
-        ].into_iter())
+        .animate(
+            [
+                (on_frame, Duration::from_millis(500)),
+                (Led4x12::new_frame(), Duration::from_millis(500)),
+            ]
+            .into_iter(),
+        )
         .await
 }
 
@@ -129,16 +133,18 @@ async fn demo_blink_pattern(led4x12: &Led4x12) -> Result<()> {
     }
 
     led4x12
-        .animate([
-            (on_frame, Duration::from_millis(500)),
-            (Led4x12::new_frame(), Duration::from_millis(500)),
-        ].into_iter())
+        .animate(
+            [
+                (on_frame, Duration::from_millis(500)),
+                (Led4x12::new_frame(), Duration::from_millis(500)),
+            ]
+            .into_iter(),
+        )
         .await
 }
 
 /// Create a red rectangle border with blue diagonals using embedded-graphics.
 async fn demo_rectangle_diagonals_embedded_graphics(led4x12: &Led4x12) -> Result<()> {
-    use device_kit::led2d::Frame;
     use embedded_graphics::{
         Drawable,
         pixelcolor::Rgb888,
