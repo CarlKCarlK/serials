@@ -7,6 +7,7 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::button::{Button, PressedTo};
+use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
@@ -19,6 +20,9 @@ use heapless::Vec;
 use panic_probe as _;
 use smart_leds::colors;
 
+// Single 4x12 panel wired serpentine column-major.
+const LED_LAYOUT_4X12: LedLayout<48, 4, 12> = LedLayout::serpentine_column_major();
+
 led2d! {
     pub led4x12,
     pio: PIO1,
@@ -26,7 +30,7 @@ led2d! {
     dma: DMA_CH0,
     rows: 4,
     cols: 12,
-    mapping: serpentine_column_major,
+    led_layout: LED_LAYOUT_4X12,
     max_current: Milliamps(500),
     gamma: Gamma::Linear,
     max_frames: 32,

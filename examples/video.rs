@@ -74,9 +74,9 @@ use panic_probe as _;
 use smart_leds::{RGB8, colors};
 
 // Display: 12 wide × 8 tall built from two 12×4 serpentine panels stacked vertically.
-const PANEL_12X4: LedLayout<48, 4, 12> = LedLayout::<48, 4, 12>::serpentine_column_major();
-const LED12X8_CUSTOM_MAPPING: LedLayout<96, 8, 12> =
-    PANEL_12X4.concat_v::<48, 96, 4, 8>(PANEL_12X4);
+const LED_LAYOUT_12X4: LedLayout<48, 4, 12> = LedLayout::<48, 4, 12>::serpentine_column_major();
+const LED_LAYOUT_12X8: LedLayout<96, 8, 12> =
+    LED_LAYOUT_12X4.concat_v::<48, 96, 4, 8>(LED_LAYOUT_12X4);
 
 led2d! {
     pub led12x8,
@@ -85,7 +85,7 @@ led2d! {
     dma: DMA_CH1,
     rows: 8,
     cols: 12,
-    mapping: LED12X8_CUSTOM_MAPPING,
+    led_layout: LED_LAYOUT_12X8,
     max_current: Milliamps(250),
     gamma: Gamma::Gamma2_2,
     max_frames: 70,

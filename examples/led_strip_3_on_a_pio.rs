@@ -6,6 +6,7 @@
 
 use defmt::info;
 use defmt_rtt as _;
+use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::define_led_strips_shared;
@@ -47,12 +48,15 @@ define_led_strips_shared! {
     ]
 }
 
+// Shared 12x4 serpentine layout for both LED matrices.
+const LED_LAYOUT_12X4: LedLayout<48, 4, 12> = LedLayout::serpentine_column_major();
+
 led2d_from_strip! {
     pub led12x4_gpio3,
     strip_type: Gpio3LedStrip,
     rows: 4,
     cols: 12,
-    mapping: serpentine_column_major,
+    led_layout: LED_LAYOUT_12X4,
     max_frames: 48,
     font: Font3x4Trim,
 }
@@ -62,7 +66,7 @@ led2d_from_strip! {
     strip_type: Gpio4LedStrip,
     rows: 4,
     cols: 12,
-    mapping: serpentine_column_major,
+    led_layout: LED_LAYOUT_12X4,
     max_frames: 48,
     font: Font3x4Trim,
 }

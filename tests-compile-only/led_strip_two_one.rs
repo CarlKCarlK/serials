@@ -41,7 +41,7 @@ define_led_strips_shared! {
             led2d: {
                 rows: 4,
                 cols: 12,
-                mapping: serpentine_column_major,
+                led_layout: LED_LAYOUT_12X4,
                 max_frames: 48,
                 font: Font3x4Trim,
             }
@@ -62,7 +62,7 @@ define_led_strips_shared! {
             led2d: {
                 rows: 12,
                 cols: 8,
-                mapping: LED8X12_MAPPING,
+                led_layout: LED_LAYOUT_8X12,
                 max_frames: 48,
                 font: Font4x6Trim,
             }
@@ -74,10 +74,11 @@ const SNAKE_LENGTH: usize = 4;
 const SNAKE_COLORS: [Rgb; SNAKE_LENGTH] =
     [colors::YELLOW, colors::ORANGE, colors::RED, colors::MAGENTA];
 
-const PANEL_12X4: LedLayout<48, 4, 12> = LedLayout::<48, 4, 12>::serpentine_column_major();
-const PANEL_12X4_ORIENTED: LedLayout<48, 12, 4> = PANEL_12X4.rotate_cw().flip_h().flip_v();
-const LED8X12_MAPPING: LedLayout<96, 12, 8> =
-    PANEL_12X4_ORIENTED.concat_h::<48, 96, 4, 8>(PANEL_12X4_ORIENTED);
+const LED_LAYOUT_12X4: LedLayout<48, 4, 12> = LedLayout::<48, 4, 12>::serpentine_column_major();
+const LED_LAYOUT_12X4_ORIENTED: LedLayout<48, 12, 4> =
+    LED_LAYOUT_12X4.rotate_cw().flip_h().flip_v();
+const LED_LAYOUT_8X12: LedLayout<96, 12, 8> =
+    LED_LAYOUT_12X4_ORIENTED.concat_h::<48, 96, 4, 8>(LED_LAYOUT_12X4_ORIENTED);
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {

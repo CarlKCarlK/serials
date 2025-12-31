@@ -1,6 +1,6 @@
-//! Compile-only verification for Led2d with custom mapping.
+//! Compile-only verification for Led2d with custom LED layout.
 //!
-//! This verifies that led2d_from_strip! macro works with custom mappings.
+//! This verifies that led2d_from_strip! macro works with custom LED layouts.
 //! Run via: `cargo check-all` (xtask compiles this for thumbv6m-none-eabi)
 
 #![cfg(not(feature = "host"))]
@@ -37,7 +37,7 @@ led2d! {
     dma: DMA_CH0,
     rows: 2,
     cols: 3,
-    mapping: LED2X3_ROW_MAJOR,
+    led_layout: LED2X3_ROW_MAJOR,
     max_current: Milliamps(100),
     gamma: Gamma::Linear,
     max_frames: 6,

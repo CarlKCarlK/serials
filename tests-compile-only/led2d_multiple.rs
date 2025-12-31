@@ -15,6 +15,7 @@ use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::define_led_strips_shared;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d::led2d_from_strip;
+use device_kit::led_layout::LedLayout;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Duration;
@@ -50,13 +51,16 @@ define_led_strips_shared! {
     ]
 }
 
+const LED_LAYOUT_4X12: LedLayout<48, 4, 12> = LedLayout::serpentine_column_major();
+const LED_LAYOUT_8X8: LedLayout<64, 8, 8> = LedLayout::serpentine_column_major();
+
 // First device: 4x12 display
 led2d_from_strip! {
     pub led4x12,
     strip_type: Gpio3LedStrip,
     rows: 4,
     cols: 12,
-    mapping: serpentine_column_major,
+    led_layout: LED_LAYOUT_4X12,
     max_frames: 32,
     font: Font3x4Trim,
 }
@@ -67,7 +71,7 @@ led2d_from_strip! {
     strip_type: Gpio4LedStrip,
     rows: 8,
     cols: 8,
-    mapping: serpentine_column_major,
+    led_layout: LED_LAYOUT_8X8,
     max_frames: 32,
     font: Font3x4Trim,
 }

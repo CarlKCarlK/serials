@@ -16,11 +16,11 @@ use defmt_rtt as _;
 use device_kit::button::{Button, PressDuration, PressedTo};
 use device_kit::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
+use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::colors;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
-use device_kit::led_layout::LedLayout;
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use device_kit::wifi_auto::WifiAuto;
 use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
@@ -32,12 +32,9 @@ use heapless::String;
 use panic_probe as _;
 use smart_leds::RGB8;
 
-// Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise).
-// Reuse the 12x8 mapping from video.rs and rotate clockwise to 8x12.
-const PANEL_12X4: LedLayout<48, 4, 12> = LedLayout::<48, 4, 12>::serpentine_column_major();
-const LED12X8_CUSTOM_MAPPING: LedLayout<96, 8, 12> =
-    PANEL_12X4.concat_v::<48, 96, 4, 8>(PANEL_12X4);
-const CLOCK_LED8X12_MAPPING: LedLayout<96, 12, 8> = LED12X8_CUSTOM_MAPPING.rotate_cw();
+// Two 12x4 panels stacked vertically and rotated 90° CW → 8×12 display.
+const LED_LAYOUT_12X4: LedLayout<48, 4, 12> = LedLayout::serpentine_column_major();
+const LED_LAYOUT_8X12: LedLayout<96, 12, 8> = LED_LAYOUT_12X4.concat_v(LED_LAYOUT_12X4).rotate_cw();
 
 led2d! {
     pub led8x12,
@@ -46,7 +43,7 @@ led2d! {
     dma: DMA_CH1,
     rows: 12,
     cols: 8,
-    mapping: CLOCK_LED8X12_MAPPING,
+    led_layout: LED_LAYOUT_8X12,
     max_current: Milliamps(250),
     gamma: Gamma::Linear,
     max_frames: 48,

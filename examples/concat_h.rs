@@ -15,9 +15,9 @@ use panic_probe as _;
 use smart_leds::colors;
 
 // Build a 24x4 display by concatenating two 12x4 serpentine panels horizontally.
-const PANEL_12X4: LedLayout<48, 4, 12> = LedLayout::<48, 4, 12>::serpentine_column_major();
-const LED24X4_MAPPING: LedLayout<96, 4, 24> =
-    PANEL_12X4.concat_h::<48, 96, 12, 24>(PANEL_12X4);
+const LED_LAYOUT_12X4: LedLayout<48, 4, 12> = LedLayout::<48, 4, 12>::serpentine_column_major();
+const LED_LAYOUT_24X4: LedLayout<96, 4, 24> =
+    LED_LAYOUT_12X4.concat_h::<48, 96, 12, 24>(LED_LAYOUT_12X4);
 
 led2d! {
     pub led24x4_concat,
@@ -26,7 +26,7 @@ led2d! {
     dma: DMA_CH1,
     rows: 4,
     cols: 24,
-    mapping: LED24X4_MAPPING,
+    led_layout: LED_LAYOUT_24X4,
     max_current: Milliamps(1000),
     gamma: Gamma::Gamma2_2,
     max_frames: 8,

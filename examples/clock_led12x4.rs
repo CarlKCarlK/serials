@@ -16,6 +16,7 @@ use defmt_rtt as _;
 use device_kit::button::{Button, PressDuration, PressedTo};
 use device_kit::clock::{Clock, ClockStatic, ONE_MINUTE, ONE_SECOND, h12_m_s};
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
+use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::colors;
 use device_kit::led_strip::gamma::Gamma;
@@ -31,6 +32,9 @@ use heapless::String;
 use panic_probe as _;
 use smart_leds::RGB8;
 
+// Single 12x4 panel wired serpentine column-major.
+const LED_LAYOUT_12X4: LedLayout<48, 4, 12> = LedLayout::serpentine_column_major();
+
 led2d! {
     pub led12x4,
     pio: PIO0,
@@ -38,7 +42,7 @@ led2d! {
     dma: DMA_CH1,
     rows: 4,
     cols: 12,
-    mapping: serpentine_column_major,
+    led_layout: LED_LAYOUT_12X4,
     max_current: Milliamps(500),
     gamma: Gamma::Linear,
     max_frames: 32,

@@ -22,10 +22,10 @@ use smart_leds::colors;
 
 // Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise)
 // Better for clock display - can fit 2 lines of 2 digits each
-const PANEL_12X4: LedLayout<48, 4, 12> = LedLayout::<48, 4, 12>::serpentine_column_major();
-const LED12X8_CUSTOM_MAPPING: LedLayout<96, 8, 12> =
-    PANEL_12X4.concat_v::<48, 96, 4, 8>(PANEL_12X4);
-const LED8X12_CUSTOM_MAPPING: LedLayout<96, 12, 8> = LED12X8_CUSTOM_MAPPING.rotate_cw();
+const LED_LAYOUT_12X4: LedLayout<48, 4, 12> = LedLayout::<48, 4, 12>::serpentine_column_major();
+const LED_LAYOUT_12X8: LedLayout<96, 8, 12> =
+    LED_LAYOUT_12X4.concat_v::<48, 96, 4, 8>(LED_LAYOUT_12X4);
+const LED_LAYOUT_8X12: LedLayout<96, 12, 8> = LED_LAYOUT_12X8.rotate_cw();
 
 led2d! {
     pub led8x12,
@@ -34,7 +34,7 @@ led2d! {
     dma: DMA_CH0,
     rows: 12,
     cols: 8,
-    mapping: LED8X12_CUSTOM_MAPPING,
+    led_layout: LED_LAYOUT_8X12,
     max_current: Milliamps(1000),
     gamma: Gamma::Linear,
     max_frames: 32,
