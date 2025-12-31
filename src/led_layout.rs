@@ -16,7 +16,7 @@
 /// const ROTATED: LedLayout<6, 2, 3> = LedLayout::serpentine_column_major().rotate_cw();
 /// const EXPECTED: LedLayout<6, 2, 3> =
 ///     LedLayout::new([(1, 0), (0, 0), (0, 1), (1, 1), (1, 2), (0, 2)]);
-/// const _: () = assert!(ROTATED.equals(&EXPECTED));
+/// const _ = assert!(ROTATED.equals(&EXPECTED));
 /// ```
 ///
 /// ```text
@@ -52,8 +52,8 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     /// const LAYOUT: LedLayout<6, 3, 2> = LedLayout::serpentine_column_major();
     /// const MAPPING_BY_XY: [u16; 6] = LAYOUT.mapping_by_xy();
     ///
-    /// const _: () = assert!(MAPPING_BY_XY[0] == 0);
-    /// const _: () = assert!(MAPPING_BY_XY[5] == 5);
+    /// const _ = assert!(MAPPING_BY_XY[0] == 0);
+    /// const _ = assert!(MAPPING_BY_XY[5] == 5);
     /// ```
     #[must_use]
     pub const fn mapping_by_xy(&self) -> [u16; N] {
@@ -107,8 +107,8 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     /// const LAYOUT: LedLayout<4, 1, 4> = LedLayout::linear_v();
     /// const ROTATED: LedLayout<4, 4, 1> = LAYOUT.rotate_cw();
     ///
-    /// const _: () = assert!(LINEAR.equals(&LINEAR));
-    /// const _: () = assert!(!LINEAR.equals(&ROTATED));
+    /// const _ = assert!(LINEAR.equals(&LINEAR));
+    /// const _ = assert!(!LINEAR.equals(&ROTATED));
     /// ```
     ///
     /// ```text
@@ -147,7 +147,7 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     /// const EXPECTED: LedLayout<6, 2, 3> =
     ///     LedLayout::new([(1, 0), (1, 1), (1, 2), (0, 2), (0, 1), (0, 0)]);
     ///
-    /// const _: () = assert!(ROTATED.equals(&EXPECTED));
+    /// const _ = assert!(ROTATED.equals(&EXPECTED));
     /// ```
     ///
     /// ```text
@@ -204,7 +204,7 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     /// const LINEAR: LedLayout<6, 6, 1> = LedLayout::linear_h();
     /// const EXPECTED: LedLayout<6, 6, 1> =
     ///     LedLayout::new([(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0)]);
-    /// const _: () = assert!(LINEAR.equals(&EXPECTED));
+    /// const _ = assert!(LINEAR.equals(&EXPECTED));
     /// ```
     ///
     /// ```text
@@ -237,7 +237,7 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     /// const LINEAR: LedLayout<6, 1, 6> = LedLayout::linear_v();
     /// const EXPECTED: LedLayout<6, 1, 6> =
     ///     LedLayout::new([(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5)]);
-    /// const _: () = assert!(LINEAR.equals(&EXPECTED));
+    /// const _ = assert!(LINEAR.equals(&EXPECTED));
     /// ```
     ///
     /// ```text
@@ -275,7 +275,7 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     /// const MAP: LedLayout<6, 3, 2> = LedLayout::serpentine_column_major();
     /// const EXPECTED: LedLayout<6, 3, 2> =
     ///     LedLayout::new([(0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1)]);
-    /// const _: () = assert!(MAP.equals(&EXPECTED));
+    /// const _ = assert!(MAP.equals(&EXPECTED));
     /// ```
     ///
     /// ```text
@@ -320,7 +320,7 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     /// const MAP: LedLayout<6, 3, 2> = LedLayout::serpentine_row_major();
     /// const EXPECTED: LedLayout<6, 3, 2> =
     ///     LedLayout::new([(0, 0), (1, 0), (2, 0), (2, 1), (1, 1), (0, 1)]);
-    /// const _: () = assert!(MAP.equals(&EXPECTED));
+    /// const _ = assert!(MAP.equals(&EXPECTED));
     /// ```
     ///
     /// ```text
@@ -363,7 +363,7 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     /// const ROTATED: LedLayout<6, 2, 3> = LedLayout::serpentine_column_major().rotate_cw();
     /// const EXPECTED: LedLayout<6, 2, 3> =
     ///     LedLayout::new([(1, 0), (0, 0), (0, 1), (1, 1), (1, 2), (0, 2)]);
-    /// const _: () = assert!(ROTATED.equals(&EXPECTED));
+    /// const _ = assert!(ROTATED.equals(&EXPECTED));
     /// ```
     ///
     /// ```text
@@ -398,7 +398,7 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     /// const FLIPPED: LedLayout<6, 3, 2> = LedLayout::serpentine_column_major().flip_h();
     /// const EXPECTED: LedLayout<6, 3, 2> =
     ///     LedLayout::new([(2, 0), (2, 1), (1, 1), (1, 0), (0, 0), (0, 1)]);
-    /// const _: () = assert!(FLIPPED.equals(&EXPECTED));
+    /// const _ = assert!(FLIPPED.equals(&EXPECTED));
     /// ```
     ///
     /// ```text
@@ -431,7 +431,7 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     /// const ROTATED: LedLayout<6, 3, 2> = LedLayout::serpentine_column_major().rotate_180();
     /// const EXPECTED: LedLayout<6, 3, 2> =
     ///     LedLayout::new([(2, 1), (2, 0), (1, 0), (1, 1), (0, 1), (0, 0)]);
-    /// const _: () = assert!(ROTATED.equals(&EXPECTED));
+    /// const _ = assert!(ROTATED.equals(&EXPECTED));
     /// ```
     ///
     /// ```text
@@ -456,7 +456,7 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     /// const ROTATED: LedLayout<6, 2, 3> = LedLayout::serpentine_column_major().rotate_ccw();
     /// const EXPECTED: LedLayout<6, 2, 3> =
     ///     LedLayout::new([(0, 2), (1, 2), (1, 1), (0, 1), (0, 0), (1, 0)]);
-    /// const _: () = assert!(ROTATED.equals(&EXPECTED));
+    /// const _ = assert!(ROTATED.equals(&EXPECTED));
     /// ```
     ///
     /// ```text
@@ -482,7 +482,7 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     /// const FLIPPED: LedLayout<6, 3, 2> = LedLayout::serpentine_column_major().flip_v();
     /// const EXPECTED: LedLayout<6, 3, 2> =
     ///     LedLayout::new([(0, 1), (0, 0), (1, 0), (1, 1), (2, 1), (2, 0)]);
-    /// const _: () = assert!(FLIPPED.equals(&EXPECTED));
+    /// const _ = assert!(FLIPPED.equals(&EXPECTED));
     /// ```
     ///
     /// ```text
@@ -511,7 +511,7 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     ///     (0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1), (3, 0), (3, 1), (4, 1),
     ///     (4, 0), (5, 0), (5, 1),
     /// ]);
-    /// const _: () = assert!(COMBINED.equals(&EXPECTED));
+    /// const _ = assert!(COMBINED.equals(&EXPECTED));
     /// ```
     ///
     /// ```text
@@ -570,7 +570,7 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     ///     (0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1), (0, 2), (0, 3), (1, 3),
     ///     (1, 2), (2, 2), (2, 3),
     /// ]);
-    /// const _: () = assert!(COMBINED.equals(&EXPECTED));
+    /// const _ = assert!(COMBINED.equals(&EXPECTED));
     /// ```
     ///
     /// ```text

@@ -1283,7 +1283,7 @@ macro_rules! led2d_from_strip {
             const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             // Compile-time assertion that strip length matches led_layout length
-            const _: () = assert!([<$name:upper _LED_LAYOUT>].map().len() == $strip_type::LEN);
+            const _ = assert!([<$name:upper _LED_LAYOUT>].map().len() == $strip_type::LEN);
 
             $crate::led2d::led2d_from_strip!(
                 @common $vis, $name, $strip_type, [<$name:upper _W>], [<$name:upper _H>], [<$name:upper _N>], [<$name:upper _LED_LAYOUT>],
@@ -1310,7 +1310,7 @@ macro_rules! led2d_from_strip {
             const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             // Compile-time assertion that strip length matches led_layout length
-            const _: () = assert!([<$name:upper _LED_LAYOUT>].map().len() == $strip_type::LEN);
+            const _ = assert!([<$name:upper _LED_LAYOUT>].map().len() == $strip_type::LEN);
 
             $crate::led2d::led2d_from_strip!(
                 @common $vis, $name, $strip_type, [<$name:upper _W>], [<$name:upper _H>], [<$name:upper _N>], [<$name:upper _LED_LAYOUT>],
