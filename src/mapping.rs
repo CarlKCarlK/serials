@@ -35,8 +35,8 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> LedLayout<N, ROWS, CO
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
     /// use device_kit::mapping::LedLayout;
     ///
-    /// const LINEAR: LedLayout<4, 2, 2> = LedLayout::linear_h();
-    /// const ROTATED: LedLayout<4, 2, 2> = LINEAR.rotate_cw();
+    /// const LINEAR: LedLayout<4, 1, 4> = LedLayout::linear_h();
+    /// const ROTATED: LedLayout<4, 1, 4> = LedLayout::<4, 4, 1>::linear_v().rotate_cw();
     ///
     /// const _: () = assert!(LINEAR.equals(&LINEAR));
     /// const _: () = assert!(!LINEAR.equals(&ROTATED));
@@ -107,7 +107,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> LedLayout<N, ROWS, CO
         Self { map }
     }
 
-    /// Linear row-major mapping (left-to-right across each row, then rows top-to-bottom).
+    /// Linear row-major mapping for a single-row strip (cols increase left-to-right).
     ///
     /// ```rust,no_run
     /// # #![no_std]
@@ -116,17 +116,26 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> LedLayout<N, ROWS, CO
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
     /// use device_kit::mapping::LedLayout;
     ///
-    /// const LINEAR: LedLayout<6, 2, 3> = LedLayout::linear_h();
-    /// const EXPECTED: LedLayout<6, 2, 3> =
-    ///     LedLayout::new([(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)]);
+    /// const LINEAR: LedLayout<6, 1, 6> = LedLayout::linear_h();
+    /// const EXPECTED: LedLayout<6, 1, 6> =
+    ///     LedLayout::new([(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0)]);
     /// const _: () = assert!(LINEAR.equals(&EXPECTED));
     /// ```
     #[must_use]
     pub const fn linear_h() -> Self {
-        Self::linear(true)
+        assert!(ROWS == 1, "linear_h requires ROWS == 1");
+        assert!(COLS == N, "linear_h requires COLS == N");
+
+        let mut mapping = [(0_u16, 0_u16); N];
+        let mut column_index = 0;
+        while column_index < COLS {
+            mapping[column_index] = (column_index as u16, 0);
+            column_index += 1;
+        }
+        Self::new(mapping)
     }
 
-    /// Linear column-major mapping (top-to-bottom down each column, then columns left-to-right).
+    /// Linear column-major mapping for a single-column strip (rows increase top-to-bottom).
     ///
     /// ```rust,no_run
     /// # #![no_std]
@@ -135,33 +144,20 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> LedLayout<N, ROWS, CO
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
     /// use device_kit::mapping::LedLayout;
     ///
-    /// const LINEAR: LedLayout<6, 2, 3> = LedLayout::linear_v();
-    /// const EXPECTED: LedLayout<6, 2, 3> =
-    ///     LedLayout::new([(0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1)]);
+    /// const LINEAR: LedLayout<6, 6, 1> = LedLayout::linear_v();
+    /// const EXPECTED: LedLayout<6, 6, 1> =
+    ///     LedLayout::new([(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5)]);
     /// const _: () = assert!(LINEAR.equals(&EXPECTED));
     /// ```
     #[must_use]
     pub const fn linear_v() -> Self {
-        Self::linear(false)
-    }
-
-    const fn linear(row_major: bool) -> Self {
-        assert!(ROWS > 0 && COLS > 0, "ROWS and COLS must be positive");
-        assert!(ROWS * COLS == N, "ROWS*COLS must equal N");
+        assert!(COLS == 1, "linear_v requires COLS == 1");
+        assert!(ROWS == N, "linear_v requires ROWS == N");
 
         let mut mapping = [(0_u16, 0_u16); N];
         let mut row_index = 0;
         while row_index < ROWS {
-            let mut column_index = 0;
-            while column_index < COLS {
-                let led_index = if row_major {
-                    row_index * COLS + column_index
-                } else {
-                    column_index * ROWS + row_index
-                };
-                mapping[led_index] = (column_index as u16, row_index as u16);
-                column_index += 1;
-            }
+            mapping[row_index] = (0, row_index as u16);
             row_index += 1;
         }
         Self::new(mapping)
