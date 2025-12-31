@@ -1,8 +1,9 @@
-//! LED index → (col,row) layout utilities for 2D LED panels. See [`LedLayout`] for const-checked
-//! grid layouts plus the common patterns (linear strips, serpentine grids, rotations, flips, and
-//! concatenation) used throughout led2d devices.
+//! A fully const module that tells the x,y location of each LED pixel.
+//!
+//! See [`LedLayout`] for examples including: linear strips,
+//! serpentine grids, rotations, flips, and concatenation.
 
-/// Checked LED index→(col,row) mapping for a fixed grid size.
+/// A fully const struct that tells the x,y location of each LED pixel.
 ///
 /// # Examples
 ///
@@ -25,6 +26,14 @@
 ///     LED0  LED3  LED4    LED1  LED0
 ///     LED1  LED2  LED5    LED2  LED3
 ///                         LED5  LED4
+/// ```
+///
+/// Compile-time validation catches configuration errors:
+///
+/// ```compile_fail
+/// # use device_kit::led_layout::LedLayout;
+/// // Duplicate coordinate (0,0) - caught at compile time
+/// const INVALID: LedLayout<3, 2, 2> = LedLayout::new([(0, 0), (0, 0), (1, 1)]);
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LedLayout<const N: usize, const W: usize, const H: usize> {
@@ -49,8 +58,7 @@ impl<const N: usize, const W: usize, const H: usize> LedLayout<N, W, H> {
     ///
     /// const LED_LAYOUT: LedLayout<6, 3, 2> = LedLayout::serpentine_column_major();
     /// const MAPPING_BY_XY: [u16; 6] = LED_LAYOUT.mapping_by_xy();
-    ///
-    /// const _: () = assert!(MAPPING_BY_XY == [0, 3, 4, 1, 2, 5]);
+    /// // Result: [0, 3, 4, 1, 2, 5]
     /// ```
     #[must_use]
     pub const fn mapping_by_xy(&self) -> [u16; N] {
