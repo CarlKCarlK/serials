@@ -5,7 +5,7 @@
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::mapping::Mapping;
+use device_kit::mapping::LedLayout;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d::led2d;
@@ -15,8 +15,8 @@ use panic_probe as _;
 use smart_leds::colors;
 
 // Build a 24x4 display by concatenating two 12x4 serpentine panels horizontally.
-const PANEL_12X4: Mapping<48, 4, 12> = Mapping::<48, 4, 12>::serpentine_column_major();
-const LED24X4_MAPPING: Mapping<96, 4, 24> =
+const PANEL_12X4: LedLayout<48, 4, 12> = LedLayout::<48, 4, 12>::serpentine_column_major();
+const LED24X4_MAPPING: LedLayout<96, 4, 24> =
     PANEL_12X4.concat_h::<48, 96, 12, 24>(PANEL_12X4);
 
 led2d! {

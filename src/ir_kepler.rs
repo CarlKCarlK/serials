@@ -7,7 +7,7 @@ use embassy_rp::Peri;
 use embassy_rp::gpio::Pin;
 
 use crate::Result;
-use crate::ir_mapping::{IrMapping, IrMappingStatic};
+use crate::ir_mapping::{IrLedLayout, IrLedLayoutStatic};
 
 /// Button types for the SunFounder Kepler Kit remote control.
 #[derive(defmt::Format, Clone, Copy, PartialEq, Eq)]
@@ -29,16 +29,16 @@ pub enum KeplerButton {
 /// Static resources for Kepler IR remote events.
 ///
 /// See [`IrKepler`] for usage examples.
-pub struct IrKeplerStatic(IrMappingStatic);
+pub struct IrKeplerStatic(IrLedLayoutStatic);
 
 impl IrKeplerStatic {
     /// Create static resources for the Kepler remote.
     #[must_use]
     pub const fn new() -> Self {
-        Self(IrMappingStatic::new())
+        Self(IrLedLayoutStatic::new())
     }
 
-    pub(crate) const fn inner(&self) -> &IrMappingStatic {
+    pub(crate) const fn inner(&self) -> &IrLedLayoutStatic {
         &self.0
     }
 }
@@ -46,7 +46,7 @@ impl IrKeplerStatic {
 /// Type alias for the Kepler button mapping.
 ///
 /// See [`IrKepler`] for usage examples.
-type IrKeplerMapping<'a> = IrMapping<'a, KeplerButton, 21>;
+type IrKeplerLedLayout<'a> = IrLedLayout<'a, KeplerButton, 21>;
 
 /// Button mapping for the SunFounder Kepler Kit remote (ordered to match physical layout).
 const KEPLER_MAPPING: [(u16, u8, KeplerButton); 21] = [
@@ -105,7 +105,7 @@ const KEPLER_MAPPING: [(u16, u8, KeplerButton); 21] = [
 /// }
 /// ```
 pub struct IrKepler<'a> {
-    mapping: IrKeplerMapping<'a>,
+    mapping: IrKeplerLedLayout<'a>,
 }
 
 impl<'a> IrKepler<'a> {
@@ -133,7 +133,7 @@ impl<'a> IrKepler<'a> {
         pin: Peri<'static, P>,
         spawner: Spawner,
     ) -> Result<Self> {
-        let mapping = IrMapping::new(ir_kepler_static.inner(), pin, &KEPLER_MAPPING, spawner)?;
+        let mapping = IrLedLayout::new(ir_kepler_static.inner(), pin, &KEPLER_MAPPING, spawner)?;
         Ok(Self { mapping })
     }
 

@@ -1,6 +1,6 @@
-//! LED index → (col,row) mapping utilities. See [`Mapping`] for examples and transforms.
+//! LED index → (col,row) mapping utilities. See [`LedLayout`] for examples and transforms.
 //!
-//! Exposes a const-friendly [`Mapping`] type plus generators and transforms used by led2d devices.
+//! Exposes a const-friendly [`LedLayout`] type plus generators and transforms used by led2d devices.
 
 /// Checked LED index→(col,row) mapping for a fixed grid size.
 ///
@@ -11,21 +11,21 @@
 /// # #![no_main]
 /// # #[panic_handler]
 /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
-/// use device_kit::mapping::Mapping;
+/// use device_kit::mapping::LedLayout;
 ///
-/// const ROTATED: Mapping<6, 3, 2> = Mapping::serpentine_column_major().rotate_cw();
-/// const EXPECTED: Mapping<6, 3, 2> =
-///     Mapping::new([(1, 0), (0, 0), (0, 1), (1, 1), (1, 2), (0, 2)]);
+/// const ROTATED: LedLayout<6, 3, 2> = LedLayout::serpentine_column_major().rotate_cw();
+/// const EXPECTED: LedLayout<6, 3, 2> =
+///     LedLayout::new([(1, 0), (0, 0), (0, 1), (1, 1), (1, 2), (0, 2)]);
 /// const _: () = assert!(ROTATED.equals(&EXPECTED));
 /// ```
-// cmk0 consider renaming Mapping to better distinguish type vs instances.
+// cmk0 consider renaming LedLayout to better distinguish type vs instances.
 // cmk0 consider renaming the map field for clarity (may no longer apply once API settles).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Mapping<const N: usize, const ROWS: usize, const COLS: usize> {
+pub struct LedLayout<const N: usize, const ROWS: usize, const COLS: usize> {
     pub map: [(u16, u16); N],
 }
 
-impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS> {
+impl<const N: usize, const ROWS: usize, const COLS: usize> LedLayout<N, ROWS, COLS> {
     /// Const equality helper for doctests/examples.
     ///
     /// ```rust,no_run
@@ -33,14 +33,14 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// # #![no_main]
     /// # #[panic_handler]
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
-    /// use device_kit::mapping::Mapping;
+    /// use device_kit::mapping::LedLayout;
     ///
-    /// const LINEAR: Mapping<4, 2, 2> = Mapping::linear_h();
-    /// const ROTATED: Mapping<4, 2, 2> = LINEAR.rotate_cw();
+    /// const LINEAR: LedLayout<4, 2, 2> = LedLayout::linear_h();
+    /// const ROTATED: LedLayout<4, 2, 2> = LINEAR.rotate_cw();
     ///
     /// const _: () = assert!(LINEAR.equals(&LINEAR));
     /// const _: () = assert!(!LINEAR.equals(&ROTATED));
-/// ```
+    /// ```
     #[must_use]
     pub const fn equals(&self, other: &Self) -> bool {
         let mut i = 0;
@@ -60,18 +60,18 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// # #![no_main]
     /// # #[panic_handler]
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
-    /// use device_kit::mapping::Mapping;
+    /// use device_kit::mapping::LedLayout;
     ///
     /// // 3×2 grid (landscape)
-    /// const MAP: Mapping<6, 2, 3> =
-    ///     Mapping::new([(0, 0), (1, 0), (2, 0), (2, 1), (1, 1), (0, 1)]);
+    /// const MAP: LedLayout<6, 2, 3> =
+    ///     LedLayout::new([(0, 0), (1, 0), (2, 0), (2, 1), (1, 1), (0, 1)]);
     ///
     /// // Rotate to portrait (CW)
-    /// const ROTATED: Mapping<6, 3, 2> = MAP.rotate_cw();
+    /// const ROTATED: LedLayout<6, 3, 2> = MAP.rotate_cw();
     ///
     /// // Expected: 2×3 grid
-    /// const EXPECTED: Mapping<6, 3, 2> =
-    ///     Mapping::new([(1, 0), (1, 1), (1, 2), (0, 2), (0, 1), (0, 0)]);
+    /// const EXPECTED: LedLayout<6, 3, 2> =
+    ///     LedLayout::new([(1, 0), (1, 1), (1, 2), (0, 2), (0, 1), (0, 0)]);
     ///
     /// const _: () = assert!(ROTATED.equals(&EXPECTED));
     /// ```
@@ -114,11 +114,11 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// # #![no_main]
     /// # #[panic_handler]
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
-    /// use device_kit::mapping::Mapping;
+    /// use device_kit::mapping::LedLayout;
     ///
-    /// const LINEAR: Mapping<6, 2, 3> = Mapping::linear_h();
-    /// const EXPECTED: Mapping<6, 2, 3> =
-    ///     Mapping::new([(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)]);
+    /// const LINEAR: LedLayout<6, 2, 3> = LedLayout::linear_h();
+    /// const EXPECTED: LedLayout<6, 2, 3> =
+    ///     LedLayout::new([(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)]);
     /// const _: () = assert!(LINEAR.equals(&EXPECTED));
     /// ```
     #[must_use]
@@ -133,11 +133,11 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// # #![no_main]
     /// # #[panic_handler]
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
-    /// use device_kit::mapping::Mapping;
+    /// use device_kit::mapping::LedLayout;
     ///
-    /// const LINEAR: Mapping<6, 2, 3> = Mapping::linear_v();
-    /// const EXPECTED: Mapping<6, 2, 3> =
-    ///     Mapping::new([(0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1)]);
+    /// const LINEAR: LedLayout<6, 2, 3> = LedLayout::linear_v();
+    /// const EXPECTED: LedLayout<6, 2, 3> =
+    ///     LedLayout::new([(0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1)]);
     /// const _: () = assert!(LINEAR.equals(&EXPECTED));
     /// ```
     #[must_use]
@@ -167,18 +167,18 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
         Self::new(mapping)
     }
 
-    /// Serpentine column-major mapping returned as a checked `Mapping`.
+    /// Serpentine column-major mapping returned as a checked `LedLayout`.
     ///
     /// ```rust,no_run
     /// # #![no_std]
     /// # #![no_main]
     /// # #[panic_handler]
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
-    /// use device_kit::mapping::Mapping;
+    /// use device_kit::mapping::LedLayout;
     ///
-    /// const MAP: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
-    /// const EXPECTED: Mapping<6, 2, 3> =
-    ///     Mapping::new([(0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1)]);
+    /// const MAP: LedLayout<6, 2, 3> = LedLayout::serpentine_column_major();
+    /// const EXPECTED: LedLayout<6, 2, 3> =
+    ///     LedLayout::new([(0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1)]);
     /// const _: () = assert!(MAP.equals(&EXPECTED));
     /// ```
     #[must_use]
@@ -213,11 +213,11 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// # #![no_main]
     /// # #[panic_handler]
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
-    /// use device_kit::mapping::Mapping;
+    /// use device_kit::mapping::LedLayout;
     ///
-    /// const MAP: Mapping<6, 2, 3> = Mapping::serpentine_row_major();
-    /// const EXPECTED: Mapping<6, 2, 3> =
-    ///     Mapping::new([(0, 0), (1, 0), (2, 0), (2, 1), (1, 1), (0, 1)]);
+    /// const MAP: LedLayout<6, 2, 3> = LedLayout::serpentine_row_major();
+    /// const EXPECTED: LedLayout<6, 2, 3> =
+    ///     LedLayout::new([(0, 0), (1, 0), (2, 0), (2, 1), (1, 1), (0, 1)]);
     /// const _: () = assert!(MAP.equals(&EXPECTED));
     /// ```
     #[must_use]
@@ -250,15 +250,15 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// # #![no_main]
     /// # #[panic_handler]
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
-    /// use device_kit::mapping::Mapping;
+    /// use device_kit::mapping::LedLayout;
     ///
-    /// const ROTATED: Mapping<6, 3, 2> = Mapping::serpentine_column_major().rotate_cw();
-    /// const EXPECTED: Mapping<6, 3, 2> =
-    ///     Mapping::new([(1, 0), (0, 0), (0, 1), (1, 1), (1, 2), (0, 2)]);
+    /// const ROTATED: LedLayout<6, 3, 2> = LedLayout::serpentine_column_major().rotate_cw();
+    /// const EXPECTED: LedLayout<6, 3, 2> =
+    ///     LedLayout::new([(1, 0), (0, 0), (0, 1), (1, 1), (1, 2), (0, 2)]);
     /// const _: () = assert!(ROTATED.equals(&EXPECTED));
     /// ```
     #[must_use]
-    pub const fn rotate_cw(self) -> Mapping<N, COLS, ROWS> {
+    pub const fn rotate_cw(self) -> LedLayout<N, COLS, ROWS> {
         let mut out = [(0u16, 0u16); N];
         let mut i = 0;
         while i < N {
@@ -268,7 +268,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
             out[i] = ((ROWS - 1 - r) as u16, c as u16);
             i += 1;
         }
-        Mapping::<N, COLS, ROWS>::new(out)
+        LedLayout::<N, COLS, ROWS>::new(out)
     }
 
     /// Flip horizontally (mirror columns).
@@ -278,11 +278,11 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// # #![no_main]
     /// # #[panic_handler]
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
-    /// use device_kit::mapping::Mapping;
+    /// use device_kit::mapping::LedLayout;
     ///
-    /// const FLIPPED: Mapping<6, 2, 3> = Mapping::serpentine_column_major().flip_h();
-    /// const EXPECTED: Mapping<6, 2, 3> =
-    ///     Mapping::new([(2, 0), (2, 1), (1, 1), (1, 0), (0, 0), (0, 1)]);
+    /// const FLIPPED: LedLayout<6, 2, 3> = LedLayout::serpentine_column_major().flip_h();
+    /// const EXPECTED: LedLayout<6, 2, 3> =
+    ///     LedLayout::new([(2, 0), (2, 1), (1, 1), (1, 0), (0, 0), (0, 1)]);
     /// const _: () = assert!(FLIPPED.equals(&EXPECTED));
     /// ```
     #[must_use]
@@ -305,11 +305,11 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// # #![no_main]
     /// # #[panic_handler]
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
-    /// use device_kit::mapping::Mapping;
+    /// use device_kit::mapping::LedLayout;
     ///
-    /// const ROTATED: Mapping<6, 2, 3> = Mapping::serpentine_column_major().rotate_180();
-    /// const EXPECTED: Mapping<6, 2, 3> =
-    ///     Mapping::new([(2, 1), (2, 0), (1, 0), (1, 1), (0, 1), (0, 0)]);
+    /// const ROTATED: LedLayout<6, 2, 3> = LedLayout::serpentine_column_major().rotate_180();
+    /// const EXPECTED: LedLayout<6, 2, 3> =
+    ///     LedLayout::new([(2, 1), (2, 0), (1, 0), (1, 1), (0, 1), (0, 0)]);
     /// const _: () = assert!(ROTATED.equals(&EXPECTED));
     /// ```
     #[must_use]
@@ -324,15 +324,15 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// # #![no_main]
     /// # #[panic_handler]
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
-    /// use device_kit::mapping::Mapping;
+    /// use device_kit::mapping::LedLayout;
     ///
-    /// const ROTATED: Mapping<6, 3, 2> = Mapping::serpentine_column_major().rotate_ccw();
-    /// const EXPECTED: Mapping<6, 3, 2> =
-    ///     Mapping::new([(0, 2), (1, 2), (1, 1), (0, 1), (0, 0), (1, 0)]);
+    /// const ROTATED: LedLayout<6, 3, 2> = LedLayout::serpentine_column_major().rotate_ccw();
+    /// const EXPECTED: LedLayout<6, 3, 2> =
+    ///     LedLayout::new([(0, 2), (1, 2), (1, 1), (0, 1), (0, 0), (1, 0)]);
     /// const _: () = assert!(ROTATED.equals(&EXPECTED));
     /// ```
     #[must_use]
-    pub const fn rotate_ccw(self) -> Mapping<N, COLS, ROWS> {
+    pub const fn rotate_ccw(self) -> LedLayout<N, COLS, ROWS> {
         self.rotate_cw().rotate_cw().rotate_cw()
     }
 
@@ -343,11 +343,11 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// # #![no_main]
     /// # #[panic_handler]
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
-    /// use device_kit::mapping::Mapping;
+    /// use device_kit::mapping::LedLayout;
     ///
-    /// const FLIPPED: Mapping<6, 2, 3> = Mapping::serpentine_column_major().flip_v();
-    /// const EXPECTED: Mapping<6, 2, 3> =
-    ///     Mapping::new([(0, 1), (0, 0), (1, 0), (1, 1), (2, 1), (2, 0)]);
+    /// const FLIPPED: LedLayout<6, 2, 3> = LedLayout::serpentine_column_major().flip_v();
+    /// const EXPECTED: LedLayout<6, 2, 3> =
+    ///     LedLayout::new([(0, 1), (0, 0), (1, 0), (1, 1), (2, 1), (2, 0)]);
     /// const _: () = assert!(FLIPPED.equals(&EXPECTED));
     /// ```
     #[must_use]
@@ -362,12 +362,12 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// # #![no_main]
     /// # #[panic_handler]
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
-    /// use device_kit::mapping::Mapping;
+    /// use device_kit::mapping::LedLayout;
     ///
-    /// const LEFT: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
-    /// const RIGHT: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
-    /// const COMBINED: Mapping<12, 2, 6> = LEFT.concat_h::<6, 12, 3, 6>(RIGHT);
-    /// const EXPECTED: Mapping<12, 2, 6> = Mapping::new([
+    /// const LEFT: LedLayout<6, 2, 3> = LedLayout::serpentine_column_major();
+    /// const RIGHT: LedLayout<6, 2, 3> = LedLayout::serpentine_column_major();
+    /// const COMBINED: LedLayout<12, 2, 6> = LEFT.concat_h::<6, 12, 3, 6>(RIGHT);
+    /// const EXPECTED: LedLayout<12, 2, 6> = LedLayout::new([
     ///     (0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1), (3, 0), (3, 1), (4, 1),
     ///     (4, 0), (5, 0), (5, 1),
     /// ]);
@@ -381,8 +381,8 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
         const TCOLS: usize,
     >(
         self,
-        right: Mapping<RIGHT, ROWS, RCOLS>,
-    ) -> Mapping<TOTAL, ROWS, TCOLS> {
+        right: LedLayout<RIGHT, ROWS, RCOLS>,
+    ) -> LedLayout<TOTAL, ROWS, TCOLS> {
         assert!(TOTAL == N + RIGHT, "TOTAL must equal LEFT + RIGHT");
         assert!(TCOLS == COLS + RCOLS, "TCOLS must equal LCOLS + RCOLS");
 
@@ -401,7 +401,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
             j += 1;
         }
 
-        Mapping::<TOTAL, ROWS, TCOLS>::new(out)
+        LedLayout::<TOTAL, ROWS, TCOLS>::new(out)
     }
 
     /// Concatenate vertically with another mapping sharing the same columns.
@@ -411,12 +411,12 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
     /// # #![no_main]
     /// # #[panic_handler]
     /// # fn panic(_: &core::panic::PanicInfo) -> ! { loop {} }
-    /// use device_kit::mapping::Mapping;
+    /// use device_kit::mapping::LedLayout;
     ///
-    /// const TOP: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
-    /// const BOTTOM: Mapping<6, 2, 3> = Mapping::serpentine_column_major();
-    /// const COMBINED: Mapping<12, 4, 3> = TOP.concat_v::<6, 12, 2, 4>(BOTTOM);
-    /// const EXPECTED: Mapping<12, 4, 3> = Mapping::new([
+    /// const TOP: LedLayout<6, 2, 3> = LedLayout::serpentine_column_major();
+    /// const BOTTOM: LedLayout<6, 2, 3> = LedLayout::serpentine_column_major();
+    /// const COMBINED: LedLayout<12, 4, 3> = TOP.concat_v::<6, 12, 2, 4>(BOTTOM);
+    /// const EXPECTED: LedLayout<12, 4, 3> = LedLayout::new([
     ///     (0, 0), (0, 1), (1, 1), (1, 0), (2, 0), (2, 1), (0, 2), (0, 3), (1, 3),
     ///     (1, 2), (2, 2), (2, 3),
     /// ]);
@@ -430,8 +430,8 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
         const TROWS: usize,
     >(
         self,
-        bottom: Mapping<BOTTOM, BOT_ROWS, COLS>,
-    ) -> Mapping<TOTAL, TROWS, COLS> {
+        bottom: LedLayout<BOTTOM, BOT_ROWS, COLS>,
+    ) -> LedLayout<TOTAL, TROWS, COLS> {
         assert!(TOTAL == N + BOTTOM, "TOTAL must equal TOP + BOTTOM");
         assert!(
             TROWS == ROWS + BOT_ROWS,
@@ -443,7 +443,7 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> Mapping<N, ROWS, COLS
         let top_t = self.rotate_cw().flip_h(); // ROWS cols, COLS rows
         let bot_t = bottom.rotate_cw().flip_h(); // BOT_ROWS cols, COLS rows
 
-        let combined_t: Mapping<TOTAL, COLS, TROWS> =
+        let combined_t: LedLayout<TOTAL, COLS, TROWS> =
             top_t.concat_h::<BOTTOM, TOTAL, BOT_ROWS, TROWS>(bot_t);
 
         combined_t.rotate_cw().flip_h() // transpose back to TROWS x COLS

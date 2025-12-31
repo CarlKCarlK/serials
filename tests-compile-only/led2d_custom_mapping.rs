@@ -13,7 +13,7 @@ use device_kit::Result;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
-use device_kit::mapping::Mapping;
+use device_kit::mapping::LedLayout;
 use embassy_executor::Spawner;
 use embassy_time::Duration;
 use panic_probe as _;
@@ -21,7 +21,7 @@ use smart_leds::colors;
 
 // Example with a custom mapping for a 2x3 display (6 LEDs total)
 // LED indices 0..5 map row-major, rows left-to-right
-const LED2X3_ROW_MAJOR: Mapping<6, 2, 3> = Mapping::new([
+const LED2X3_ROW_MAJOR: LedLayout<6, 2, 3> = LedLayout::new([
     (0, 0),
     (1, 0),
     (2, 0),

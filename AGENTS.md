@@ -10,7 +10,7 @@
 
 ## Const-Only APIs
 
-**The `Mapping` type must remain fully const.** All methods on `Mapping` must be `const fn`. This enables compile-time LED layout validation and zero-runtime-cost transformations. If you add a method to `Mapping` that is not `const fn`, report this as an error. The existing doctests enforce const-ness by using methods in const contexts; removing `const` from any method will cause compilation to fail.
+**The `LedLayout` type must remain fully const.** All methods on `LedLayout` must be `const fn`. This enables compile-time LED layout validation and zero-runtime-cost transformations. If you add a method to `LedLayout` that is not `const fn`, report this as an error. The existing doctests enforce const-ness by using methods in const contexts; removing `const` from any method will cause compilation to fail.
 
 ## Module Structure Convention
 

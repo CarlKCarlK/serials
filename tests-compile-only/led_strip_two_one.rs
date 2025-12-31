@@ -13,7 +13,7 @@ use device_kit::Result;
 use device_kit::led_strip::define_led_strips_shared;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::{Milliamps, Rgb, colors};
-use device_kit::mapping::Mapping;
+use device_kit::mapping::LedLayout;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
@@ -74,9 +74,9 @@ const SNAKE_LENGTH: usize = 4;
 const SNAKE_COLORS: [Rgb; SNAKE_LENGTH] =
     [colors::YELLOW, colors::ORANGE, colors::RED, colors::MAGENTA];
 
-const PANEL_12X4: Mapping<48, 4, 12> = Mapping::<48, 4, 12>::serpentine_column_major();
-const PANEL_12X4_ORIENTED: Mapping<48, 12, 4> = PANEL_12X4.rotate_cw().flip_h().flip_v();
-const LED8X12_MAPPING: Mapping<96, 12, 8> =
+const PANEL_12X4: LedLayout<48, 4, 12> = LedLayout::<48, 4, 12>::serpentine_column_major();
+const PANEL_12X4_ORIENTED: LedLayout<48, 12, 4> = PANEL_12X4.rotate_cw().flip_h().flip_v();
+const LED8X12_MAPPING: LedLayout<96, 12, 8> =
     PANEL_12X4_ORIENTED.concat_h::<48, 96, 4, 8>(PANEL_12X4_ORIENTED);
 
 #[embassy_executor::main]
