@@ -20,7 +20,7 @@ use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::colors;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
-use device_kit::mapping::LedLayout;
+use device_kit::led_layout::LedLayout;
 use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
 use device_kit::wifi_auto::WifiAuto;
 use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};

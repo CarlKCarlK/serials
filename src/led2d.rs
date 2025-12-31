@@ -135,7 +135,7 @@
 #[doc(hidden)]
 pub use paste;
 
-pub use crate::mapping::LedLayout;
+pub use crate::led_layout::LedLayout;
 
 use core::convert::Infallible;
 use embassy_futures::select::{Either, select};

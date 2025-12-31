@@ -50,7 +50,7 @@ pub mod ir;
 pub mod ir_kepler;
 #[cfg(not(feature = "host"))]
 pub mod ir_mapping;
-pub mod mapping;
+pub mod led_layout;
 pub mod led2d;
 #[cfg(not(feature = "host"))]
 pub mod led4;

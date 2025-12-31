@@ -3,7 +3,7 @@
 //! Verifies that the clock-style 8x12 mapping matches a composition of
 //! serpentine_12x4 panels using the const LedLayout primitives.
 
-use device_kit::mapping::LedLayout;
+use device_kit::led_layout::LedLayout;
 
 const CLOCK_EXPECTED: [(u16, u16); 96] = [
     (0, 11), (1, 11), (2, 11), (3, 11), (3, 10), (2, 10), (1, 10), (0, 10),

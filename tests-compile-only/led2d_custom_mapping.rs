@@ -13,7 +13,7 @@ use device_kit::Result;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
-use device_kit::mapping::LedLayout;
+use device_kit::led_layout::LedLayout;
 use embassy_executor::Spawner;
 use embassy_time::Duration;
 use panic_probe as _;

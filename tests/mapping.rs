@@ -1,6 +1,6 @@
 //! Host-level tests for mapping primitives.
 
-use device_kit::mapping::LedLayout;
+use device_kit::led_layout::LedLayout;
 
 #[test]
 fn linear_single_row_matches_expected() {
@@ -225,13 +225,14 @@ fn new_panics_on_duplicate_cell() {
 #[test]
 #[should_panic(expected = "column out of bounds")]
 fn new_panics_on_out_of_bounds_column() {
-    let _ = LedLayout::<3, 1, 2>::new([(0, 0), (1, 0), (2, 0)]);
+    let _ = LedLayout::<3, 1, 3>::new([(0, 0), (1, 0), (3, 0)]);
 }
 
 #[test]
-#[should_panic(expected = "mapping does not cover every cell")]
+#[should_panic(expected = "duplicate (col,row) in mapping")]
 fn new_panics_on_missing_cells() {
-    let _ = LedLayout::<3, 2, 2>::new([(0, 0), (1, 0), (0, 1)]);
+    // Duplicate causes a cell to be missing; duplicate check fires first.
+    let _ = LedLayout::<4, 2, 2>::new([(0, 0), (1, 0), (0, 1), (0, 1)]);
 }
 
 #[test]

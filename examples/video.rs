@@ -64,7 +64,7 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::button::{Button, PressedTo};
-use device_kit::mapping::LedLayout;
+use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
