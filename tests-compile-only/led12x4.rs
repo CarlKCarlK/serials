@@ -17,9 +17,9 @@ use device_kit::pio_split;
 use embassy_executor::Spawner;
 use panic_probe as _;
 
-const LED12X4_ROWS: usize = 4;
-const LED12X4_COLS: usize = 12;
-const LED_LAYOUT_12X4: LedLayout<48, 4, 12> = LedLayout::serpentine_column_major();
+const LED12X4_W: usize = 12;
+const LED12X4_H: usize = 4;
+const LED_LAYOUT_12X4: LedLayout<48, 12, 4> = LedLayout::serpentine_column_major();
 
 define_led_strips_shared! {
     pio: PIO0,
@@ -52,8 +52,8 @@ define_led_strips_shared! {
 led2d_from_strip! {
     pub gpio3_pio0_led2d,
     strip_type: Gpio3Pio0LedStrip,
-    rows: 4,
-    cols: 12,
+    width: 12,
+    height: 4,
     led_layout: LED_LAYOUT_12X4,
     max_frames: 32,
     font: Font3x4Trim,
@@ -62,8 +62,8 @@ led2d_from_strip! {
 led2d_from_strip! {
     pub gpio3_pio1_led2d,
     strip_type: Gpio3Pio1LedStrip,
-    rows: 4,
-    cols: 12,
+    width: 12,
+    height: 4,
     led_layout: LED_LAYOUT_12X4,
     max_frames: 32,
     font: Font3x4Trim,

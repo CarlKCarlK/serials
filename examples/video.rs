@@ -74,8 +74,8 @@ use panic_probe as _;
 use smart_leds::{RGB8, colors};
 
 // Display: 12 wide × 8 tall built from two 12×4 serpentine panels stacked vertically.
-const LED_LAYOUT_12X4: LedLayout<48, 4, 12> = LedLayout::<48, 4, 12>::serpentine_column_major();
-const LED_LAYOUT_12X8: LedLayout<96, 8, 12> =
+const LED_LAYOUT_12X4: LedLayout<48, 12, 4> = LedLayout::<48, 12, 4>::serpentine_column_major();
+const LED_LAYOUT_12X8: LedLayout<96, 12, 8> =
     LED_LAYOUT_12X4.concat_v::<48, 96, 4, 8>(LED_LAYOUT_12X4);
 
 led2d! {
@@ -83,8 +83,8 @@ led2d! {
     pio: PIO1,
     pin: PIN_4,
     dma: DMA_CH1,
-    rows: 8,
-    cols: 12,
+    width: 12,
+    height: 8,
     led_layout: LED_LAYOUT_12X8,
     max_current: Milliamps(250),
     gamma: Gamma::Gamma2_2,
@@ -137,12 +137,12 @@ fn create_test_pattern() -> Led12x8Frame {
 
     // cmk000 delete Test: columns appear reversed based on GRYB observation (may no longer apply)
     frame[0][0] = colors::RED; // Top-left
-    frame[0][Led12x8::COLS - 1] = colors::GREEN; // Top-right
-    frame[Led12x8::ROWS - 1][0] = colors::BLUE; // Bottom-left
-    frame[Led12x8::ROWS - 1][Led12x8::COLS - 1] = colors::YELLOW; // Bottom-right
+    frame[0][Led12x8::W - 1] = colors::GREEN; // Top-right
+    frame[Led12x8::H - 1][0] = colors::BLUE; // Bottom-left
+    frame[Led12x8::H - 1][Led12x8::W - 1] = colors::YELLOW; // Bottom-right
 
     // Center cross for additional verification
-    frame[Led12x8::ROWS / 2][Led12x8::COLS / 2] = colors::WHITE;
+    frame[Led12x8::H / 2][Led12x8::W / 2] = colors::WHITE;
 
     frame.into()
 }

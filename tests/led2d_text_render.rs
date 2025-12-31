@@ -11,7 +11,7 @@ const REFERENCE_DIR: &str = "tests/data/text_render";
 
 #[test]
 fn font3x4_on_12x4_matches_reference() {
-    run_render_test::<4, 12>(
+    run_render_test::<12, 4>(
         "font3x4_12x4",
         Led2dFont::Font3x4Trim,
         "RUST",
@@ -21,7 +21,7 @@ fn font3x4_on_12x4_matches_reference() {
 
 #[test]
 fn font4x6_on_12x4_clips_bottom_matches_reference() {
-    run_render_test::<4, 12>(
+    run_render_test::<12, 4>(
         "font4x6_12x4",
         Led2dFont::Font4x6,
         "RUST\ntwo",
@@ -31,7 +31,7 @@ fn font4x6_on_12x4_clips_bottom_matches_reference() {
 
 #[test]
 fn font6x10_on_24x16_clips_and_colors_cycle() {
-    run_render_test::<16, 24>(
+    run_render_test::<24, 16>(
         "font6x10_24x16",
         Led2dFont::Font6x10,
         "Hello Rust\nWrap me",
@@ -41,7 +41,7 @@ fn font6x10_on_24x16_clips_and_colors_cycle() {
 
 #[test]
 fn font5x8_on_600x800_fibonacci() {
-    run_render_test_heap::<600, 800>(
+    run_render_test_heap::<800, 600>(
         "font5x8_600x800_fibonacci",
         Led2dFont::Font5x8,
         "1\n1\n2\n3\n5\n8\n13\n21\n34\n55\n89\n144\n233\n377\n610\n987\n1597\n2584\n4181\n6765",
@@ -51,7 +51,7 @@ fn font5x8_on_600x800_fibonacci() {
 
 #[test]
 fn font3x4_on_12x4_no_colors_defaults_to_white() {
-    run_render_test::<4, 12>(
+    run_render_test::<12, 4>(
         "font3x4_12x4_white",
         Led2dFont::Font3x4Trim,
         "RUST",
@@ -59,13 +59,13 @@ fn font3x4_on_12x4_no_colors_defaults_to_white() {
     );
 }
 
-fn run_render_test<const ROWS: usize, const COLS: usize>(
+fn run_render_test<const W: usize, const H: usize>(
     name: &str,
     font: Led2dFont,
     text: &str,
     colors: &[RGB8],
 ) {
-    let mut frame: Frame<ROWS, COLS> = Frame::new();
+    let mut frame: Frame<W, H> = Frame::new();
     render_text_to_frame(&mut frame, &font.to_font(), text, colors, (0, 0))
         .expect("render must succeed");
 
@@ -79,7 +79,7 @@ fn run_render_test<const ROWS: usize, const COLS: usize>(
     let reference_path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join(REFERENCE_DIR)
         .join(format!("{name}.png"));
-    let reference = read_png::<ROWS, COLS>(&reference_path);
+    let reference = read_png::<W, H>(&reference_path);
     assert_eq!(
         frame_pixels(&frame),
         reference,
@@ -89,17 +89,17 @@ fn run_render_test<const ROWS: usize, const COLS: usize>(
 }
 
 #[expect(unsafe_code, reason = "heap allocation for large test frames")]
-fn run_render_test_heap<const ROWS: usize, const COLS: usize>(
+fn run_render_test_heap<const W: usize, const H: usize>(
     name: &str,
     font: Led2dFont,
     text: &str,
     colors: &[RGB8],
 ) {
     // Allocate on heap to handle large frames that would overflow the stack
-    let frame_vec: Vec<RGB8> = vec![smart_leds::RGB8::default(); ROWS * COLS];
+    let frame_vec: Vec<RGB8> = vec![smart_leds::RGB8::default(); H * W];
     let mut frame_box = frame_vec.into_boxed_slice();
-    let frame_ptr = frame_box.as_mut_ptr() as *mut [[RGB8; COLS]; ROWS];
-    let frame_ref: &mut Frame<ROWS, COLS> = unsafe { &mut *(frame_ptr as *mut Frame<ROWS, COLS>) };
+    let frame_ptr = frame_box.as_mut_ptr() as *mut [[RGB8; W]; H];
+    let frame_ref: &mut Frame<W, H> = unsafe { &mut *(frame_ptr as *mut Frame<W, H>) };
 
     render_text_to_frame(frame_ref, &font.to_font(), text, colors, (0, 0))
         .expect("render must succeed");
@@ -114,7 +114,7 @@ fn run_render_test_heap<const ROWS: usize, const COLS: usize>(
     let reference_path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join(REFERENCE_DIR)
         .join(format!("{name}.png"));
-    let reference = read_png::<ROWS, COLS>(&reference_path);
+    let reference = read_png::<W, H>(&reference_path);
     assert_eq!(
         frame_pixels(frame_ref),
         reference,
@@ -136,9 +136,9 @@ fn generation_dir() -> Option<PathBuf> {
     Some(dir)
 }
 
-fn write_png<const ROWS: usize, const COLS: usize>(frame: &Frame<ROWS, COLS>, path: &Path) {
+fn write_png<const W: usize, const H: usize>(frame: &Frame<W, H>, path: &Path) {
     let file = File::create(path).expect("failed to create PNG file");
-    let mut encoder = Encoder::new(BufWriter::new(file), COLS as u32, ROWS as u32);
+    let mut encoder = Encoder::new(BufWriter::new(file), W as u32, H as u32);
     encoder.set_color(ColorType::Rgb);
     encoder.set_depth(BitDepth::Eight);
     let mut writer = encoder.write_header().expect("failed to write PNG header");
@@ -147,7 +147,7 @@ fn write_png<const ROWS: usize, const COLS: usize>(frame: &Frame<ROWS, COLS>, pa
         .expect("failed to write PNG data");
 }
 
-fn read_png<const ROWS: usize, const COLS: usize>(path: &Path) -> Vec<u8> {
+fn read_png<const W: usize, const H: usize>(path: &Path) -> Vec<u8> {
     let file =
         File::open(path).unwrap_or_else(|_| panic!("missing reference PNG at {}", path.display()));
     let decoder = Decoder::new(file);
@@ -156,15 +156,15 @@ fn read_png<const ROWS: usize, const COLS: usize>(path: &Path) -> Vec<u8> {
     let info = reader
         .next_frame(&mut buffer)
         .expect("failed to decode PNG");
-    assert_eq!(info.width, COLS as u32, "reference PNG width mismatch");
-    assert_eq!(info.height, ROWS as u32, "reference PNG height mismatch");
+    assert_eq!(info.width, W as u32, "reference PNG width mismatch");
+    assert_eq!(info.height, H as u32, "reference PNG height mismatch");
     buffer[..info.buffer_size()].to_vec()
 }
 
-fn frame_pixels<const ROWS: usize, const COLS: usize>(frame: &Frame<ROWS, COLS>) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(ROWS * COLS * 3);
-    for row in 0..ROWS {
-        for col in 0..COLS {
+fn frame_pixels<const W: usize, const H: usize>(frame: &Frame<W, H>) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(H * W * 3);
+    for row in 0..H {
+        for col in 0..W {
             let pixel = frame.0[row][col];
             bytes.push(pixel.r);
             bytes.push(pixel.g);

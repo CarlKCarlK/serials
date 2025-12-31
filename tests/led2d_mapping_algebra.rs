@@ -25,10 +25,10 @@ const CLOCK_EXPECTED: [(u16, u16); 96] = [
 // 2) rotate clockwise to get 12 rows x 4 cols
 // 3) flip horizontally and vertically (panel orientation)
 // 4) concat horizontally two panels to reach 8 cols (12 rows)
-const PANEL_12X4: LedLayout<48, 4, 12> = LedLayout::<48, 4, 12>::serpentine_column_major();
-const PANEL_12X4_ORIENTED: LedLayout<48, 12, 4> =
+const PANEL_12X4: LedLayout<48, 12, 4> = LedLayout::<48, 12, 4>::serpentine_column_major();
+const PANEL_12X4_ORIENTED: LedLayout<48, 4, 12> =
     PANEL_12X4.rotate_cw().flip_h().flip_v();
-const CLOCK_COMPOSED: LedLayout<96, 12, 8> =
+const CLOCK_COMPOSED: LedLayout<96, 8, 12> =
     PANEL_12X4_ORIENTED.concat_h::<48, 96, 4, 8>(PANEL_12X4_ORIENTED);
 
 #[test]

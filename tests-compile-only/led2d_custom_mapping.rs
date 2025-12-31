@@ -19,9 +19,9 @@ use embassy_time::Duration;
 use panic_probe as _;
 use smart_leds::colors;
 
-// Example with a custom mapping for a 2x3 display (6 LEDs total)
+// Example with a custom mapping for a 3x2 display (6 LEDs total)
 // LED indices 0..5 map row-major, rows left-to-right
-const LED2X3_ROW_MAJOR: LedLayout<6, 2, 3> = LedLayout::new([
+const LED2X3_ROW_MAJOR: LedLayout<6, 3, 2> = LedLayout::new([
     (0, 0),
     (1, 0),
     (2, 0),
@@ -35,8 +35,8 @@ led2d! {
     pio: PIO0,
     pin: PIN_3,
     dma: DMA_CH0,
-    rows: 2,
-    cols: 3,
+    width: 3,
+    height: 2,
     led_layout: LED2X3_ROW_MAJOR,
     max_current: Milliamps(100),
     gamma: Gamma::Linear,
@@ -51,15 +51,15 @@ async fn test_led2x3_custom_mapping(p: embassy_rp::Peripherals, spawner: Spawner
     // Verify write_frame works
     let mut frame = Led2x3::new_frame();
     frame[0][0] = colors::RED;
-    frame[0][Led2x3::COLS - 1] = colors::GREEN;
-    frame[Led2x3::ROWS - 1][0] = colors::BLUE;
-    frame[Led2x3::ROWS - 1][Led2x3::COLS - 1] = colors::YELLOW;
+    frame[0][Led2x3::W - 1] = colors::GREEN;
+    frame[Led2x3::H - 1][0] = colors::BLUE;
+    frame[Led2x3::H - 1][Led2x3::W - 1] = colors::YELLOW;
     led2x3.write_frame(frame).await?;
 
     // Verify animate works
     let mut frames = heapless::Vec::<_, { Led2x3::MAX_FRAMES }>::new();
-    for row_index in 0..Led2x3::ROWS {
-        for column_index in 0..Led2x3::COLS {
+    for row_index in 0..Led2x3::H {
+        for column_index in 0..Led2x3::W {
             let mut frame = Led2x3::new_frame();
             frame[row_index][column_index] = colors::CYAN;
             frames.push((frame, Duration::from_millis(200))).ok();

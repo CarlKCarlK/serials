@@ -1,6 +1,6 @@
 //! Compile-only verification that multiple led2d devices can coexist in the same file.
 //!
-//! This demonstrates that the associated constants approach (Led4x12::ROWS, Led8x8::ROWS)
+//! This demonstrates that the associated constants approach (Led4x12::H, Led8x8::H)
 //! prevents namespace collisions when multiple devices are defined.
 //! Run via: `cargo check-all` (xtask compiles this for thumbv6m-none-eabi)
 
@@ -51,15 +51,15 @@ define_led_strips_shared! {
     ]
 }
 
-const LED_LAYOUT_4X12: LedLayout<48, 4, 12> = LedLayout::serpentine_column_major();
+const LED_LAYOUT_4X12: LedLayout<48, 12, 4> = LedLayout::serpentine_column_major();
 const LED_LAYOUT_8X8: LedLayout<64, 8, 8> = LedLayout::serpentine_column_major();
 
 // First device: 4x12 display
 led2d_from_strip! {
     pub led4x12,
     strip_type: Gpio3LedStrip,
-    rows: 4,
-    cols: 12,
+    width: 12,
+    height: 4,
     led_layout: LED_LAYOUT_4X12,
     max_frames: 32,
     font: Font3x4Trim,
@@ -69,8 +69,8 @@ led2d_from_strip! {
 led2d_from_strip! {
     pub led8x8,
     strip_type: Gpio4LedStrip,
-    rows: 8,
-    cols: 8,
+    width: 8,
+    height: 8,
     led_layout: LED_LAYOUT_8X8,
     max_frames: 32,
     font: Font3x4Trim,
@@ -94,13 +94,13 @@ async fn test_multiple_devices(p: embassy_rp::Peripherals, spawner: Spawner) -> 
     // Create frame for 4x12 display
     let mut frame_4x12 = Led4x12::new_frame();
     frame_4x12[0][0] = colors::RED;
-    frame_4x12[Led4x12::ROWS - 1][Led4x12::COLS - 1] = colors::BLUE;
+    frame_4x12[Led4x12::H - 1][Led4x12::W - 1] = colors::BLUE;
     led4x12.write_frame(frame_4x12).await?;
 
     // Create frame for 8x8 display (different dimensions)
     let mut frame_8x8 = Led8x8::new_frame();
     frame_8x8[0][0] = colors::GREEN;
-    frame_8x8[Led8x8::ROWS - 1][Led8x8::COLS - 1] = colors::YELLOW;
+    frame_8x8[Led8x8::H - 1][Led8x8::W - 1] = colors::YELLOW;
     led8x8.write_frame(frame_8x8).await?;
 
     // Verify animations work with both

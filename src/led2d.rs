@@ -29,8 +29,8 @@
 //!     pio: PIO0,
 //!     pin: PIN_3,
 //!     dma: DMA_CH1,
-//!     rows: 4,
-//!     cols: 12,
+//!     width: 12,
+//!     height: 4,
 //!     led_layout: serpentine_column_major,
 //!     max_current: Milliamps(500),
 //!     gamma: Gamma::Linear,
@@ -56,8 +56,8 @@
 //!
 //! - Visibility and base name for generated types (e.g., `pub led12x4`)
 //! - `strip_type` - Name of the strip type created by `define_led_strips_shared!` (e.g., `Led12x4Strip`)
-//! - `rows` - Number of rows in the display
-//! - `cols` - Number of columns in the display
+//! - `width` - Number of columns in the display
+//! - `height` - Number of rows in the display
 //! - `led_layout` - LED strip physical layout:
 //!   - `serpentine_column_major` - Common serpentine wiring pattern
 //!   - `LedLayout` expression - Custom LED layout value in LED-index order
@@ -104,13 +104,13 @@
 //! led2d_from_strip! {
 //!     pub led12x4,
 //!     strip_type: Led12x4Strip,
-//!     rows: 4,
-//!     cols: 12,
+//!     width: 12,
+//!     height: 4,
 //!     led_layout: serpentine_column_major,
 //!     max_frames: 32,
 //!     font: Font3x4Trim,
 //! }
-//!
+//! 
 //! #[embassy_executor::main]
 //! async fn main(spawner: Spawner) {
 //!     let p = init(Default::default());
@@ -208,8 +208,8 @@ pub fn bit_matrix3x4_font() -> MonoFont<'static> {
 
 #[doc(hidden)]
 /// Render text into a frame using the provided font.
-pub fn render_text_to_frame<const ROWS: usize, const COLS: usize>(
-    frame: &mut Frame<ROWS, COLS>,
+pub fn render_text_to_frame<const W: usize, const H: usize>(
+    frame: &mut Frame<W, H>,
     font: &embedded_graphics::mono_font::MonoFont<'static>,
     text: &str,
     colors: &[RGB8],
@@ -219,12 +219,12 @@ pub fn render_text_to_frame<const ROWS: usize, const COLS: usize>(
     let glyph_height = font.character_size.height as i32;
     let advance_x = glyph_width - spacing_reduction.0;
     let advance_y = glyph_height - spacing_reduction.1;
-    let height_limit = ROWS as i32;
-    if height_limit <= 0 {
+    let width_limit = W as i32;
+    let height_limit = H as i32;
+    if height_limit <= 0 || width_limit <= 0 {
         return Ok(());
     }
     let baseline = font.baseline as i32;
-    let width_limit = COLS as i32;
     let mut x = 0i32;
     let mut y = baseline;
     let mut color_index: usize = 0;
@@ -350,7 +350,7 @@ impl Led2dFont {
         }
     }
 
-    /// Return spacing reduction for trimmed variants (cols, rows).
+    /// Return spacing reduction for trimmed variants (width, height).
     #[must_use]
     pub const fn spacing_reduction(self) -> (i32, i32) {
         match self {
@@ -426,7 +426,7 @@ impl Led2dFont {
 /// # use device_kit::led2d::Frame;
 /// # use smart_leds::RGB8;
 /// # fn example() {
-/// let mut frame = Frame::<4, 12>::new();  // 4 rows × 12 columns
+/// let mut frame = Frame::<12, 4>::new();  // 12 columns × 4 rows
 /// frame[0][0] = RGB8::new(255, 0, 0);     // Set top-left pixel to red
 /// frame[3][11] = RGB8::new(0, 255, 0);    // Set bottom-right pixel to green
 /// # }
@@ -438,11 +438,11 @@ impl Led2dFont {
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// # use device_kit::led2d::{Frame, rgb8_to_rgb888};
+/// # use device_kit::led2d::{rgb8_to_rgb888, Frame};
 /// # use smart_leds::RGB8;
 /// use embedded_graphics::{prelude::*, primitives::{Line, PrimitiveStyle}};
 /// # fn example() {
-/// let mut frame = Frame::<8, 12>::new();
+/// let mut frame = Frame::<12, 8>::new();
 /// let color = rgb8_to_rgb888(RGB8::new(255, 0, 0));
 /// Line::new(Point::new(0, 0), Point::new(11, 7))
 ///     .into_styled(PrimitiveStyle::with_stroke(color, 1))
@@ -453,25 +453,25 @@ impl Led2dFont {
 ///
 /// See the [mod@crate::led2d] module docs for more usage examples.
 #[derive(Clone, Copy, Debug)]
-pub struct Frame<const ROWS: usize, const COLS: usize>(pub [[RGB8; COLS]; ROWS]);
+pub struct Frame<const W: usize, const H: usize>(pub [[RGB8; W]; H]);
 
-impl<const ROWS: usize, const COLS: usize> Frame<ROWS, COLS> {
+impl<const W: usize, const H: usize> Frame<W, H> {
     /// Create a new blank (all black) frame.
     #[must_use]
     pub const fn new() -> Self {
-        Self([[RGB8::new(0, 0, 0); COLS]; ROWS])
+        Self([[RGB8::new(0, 0, 0); W]; H])
     }
 
     /// Create a frame filled with a single color.
     #[must_use]
     pub const fn filled(color: RGB8) -> Self {
-        Self([[color; COLS]; ROWS])
+        Self([[color; W]; H])
     }
 
     /// Get the frame dimensions.
     #[must_use]
     pub const fn size() -> Size {
-        Size::new(COLS as u32, ROWS as u32)
+        Size::new(W as u32, H as u32)
     }
 
     /// Get the top-left corner point.
@@ -483,61 +483,61 @@ impl<const ROWS: usize, const COLS: usize> Frame<ROWS, COLS> {
     /// Get the top-right corner point.
     #[must_use]
     pub const fn top_right() -> Point {
-        Point::new((COLS - 1) as i32, 0)
+        Point::new((W - 1) as i32, 0)
     }
 
     /// Get the bottom-left corner point.
     #[must_use]
     pub const fn bottom_left() -> Point {
-        Point::new(0, (ROWS - 1) as i32)
+        Point::new(0, (H - 1) as i32)
     }
 
     /// Get the bottom-right corner point.
     #[must_use]
     pub const fn bottom_right() -> Point {
-        Point::new((COLS - 1) as i32, (ROWS - 1) as i32)
+        Point::new((W - 1) as i32, (H - 1) as i32)
     }
 }
 
-impl<const ROWS: usize, const COLS: usize> core::ops::Deref for Frame<ROWS, COLS> {
-    type Target = [[RGB8; COLS]; ROWS];
+impl<const W: usize, const H: usize> core::ops::Deref for Frame<W, H> {
+    type Target = [[RGB8; W]; H];
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<const ROWS: usize, const COLS: usize> core::ops::DerefMut for Frame<ROWS, COLS> {
+impl<const W: usize, const H: usize> core::ops::DerefMut for Frame<W, H> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl<const ROWS: usize, const COLS: usize> From<[[RGB8; COLS]; ROWS]> for Frame<ROWS, COLS> {
-    fn from(array: [[RGB8; COLS]; ROWS]) -> Self {
+impl<const W: usize, const H: usize> From<[[RGB8; W]; H]> for Frame<W, H> {
+    fn from(array: [[RGB8; W]; H]) -> Self {
         Self(array)
     }
 }
 
-impl<const ROWS: usize, const COLS: usize> From<Frame<ROWS, COLS>> for [[RGB8; COLS]; ROWS] {
-    fn from(frame: Frame<ROWS, COLS>) -> Self {
+impl<const W: usize, const H: usize> From<Frame<W, H>> for [[RGB8; W]; H] {
+    fn from(frame: Frame<W, H>) -> Self {
         frame.0
     }
 }
 
-impl<const ROWS: usize, const COLS: usize> Default for Frame<ROWS, COLS> {
+impl<const W: usize, const H: usize> Default for Frame<W, H> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<const ROWS: usize, const COLS: usize> OriginDimensions for Frame<ROWS, COLS> {
+impl<const W: usize, const H: usize> OriginDimensions for Frame<W, H> {
     fn size(&self) -> Size {
-        Size::new(COLS as u32, ROWS as u32)
+        Size::new(W as u32, H as u32)
     }
 }
 
-impl<const ROWS: usize, const COLS: usize> DrawTarget for Frame<ROWS, COLS> {
+impl<const W: usize, const H: usize> DrawTarget for Frame<W, H> {
     type Color = Rgb888;
     type Error = core::convert::Infallible;
 
@@ -549,9 +549,9 @@ impl<const ROWS: usize, const COLS: usize> DrawTarget for Frame<ROWS, COLS> {
             let column_index = coord.x;
             let row_index = coord.y;
             if column_index >= 0
-                && column_index < COLS as i32
+                && column_index < W as i32
                 && row_index >= 0
-                && row_index < ROWS as i32
+                && row_index < H as i32
             {
                 self.0[row_index as usize][column_index as usize] =
                     RGB8::new(color.r(), color.g(), color.b());
@@ -637,7 +637,7 @@ pub struct Led2d<const N: usize, const MAX_FRAMES: usize> {
     command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
     completion_signal: &'static Led2dCompletionSignal,
     mapping_by_xy: [u16; N],
-    cols: usize,
+    width: usize,
 }
 
 impl<const N: usize, const MAX_FRAMES: usize> Led2d<N, MAX_FRAMES> {
@@ -646,26 +646,26 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2d<N, MAX_FRAMES> {
     /// The `led_layout` slice defines how LED indices map to (column, row) coordinates. Entry `i`
     /// provides the `(col, row)` destination for LED `i`. Length must equal N (checked with
     /// debug_assert). The led layout is reversed into an internal lookup so (row, col) queries are
-    /// O(1) when converting frames. Provide the display dimensions via `rows` and `cols` to
+    /// O(1) when converting frames. Provide the display dimensions via `width` and `height` to
     /// validate coverage and bounds, matching the [`LedLayout`] dimensions.
     #[must_use]
     pub fn new(
         led2d_static: &'static Led2dStatic<N, MAX_FRAMES>,
         led_layout: &[(u16, u16)],
-        rows: usize,
-        cols: usize,
+        width: usize,
+        height: usize,
     ) -> Self {
         debug_assert_eq!(
             led_layout.len(),
             N,
             "led_layout length must equal N (total LEDs)"
         );
-        let expected_leds = rows
-            .checked_mul(cols)
-            .expect("rows * cols must fit in usize");
+        let expected_leds = width
+            .checked_mul(height)
+            .expect("width * height must fit in usize");
         assert_eq!(
             expected_leds, N,
-            "rows * cols must equal N (total LEDs for led_layout reversal)"
+            "width * height must equal N (total LEDs for led_layout reversal)"
         );
         let mut mapping_by_xy = [None; N];
         let mut led_index = 0;
@@ -673,11 +673,11 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2d<N, MAX_FRAMES> {
             let (col, row) = led_layout[led_index];
             let col = usize::from(col);
             let row = usize::from(row);
-            assert!(col < cols, "led_layout column must be within cols");
-            assert!(row < rows, "led_layout row must be within rows");
+            assert!(col < width, "led_layout column must be within width");
+            assert!(row < height, "led_layout row must be within height");
             let target_index = row
-                .checked_mul(cols)
-                .expect("row * cols must fit in usize")
+                .checked_mul(width)
+                .expect("row * width must fit in usize")
                 + col;
             let slot = &mut mapping_by_xy[target_index];
             assert!(
@@ -698,24 +698,24 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2d<N, MAX_FRAMES> {
             command_signal: &led2d_static.command_signal,
             completion_signal: &led2d_static.completion_signal,
             mapping_by_xy: finalized_mapping_by_xy,
-            cols,
+            width,
         }
     }
 
     /// Convert (column, row) coordinates to LED strip index using the stored LED layout.
     #[must_use]
     fn xy_to_index(&self, column_index: usize, row_index: usize) -> usize {
-        self.mapping_by_xy[row_index * self.cols + column_index] as usize
+        self.mapping_by_xy[row_index * self.width + column_index] as usize
     }
 
     /// Convert 2D frame to 1D array using the LED layout.
-    fn convert_frame<const ROWS: usize, const COLS: usize>(
+    fn convert_frame<const W: usize, const H: usize>(
         &self,
-        frame_2d: Frame<ROWS, COLS>,
+        frame_2d: Frame<W, H>,
     ) -> [RGB8; N] {
         let mut frame_1d = [RGB8::new(0, 0, 0); N];
-        for row_index in 0..ROWS {
-            for column_index in 0..COLS {
+        for row_index in 0..H {
+            for column_index in 0..W {
                 let led_index = self.xy_to_index(column_index, row_index);
                 frame_1d[led_index] = frame_2d[row_index][column_index];
             }
@@ -726,9 +726,9 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2d<N, MAX_FRAMES> {
     /// Render a fully defined frame to the display.
     ///
     /// Frame is a 2D array in row-major order where `frame[row][col]` is the pixel at (col, row).
-    pub async fn write_frame<const ROWS: usize, const COLS: usize>(
+    pub async fn write_frame<const W: usize, const H: usize>(
         &self,
-        frame: Frame<ROWS, COLS>,
+        frame: Frame<W, H>,
     ) -> Result<()> {
         defmt::info!("Led2d::write_frame: sending DisplayStatic command");
         let frame_1d = self.convert_frame(frame);
@@ -744,9 +744,9 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2d<N, MAX_FRAMES> {
     /// Each frame is a tuple of `(Frame, Duration)`. Accepts arrays, `Vec`s, or any
     /// iterator that produces `(Frame, Duration)` tuples. For best efficiency with large
     /// frame sequences, pass an iterator to avoid intermediate allocations.
-    pub async fn animate<const ROWS: usize, const COLS: usize>(
+    pub async fn animate<const W: usize, const H: usize>(
         &self,
-        frames: impl IntoIterator<Item = (Frame<ROWS, COLS>, Duration)>,
+        frames: impl IntoIterator<Item = (Frame<W, H>, Duration)>,
     ) -> Result<()> {
         assert!(
             MAX_FRAMES > 0,
@@ -954,7 +954,7 @@ macro_rules! led2d_device {
         strip: $strip_ty:ty,
         leds: $n:expr,
         led_layout: $led_layout:expr,
-        cols: $cols:expr,
+        width: $width:expr,
         max_frames: $max_frames:expr $(,)?
     ) => {
         $crate::led2d::led2d_device_task!($task_vis $task_name, $strip_ty, $n, $max_frames);
@@ -984,17 +984,17 @@ macro_rules! led2d_device {
                     led_strip,
                 )?;
                 spawner.spawn(token);
-                let rows = $n / $cols;
+                let height = $n / $width;
                 assert_eq!(
-                    rows * $cols,
+                    height * $width,
                     $n,
-                    "cols must evenly divide total LED count to derive rows"
+                    "width must evenly divide total LED count to derive height"
                 );
                 Ok($crate::led2d::Led2d::new(
                     &self.led2d_static,
                     $led_layout,
-                    rows,
-                    $cols,
+                    $width,
+                    height,
                 ))
             }
         }
@@ -1021,8 +1021,8 @@ pub use led2d_device;
 /// - `pio` - PIO peripheral to use (e.g., `PIO0`, `PIO1`)
 /// - `pin` - GPIO pin for LED data signal (e.g., `PIN_3`)
 /// - `dma` - DMA channel for LED data transfer (e.g., `DMA_CH0`)
-/// - `rows` - Number of rows in the display
-/// - `cols` - Number of columns in the display
+/// - `width` - Number of columns in the display
+/// - `height` - Number of rows in the display
 /// - `mapping` - LED strip physical layout:
 ///   - `serpentine_column_major` - Common serpentine wiring pattern (LED index → `(col, row)`)
 ///   - `LedLayout` expression - Custom LED layout value in LED-index order
@@ -1054,8 +1054,8 @@ pub use led2d_device;
 ///     pio: PIO0,
 ///     pin: PIN_3,
 ///     dma: DMA_CH1,
-///     rows: 4,
-///     cols: 12,
+///     width: 12,
+///     height: 4,
 ///     led_layout: serpentine_column_major,
 ///     max_current: Milliamps(500),
 ///     gamma: Gamma::Linear,
@@ -1082,8 +1082,8 @@ macro_rules! led2d {
         pio: $pio:ident,
         pin: $pin:ident,
         dma: $dma:ident,
-        rows: $rows:expr,
-        cols: $cols:expr,
+        width: $width:expr,
+        height: $height:expr,
         led_layout: serpentine_column_major,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
@@ -1099,7 +1099,7 @@ macro_rules! led2d {
                         sm: 0,
                         dma: $dma,
                         pin: $pin,
-                        len: { $rows * $cols },
+                        len: { $width * $height },
                         max_current: $max_current,
                         gamma: $gamma
                     }
@@ -1110,8 +1110,8 @@ macro_rules! led2d {
             $crate::led2d::led2d_from_strip! {
                 $vis $name,
                 strip_type: [<$name:camel Strip>],
-                rows: $rows,
-                cols: $cols,
+                width: $width,
+                height: $height,
                 led_layout: serpentine_column_major,
                 max_frames: $max_frames,
                 font: $font_variant,
@@ -1160,8 +1160,8 @@ macro_rules! led2d {
         pio: $pio:ident,
         pin: $pin:ident,
         dma: $dma:ident,
-        rows: $rows:expr,
-        cols: $cols:expr,
+        width: $width:expr,
+        height: $height:expr,
         led_layout: $led_layout:expr,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
@@ -1177,7 +1177,7 @@ macro_rules! led2d {
                         sm: 0,
                         dma: $dma,
                         pin: $pin,
-                        len: $rows * $cols,
+                        len: $width * $height,
                         max_current: $max_current,
                         gamma: $gamma
                     }
@@ -1188,8 +1188,8 @@ macro_rules! led2d {
             $crate::led2d::led2d_from_strip! {
                 $vis $name,
                 strip_type: [<$name:camel Strip>],
-                rows: $rows,
-                cols: $cols,
+                width: $width,
+                height: $height,
                 led_layout: $led_layout,
                 max_frames: $max_frames,
                 font: $font_variant,
@@ -1244,8 +1244,8 @@ macro_rules! led2d {
 ///
 /// - Visibility and base name for generated types (e.g., `pub led12x4`)
 /// - `strip_type` - Name of the strip type created by `define_led_strips_shared!`
-/// - `rows` - Number of rows in the display
-/// - `cols` - Number of columns in the display
+/// - `width` - Number of columns in the display
+/// - `height` - Number of rows in the display
 /// - `led_layout` - LED strip physical layout:
 ///   - `serpentine_column_major` - Common serpentine wiring pattern (LED index → `(col, row)`)
 ///   - `LedLayout` expression - Custom LED layout value in LED-index order
@@ -1284,8 +1284,8 @@ macro_rules! led2d {
 /// led2d_from_strip! {
 ///     pub led12x4,
 ///     strip_type: Led12x4Strip,
-///     rows: 4,
-///     cols: 12,
+///     width: 12,
+///     height: 4,
 ///     led_layout: serpentine_column_major,
 ///     max_frames: 32,
 ///     font: Font3x4Trim,
@@ -1306,25 +1306,25 @@ macro_rules! led2d_from_strip {
     (
         $vis:vis $name:ident,
         strip_type: $strip_type:ident,
-        rows: $rows:expr,
-        cols: $cols:expr,
+        width: $width:expr,
+        height: $height:expr,
         led_layout: serpentine_column_major,
         max_frames: $max_frames:expr,
         font: $font_variant:ident $(,)?
     ) => {
         $crate::led2d::paste::paste! {
-            const [<$name:upper _ROWS>]: usize = $rows;
-            const [<$name:upper _COLS>]: usize = $cols;
-            const [<$name:upper _N>]: usize = [<$name:upper _ROWS>] * [<$name:upper _COLS>];
-            const [<$name:upper _LED_LAYOUT>]: $crate::led2d::LedLayout<[<$name:upper _N>], [<$name:upper _ROWS>], [<$name:upper _COLS>]> =
-                $crate::led2d::LedLayout::<[<$name:upper _N>], [<$name:upper _ROWS>], [<$name:upper _COLS>]>::serpentine_column_major();
+            const [<$name:upper _W>]: usize = $width;
+            const [<$name:upper _H>]: usize = $height;
+            const [<$name:upper _N>]: usize = [<$name:upper _W>] * [<$name:upper _H>];
+            const [<$name:upper _LED_LAYOUT>]: $crate::led2d::LedLayout<[<$name:upper _N>], [<$name:upper _W>], [<$name:upper _H>]> =
+                $crate::led2d::LedLayout::<[<$name:upper _N>], [<$name:upper _W>], [<$name:upper _H>]>::serpentine_column_major();
             const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             // Compile-time assertion that strip length matches led_layout length
             const _: () = assert!([<$name:upper _LED_LAYOUT>].map().len() == $strip_type::LEN);
 
             $crate::led2d::led2d_from_strip!(
-                @common $vis, $name, $strip_type, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _LED_LAYOUT>],
+                @common $vis, $name, $strip_type, [<$name:upper _W>], [<$name:upper _H>], [<$name:upper _N>], [<$name:upper _LED_LAYOUT>],
                 $font_variant,
                 [<$name:upper _MAX_FRAMES>]
             );
@@ -1334,24 +1334,24 @@ macro_rules! led2d_from_strip {
     (
         $vis:vis $name:ident,
         strip_type: $strip_type:ident,
-        rows: $rows:expr,
-        cols: $cols:expr,
+        width: $width:expr,
+        height: $height:expr,
         led_layout: $led_layout:expr,
         max_frames: $max_frames:expr,
         font: $font_variant:ident $(,)?
     ) => {
         $crate::led2d::paste::paste! {
-            const [<$name:upper _ROWS>]: usize = $rows;
-            const [<$name:upper _COLS>]: usize = $cols;
-            const [<$name:upper _N>]: usize = [<$name:upper _ROWS>] * [<$name:upper _COLS>];
-            const [<$name:upper _LED_LAYOUT>]: $crate::led2d::LedLayout<[<$name:upper _N>], [<$name:upper _ROWS>], [<$name:upper _COLS>]> = $led_layout;
+            const [<$name:upper _W>]: usize = $width;
+            const [<$name:upper _H>]: usize = $height;
+            const [<$name:upper _N>]: usize = [<$name:upper _W>] * [<$name:upper _H>];
+            const [<$name:upper _LED_LAYOUT>]: $crate::led2d::LedLayout<[<$name:upper _N>], [<$name:upper _W>], [<$name:upper _H>]> = $led_layout;
             const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             // Compile-time assertion that strip length matches led_layout length
             const _: () = assert!([<$name:upper _LED_LAYOUT>].map().len() == $strip_type::LEN);
 
             $crate::led2d::led2d_from_strip!(
-                @common $vis, $name, $strip_type, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _LED_LAYOUT>],
+                @common $vis, $name, $strip_type, [<$name:upper _W>], [<$name:upper _H>], [<$name:upper _N>], [<$name:upper _LED_LAYOUT>],
                 $font_variant,
                 [<$name:upper _MAX_FRAMES>]
             );
@@ -1362,8 +1362,8 @@ macro_rules! led2d_from_strip {
         @common $vis:vis,
         $name:ident,
         $strip_type:ident,
-        $rows_const:ident,
         $cols_const:ident,
+        $rows_const:ident,
         $n_const:ident,
         $led_layout_const:ident,
         $font_variant:expr,
@@ -1392,15 +1392,15 @@ macro_rules! led2d_from_strip {
 
             /// Frame type for this LED matrix display.
             ///
-            /// This is a convenience type alias for `Frame<ROWS, COLS>` specific to this device.
-            $vis type [<$name:camel Frame>] = $crate::led2d::Frame<$rows_const, $cols_const>;
+            /// This is a convenience type alias for `Frame<W, H>` specific to this device.
+            $vis type [<$name:camel Frame>] = $crate::led2d::Frame<$cols_const, $rows_const>;
 
             impl [<$name:camel>] {
-                /// Number of rows in the display.
-                pub const ROWS: usize = $rows_const;
                 /// Number of columns in the display.
-                pub const COLS: usize = $cols_const;
-                /// Total number of LEDs (ROWS * COLS).
+                pub const W: usize = $cols_const;
+                /// Number of rows in the display.
+                pub const H: usize = $rows_const;
+                /// Total number of LEDs (W * H).
                 pub const N: usize = $n_const;
                 /// Maximum animation frames supported for this device.
                 pub const MAX_FRAMES: usize = $max_frames_const;
@@ -1415,7 +1415,7 @@ macro_rules! led2d_from_strip {
 
                 /// Create a new blank (all black) frame.
                 #[must_use]
-                $vis const fn new_frame() -> $crate::led2d::Frame<$rows_const, $cols_const> {
+                $vis const fn new_frame() -> $crate::led2d::Frame<$cols_const, $rows_const> {
                     $crate::led2d::Frame::new()
                 }
 
@@ -1447,8 +1447,8 @@ macro_rules! led2d_from_strip {
                     let led2d = $crate::led2d::Led2d::new(
                         &STATIC.led2d_static,
                         $led_layout_const.map(),
-                        $rows_const,
                         $cols_const,
+                        $rows_const,
                     );
 
                     defmt::info!("Led2d::new: device created successfully");
@@ -1460,12 +1460,12 @@ macro_rules! led2d_from_strip {
                 }
 
                 /// Render a fully defined frame to the display.
-                $vis async fn write_frame(&self, frame: $crate::led2d::Frame<$rows_const, $cols_const>) -> $crate::Result<()> {
+                $vis async fn write_frame(&self, frame: $crate::led2d::Frame<$cols_const, $rows_const>) -> $crate::Result<()> {
                     self.led2d.write_frame(frame).await
                 }
 
                 /// Loop through a sequence of animation frames. Pass arrays by value or Vecs/iters.
-                $vis async fn animate(&self, frames: impl IntoIterator<Item = ($crate::led2d::Frame<$rows_const, $cols_const>, ::embassy_time::Duration)>) -> $crate::Result<()> {
+                $vis async fn animate(&self, frames: impl IntoIterator<Item = ($crate::led2d::Frame<$cols_const, $rows_const>, ::embassy_time::Duration)>) -> $crate::Result<()> {
                     self.led2d.animate(frames).await
                 }
 
@@ -1474,7 +1474,7 @@ macro_rules! led2d_from_strip {
                     &self,
                     text: &str,
                     colors: &[smart_leds::RGB8],
-                    frame: &mut $crate::led2d::Frame<$rows_const, $cols_const>,
+                    frame: &mut $crate::led2d::Frame<$cols_const, $rows_const>,
                 ) -> $crate::Result<()> {
                     $crate::led2d::render_text_to_frame(frame, &self.font, text, colors, self.font_variant.spacing_reduction())
                 }

@@ -22,18 +22,18 @@ use smart_leds::colors;
 
 // Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise)
 // Better for clock display - can fit 2 lines of 2 digits each
-const LED_LAYOUT_12X4: LedLayout<48, 4, 12> = LedLayout::<48, 4, 12>::serpentine_column_major();
-const LED_LAYOUT_12X8: LedLayout<96, 8, 12> =
+const LED_LAYOUT_12X4: LedLayout<48, 12, 4> = LedLayout::<48, 12, 4>::serpentine_column_major();
+const LED_LAYOUT_12X8: LedLayout<96, 12, 8> =
     LED_LAYOUT_12X4.concat_v::<48, 96, 4, 8>(LED_LAYOUT_12X4);
-const LED_LAYOUT_8X12: LedLayout<96, 12, 8> = LED_LAYOUT_12X8.rotate_cw();
+const LED_LAYOUT_8X12: LedLayout<96, 8, 12> = LED_LAYOUT_12X8.rotate_cw();
 
 led2d! {
     pub led8x12,
     pio: PIO0,
     pin: PIN_4,
     dma: DMA_CH0,
-    rows: 12,
-    cols: 8,
+    width: 8,
+    height: 12,
     led_layout: LED_LAYOUT_8X12,
     max_current: Milliamps(1000),
     gamma: Gamma::Linear,
@@ -108,9 +108,9 @@ async fn demo_colored_corners(led8x12: &Led8x12) -> Result<()> {
     // Four corners with different colors
     let mut frame = Led8x12::new_frame();
     frame[0][0] = colors::RED; // Top-left
-    frame[0][Led8x12::COLS - 1] = colors::GREEN; // Top-right
-    frame[Led8x12::ROWS - 1][0] = colors::BLUE; // Bottom-left
-    frame[Led8x12::ROWS - 1][Led8x12::COLS - 1] = colors::YELLOW; // Bottom-right
+    frame[0][Led8x12::W - 1] = colors::GREEN; // Top-right
+    frame[Led8x12::H - 1][0] = colors::BLUE; // Bottom-left
+    frame[Led8x12::H - 1][Led8x12::W - 1] = colors::YELLOW; // Bottom-right
 
     led8x12.write_frame(frame).await?;
     Ok(())
@@ -120,8 +120,8 @@ async fn demo_colored_corners(led8x12: &Led8x12) -> Result<()> {
 async fn demo_blink_pattern(led8x12: &Led8x12) -> Result<()> {
     // Create checkerboard pattern
     let mut on_frame = Led8x12::new_frame();
-    for row_index in 0..Led8x12::ROWS {
-        for column_index in 0..Led8x12::COLS {
+    for row_index in 0..Led8x12::H {
+        for column_index in 0..Led8x12::W {
             if (row_index + column_index) % 2 == 0 {
                 on_frame[row_index][column_index] = colors::PURPLE;
             }
@@ -183,7 +183,7 @@ async fn demo_bouncing_dot_manual(led8x12: &Led8x12, button: &mut Button<'_>) ->
 
     let (mut x, mut y) = (0isize, 0isize);
     let (mut vx, mut vy) = (1isize, 1isize);
-    let (x_limit, y_limit) = (Led8x12::COLS as isize, Led8x12::ROWS as isize);
+    let (x_limit, y_limit) = (Led8x12::W as isize, Led8x12::H as isize);
     let mut color = *color_cycle.next().unwrap(); // Safe: cycle() over a non-empty array never returns None
 
     loop {
@@ -221,7 +221,7 @@ async fn demo_bouncing_dot_animation(led8x12: &Led8x12) -> Result<()> {
     let mut frames = Vec::<_, { Led8x12::MAX_FRAMES }>::new();
     let (mut x, mut y) = (0isize, 0isize);
     let (mut vx, mut vy) = (1isize, 1isize);
-    let (x_limit, y_limit) = (Led8x12::COLS as isize, Led8x12::ROWS as isize);
+    let (x_limit, y_limit) = (Led8x12::W as isize, Led8x12::H as isize);
     let mut color = *color_cycle.next().unwrap();
 
     for _ in 0..Led8x12::MAX_FRAMES {

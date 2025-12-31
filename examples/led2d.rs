@@ -21,15 +21,15 @@ use panic_probe as _;
 use smart_leds::colors;
 
 // Single 4x12 panel wired serpentine column-major.
-const LED_LAYOUT_4X12: LedLayout<48, 4, 12> = LedLayout::serpentine_column_major();
+const LED_LAYOUT_4X12: LedLayout<48, 12, 4> = LedLayout::serpentine_column_major();
 
 led2d! {
     pub led4x12,
     pio: PIO1,
     pin: PIN_3,
     dma: DMA_CH0,
-    rows: 4,
-    cols: 12,
+    width: 12,
+    height: 4,
     led_layout: LED_LAYOUT_4X12,
     max_current: Milliamps(500),
     gamma: Gamma::Linear,
@@ -108,9 +108,9 @@ async fn demo_colored_corners(led4x12: &Led4x12) -> Result<()> {
     // Four corners with different colors
     let mut frame = Led4x12::new_frame();
     frame[0][0] = colors::RED; // Top-left
-    frame[0][Led4x12::COLS - 1] = colors::GREEN; // Top-right
-    frame[Led4x12::ROWS - 1][0] = colors::BLUE; // Bottom-left
-    frame[Led4x12::ROWS - 1][Led4x12::COLS - 1] = colors::YELLOW; // Bottom-right
+    frame[0][Led4x12::W - 1] = colors::GREEN; // Top-right
+    frame[Led4x12::H - 1][0] = colors::BLUE; // Bottom-left
+    frame[Led4x12::H - 1][Led4x12::W - 1] = colors::YELLOW; // Bottom-right
 
     led4x12.write_frame(frame).await?;
     Ok(())
@@ -120,8 +120,8 @@ async fn demo_colored_corners(led4x12: &Led4x12) -> Result<()> {
 async fn demo_blink_pattern(led4x12: &Led4x12) -> Result<()> {
     // Create checkerboard pattern
     let mut on_frame = Led4x12::new_frame();
-    for row_index in 0..Led4x12::ROWS {
-        for column_index in 0..Led4x12::COLS {
+    for row_index in 0..Led4x12::H {
+        for column_index in 0..Led4x12::W {
             if (row_index + column_index) % 2 == 0 {
                 on_frame[row_index][column_index] = colors::CYAN;
             }
@@ -183,7 +183,7 @@ async fn demo_bouncing_dot_manual(led4x12: &Led4x12, button: &mut Button<'_>) ->
 
     let (mut x, mut y) = (0isize, 0isize);
     let (mut vx, mut vy) = (1isize, 1isize);
-    let (x_limit, y_limit) = (Led4x12::COLS as isize, Led4x12::ROWS as isize);
+    let (x_limit, y_limit) = (Led4x12::W as isize, Led4x12::H as isize);
     let mut color = *color_cycle.next().unwrap(); // Safe: cycle() over a non-empty array never returns None
 
     loop {
@@ -221,7 +221,7 @@ async fn demo_bouncing_dot_animation(led4x12: &Led4x12) -> Result<()> {
     let mut frames = Vec::<_, { Led4x12::MAX_FRAMES }>::new();
     let (mut x, mut y) = (0isize, 0isize);
     let (mut vx, mut vy) = (1isize, 1isize);
-    let (x_limit, y_limit) = (Led4x12::COLS as isize, Led4x12::ROWS as isize);
+    let (x_limit, y_limit) = (Led4x12::W as isize, Led4x12::H as isize);
     let mut color = *color_cycle.next().unwrap();
 
     for _ in 0..Led4x12::MAX_FRAMES {

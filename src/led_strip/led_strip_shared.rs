@@ -243,8 +243,8 @@ macro_rules! define_led_strips_shared {
                     gamma: $gamma:expr
                     $(,
                         led2d: {
-                            rows: $led2d_rows:expr,
-                            cols: $led2d_cols:expr,
+                            width: $led2d_width:expr,
+                            height: $led2d_height:expr,
                             led_layout: $led2d_led_layout:ident $( ( $($led2d_led_layout_args:tt)* ) )?,
                             max_frames: $led2d_max_frames:expr,
                             font: $led2d_font:ident $(,)?
@@ -390,8 +390,8 @@ macro_rules! define_led_strips_shared {
                         $crate::led2d::led2d_from_strip! {
                             pub [<$module Led2d>],
                             strip_type: $module,
-                            rows: $led2d_rows,
-                            cols: $led2d_cols,
+                            width: $led2d_width,
+                            height: $led2d_height,
                             led_layout: $led2d_led_layout $( ( $($led2d_led_layout_args)* ) )?,
                             max_frames: $led2d_max_frames,
                             font: $led2d_font,

@@ -33,16 +33,16 @@ use panic_probe as _;
 use smart_leds::RGB8;
 
 // Two 12x4 panels stacked vertically and rotated 90° CW → 8×12 display.
-const LED_LAYOUT_12X4: LedLayout<48, 4, 12> = LedLayout::serpentine_column_major();
-const LED_LAYOUT_8X12: LedLayout<96, 12, 8> = LED_LAYOUT_12X4.concat_v(LED_LAYOUT_12X4).rotate_cw();
+const LED_LAYOUT_12X4: LedLayout<48, 12, 4> = LedLayout::serpentine_column_major();
+const LED_LAYOUT_8X12: LedLayout<96, 8, 12> = LED_LAYOUT_12X4.concat_v(LED_LAYOUT_12X4).rotate_cw();
 
 led2d! {
     pub led8x12,
     pio: PIO1,
     pin: PIN_4,
     dma: DMA_CH1,
-    rows: 12,
-    cols: 8,
+    width: 8,
+    height: 12,
     led_layout: LED_LAYOUT_8X12,
     max_current: Milliamps(250),
     gamma: Gamma::Linear,
@@ -412,7 +412,7 @@ async fn show_minutes_seconds(led_8x12: &Led8x12, minutes: u8, seconds: u8) -> R
     led_8x12.write_text(text.as_str(), &DIGIT_COLORS).await
 }
 
-const PERIMETER_LENGTH: usize = (Led8x12::COLS * 2) + ((Led8x12::ROWS - 2) * 2);
+const PERIMETER_LENGTH: usize = (Led8x12::W * 2) + ((Led8x12::H - 2) * 2);
 
 fn two_line_text(top_chars: [char; 2], bottom_chars: [char; 2]) -> String<5> {
     let mut text = String::new();
@@ -471,16 +471,16 @@ fn perimeter_coordinates(clockwise: bool) -> [(usize, usize); PERIMETER_LENGTH] 
         write_index += 1;
     };
 
-    for column_index in 0..Led8x12::COLS {
+    for column_index in 0..Led8x12::W {
         push(0, column_index);
     }
-    for row_index in 1..Led8x12::ROWS {
-        push(row_index, Led8x12::COLS - 1);
+    for row_index in 1..Led8x12::H {
+        push(row_index, Led8x12::W - 1);
     }
-    for column_index in (0..(Led8x12::COLS - 1)).rev() {
-        push(Led8x12::ROWS - 1, column_index);
+    for column_index in (0..(Led8x12::W - 1)).rev() {
+        push(Led8x12::H - 1, column_index);
     }
-    for row_index in (1..(Led8x12::ROWS - 1)).rev() {
+    for row_index in (1..(Led8x12::H - 1)).rev() {
         push(row_index, 0);
     }
 

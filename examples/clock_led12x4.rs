@@ -33,15 +33,15 @@ use panic_probe as _;
 use smart_leds::RGB8;
 
 // Single 12x4 panel wired serpentine column-major.
-const LED_LAYOUT_12X4: LedLayout<48, 4, 12> = LedLayout::serpentine_column_major();
+const LED_LAYOUT_12X4: LedLayout<48, 12, 4> = LedLayout::serpentine_column_major();
 
 led2d! {
     pub led12x4,
     pio: PIO0,
     pin: PIN_3,
     dma: DMA_CH1,
-    rows: 4,
-    cols: 12,
+    width: 12,
+    height: 4,
     led_layout: LED_LAYOUT_12X4,
     max_current: Milliamps(500),
     gamma: Gamma::Linear,
@@ -414,7 +414,7 @@ async fn show_minutes_seconds(led_12x4: &Led12x4, minutes: u8, seconds: u8) -> R
     led_12x4.write_text(text.as_str(), &DIGIT_COLORS).await
 }
 
-const PERIMETER_LENGTH: usize = (Led12x4::COLS * 2) + ((Led12x4::ROWS - 2) * 2);
+const PERIMETER_LENGTH: usize = (Led12x4::W * 2) + ((Led12x4::H - 2) * 2);
 
 fn chars_to_text(chars: [char; 4]) -> String<4> {
     let mut text = String::new();
@@ -460,16 +460,16 @@ fn perimeter_coordinates(clockwise: bool) -> [(usize, usize); PERIMETER_LENGTH] 
         write_index += 1;
     };
 
-    for column_index in 0..Led12x4::COLS {
+    for column_index in 0..Led12x4::W {
         push(0, column_index);
     }
-    for row_index in 1..Led12x4::ROWS {
-        push(row_index, Led12x4::COLS - 1);
+    for row_index in 1..Led12x4::H {
+        push(row_index, Led12x4::W - 1);
     }
-    for column_index in (0..(Led12x4::COLS - 1)).rev() {
-        push(Led12x4::ROWS - 1, column_index);
+    for column_index in (0..(Led12x4::W - 1)).rev() {
+        push(Led12x4::H - 1, column_index);
     }
-    for row_index in (1..(Led12x4::ROWS - 1)).rev() {
+    for row_index in (1..(Led12x4::H - 1)).rev() {
         push(row_index, 0);
     }
 
