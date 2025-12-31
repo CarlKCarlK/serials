@@ -10,7 +10,7 @@ attach-probe:
 regenerate-text-pngs:
 	./scripts/regenerate-text-pngs.sh
 
-doc-tests:
+test-docs:
 	cargo test --doc --target thumbv8m.main-none-eabihf --features pico2,wifi,arm --no-default-features
 
 # Run all checks (lib, examples, tests, docs)

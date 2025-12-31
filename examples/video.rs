@@ -74,9 +74,8 @@ use panic_probe as _;
 use smart_leds::{RGB8, colors};
 
 // Display: 12 wide × 8 tall built from two 12×4 serpentine panels stacked vertically.
-const LED_LAYOUT_12X4: LedLayout<48, 12, 4> = LedLayout::<48, 12, 4>::serpentine_column_major();
-const LED_LAYOUT_12X8: LedLayout<96, 12, 8> =
-    LED_LAYOUT_12X4.concat_v::<48, 96, 4, 8>(LED_LAYOUT_12X4);
+const LED_LAYOUT_12X4: LedLayout<48, 12, 4> = LedLayout::serpentine_column_major();
+const LED_LAYOUT_12X8: LedLayout<96, 12, 8> = LED_LAYOUT_12X4.concat_v(LED_LAYOUT_12X4);
 
 led2d! {
     pub led12x8,
@@ -180,8 +179,11 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
             }
             Mode::TestText => {
                 let mut frame = Led12x8::new_frame();
-                led_12x8
-                    .write_text_to_frame("HELLO\nWORLD", &[colors::CYAN, colors::MAGENTA], &mut frame)?;
+                led_12x8.write_text_to_frame(
+                    "HELLO\nWORLD",
+                    &[colors::CYAN, colors::MAGENTA],
+                    &mut frame,
+                )?;
                 led_12x8.write_frame(frame).await?;
 
                 button.wait_for_press_duration().await;

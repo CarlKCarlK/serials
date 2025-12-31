@@ -20,12 +20,9 @@ use heapless::Vec;
 use panic_probe as _;
 use smart_leds::colors;
 
-// Rotated display: 8 wide × 12 tall (two 12x4 panels rotated 90° clockwise)
-// Better for clock display - can fit 2 lines of 2 digits each
-const LED_LAYOUT_12X4: LedLayout<48, 12, 4> = LedLayout::<48, 12, 4>::serpentine_column_major();
-const LED_LAYOUT_12X8: LedLayout<96, 12, 8> =
-    LED_LAYOUT_12X4.concat_v::<48, 96, 4, 8>(LED_LAYOUT_12X4);
-const LED_LAYOUT_8X12: LedLayout<96, 8, 12> = LED_LAYOUT_12X8.rotate_cw();
+// Two 12x4 panels stacked vertically and rotated 90° CW → 8×12 display.
+const LED_LAYOUT_12X4: LedLayout<48, 12, 4> = LedLayout::serpentine_column_major();
+const LED_LAYOUT_8X12: LedLayout<96, 8, 12> = LED_LAYOUT_12X4.concat_v(LED_LAYOUT_12X4).rotate_cw();
 
 led2d! {
     pub led8x12,
@@ -96,10 +93,13 @@ async fn demo_blink_text(led8x12: &Led8x12) -> Result<()> {
     let mut on_frame = Led8x12::new_frame();
     led8x12.write_text_to_frame("HI", &[colors::YELLOW], &mut on_frame)?;
     led8x12
-        .animate([
-            (on_frame, Duration::from_millis(500)),
-            (Led8x12::new_frame(), Duration::from_millis(500)),
-        ].into_iter())
+        .animate(
+            [
+                (on_frame, Duration::from_millis(500)),
+                (Led8x12::new_frame(), Duration::from_millis(500)),
+            ]
+            .into_iter(),
+        )
         .await
 }
 
@@ -129,10 +129,13 @@ async fn demo_blink_pattern(led8x12: &Led8x12) -> Result<()> {
     }
 
     led8x12
-        .animate([
-            (on_frame, Duration::from_millis(500)),
-            (Led8x12::new_frame(), Duration::from_millis(500)),
-        ].into_iter())
+        .animate(
+            [
+                (on_frame, Duration::from_millis(500)),
+                (Led8x12::new_frame(), Duration::from_millis(500)),
+            ]
+            .into_iter(),
+        )
         .await
 }
 
