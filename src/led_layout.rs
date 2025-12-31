@@ -30,10 +30,16 @@
 // cmk0 consider renaming the map field for clarity (may no longer apply once API settles).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LedLayout<const N: usize, const ROWS: usize, const COLS: usize> {
-    pub map: [(u16, u16); N],
+    map: [(u16, u16); N],
 }
 
 impl<const N: usize, const ROWS: usize, const COLS: usize> LedLayout<N, ROWS, COLS> {
+    /// Access the checked (col,row) mapping.
+    #[must_use]
+    pub const fn map(&self) -> &[(u16, u16); N] {
+        &self.map
+    }
+
     /// Const equality helper for doctests/examples.
     ///
     /// ```rust,no_run
@@ -258,36 +264,18 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> LedLayout<N, ROWS, CO
     ///
     /// const MAP: LedLayout<6, 2, 3> = LedLayout::serpentine_row_major();
     /// const EXPECTED: LedLayout<6, 2, 3> =
-    ///     LedLayout::new([(0, 0), (1, 0), (2, 0), (2, 1), (1, 1), (0, 1)]);
+    ///     LedLayout::new([(2, 1), (2, 0), (1, 0), (1, 1), (0, 1), (0, 0)]);
     /// const _: () = assert!(MAP.equals(&EXPECTED));
     /// ```
     ///
     /// ```text
     /// Strip snakes across rows (2×3 example):
-    ///   LED0  LED1  LED2
-    ///   LED5  LED4  LED3
+    ///   LED5  LED2  LED1
+    ///   LED4  LED3  LED0
     /// ```
     #[must_use]
     pub const fn serpentine_row_major() -> Self {
-        assert!(ROWS > 0 && COLS > 0, "ROWS and COLS must be positive");
-        assert!(ROWS * COLS == N, "ROWS*COLS must equal N");
-
-        let mut mapping = [(0_u16, 0_u16); N];
-        let mut row_index = 0;
-        while row_index < ROWS {
-            let mut column_index = 0;
-            while column_index < COLS {
-                let led_index = if row_index % 2 == 0 {
-                    row_index * COLS + column_index
-                } else {
-                    row_index * COLS + (COLS - 1 - column_index)
-                };
-                mapping[led_index] = (column_index as u16, row_index as u16);
-                column_index += 1;
-            }
-            row_index += 1;
-        }
-        Self::new(mapping)
+        Self::serpentine_column_major().rotate_cw().rotate_cw()
     }
 
     /// Rotate 90° clockwise (dims swap).
@@ -464,18 +452,18 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> LedLayout<N, ROWS, CO
     /// ```
     #[must_use]
     pub const fn concat_h<
-        const RIGHT: usize,
-        const TOTAL: usize,
-        const RCOLS: usize,
-        const TCOLS: usize,
+        const N2: usize,
+        const OUT_N: usize,
+        const COLS2: usize,
+        const OUT_COLS: usize,
     >(
         self,
-        right: LedLayout<RIGHT, ROWS, RCOLS>,
-    ) -> LedLayout<TOTAL, ROWS, TCOLS> {
-        assert!(TOTAL == N + RIGHT, "TOTAL must equal LEFT + RIGHT");
-        assert!(TCOLS == COLS + RCOLS, "TCOLS must equal LCOLS + RCOLS");
+        right: LedLayout<N2, ROWS, COLS2>,
+    ) -> LedLayout<OUT_N, ROWS, OUT_COLS> {
+        assert!(OUT_N == N + N2, "OUT_N must equal LEFT + RIGHT");
+        assert!(OUT_COLS == COLS + COLS2, "OUT_COLS must equal COLS + COLS2");
 
-        let mut out = [(0u16, 0u16); TOTAL];
+        let mut out = [(0u16, 0u16); OUT_N];
 
         let mut i = 0;
         while i < N {
@@ -484,13 +472,13 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> LedLayout<N, ROWS, CO
         }
 
         let mut j = 0;
-        while j < RIGHT {
+        while j < N2 {
             let (c, r) = right.map[j];
             out[N + j] = ((c as usize + COLS) as u16, r);
             j += 1;
         }
 
-        LedLayout::<TOTAL, ROWS, TCOLS>::new(out)
+        LedLayout::<OUT_N, ROWS, OUT_COLS>::new(out)
     }
 
     /// Concatenate vertically with another mapping sharing the same columns.
@@ -525,28 +513,28 @@ impl<const N: usize, const ROWS: usize, const COLS: usize> LedLayout<N, ROWS, CO
     /// ```
     #[must_use]
     pub const fn concat_v<
-        const BOTTOM: usize,
-        const TOTAL: usize,
-        const BOT_ROWS: usize,
-        const TROWS: usize,
+        const N2: usize,
+        const OUT_N: usize,
+        const ROWS2: usize,
+        const OUT_ROWS: usize,
     >(
         self,
-        bottom: LedLayout<BOTTOM, BOT_ROWS, COLS>,
-    ) -> LedLayout<TOTAL, TROWS, COLS> {
-        assert!(TOTAL == N + BOTTOM, "TOTAL must equal TOP + BOTTOM");
+        bottom: LedLayout<N2, ROWS2, COLS>,
+    ) -> LedLayout<OUT_N, OUT_ROWS, COLS> {
+        assert!(OUT_N == N + N2, "OUT_N must equal TOP + BOTTOM");
         assert!(
-            TROWS == ROWS + BOT_ROWS,
-            "TROWS must equal TOP_ROWS + BOT_ROWS"
+            OUT_ROWS == ROWS + ROWS2,
+            "OUT_ROWS must equal ROWS + ROWS2"
         );
 
         // Derive vertical concat via transpose + horizontal concat + transpose back.
         // Transpose is implemented as rotate_cw + flip_h.
         let top_t = self.rotate_cw().flip_h(); // ROWS cols, COLS rows
-        let bot_t = bottom.rotate_cw().flip_h(); // BOT_ROWS cols, COLS rows
+        let bot_t = bottom.rotate_cw().flip_h(); // ROWS2 cols, COLS rows
 
-        let combined_t: LedLayout<TOTAL, COLS, TROWS> =
-            top_t.concat_h::<BOTTOM, TOTAL, BOT_ROWS, TROWS>(bot_t);
+        let combined_t: LedLayout<OUT_N, COLS, OUT_ROWS> =
+            top_t.concat_h::<N2, OUT_N, ROWS2, OUT_ROWS>(bot_t);
 
-        combined_t.rotate_cw().flip_h() // transpose back to TROWS x COLS
+        combined_t.rotate_cw().flip_h() // transpose back to OUT_ROWS x COLS
     }
 }

@@ -1312,7 +1312,7 @@ macro_rules! led2d_from_strip {
             const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             // Compile-time assertion that strip length matches mapping length
-            const _: () = assert!([<$name:upper _MAPPING>].map.len() == $strip_type::LEN);
+            const _: () = assert!([<$name:upper _MAPPING>].map().len() == $strip_type::LEN);
 
             $crate::led2d::led2d_from_strip!(
                 @common $vis, $name, $strip_type, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
@@ -1339,7 +1339,7 @@ macro_rules! led2d_from_strip {
             const [<$name:upper _MAX_FRAMES>]: usize = $max_frames;
 
             // Compile-time assertion that strip length matches mapping length
-            const _: () = assert!([<$name:upper _MAPPING>].map.len() == $strip_type::LEN);
+            const _: () = assert!([<$name:upper _MAPPING>].map().len() == $strip_type::LEN);
 
             $crate::led2d::led2d_from_strip!(
                 @common $vis, $name, $strip_type, [<$name:upper _ROWS>], [<$name:upper _COLS>], [<$name:upper _N>], [<$name:upper _MAPPING>],
@@ -1437,7 +1437,7 @@ macro_rules! led2d_from_strip {
 
                     let led2d = $crate::led2d::Led2d::new(
                         &STATIC.led2d_static,
-                        &$mapping_const.map,
+                        $mapping_const.map(),
                         $rows_const,
                         $cols_const,
                     );

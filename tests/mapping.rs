@@ -5,25 +5,25 @@ use device_kit::led_layout::LedLayout;
 #[test]
 fn linear_single_row_matches_expected() {
     const LINEAR: LedLayout<4, 1, 4> = LedLayout::new([(0, 0), (1, 0), (2, 0), (3, 0)]);
-    assert_eq!(LINEAR.map, [(0, 0), (1, 0), (2, 0), (3, 0)]);
+    assert_eq!(LINEAR.map(), &[(0, 0), (1, 0), (2, 0), (3, 0)]);
 }
 
 #[test]
 fn linear_single_column_matches_expected() {
     const LINEAR: LedLayout<4, 4, 1> = LedLayout::new([(0, 0), (0, 1), (0, 2), (0, 3)]);
-    assert_eq!(LINEAR.map, [(0, 0), (0, 1), (0, 2), (0, 3)]);
+    assert_eq!(LINEAR.map(), &[(0, 0), (0, 1), (0, 2), (0, 3)]);
 }
 
 #[test]
 fn linear_h_returns_expected() {
     const LINEAR: LedLayout<5, 1, 5> = LedLayout::linear_h();
-    assert_eq!(LINEAR.map, [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]);
+    assert_eq!(LINEAR.map(), &[(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]);
 }
 
 #[test]
 fn linear_v_returns_expected() {
     const LINEAR: LedLayout<5, 5, 1> = LedLayout::linear_v();
-    assert_eq!(LINEAR.map, [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4)]);
+    assert_eq!(LINEAR.map(), &[(0, 0), (0, 1), (0, 2), (0, 3), (0, 4)]);
 }
 
 #[test]
@@ -37,7 +37,7 @@ fn linear_row_major_3x2_matches_expected() {
         (2, 1),
     ]);
     assert_eq!(
-        MAP.map,
+        *MAP.map(),
         [
             (0, 0),
             (1, 0),
@@ -61,7 +61,7 @@ fn rotate_and_flip_small_grid() {
     ]);
     let rotated = MAP.rotate_cw();
     assert_eq!(
-        rotated.map,
+        *rotated.map(),
         [
             (1, 0),
             (1, 1),
@@ -74,7 +74,7 @@ fn rotate_and_flip_small_grid() {
 
     let flipped = MAP.flip_h();
     assert_eq!(
-        flipped.map,
+        *flipped.map(),
         [
             (2, 0),
             (1, 0),
@@ -92,7 +92,7 @@ fn serpentine_transforms_match_expected() {
 
     let rotated_cw = SERPENTINE.rotate_cw();
     assert_eq!(
-        rotated_cw.map,
+        *rotated_cw.map(),
         [
             (1, 0),
             (0, 0),
@@ -105,7 +105,7 @@ fn serpentine_transforms_match_expected() {
 
     let rotated_180 = SERPENTINE.rotate_180();
     assert_eq!(
-        rotated_180.map,
+        *rotated_180.map(),
         [
             (2, 1),
             (2, 0),
@@ -118,7 +118,7 @@ fn serpentine_transforms_match_expected() {
 
     let rotated_ccw = SERPENTINE.rotate_ccw();
     assert_eq!(
-        rotated_ccw.map,
+        *rotated_ccw.map(),
         [
             (0, 2),
             (1, 2),
@@ -131,7 +131,7 @@ fn serpentine_transforms_match_expected() {
 
     let flipped_h = SERPENTINE.flip_h();
     assert_eq!(
-        flipped_h.map,
+        *flipped_h.map(),
         [
             (2, 0),
             (2, 1),
@@ -144,7 +144,7 @@ fn serpentine_transforms_match_expected() {
 
     let flipped_v = SERPENTINE.flip_v();
     assert_eq!(
-        flipped_v.map,
+        *flipped_v.map(),
         [
             (0, 1),
             (0, 0),
@@ -157,7 +157,7 @@ fn serpentine_transforms_match_expected() {
 
     let concat_h = SERPENTINE.concat_h::<6, 12, 3, 6>(SERPENTINE);
     assert_eq!(
-        concat_h.map,
+        *concat_h.map(),
         [
             (0, 0),
             (0, 1),
@@ -176,7 +176,7 @@ fn serpentine_transforms_match_expected() {
 
     let concat_v = SERPENTINE.concat_v::<6, 12, 2, 4>(SERPENTINE);
     assert_eq!(
-        concat_v.map,
+        *concat_v.map(),
         [
             (0, 0),
             (0, 1),
@@ -199,13 +199,13 @@ fn concat_horizontal_and_vertical() {
     const LEFT: LedLayout<2, 1, 2> = LedLayout::new([(0, 0), (1, 0)]);
     const RIGHT: LedLayout<4, 1, 4> = LedLayout::new([(0, 0), (1, 0), (2, 0), (3, 0)]);
     let combined_h = LEFT.concat_h::<4, 6, 4, 6>(RIGHT);
-    assert_eq!(combined_h.map, [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0)]);
+    assert_eq!(combined_h.map(), &[(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0)]);
 
     const TOP: LedLayout<2, 2, 1> = LedLayout::new([(0, 0), (0, 1)]);
     const BOTTOM: LedLayout<3, 3, 1> = LedLayout::new([(0, 0), (0, 1), (0, 2)]);
     let combined_v = TOP.concat_v::<3, 5, 3, 5>(BOTTOM);
     assert_eq!(
-        combined_v.map,
+        *combined_v.map(),
         [
             (0, 0),
             (0, 1),
