@@ -216,7 +216,7 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO0, N> {
     /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO (SM0) and one DMA channel. The more complex [LedStripShared] can drive up to four strips per PIO.
     ///
     /// See [`LedStrip`] for the usage example.
-    pub async fn new_pio0<Dma>(
+    pub(crate) async fn new_pio0<Dma>(
         strip_static: &'static LedStripStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO0>,
         dma: embassy_rp::Peri<'static, Dma>,
@@ -245,7 +245,7 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO1, N> {
     /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO (SM0) and one DMA channel. The more complex [LedStripShared] can drive up to four strips per PIO.
     ///
     /// See [`LedStrip`] for the usage example.
-    pub async fn new_pio1<Dma>(
+    pub(crate) async fn new_pio1<Dma>(
         strip_static: &'static LedStripStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO1>,
         dma: embassy_rp::Peri<'static, Dma>,
@@ -275,7 +275,7 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO2, N> {
     /// Each Pico contains two (Pico 1) or three (Pico 2) PIO units; this driver requires one PIO (SM0) and one DMA channel. The more complex [LedStripShared] can drive up to four strips per PIO.
     ///
     /// See [`LedStrip`] for the usage example.
-    pub async fn new_pio2<Dma>(
+    pub(crate) async fn new_pio2<Dma>(
         strip_static: &'static LedStripStatic<N>,
         pio: embassy_rp::Peri<'static, embassy_rp::peripherals::PIO2>,
         dma: embassy_rp::Peri<'static, Dma>,
