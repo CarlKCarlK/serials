@@ -174,6 +174,9 @@ pub struct LedStrip<'d, PIO: Instance, const N: usize> {
 }
 
 impl<'d, PIO: Instance, const N: usize> LedStrip<'d, PIO, N> {
+    /// Number of LEDs in this strip.
+    pub const LEN: usize = N;
+
     /// Construct a new inline strip driver from shared bus/state machine and pin.
     pub(crate) fn new<Dma>(
         strip_static: &'static LedStripStatic<N>,
@@ -230,6 +233,8 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO0, N> {
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
         led_strip.update_pixels(&blank).await.ok();
+        // WS2812 requires minimum 50μs reset period to latch data
+        embassy_time::Timer::after_micros(80).await;
         led_strip
     }
 }
@@ -257,6 +262,8 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO1, N> {
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
         led_strip.update_pixels(&blank).await.ok();
+        // WS2812 requires minimum 50μs reset period to latch data
+        embassy_time::Timer::after_micros(80).await;
         led_strip
     }
 }
@@ -285,6 +292,8 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO2, N> {
         // Initialize with blank frame to ensure LEDs are ready
         let blank = [Rgb::new(0, 0, 0); N];
         led_strip.update_pixels(&blank).await.ok();
+        // WS2812 requires minimum 50μs reset period to latch data
+        embassy_time::Timer::after_micros(80).await;
         led_strip
     }
 }
