@@ -23,9 +23,40 @@ fn main() {
             eprintln!("Video frames data generated successfully");
         } else {
             eprintln!(
-                "Warning: Failed to generate video frames: {}",
+                "Warning: Failed to generate video frames, creating placeholder: {}",
                 String::from_utf8_lossy(&output.stderr)
             );
+            // Create a minimal placeholder file so the build doesn't fail
+            let placeholder = r#"// Video frames generated from PNG files (santa video)
+// Auto-generated - do not edit manually
+// Placeholder - run `just video-frames` with SANTA_FRAMES_DIR set to generate real frames
+
+#[allow(dead_code)]
+// Frame duration for 10 FPS (100ms per frame)
+const SANTA_FRAME_DURATION: Duration = Duration::from_millis(100);
+
+#[allow(dead_code)]
+const SANTA_FRAME_COUNT: usize = 1;
+
+#[allow(dead_code)]
+const SANTA_FRAMES: [([[RGB8; 12]; 8], Duration); SANTA_FRAME_COUNT] = [
+    (
+        [
+            [RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0)],
+            [RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0)],
+            [RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0)],
+            [RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0)],
+            [RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0)],
+            [RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0)],
+            [RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0)],
+            [RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0), RGB8::new(0, 0, 0)],
+        ],
+        SANTA_FRAME_DURATION,
+    )
+];
+"#;
+            fs::write("video_frames_data.rs", placeholder)
+                .expect("Failed to write placeholder video_frames_data.rs");
         }
     }
 

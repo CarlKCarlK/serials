@@ -5,6 +5,3 @@ all_code.txt
 .cargo-home/
 target-tmp/
 rustc-ice-*.txt
-
-# Auto-generated video frames data
-video_frames_data.rs

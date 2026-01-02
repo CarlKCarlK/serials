@@ -142,9 +142,28 @@ fn generate_video_frames(video_path: &str, name: &str) -> Result<(), Box<dyn std
 }
 
 fn generate_frames_from_pngs(name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let frames_dir =
-        Path::new(&std::env::var("HOME")?).join("programs/ffmpeg-test/frames12x8_landscape");
-    generate_frames_from_directory(&frames_dir, name, 65)
+    let frames_dir = std::env::var("SANTA_FRAMES_DIR").unwrap_or_else(|_| {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let candidates = [
+            format!("{}/programs/ffmpeg-test/frames12x8_landscape", home),
+            format!("{}/ffmpeg-test/frames12x8_landscape", home),
+            format!("{}/Documents/frames12x8_landscape", home),
+        ];
+
+        for candidate in &candidates {
+            if Path::new(candidate).exists() {
+                eprintln!("Found frames directory at: {}", candidate);
+                return candidate.clone();
+            }
+        }
+
+        eprintln!("Could not find santa frames in standard locations.");
+        eprintln!("Set SANTA_FRAMES_DIR environment variable to specify the frames directory.");
+        eprintln!("Example: SANTA_FRAMES_DIR=\"/path/to/frames\" cargo xtask video-frames-gen");
+        format!("{}/programs/ffmpeg-test/frames12x8_landscape", home)
+    });
+
+    generate_frames_from_directory(Path::new(&frames_dir), name, 65)
 }
 
 fn generate_frames_from_directory(
