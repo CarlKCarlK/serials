@@ -1,15 +1,15 @@
 //! A device abstraction for WS2812-style LED strips.
 //!
-//! See [`LedStripShared`] and [`define_led_strips_shared!`] for managing strips on a PIO.
+//! See [`LedStrip`] and [`define_led_strips!`] for managing strips on a PIO.
 
 pub mod gamma;
 
-include!("led_strip/led_strip_shared.rs");
-// See [`LedStripShared`] and [`define_led_strips_shared!`] for multi-strip setups on one PIO.
+include!("led_strip/strip.rs");
+// See [`LedStrip`] and [`define_led_strips!`] for multi-strip setups on one PIO.
 #[doc(inline)]
 pub use smart_leds::colors;
 
-/// Used by [`define_led_strips_shared!`] to budget current for LED strips.
+/// Used by [`define_led_strips!`] to budget current for LED strips.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Milliamps(pub u16);
 

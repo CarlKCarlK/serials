@@ -7,13 +7,13 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{Milliamps, colors, gamma::Gamma};
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use panic_probe as _;
 
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO0,
     strips: [
         Gpio3LedStrip {

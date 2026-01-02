@@ -12,7 +12,7 @@
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::Milliamps;
-use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d::led2d_from_strip;
 use device_kit::led_layout::LedLayout;
@@ -23,7 +23,7 @@ use panic_probe as _;
 use smart_leds::colors;
 
 // Define strips for both devices
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO0,
     strips: [
         Gpio3LedStrip {
@@ -37,7 +37,7 @@ define_led_strips_shared! {
     ]
 }
 
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO1,
     strips: [
         Gpio4LedStrip {

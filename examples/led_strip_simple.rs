@@ -5,9 +5,9 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::gamma::Gamma;
-use device_kit::led_strip::{LedStripShared, Milliamps, colors};
+use device_kit::led_strip::{LedStrip, Milliamps, colors};
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
@@ -16,7 +16,7 @@ use panic_probe as _;
 const LEN: usize = 8;
 const MAX_CURRENT: Milliamps = Milliamps(50);
 
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO1,
     strips: [
         Gpio2LedStrip {
@@ -63,7 +63,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     }
 }
 
-async fn update_bounce(led_strip: &LedStripShared<LEN>, position: usize) -> Result<()> {
+async fn update_bounce(led_strip: &LedStrip<LEN>, position: usize) -> Result<()> {
     assert!(position < LEN);
     let mut pixels = [colors::BLACK; LEN];
     pixels[position] = colors::WHITE;

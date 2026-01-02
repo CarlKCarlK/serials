@@ -10,7 +10,7 @@
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_layout::LedLayout;
-use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::{Milliamps, colors};
 use device_kit::led2d::led2d_from_strip;
@@ -22,7 +22,7 @@ const LED12X4_W: usize = 12;
 const LED12X4_H: usize = 4;
 const LED_LAYOUT_12X4: LedLayout<48, 12, 4> = LedLayout::serpentine_column_major();
 
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO0,
     strips: [
         Gpio3Pio0LedStrip {
@@ -36,7 +36,7 @@ define_led_strips_shared! {
     ]
 }
 
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO1,
     strips: [
         Gpio3Pio1LedStrip {

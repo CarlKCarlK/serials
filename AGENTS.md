@@ -187,19 +187,19 @@ Setters: set_offset_minutes(), set_text() (with set_ prefix)
 
 ## Colors
 
-For RGB colors, use the predefined constants from `smart_leds::colors` (re-exported from `led_strip::led_strip_shared::colors` and `led_strip::colors`) rather than creating RGB values manually:
+For RGB colors, use the predefined constants from `smart_leds::colors` (re-exported from `led_strip::colors`) rather than creating RGB values manually:
 
 ✅ Good:
 
 ```rust
-use device_kit::led_strip::led_strip_shared::colors;
+use device_kit::led_strip::colors;
 let frame = [colors::RED, colors::GREEN, colors::BLUE, colors::YELLOW];
 ```
 
 ❌ Bad:
 
 ```rust
-use device_kit::led_strip::led_strip_shared::Rgb;
+use device_kit::led_strip::Rgb;
 let red = Rgb::new(255, 0, 0);
 let green = Rgb::new(0, 255, 0);
 ```

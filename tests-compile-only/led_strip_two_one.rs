@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-// cmk000 would be nice to make define_led_strips_shared create 2Ds directly
+// cmk000 would be nice to make define_led_strips create 2Ds directly
 // cmk000 names of generated modules/structs seems a mess and names are inconsistent.
 
 // cmk000 we need to document that `led2d_from_strip` can only be used once
@@ -10,7 +10,7 @@
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::{Milliamps, Rgb, colors};
 use device_kit::led_layout::LedLayout;
@@ -20,7 +20,7 @@ use embassy_time::{Duration, Timer};
 use heapless::Vec;
 use panic_probe as _;
 
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO1,
     strips: [
         Gpio0LedStrip {
@@ -49,7 +49,7 @@ define_led_strips_shared! {
     ]
 }
 
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO0,
     strips: [
         Gpio4LedStrip {

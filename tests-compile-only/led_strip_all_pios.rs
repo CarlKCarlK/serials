@@ -4,13 +4,13 @@
 use panic_probe as _;
 
 use device_kit::led_strip::Milliamps;
-use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::Result;
 
 const MAX_CURRENT: Milliamps = Milliamps(250);
 
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO0,
     strips: [
         Pio0LedStrip48 {
@@ -24,7 +24,7 @@ define_led_strips_shared! {
     ]
 }
 
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO1,
     strips: [
         Pio1LedStrip48 {
@@ -39,7 +39,7 @@ define_led_strips_shared! {
 }
 
 #[cfg(feature = "pico2")]
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO2,
     strips: [
         Pio2LedStrip48 {
@@ -53,7 +53,7 @@ define_led_strips_shared! {
     ]
 }
 
-/// Compile-only test to verify `define_led_strips_shared!` works with all PIO blocks.
+/// Compile-only test to verify `define_led_strips!` works with all PIO blocks.
 /// This prevents type mismatches between generated strip types and PIO splits.
 #[allow(dead_code)]
 async fn test_all_pios(

@@ -1,4 +1,4 @@
-//! Compile-only verification that led_strip_shared works with PIO0.
+//! Compile-only verification that the LED strip macros work with PIO0.
 //!
 //! Run via: `cargo check-all` (xtask compiles this for thumbv6m-none-eabi)
 
@@ -9,13 +9,13 @@
 
 use device_kit::Result;
 use device_kit::led_strip::Milliamps;
-use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use panic_probe as _;
 
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO0,
     strips: [
         Gpio2Pio0LedStrip {
@@ -29,7 +29,7 @@ define_led_strips_shared! {
     ]
 }
 
-/// Verify that define_led_strips_shared! works with PIO0
+/// Verify that define_led_strips! works with PIO0
 async fn test_pio0_strip(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
 

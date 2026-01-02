@@ -5,7 +5,7 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::Milliamps;
-use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
@@ -16,7 +16,7 @@ use smart_leds::RGB8;
 // WS2812B 4x12 LED matrix (48 pixels)
 // Uses PIO1, State Machine 0, DMA_CH1, GPIO16 (pin 21)
 // Max 500mA current budget (safe for USB 2.0)
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO1,
     strips: [
         Gpio16LedStrip {

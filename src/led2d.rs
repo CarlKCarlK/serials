@@ -3,7 +3,7 @@
 //! Supports text rendering, animation, and full graphics capabilities. For simple
 //! single-strip displays, use the `led2d!` macro. For multi-strip scenarios
 //! where you need to share a PIO with other devices, use `led2d_from_strip!` with
-//! [`define_led_strips_shared!`](crate::led_strip::define_led_strips_shared).
+//! [`define_led_strips!`](crate::led_strip::define_led_strips).
 //!
 //! For custom graphics, create a [`Frame`] and use the
 //! [`embedded-graphics`](https://docs.rs/embedded-graphics) drawing API. See the
@@ -48,14 +48,14 @@
 //!
 //! # Advanced: Multi-Strip with `led2d_from_strip!`
 //!
-//! When sharing a PIO with multiple LED strips, use `define_led_strips_shared!` and
+//! When sharing a PIO with multiple LED strips, use `define_led_strips!` and
 //! `led2d_from_strip!` together. The macro generates a type-safe device abstraction
 //! with text rendering, animation, and graphics support.
 //!
 //! ## Macro Parameters
 //!
 //! - Visibility and base name for generated types (e.g., `pub led12x4`)
-//! - `strip_type` - Name of the strip type created by `define_led_strips_shared!` (e.g., `Led12x4Strip`)
+//! - `strip_type` - Name of the strip type created by `define_led_strips!` (e.g., `Led12x4Strip`)
 //! - `width` - Number of columns in the display
 //! - `height` - Number of rows in the display
 //! - `led_layout` - LED strip physical layout:
@@ -78,7 +78,7 @@
 //! # use panic_probe as _;
 //! use embassy_executor::Spawner;
 //! use embassy_rp::init;
-//! use device_kit::led_strip::define_led_strips_shared;
+//! use device_kit::led_strip::define_led_strips;
 //! use device_kit::led2d::led2d_from_strip;
 //! use device_kit::led_strip::Milliamps;
 //! use device_kit::led_strip::gamma::Gamma;
@@ -86,7 +86,7 @@
 //! use device_kit::pio_split;
 //!
 //! // Define LED strip sharing PIO1
-//! define_led_strips_shared! {
+//! define_led_strips! {
 //!     pio: PIO1,
 //!     strips: [
 //!         Led12x4Strip {
@@ -604,9 +604,9 @@ pub trait UpdatePixels<const N: usize> {
 }
 
 #[cfg(not(feature = "host"))]
-impl<const N: usize> UpdatePixels<N> for crate::led_strip::LedStripShared<N> {
+impl<const N: usize> UpdatePixels<N> for crate::led_strip::LedStrip<N> {
     async fn update_pixels(&self, pixels: &[RGB8; N]) -> Result<()> {
-        crate::led_strip::LedStripShared::update_pixels(self, pixels).await
+        crate::led_strip::LedStrip::update_pixels(self, pixels).await
     }
 }
 
@@ -1051,7 +1051,7 @@ macro_rules! led2d {
     ) => {
         $crate::led2d::paste::paste! {
             // Generate the LED strip infrastructure with a CamelCase strip type
-            $crate::led_strip::define_led_strips_shared! {
+            $crate::led_strip::define_led_strips! {
                 pio: $pio,
                 strips: [
                     [<$name:camel Strip>] {
@@ -1129,7 +1129,7 @@ macro_rules! led2d {
     ) => {
         $crate::led2d::paste::paste! {
             // Generate the LED strip infrastructure with a CamelCase strip type
-            $crate::led_strip::define_led_strips_shared! {
+            $crate::led_strip::define_led_strips! {
                 pio: $pio,
                 strips: [
                     [<$name:camel Strip>] {
@@ -1197,12 +1197,12 @@ macro_rules! led2d {
 ///
 /// Use this macro when you want to share a PIO across multiple LED strips and treat one as a 2D display.
 /// For simple single-strip displays, use `led2d!` instead.
-/// The strip must be created with [`define_led_strips_shared!`](crate::led_strip::define_led_strips_shared).
+/// The strip must be created with [`define_led_strips!`](crate::led_strip::define_led_strips).
 ///
 /// # Parameters
 ///
 /// - Visibility and base name for generated types (e.g., `pub led12x4`)
-/// - `strip_type` - Name of the strip type created by `define_led_strips_shared!`
+/// - `strip_type` - Name of the strip type created by `define_led_strips!`
 /// - `width` - Number of columns in the display
 /// - `height` - Number of rows in the display
 /// - `led_layout` - LED strip physical layout:
@@ -1217,7 +1217,7 @@ macro_rules! led2d {
 /// # #![no_std]
 /// # #![no_main]
 /// # use panic_probe as _;
-/// use device_kit::led_strip::define_led_strips_shared;
+/// use device_kit::led_strip::define_led_strips;
 /// use device_kit::led2d::led2d_from_strip;
 /// use device_kit::led_strip::Milliamps;
 /// use device_kit::led_strip::gamma::Gamma;
@@ -1225,7 +1225,7 @@ macro_rules! led2d {
 /// use embassy_executor::Spawner;
 ///
 /// // Define multiple strips sharing PIO1
-/// define_led_strips_shared! {
+/// define_led_strips! {
 ///     pio: PIO1,
 ///     strips: [
 ///         Led12x4Strip {

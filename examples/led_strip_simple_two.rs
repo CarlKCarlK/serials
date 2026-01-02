@@ -6,8 +6,8 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::gamma::Gamma;
-use device_kit::led_strip::define_led_strips_shared;
-use device_kit::led_strip::{LedStripShared, Milliamps, colors};
+use device_kit::led_strip::define_led_strips;
+use device_kit::led_strip::{LedStrip, Milliamps, colors};
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
@@ -15,7 +15,7 @@ use panic_probe as _;
 
 const MAX_CURRENT: Milliamps = Milliamps(500);
 
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO0,
     strips: [
         Gpio2LedStrip {
@@ -29,7 +29,7 @@ define_led_strips_shared! {
     ]
 }
 
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO1,
     strips: [
         Gpio3LedStrip {
@@ -98,7 +98,7 @@ impl<const N: usize> BounceState<N> {
         }
     }
 
-    async fn update(&mut self, led_strip: &LedStripShared<N>) -> Result<()> {
+    async fn update(&mut self, led_strip: &LedStrip<N>) -> Result<()> {
         assert!(self.position < N);
         let mut pixels = [colors::BLACK; N];
         pixels[self.position] = colors::WHITE;

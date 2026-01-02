@@ -6,14 +6,14 @@ use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
-use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{Rgb, colors};
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
 
-define_led_strips_shared! {
+define_led_strips! {
     pio: PIO0,
     strips: [
         Gpio2LedStrip {
