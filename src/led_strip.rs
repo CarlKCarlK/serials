@@ -168,11 +168,13 @@ impl<const N: usize> LedStripStatic<N> {
 ///     Ok(())
 /// }
 /// ```
+#[deprecated(note = "Use LedStripShared via define_led_strips_shared! instead.")]
 pub struct LedStrip<'d, PIO: Instance, const N: usize> {
     driver: PioWs2812<'d, PIO, 0, N, Grb>,
     combo_table: [u8; 256],
 }
 
+#[allow(deprecated)]
 impl<'d, PIO: Instance, const N: usize> LedStrip<'d, PIO, N> {
     /// Number of LEDs in this strip.
     pub const LEN: usize = N;
@@ -210,6 +212,7 @@ impl<'d, PIO: Instance, const N: usize> LedStrip<'d, PIO, N> {
     }
 }
 
+#[allow(deprecated)]
 impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO0, N> {
     /// Builds a `LedStrip` on PIO0/SM0.
     ///
@@ -239,6 +242,7 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO0, N> {
     }
 }
 
+#[allow(deprecated)]
 impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO1, N> {
     /// Builds a `LedStrip` on PIO1/SM0.
     ///
@@ -269,6 +273,7 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO1, N> {
 }
 
 #[cfg(feature = "pico2")]
+#[allow(deprecated)]
 impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO2, N> {
     /// Builds a `LedStrip` on PIO2/SM0.
     ///
@@ -301,6 +306,7 @@ impl<const N: usize> LedStrip<'static, embassy_rp::peripherals::PIO2, N> {
 /// Helper trait for dispatching to the correct `new_pioX()` constructor.
 /// Implementation detail of the [`new_led_strip!`] macro.
 #[doc(hidden)]
+#[allow(deprecated)]
 pub trait LedStripNew<const N: usize> {
     async fn new_from_pio<Dma>(
         strip_static: &'static LedStripStatic<N>,
@@ -315,6 +321,7 @@ pub trait LedStripNew<const N: usize> {
         Self: embassy_rp::pio::Instance;
 }
 
+#[allow(deprecated)]
 impl<const N: usize> LedStripNew<N> for embassy_rp::peripherals::PIO0 {
     async fn new_from_pio<Dma>(
         strip_static: &'static LedStripStatic<N>,
@@ -331,6 +338,7 @@ impl<const N: usize> LedStripNew<N> for embassy_rp::peripherals::PIO0 {
     }
 }
 
+#[allow(deprecated)]
 impl<const N: usize> LedStripNew<N> for embassy_rp::peripherals::PIO1 {
     async fn new_from_pio<Dma>(
         strip_static: &'static LedStripStatic<N>,
@@ -348,6 +356,7 @@ impl<const N: usize> LedStripNew<N> for embassy_rp::peripherals::PIO1 {
 }
 
 #[cfg(feature = "pico2")]
+#[allow(deprecated)]
 impl<const N: usize> LedStripNew<N> for embassy_rp::peripherals::PIO2 {
     async fn new_from_pio<Dma>(
         strip_static: &'static LedStripStatic<N>,

@@ -6,7 +6,9 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::gamma::Gamma;
-use device_kit::led_strip::{LedStrip, Milliamps, colors, new_led_strip};
+use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::{LedStripShared, Milliamps, colors};
+use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
@@ -14,27 +16,31 @@ use panic_probe as _;
 const LEN: usize = 8;
 const MAX_CURRENT: Milliamps = Milliamps(50);
 
+define_led_strips_shared! {
+    pio: PIO1,
+    strips: [
+        Gpio2LedStrip {
+            sm: 0,
+            dma: DMA_CH0,
+            pin: PIN_2,
+            len: LEN,
+            max_current: MAX_CURRENT,
+            gamma: Gamma::Linear
+        }
+    ]
+}
+
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
     let err = inner_main(spawner).await.unwrap_err();
     core::panic!("{err}");
 }
 
-async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
+async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
-    // cmk000 LedStripStatic?
-    // cmk000 is StripStatic the right place to attach the new_static method?
-    let mut led_strip = new_led_strip!(
-        LED_STRIP,     // static name
-        8,             // LED count
-        p.PIN_2,       // data pin
-        p.PIO1,        // PIO block
-        p.DMA_CH0,     // DMA channel
-        MAX_CURRENT,   // max current budget (mA)
-        Gamma::Linear  // gamma correction
-    )
-    .await;
+    let (pio1_sm0, _pio1_sm1, _pio1_sm2, _pio1_sm3) = pio_split!(p.PIO1);
+    let gpio2_led_strip = Gpio2LedStrip::new(pio1_sm0, p.DMA_CH0, p.PIN_2, spawner)?;
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 
@@ -42,7 +48,7 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
     let mut direction: isize = 1;
 
     loop {
-        update_bounce(&mut led_strip, position as usize).await?;
+        update_bounce(gpio2_led_strip, position as usize).await?;
 
         position += direction;
         if position <= 0 {
@@ -58,7 +64,7 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
 }
 
 async fn update_bounce(
-    led_strip: &mut LedStrip<'static, embassy_rp::peripherals::PIO1, LEN>,
+    led_strip: &LedStripShared<LEN>,
     position: usize,
 ) -> Result<()> {
     assert!(position < LEN);

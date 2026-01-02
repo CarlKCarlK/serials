@@ -6,10 +6,42 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::gamma::Gamma;
-use device_kit::led_strip::{LedStrip, Milliamps, colors, new_led_strip};
+use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::{LedStripShared, Milliamps, colors};
+use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
+
+const MAX_CURRENT: Milliamps = Milliamps(500);
+
+define_led_strips_shared! {
+    pio: PIO0,
+    strips: [
+        Gpio2LedStrip {
+            sm: 0,
+            dma: DMA_CH0,
+            pin: PIN_2,
+            len: 8,
+            max_current: MAX_CURRENT,
+            gamma: Gamma::Linear
+        }
+    ]
+}
+
+define_led_strips_shared! {
+    pio: PIO1,
+    strips: [
+        Gpio3LedStrip {
+            sm: 0,
+            dma: DMA_CH1,
+            pin: PIN_3,
+            len: 48,
+            max_current: MAX_CURRENT,
+            gamma: Gamma::Linear
+        }
+    ]
+}
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
@@ -17,36 +49,14 @@ async fn main(spawner: Spawner) -> ! {
     core::panic!("{err}");
 }
 
-async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
+async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
-    const MAX_CURRENT: Milliamps = Milliamps(500);
+    let (pio0_sm0, _pio0_sm1, _pio0_sm2, _pio0_sm3) = pio_split!(p.PIO0);
+    let (pio1_sm0, _pio1_sm1, _pio1_sm2, _pio1_sm3) = pio_split!(p.PIO1);
 
-    // cmk000 kill this type of
-    // cmk000 stripX to led_strip0, etc
-    let mut led_strip_0 = new_led_strip!(
-        LED_STRIP_0,   // static name
-        8,             // LED count
-        p.PIN_2,       // data pin
-        p.PIO0,        // PIO peripheral
-        p.DMA_CH0,     // DMA channel
-        MAX_CURRENT,   // max current budget (mA)
-        Gamma::Linear  // gamma correction
-    )
-    .await;
-
-    // cmk000 make these the same order as shared's new
-
-    let mut led_strip_1 = new_led_strip!(
-        LED_STRIP_1,   // static name
-        48,            // LED count
-        p.PIN_3,       // data pin
-        p.PIO1,        // PIO peripheral
-        p.DMA_CH1,     // DMA channel
-        MAX_CURRENT,   // max current budget (mA)
-        Gamma::Linear  // gamma correction
-    )
-    .await;
+    let gpio2_led_strip = Gpio2LedStrip::new(pio0_sm0, p.DMA_CH0, p.PIN_2, spawner)?;
+    let gpio3_led_strip = Gpio3LedStrip::new(pio1_sm0, p.DMA_CH1, p.PIN_3, spawner)?;
 
     info!("LED strip demo starting (GPIO2 & GPIO3, VSYS power)");
 
@@ -54,8 +64,8 @@ async fn inner_main(_spawner: Spawner) -> Result<Infallible> {
     let mut state1 = BounceState::<48>::new();
 
     loop {
-        state0.update(&mut led_strip_0).await?;
-        state1.update(&mut led_strip_1).await?;
+        state0.update(gpio2_led_strip).await?;
+        state1.update(gpio3_led_strip).await?;
 
         Timer::after_millis(500).await;
     }
@@ -88,10 +98,7 @@ impl<const N: usize> BounceState<N> {
         }
     }
 
-    async fn update<PIO: embassy_rp::pio::Instance>(
-        &mut self,
-        led_strip: &mut LedStrip<'static, PIO, N>,
-    ) -> Result<()> {
+    async fn update(&mut self, led_strip: &LedStripShared<N>) -> Result<()> {
         assert!(self.position < N);
         let mut pixels = [colors::BLACK; N];
         pixels[self.position] = colors::WHITE;

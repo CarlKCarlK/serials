@@ -3,51 +3,78 @@
 
 use panic_probe as _;
 
-/// Compile-only test to verify `new_led_strip!` macro works with all PIO blocks.
-/// This prevents type mismatches between the macro call and type aliases.
+use device_kit::led_strip::Milliamps;
+use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::gamma::Gamma;
+use device_kit::Result;
+
+const MAX_CURRENT: Milliamps = Milliamps(250);
+
+define_led_strips_shared! {
+    pio: PIO0,
+    strips: [
+        Pio0LedStrip48 {
+            sm: 0,
+            dma: DMA_CH0,
+            pin: PIN_3,
+            len: 48,
+            max_current: MAX_CURRENT,
+            gamma: Gamma::Linear
+        }
+    ]
+}
+
+define_led_strips_shared! {
+    pio: PIO1,
+    strips: [
+        Pio1LedStrip48 {
+            sm: 0,
+            dma: DMA_CH1,
+            pin: PIN_4,
+            len: 48,
+            max_current: MAX_CURRENT,
+            gamma: Gamma::Linear
+        }
+    ]
+}
+
+#[cfg(feature = "pico2")]
+define_led_strips_shared! {
+    pio: PIO2,
+    strips: [
+        Pio2LedStrip48 {
+            sm: 0,
+            dma: DMA_CH2,
+            pin: PIN_5,
+            len: 48,
+            max_current: MAX_CURRENT,
+            gamma: Gamma::Linear
+        }
+    ]
+}
+
+/// Compile-only test to verify `define_led_strips_shared!` works with all PIO blocks.
+/// This prevents type mismatches between generated strip types and PIO splits.
 #[allow(dead_code)]
-async fn test_all_pios(p: embassy_rp::Peripherals) {
-    use device_kit::led_strip::{LedStrip, Milliamps, gamma::Gamma, new_led_strip};
+async fn test_all_pios(
+    p: embassy_rp::Peripherals,
+    spawner: embassy_executor::Spawner,
+) -> Result<()> {
+    use device_kit::pio_split;
 
-    // Test PIO0
-    type LedStrip48Pio0 = LedStrip<'static, embassy_rp::peripherals::PIO0, 48>;
-    let _led_strip_pio0: LedStrip48Pio0 = new_led_strip!(
-        LED_STRIP_PIO0,
-        48,
-        p.PIN_3,
-        p.PIO0,
-        p.DMA_CH0,
-        Milliamps(250),
-        Gamma::Linear
-    )
-    .await;
+    let (pio0_sm0, _pio0_sm1, _pio0_sm2, _pio0_sm3) = pio_split!(p.PIO0);
+    let (pio1_sm0, _pio1_sm1, _pio1_sm2, _pio1_sm3) = pio_split!(p.PIO1);
 
-    // Test PIO1
-    type LedStrip48Pio1 = LedStrip<'static, embassy_rp::peripherals::PIO1, 48>;
-    let _led_strip_pio1: LedStrip48Pio1 = new_led_strip!(
-        LED_STRIP_PIO1,
-        48,
-        p.PIN_4,
-        p.PIO1,
-        p.DMA_CH1,
-        Milliamps(250),
-        Gamma::Linear
-    )
-    .await;
+    let _pio0_led_strip_48 = Pio0LedStrip48::new(pio0_sm0, p.DMA_CH0, p.PIN_3, spawner)?;
+    let _pio1_led_strip_48 = Pio1LedStrip48::new(pio1_sm0, p.DMA_CH1, p.PIN_4, spawner)?;
 
     // Test PIO2 (Pico 2 only)
     #[cfg(feature = "pico2")]
     {
-        type LedStrip48Pio2 = LedStrip<'static, embassy_rp::peripherals::PIO2, 48>;
-        let _led_strip_pio2: LedStrip48Pio2 = new_led_strip!(
-            LED_STRIP_PIO2,
-            48,
-            p.PIN_5,
-            p.PIO2,
-            p.DMA_CH2,
-            Milliamps(250),
-            Gamma::Linear
-        )
-        .await;
+        let (pio2_sm0, _pio2_sm1, _pio2_sm2, _pio2_sm3) = pio_split!(p.PIO2);
+        let _pio2_led_strip_48 =
+            Pio2LedStrip48::new(pio2_sm0, p.DMA_CH2, p.PIN_5, spawner)?;
     }
+
+    Ok(())
 }
