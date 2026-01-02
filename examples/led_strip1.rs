@@ -8,7 +8,7 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::{Milliamps, colors, gamma::Gamma};
+use device_kit::led_strip::{Current, colors, gamma::Gamma};
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use panic_probe as _;
@@ -21,7 +21,7 @@ define_led_strips! {
             dma: DMA_CH0,
             pin: PIN_3,
             len: 48,
-            max_current: Milliamps(250),
+            max_current: Current::Milliamps(250),
             gamma: Gamma::Linear
         }
     ]

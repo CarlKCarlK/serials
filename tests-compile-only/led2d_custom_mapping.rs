@@ -10,8 +10,8 @@
 
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::gamma::Gamma;
+use device_kit::led_strip::Current;
 use device_kit::led2d;
 use device_kit::led_layout::LedLayout;
 use embassy_executor::Spawner;
@@ -38,7 +38,7 @@ led2d! {
     width: 3,
     height: 2,
     led_layout: LED2X3_ROW_MAJOR,
-    max_current: Milliamps(100),
+    max_current: Current::Milliamps(100),
     gamma: Gamma::Linear,
     max_frames: 6,
     font: Font3x4Trim,

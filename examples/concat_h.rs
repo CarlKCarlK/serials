@@ -6,7 +6,7 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_layout::LedLayout;
-use device_kit::led_strip::Milliamps;
+use device_kit::led_strip::Current;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d::led2d;
 use embassy_executor::Spawner;
@@ -26,7 +26,7 @@ led2d! {
     width: 24,
     height: 4,
     led_layout: LED_LAYOUT_24X4,
-    max_current: Milliamps(1000),
+    max_current: Current::Milliamps(1000),
     gamma: Gamma::Gamma2_2,
     max_frames: 8,
     font: Font3x4Trim,

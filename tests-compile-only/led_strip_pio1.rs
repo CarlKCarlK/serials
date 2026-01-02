@@ -8,9 +8,9 @@
 #![allow(dead_code, reason = "Compile-time verification only")]
 
 use device_kit::Result;
-use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::gamma::Gamma;
+use device_kit::led_strip::Current;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use panic_probe as _;
@@ -23,7 +23,7 @@ define_led_strips! {
             dma: DMA_CH3,
             pin: PIN_16,
             len: 48,
-            max_current: Milliamps(100),
+            max_current: Current::Milliamps(100),
             gamma: Gamma::Linear
         }
     ]

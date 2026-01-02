@@ -38,7 +38,7 @@ use device_kit::clock::{Clock, ClockStatic, ONE_SECOND};
 #[cfg(feature = "wifi")]
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 use device_kit::ir::{Ir, IrEvent, IrStatic};
-use device_kit::led_strip::Milliamps;
+use device_kit::led_strip::Current;
 use device_kit::led_strip::Rgb;
 use device_kit::led_strip::colors;
 use device_kit::led_strip::gamma::Gamma;
@@ -69,7 +69,7 @@ define_led_strips! {
             dma: DMA_CH1,
             pin: PIN_2,
             len: 8,
-            max_current: Milliamps(50),
+            max_current: Current::Milliamps(50),
             gamma: Gamma::Linear
         },
         Gpio14LedStrip {
@@ -77,7 +77,7 @@ define_led_strips! {
             dma: DMA_CH4,
             pin: PIN_14,
             len: 48,
-            max_current: Milliamps(100),
+            max_current: Current::Milliamps(100),
             gamma: Gamma::Linear
         }
     ]

@@ -10,12 +10,28 @@ include!("led_strip/strip.rs");
 pub use smart_leds::colors;
 
 /// Used by [`define_led_strips!`] to budget current for LED strips.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Milliamps(pub u16);
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Current {
+    Milliamps(u16),
+    Unlimited,
+}
 
-impl Milliamps {
+pub use Current::Milliamps;
+pub use Current::Unlimited;
+
+impl Current {
+    /// Calculate maximum brightness based on current budget and worst-case current draw.
+    ///
+    /// Returns 255 (full brightness) for Unlimited, or a scaled value for Milliamps.
     #[must_use]
-    pub const fn as_u32(self) -> u32 {
-        self.0 as u32
+    pub const fn max_brightness(self, worst_case_ma: u32) -> u8 {
+        assert!(worst_case_ma > 0, "worst_case_ma must be positive");
+        match self {
+            Self::Milliamps(ma) => {
+                let scale = (ma as u32 * 255) / worst_case_ma;
+                if scale > 255 { 255 } else { scale as u8 }
+            }
+            Self::Unlimited => 255,
+        }
     }
 }

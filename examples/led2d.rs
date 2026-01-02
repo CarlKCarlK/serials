@@ -8,7 +8,7 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::button::{Button, PressedTo};
 use device_kit::led_layout::LedLayout;
-use device_kit::led_strip::Milliamps;
+use device_kit::led_strip::Current;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
 use device_kit::led2d::Frame;
@@ -32,7 +32,7 @@ led2d! {
     width: 12,
     height: 4,
     led_layout: LED_LAYOUT_4X12,
-    max_current: Milliamps(500),
+    max_current: Current::Milliamps(500),
     gamma: Gamma::Linear,
     max_frames: 32,
     font: Font3x4Trim,

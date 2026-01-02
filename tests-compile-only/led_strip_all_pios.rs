@@ -3,12 +3,12 @@
 
 use panic_probe as _;
 
-use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::gamma::Gamma;
+use device_kit::led_strip::Current;
 use device_kit::Result;
 
-const MAX_CURRENT: Milliamps = Milliamps(250);
+const MAX_CURRENT: Current = Current::Milliamps(250);
 
 define_led_strips! {
     pio: PIO0,

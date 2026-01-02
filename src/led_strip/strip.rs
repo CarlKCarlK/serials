@@ -308,10 +308,8 @@ macro_rules! define_led_strips {
                     // Calculate max brightness from current budget
                     // Each WS2812B LED draws ~60mA at full brightness
                     const WORST_CASE_MA: u32 = ($len as u32) * 60;
-                    pub const MAX_BRIGHTNESS: u8 = {
-                        let scale = ($max_current.as_u32() * 255) / Self::WORST_CASE_MA;
-                        if scale > 255 { 255 } else { scale as u8 }
-                    };
+                    pub const MAX_BRIGHTNESS: u8 =
+                        $max_current.max_brightness(Self::WORST_CASE_MA);
 
                     // Combined gamma correction and brightness scaling table
                     const COMBO_TABLE: [u8; 256] = $crate::led_strip::gamma::generate_combo_table($gamma, Self::MAX_BRIGHTNESS);
@@ -432,7 +430,7 @@ pub use define_led_strips;
 /// # use panic_probe as _;
 /// use embassy_executor::Spawner;
 /// use device_kit::led_strip::define_led_strips;
-/// use device_kit::led_strip::Milliamps;
+/// use device_kit::led_strip::Current;
 /// use device_kit::led_strip::gamma::Gamma;
 /// use device_kit::pio_split;
 ///
@@ -444,7 +442,7 @@ pub use define_led_strips;
 ///             dma: DMA_CH0,
 ///             pin: PIN_2,
 ///             len: 8,
-///             max_current: Milliamps(50),
+///             max_current: Current::Milliamps(50),
 ///             gamma: Gamma::Linear
 ///         }
 ///     ]

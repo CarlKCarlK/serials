@@ -7,14 +7,14 @@ use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::gamma::Gamma;
-use device_kit::led_strip::{LedStrip, Milliamps, colors};
+use device_kit::led_strip::{Current, LedStrip, colors};
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
 
 const LEN: usize = 8;
-const MAX_CURRENT: Milliamps = Milliamps(50);
+const MAX_CURRENT: Current = Current::Milliamps(50);
 
 define_led_strips! {
     pio: PIO1,

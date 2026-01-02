@@ -12,7 +12,7 @@ use device_kit::Result;
 use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::gamma::Gamma;
-use device_kit::led_strip::{Milliamps, colors};
+use device_kit::led_strip::{Current, colors};
 use device_kit::led2d::led2d_from_strip;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
@@ -30,7 +30,7 @@ define_led_strips! {
             dma: DMA_CH0,
             pin: PIN_3,
             len: 48,
-            max_current: Milliamps(500),
+            max_current: Current::Milliamps(500),
             gamma: Gamma::Linear
         }
     ]
@@ -44,7 +44,7 @@ define_led_strips! {
             dma: DMA_CH1,
             pin: PIN_3,
             len: 48,
-            max_current: Milliamps(500),
+            max_current: Current::Milliamps(500),
             gamma: Gamma::Linear
         }
     ]

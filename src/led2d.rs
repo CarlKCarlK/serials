@@ -20,7 +20,7 @@
 //! use embassy_executor::Spawner;
 //! use embassy_rp::init;
 //! use device_kit::led2d;
-//! use device_kit::led_strip::Milliamps;
+//! use device_kit::led_strip::Current;
 //! use device_kit::led_strip::gamma::Gamma;
 //! use device_kit::led_strip::colors;
 //!
@@ -32,7 +32,7 @@
 //!     width: 12,
 //!     height: 4,
 //!     led_layout: serpentine_column_major,
-//!     max_current: Milliamps(500),
+//!     max_current: Current::Milliamps(500),
 //!     gamma: Gamma::Linear,
 //!     max_frames: 32,
 //!     font: Font3x4Trim,
@@ -80,7 +80,7 @@
 //! use embassy_rp::init;
 //! use device_kit::led_strip::define_led_strips;
 //! use device_kit::led2d::led2d_from_strip;
-//! use device_kit::led_strip::Milliamps;
+//! use device_kit::led_strip::Current;
 //! use device_kit::led_strip::gamma::Gamma;
 //! use device_kit::led_strip::colors;
 //! use device_kit::pio_split;
@@ -94,7 +94,7 @@
 //!             dma: DMA_CH0,
 //!             pin: PIN_3,
 //!             len: 48,
-//!             max_current: Milliamps(500),
+//!             max_current: Current::Milliamps(500),
 //!             gamma: Gamma::Linear
 //!         }
 //!     ]
@@ -985,7 +985,7 @@ pub use led2d_device;
 /// - `mapping` - LED strip physical layout:
 ///   - `serpentine_column_major` - Common serpentine wiring pattern (LED index → `(col, row)`)
 ///   - `LedLayout` expression - Custom LED layout value in LED-index order
-/// - `max_current` - Maximum current budget (e.g., `Milliamps(500)`)
+/// - `max_current` - Maximum current budget (e.g., `Current::Milliamps(500)`)
 /// - `max_frames` - Maximum animation frames allowed (not buffered)
 /// - `font` - Built-in font variant (see [`Led2dFont`])
 ///
@@ -1003,7 +1003,7 @@ pub use led2d_device;
 /// use embassy_executor::Spawner;
 /// use embassy_rp::init;
 /// use device_kit::led2d;
-/// use device_kit::led_strip::Milliamps;
+/// use device_kit::led_strip::Current;
 /// use device_kit::led_strip::gamma::Gamma;
 /// use device_kit::led_strip::colors;
 ///
@@ -1016,7 +1016,7 @@ pub use led2d_device;
 ///     width: 12,
 ///     height: 4,
 ///     led_layout: serpentine_column_major,
-///     max_current: Milliamps(500),
+///     max_current: Current::Milliamps(500),
 ///     gamma: Gamma::Linear,
 ///     max_frames: 32,
 ///     font: Font3x4Trim,
@@ -1219,7 +1219,7 @@ macro_rules! led2d {
 /// # use panic_probe as _;
 /// use device_kit::led_strip::define_led_strips;
 /// use device_kit::led2d::led2d_from_strip;
-/// use device_kit::led_strip::Milliamps;
+/// use device_kit::led_strip::Current;
 /// use device_kit::led_strip::gamma::Gamma;
 /// use device_kit::pio_split;
 /// use embassy_executor::Spawner;
@@ -1233,7 +1233,7 @@ macro_rules! led2d {
 ///             dma: DMA_CH0,
 ///             pin: PIN_3,
 ///             len: 48,
-///             max_current: Milliamps(500),
+///             max_current: Current::Milliamps(500),
 ///             gamma: Gamma::Linear
 ///         }
 ///     ]

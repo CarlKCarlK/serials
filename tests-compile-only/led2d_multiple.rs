@@ -11,9 +11,9 @@
 
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::Milliamps;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::gamma::Gamma;
+use device_kit::led_strip::Current;
 use device_kit::led2d::led2d_from_strip;
 use device_kit::led_layout::LedLayout;
 use device_kit::pio_split;
@@ -31,7 +31,7 @@ define_led_strips! {
             dma: DMA_CH0,
             pin: PIN_3,
             len: 48,
-            max_current: Milliamps(500),
+            max_current: Current::Milliamps(500),
             gamma: Gamma::Linear
         }
     ]
@@ -45,7 +45,7 @@ define_led_strips! {
             dma: DMA_CH1,
             pin: PIN_4,
             len: 64,
-            max_current: Milliamps(300),
+            max_current: Current::Milliamps(300),
             gamma: Gamma::Linear
         }
     ]

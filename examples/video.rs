@@ -65,7 +65,7 @@ use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::button::{Button, PressedTo};
 use device_kit::led_layout::LedLayout;
-use device_kit::led_strip::Milliamps;
+use device_kit::led_strip::Current;
 use device_kit::led_strip::gamma::Gamma;
 use device_kit::led2d;
 use embassy_executor::Spawner;
@@ -85,7 +85,7 @@ led2d! {
     width: 12,
     height: 8,
     led_layout: LED_LAYOUT_12X8,
-    max_current: Milliamps(250),
+    max_current: Current::Milliamps(250),
     gamma: Gamma::Gamma2_2,
     max_frames: 70,
     font: Font3x4Trim,
