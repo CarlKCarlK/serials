@@ -5,8 +5,8 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::define_led_strips_shared;
+use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::{LedStripShared, Milliamps, colors};
 use device_kit::pio_split;
 use embassy_executor::Spawner;
@@ -63,10 +63,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     }
 }
 
-async fn update_bounce(
-    led_strip: &LedStripShared<LEN>,
-    position: usize,
-) -> Result<()> {
+async fn update_bounce(led_strip: &LedStripShared<LEN>, position: usize) -> Result<()> {
     assert!(position < LEN);
     let mut pixels = [colors::BLACK; LEN];
     pixels[position] = colors::WHITE;
