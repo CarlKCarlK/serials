@@ -307,6 +307,7 @@ macro_rules! define_led_strips {
 
                     // Calculate max brightness from current budget
                     // Each WS2812B LED draws ~60mA at full brightness
+                    /// cmk00 OK to assume 60 mA per LED
                     const WORST_CASE_MA: u32 = ($len as u32) * 60;
                     pub const MAX_BRIGHTNESS: u8 =
                         $max_current.max_brightness(Self::WORST_CASE_MA);
