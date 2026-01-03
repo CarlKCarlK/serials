@@ -14,21 +14,19 @@ use core::pin::pin;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::{
-    define_led_strips,
+    Error, Result,
     button::{Button, PressDuration, PressedTo},
     clock::{Clock, ClockStatic, ONE_DAY, ONE_MINUTE, ONE_SECOND, h12_m_s},
+    define_led_strips,
     flash_array::{FlashArray, FlashArrayStatic},
     led_layout::LedLayout,
-    led_strip::{colors, gamma::Gamma, Current},
+    led_strip::{Current, colors, gamma::Gamma},
     led2d,
     time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic},
     wifi_auto::{
+        WifiAuto, WifiAutoEvent,
         fields::{TimezoneField, TimezoneFieldStatic},
-        WifiAuto,
-        WifiAutoEvent,
     },
-    Error,
-    Result,
 };
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};

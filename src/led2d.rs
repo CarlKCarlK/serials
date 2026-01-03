@@ -1011,7 +1011,6 @@ pub use led2d_device;
 /// # use panic_probe as _;
 /// use embassy_executor::Spawner;
 /// use embassy_rp::init;
-/// use device_kit::define_led_strips;
 /// use device_kit::led2d;
 /// use device_kit::led_strip::Current;
 /// use device_kit::led_strip::gamma::Gamma;
@@ -1061,7 +1060,7 @@ macro_rules! led2d {
     ) => {
         $crate::led2d::paste::paste! {
             // Generate the LED strip infrastructure with a CamelCase strip type
-            define_led_strips! {
+            $crate::define_led_strips! {
                 pio: $pio,
                 [<$name:camel Strips>] {
                     [<$name:snake>]: {
@@ -1138,7 +1137,7 @@ macro_rules! led2d {
     ) => {
         $crate::led2d::paste::paste! {
             // Generate the LED strip infrastructure with a CamelCase strip type
-            define_led_strips! {
+            $crate::define_led_strips! {
                 pio: $pio,
                 [<$name:camel Strips>] {
                     [<$name:snake>]: {
