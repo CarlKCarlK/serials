@@ -5,9 +5,8 @@ DEFMT_LOG = "info"
 # xtask command runner - note: must be run from workspace root
 xtask = "run --manifest-path xtask/Cargo.toml --"
 xtask-check = "check --manifest-path xtask/Cargo.toml"
-# Comprehensive checks - runs all builds, tests, and doc generation
-check-all = "xtask check-all"
-check-all-check = "check --manifest-path xtask/Cargo.toml"
+# Test documentation examples
+test-docs = "test --doc --target thumbv8m.main-none-eabihf --features pico2,wifi,arm --no-default-features"
 
 # Pico 1 WiFi aliases
 full-w = "run --example full --release --target thumbv6m-none-eabi --features pico1,arm,wifi"
