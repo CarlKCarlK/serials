@@ -5,7 +5,7 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::led_strips;
+use device_kit::led_strip::led_strip;
 use device_kit::led_strip::{Current, Frame, LedStrip, colors};
 use embassy_executor::Spawner;
 use embassy_time::Timer;
@@ -13,16 +13,21 @@ use panic_probe as _;
 
 const MAX_CURRENT: Current = Current::Milliamps(500);
 
-led_strips! {
-    LedStripsPio0 {
-        gpio0: { pin: PIN_0, len: 8, max_current: MAX_CURRENT }
+led_strip! {
+    Gpio0LedStrip {
+        pin: PIN_0,
+        len: 8,
+        max_current: MAX_CURRENT
     }
 }
 
-led_strips! {
-    pio: PIO1,
-    LedStripsPio1 {
-        gpio3: { dma: DMA_CH1, pin: PIN_3, len: 48, max_current: MAX_CURRENT }
+led_strip! {
+    Gpio3LedStrip {
+        pio: PIO1,
+        dma: DMA_CH1,
+        pin: PIN_3,
+        len: 48,
+        max_current: MAX_CURRENT
     }
 }
 
@@ -35,8 +40,8 @@ async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
-    let (gpio0_led_strip,) = LedStripsPio0::new(p.PIO0, p.DMA_CH0, p.PIN_0, spawner)?;
-    let (gpio3_led_strip,) = LedStripsPio1::new(p.PIO1, p.DMA_CH1, p.PIN_3, spawner)?;
+    let gpio0_led_strip = Gpio0LedStrip::new(p.PIO0, p.DMA_CH0, p.PIN_0, spawner)?;
+    let gpio3_led_strip = Gpio3LedStrip::new(p.PIO1, p.DMA_CH1, p.PIN_3, spawner)?;
 
     info!("LED strip demo starting (GPIO0 & GPIO3, VSYS power)");
 

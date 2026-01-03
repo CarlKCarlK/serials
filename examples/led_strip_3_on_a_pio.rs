@@ -21,12 +21,12 @@ led_strips! {
     LedStrips {
         gpio0: { pin: PIN_0, len: 8, max_current: Current::Milliamps(50) },
         gpio3: { dma: DMA_CH1, pin: PIN_3, len: 48, max_current: Current::Milliamps(500) },
-        gpio4: { dma: DMA_CH2, pin: PIN_4, len: 48, max_current: Current::Milliamps(500) }
+        gpio4: { dma: DMA_CH2, pin: PIN_4, len: 96, max_current: Current::Milliamps(500) }
     }
 }
 
-// Shared 12x4 serpentine layout for both LED matrices.
 const LED_LAYOUT_12X4: LedLayout<48, 12, 4> = LedLayout::serpentine_column_major();
+const LED_LAYOUT_8X12: LedLayout<96, 8, 12> = LED_LAYOUT_12X4.concat_v(LED_LAYOUT_12X4).rotate_cw();
 
 led2d_from_strip! {
     pub led12x4_gpio3,
@@ -39,13 +39,13 @@ led2d_from_strip! {
 }
 
 led2d_from_strip! {
-    pub led12x4_gpio4,
+    pub led8x12_gpio4,
     strip_type: Gpio4LedStrip,
-    width: 12,
-    height: 4,
-    led_layout: LED_LAYOUT_12X4,
+    width: 8,
+    height: 12,
+    led_layout: LED_LAYOUT_8X12,
     max_frames: 48,
-    font: Font3x4Trim,
+    font: Font4x6Trim,
 }
 
 const SNAKE_LENGTH: usize = 4;
@@ -67,9 +67,9 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
     )?;
 
     let led12x4_gpio3 = Led12x4Gpio3::from_strip(gpio3_led_strip, spawner)?;
-    let led12x4_gpio4 = Led12x4Gpio4::from_strip(gpio4_led_strip, spawner)?;
+    let led8x12_gpio4 = Led8x12Gpio4::from_strip(gpio4_led_strip, spawner)?;
 
-    info!("Running snake on GPIO0, GO animations on GPIO3 and GPIO4 (2D)");
+    info!("Running snake on GPIO0, GO animations on GPIO3 (12x4) and GPIO4 (8x12 rotated)");
 
     let mut frame_g0 = Frame::<{ Gpio0LedStrip::LEN }>::new();
     let mut pos_g0 = 0usize;
@@ -104,8 +104,39 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
         .push((frame2, Duration::from_millis(1000)))
         .expect("go_frames has capacity for 2 frames");
 
-    led12x4_gpio3.animate(go_frames.clone()).await?;
-    led12x4_gpio4.animate(go_frames).await?;
+    led12x4_gpio3.animate(go_frames).await?;
+
+    // Create separate animation for the 8x12 rotated display with 2-line text
+    let mut go_frames_8x12 = Vec::<_, 2>::new();
+
+    // Frame 1: "GO\n  " - two lines
+    let mut frame1_8x12 = Led8x12Gpio4::new_frame();
+    led8x12_gpio4.write_text_to_frame(
+        "GO\n  ",
+        &[colors::MAGENTA, colors::CYAN, colors::BLACK, colors::BLACK],
+        &mut frame1_8x12,
+    )?;
+    go_frames_8x12
+        .push((frame1_8x12, Duration::from_millis(1000)))
+        .expect("go_frames_8x12 has capacity for 2 frames");
+
+    // Frame 2: "  \nGO" - two lines
+    let mut frame2_8x12 = Led8x12Gpio4::new_frame();
+    led8x12_gpio4.write_text_to_frame(
+        "  \nGO",
+        &[
+            colors::BLACK,
+            colors::BLACK,
+            colors::ORANGE,
+            colors::HOT_PINK,
+        ],
+        &mut frame2_8x12,
+    )?;
+    go_frames_8x12
+        .push((frame2_8x12, Duration::from_millis(1000)))
+        .expect("go_frames_8x12 has capacity for 2 frames");
+
+    led8x12_gpio4.animate(go_frames_8x12).await?;
 
     loop {
         step_snake(&mut frame_g0, &mut pos_g0);

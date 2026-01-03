@@ -9,20 +9,23 @@
 
 use device_kit::Result;
 use device_kit::led_strip::Current;
-use device_kit::led_strip::led_strips;
+use device_kit::led_strip::led_strip;
 use embassy_executor::Spawner;
 use panic_probe as _;
 
-led_strips! {
-    pio: PIO1,
-    LedStrips {
-        gpio16_pio1: { dma: DMA_CH3, pin: PIN_16, len: 48, max_current: Current::Milliamps(100) }
+led_strip! {
+    Gpio16LedStrip {
+        pio: PIO1,
+        dma: DMA_CH3,
+        pin: PIN_16,
+        len: 48,
+        max_current: Current::Milliamps(100)
     }
 }
 
-/// Verify that led_strips! works with PIO1
+/// Verify that led_strip! works with PIO1
 async fn test_pio1_strip(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
-    let (_gpio16_pio1_led_strip,) = LedStrips::new(p.PIO1, p.DMA_CH3, p.PIN_16, spawner)?;
+    let _gpio16_led_strip = Gpio16LedStrip::new(p.PIO1, p.DMA_CH3, p.PIN_16, spawner)?;
 
     Ok(())
 }
