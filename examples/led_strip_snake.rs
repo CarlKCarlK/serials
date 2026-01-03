@@ -11,12 +11,16 @@ use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
 
-// WS2812B 4x12 LED matrix (48 pixels)
-// Uses PIO1, State Machine 0, DMA_CH1, GPIO3
-// Max 500mA current budget (safe for USB 2.0)
+// Two WS2812B 4x12 LED matrices (48 pixels each) sharing PIO0
 define_led_strips! {
-    pio: PIO1,
-    Gpio16LedStrip {
+    Gpio2LedStrip {
+        dma: DMA_CH0,
+        pin: PIN_2,
+        len: 48,
+        max_current: Current::Milliamps(100),
+        max_animation_frames: 48,
+    },
+    Gpio3LedStrip {
         dma: DMA_CH1,
         pin: PIN_3,
         len: 48,
@@ -36,19 +40,19 @@ async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<()> {
     let p = embassy_rp::init(Default::default());
 
-    // Initialize PIO1 bus
-    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
+    // Initialize PIO0 bus (default)
+    let (sm0, sm1, _sm2, _sm3) = pio_split!(p.PIO0);
 
-    let gpio16_led_strip = Gpio16LedStrip::new(sm0, p.DMA_CH1, p.PIN_3, spawner)?;
+    let gpio2_led_strip = Gpio2LedStrip::new(sm0, p.DMA_CH0, p.PIN_2, spawner)?;
+    let gpio3_led_strip = Gpio3LedStrip::new(sm1, p.DMA_CH1, p.PIN_3, spawner)?;
 
-    info!("WS2812B 4x12 Matrix demo starting");
-    info!("Using PIO1, DMA_CH1, GPIO3");
+    info!("Dual WS2812B 4x12 Matrix demo starting");
+    info!("Using PIO0, two state machines, GPIO2 & GPIO3");
     info!(
-        "Max brightness: {}  ({}mA budget)",
-        Gpio16LedStrip::MAX_BRIGHTNESS,
-        500
+        "Max brightness: {}  ({}mA budget each)",
+        Gpio2LedStrip::MAX_BRIGHTNESS,
+        100
     );
-    info!("Wiring: Red->VSYS(pin39), White->GND(pin38), Green->GPIO3(pin5)");
 
     const SNAKE_LENGTH: usize = 5;
     const SNAKE_COLOR: Rgb = colors::WHITE; // Scaled by max_brightness
@@ -57,32 +61,36 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
 
     // Pre-generate all animation frames
     let mut frames = heapless::Vec::<
-        (Frame<{ Gpio16LedStrip::LEN }>, embassy_time::Duration),
-        { Gpio16LedStrip::LEN },
+        (Frame<{ Gpio2LedStrip::LEN }>, embassy_time::Duration),
+        { Gpio2LedStrip::LEN },
     >::new();
 
-    for position in 0..Gpio16LedStrip::LEN {
-        let mut frame = Frame::<{ Gpio16LedStrip::LEN }>::filled(BACKGROUND);
+    for position in 0..Gpio2LedStrip::LEN {
+        let mut frame = Frame::<{ Gpio2LedStrip::LEN }>::filled(BACKGROUND);
 
         // Turn on snake pixels
         for offset in 0..SNAKE_LENGTH {
-            let pixel_index = (position + Gpio16LedStrip::LEN - offset) % Gpio16LedStrip::LEN;
+            let pixel_index = (position + Gpio2LedStrip::LEN - offset) % Gpio2LedStrip::LEN;
             frame[pixel_index] = SNAKE_COLOR;
         }
 
         frames.push((frame, FRAME_DURATION)).ok();
     }
 
-    info!("Starting snake animation with {} frames", frames.len());
+    info!(
+        "Starting snake animation with {} frames on both displays",
+        frames.len()
+    );
 
-    // Start the animation loop - it will run forever in the background
-    gpio16_led_strip.animate(frames.into_iter()).await?;
+    // Start the animation loop on both strips - they will run forever in the background
+    gpio2_led_strip.animate(frames.iter().copied()).await?;
+    gpio3_led_strip.animate(frames.into_iter()).await?;
 
-    info!("Snake animation loop started, entering idle loop");
+    info!("Snake animations started, entering idle loop");
 
-    // Animation runs in background, main task can do other work
+    // Animations run in background, main task can do other work
     loop {
         Timer::after_secs(10).await;
-        info!("Animation still running...");
+        info!("Animations still running...");
     }
 }
