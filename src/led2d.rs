@@ -1061,19 +1061,21 @@ macro_rules! led2d {
             // Generate the LED strip infrastructure with a CamelCase strip type
             define_led_strips! {
                 pio: $pio,
-                [<$name:camel Strip>] {
-                    dma: $dma,
-                    pin: $pin,
-                    len: { $width * $height },
-                    max_current: $max_current,
-                    gamma: $gamma,
+                [<$name:camel Strips>] {
+                    [<$name:snake>]: {
+                        dma: $dma,
+                        pin: $pin,
+                        len: { $width * $height },
+                        max_current: $max_current,
+                        gamma: $gamma,
+                    }
                 }
             }
 
             // Generate the Led2d device from the strip
             $crate::led2d::led2d_from_strip! {
                 $vis $name,
-                strip_type: [<$name:camel Strip>],
+                strip_type: [<$name:camel LedStrip>],
                 width: $width,
                 height: $height,
                 led_layout: serpentine_column_major,
@@ -1105,7 +1107,7 @@ macro_rules! led2d {
                     let (sm0, _sm1, _sm2, _sm3) = [<$pio:lower _split>](pio);
 
                     // Create strip (uses interior static)
-                    let strip = [<$name:camel Strip>]::new(
+                    let strip = [<$name:camel LedStrip>]::new(
                         sm0,
                         dma,
                         pin,
@@ -1136,19 +1138,21 @@ macro_rules! led2d {
             // Generate the LED strip infrastructure with a CamelCase strip type
             define_led_strips! {
                 pio: $pio,
-                [<$name:camel Strip>] {
-                    dma: $dma,
-                    pin: $pin,
-                    len: $width * $height,
-                    max_current: $max_current,
-                    gamma: $gamma,
+                [<$name:camel Strips>] {
+                    [<$name:snake>]: {
+                        dma: $dma,
+                        pin: $pin,
+                        len: $width * $height,
+                        max_current: $max_current,
+                        gamma: $gamma,
+                    }
                 }
             }
 
             // Generate the Led2d device from the strip with custom mapping
             $crate::led2d::led2d_from_strip! {
                 $vis $name,
-                strip_type: [<$name:camel Strip>],
+                strip_type: [<$name:camel LedStrip>],
                 width: $width,
                 height: $height,
                 led_layout: $led_layout,
@@ -1180,7 +1184,7 @@ macro_rules! led2d {
                     let (sm0, _sm1, _sm2, _sm3) = [<$pio:lower _split>](pio);
 
                     // Create strip (uses interior static)
-                    let led_strip = [<$name:camel Strip>]::new(
+                    let led_strip = [<$name:camel LedStrip>]::new(
                         sm0,
                         dma,
                         pin,
