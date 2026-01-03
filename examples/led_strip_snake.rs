@@ -4,14 +4,14 @@
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::define_led_strips;
+use device_kit::led_strip::led_strips;
 use device_kit::led_strip::{Current, Frame, Rgb, colors};
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
 
 // Two WS2812B 4x12 LED matrices (48 pixels each) sharing PIO0
-define_led_strips! {
+led_strips! {
     LedStrips {
         gpio2: { pin: PIN_2, len: 48, max_current: Current::Milliamps(100), max_animation_frames: 48 },
         gpio3: { pin: PIN_3, len: 48, max_current: Current::Milliamps(100), max_animation_frames: 48 }

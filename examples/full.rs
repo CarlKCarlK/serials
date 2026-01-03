@@ -9,7 +9,7 @@
 //! **NOTE:** This example is currently disabled as it depends on modules that don't exist yet:
 //! - `led24x4` module
 //! - Updated APIs for `TimeSync`, `CharLcd`
-//! - `define_led_strips!` macro output types `Gpio2LedStrip` and `Gpio14LedStrip`
+//! - `led_strips!` macro output types `Gpio2LedStrip` and `Gpio14LedStrip`
 #![no_std]
 #![no_main]
 #![allow(clippy::future_not_send, reason = "Single-threaded")]
@@ -40,7 +40,7 @@ use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 use device_kit::ir::{Ir, IrEvent, IrStatic};
 use device_kit::led_strip::{Current, Frame, Rgb};
 use device_kit::led_strip::colors;
-use device_kit::led_strip::define_led_strips;
+use device_kit::led_strip::led_strips;
 use device_kit::led_strip::{Gpio14LedStrip, Gpio2LedStrip};
 use device_kit::led24x4::Led24x4;
 use device_kit::pio_split;
@@ -59,7 +59,7 @@ use time::OffsetDateTime;
 
 use colors::{BLACK, BLUE, GREEN, RED, YELLOW};
 
-define_led_strips! {
+led_strips! {
     pio: PIO1,
     LedStrips {
         gpio2: { dma: DMA_CH1, pin: PIN_2, len: 8, max_current: Current::Milliamps(50) },

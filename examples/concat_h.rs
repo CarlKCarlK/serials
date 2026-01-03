@@ -4,11 +4,11 @@
 
 use defmt::info;
 use defmt_rtt as _;
-use device_kit::define_led_strips;
 use device_kit::Result;
 use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::Current;
 use device_kit::led_strip::gamma::Gamma;
+use device_kit::led_strips;
 use device_kit::led2d::led2d;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
@@ -45,11 +45,11 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
 
     let led24x4_concat = Led24x4Concat::new(p.PIO1, p.DMA_CH1, p.PIN_4, spawner)?;
 
-    let mut frame = Led24x4Concat::new_frame();
-    led24x4_concat.write_text_to_frame("HELLO MOM", &[colors::CYAN, colors::WHITE], &mut frame)?;
+    led24x4_concat
+        .write_text("HELLO MOM", &[colors::CYAN, colors::WHITE])
+        .await?;
 
     loop {
-        led24x4_concat.write_frame(frame).await?;
-        Timer::after(Duration::from_millis(750)).await;
+        Timer::after(Duration::from_millis(3600)).await;
     }
 }

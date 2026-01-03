@@ -10,7 +10,7 @@
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_layout::LedLayout;
-use device_kit::led_strip::define_led_strips;
+use device_kit::led_strip::led_strips;
 use device_kit::led_strip::{Current, colors};
 use device_kit::led2d::led2d_from_strip;
 use embassy_executor::Spawner;
@@ -20,14 +20,14 @@ const LED12X4_W: usize = 12;
 const LED12X4_H: usize = 4;
 const LED_LAYOUT_12X4: LedLayout<48, 12, 4> = LedLayout::serpentine_column_major();
 
-define_led_strips! {
+led_strips! {
     pio: PIO0,
     LedStripsPio0 {
         gpio3_pio0: { pin: PIN_3, len: 48, max_current: Current::Milliamps(500) }
     }
 }
 
-define_led_strips! {
+led_strips! {
     pio: PIO1,
     LedStripsPio1 {
         gpio3_pio1: { dma: DMA_CH1, pin: PIN_3, len: 48, max_current: Current::Milliamps(500) }

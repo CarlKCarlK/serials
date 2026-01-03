@@ -17,7 +17,7 @@ use device_kit::{
     Error, Result,
     button::{Button, PressDuration, PressedTo},
     clock::{Clock, ClockStatic, ONE_DAY, ONE_MINUTE, ONE_SECOND, h12_m_s},
-    define_led_strips,
+    led_strips,
     flash_array::{FlashArray, FlashArrayStatic},
     led_layout::LedLayout,
     led_strip::{Current, colors, gamma::Gamma},

@@ -13,7 +13,7 @@ use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::Current;
-use device_kit::led_strip::define_led_strips;
+use device_kit::led_strip::led_strips;
 use device_kit::led2d::led2d_from_strip;
 use embassy_executor::Spawner;
 use embassy_time::Duration;
@@ -21,14 +21,14 @@ use panic_probe as _;
 use smart_leds::colors;
 
 // Define strips for both devices
-define_led_strips! {
+led_strips! {
     pio: PIO0,
     LedStripsPio0 {
         gpio3: { pin: PIN_3, len: 48, max_current: Current::Milliamps(500) }
     }
 }
 
-define_led_strips! {
+led_strips! {
     pio: PIO1,
     LedStripsPio1 {
         gpio4: { dma: DMA_CH1, pin: PIN_4, len: 64, max_current: Current::Milliamps(300) }

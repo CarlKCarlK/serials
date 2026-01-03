@@ -1,6 +1,6 @@
 //! A device abstraction for WS2812-style LED strips.
 //!
-//! See [`LedStrip`], [`define_led_strip!`] for single strips, and [`define_led_strips!`] for managing multiple strips on one PIO.
+//! See [`LedStrip`], [`led_strip!`] for single strips, and [`led_strips!`] for managing multiple strips on one PIO.
 
 pub mod gamma;
 
@@ -8,10 +8,10 @@ include!("led_strip/strip.rs");
 #[doc(inline)]
 pub use smart_leds::colors;
 
-pub use define_led_strip;
-pub use define_led_strips;
+pub use led_strip;
+pub use led_strips;
 
-/// Used by [`define_led_strips!`] to budget current for LED strips.
+/// Used by [`led_strips!`] to budget current for LED strips.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Current {
     Milliamps(u16),

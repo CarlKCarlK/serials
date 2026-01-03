@@ -5,7 +5,7 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::define_led_strip;
+use device_kit::led_strip::led_strip;
 use device_kit::led_strip::{Current, Frame, colors};
 use embassy_executor::Spawner;
 use embassy_time::Timer;
@@ -14,7 +14,7 @@ use panic_probe as _;
 const LEN: usize = 8;
 const MAX_CURRENT: Current = Current::Milliamps(50);
 
-define_led_strip! {
+led_strip! {
     Gpio2LedStrip {
         pio: PIO1,
         pin: PIN_2,

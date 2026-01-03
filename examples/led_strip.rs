@@ -4,13 +4,13 @@
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::define_led_strip;
+use device_kit::led_strip::led_strip;
 use device_kit::led_strip::{Current, Frame, Rgb};
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
 
-define_led_strip! {
+led_strip! {
     Gpio2LedStrip {
         pin: PIN_2,
         len: 8,

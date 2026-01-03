@@ -7,14 +7,14 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::define_led_strip;
+use device_kit::led_strip::led_strip;
 use device_kit::led_strip::{Current, Frame, colors};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use panic_probe as _;
 
 // cmk000 is this defaulting to dma0 going to be confusing with wifi?
-define_led_strip! {
+led_strip! {
     Gpio3LedStrip {
         pin: PIN_3,
         len: 48,
