@@ -7,16 +7,18 @@ use core::convert::Infallible;
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::define_led_strips;
+use device_kit::led_strip::define_led_strip;
 use device_kit::led_strip::{Current, Frame, colors};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use panic_probe as _;
 
 // cmk000 is this defaulting to dma0 going to be confusing with wifi?
-define_led_strips! {
-    LedStrips {
-        gpio3: { pin: PIN_3, len: 48, max_current: Current::Milliamps(250) }
+define_led_strip! {
+    Gpio3LedStrip {
+        pin: PIN_3,
+        len: 48,
+        max_current: Current::Milliamps(250),
     }
 }
 
@@ -31,7 +33,7 @@ async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
-    let (gpio3_led_strip,) = LedStrips::new(p.PIO0, p.DMA_CH0, p.PIN_3, spawner)?;
+    let gpio3_led_strip = Gpio3LedStrip::new(p.PIO0, p.DMA_CH0, p.PIN_3, spawner)?;
 
     info!("Setting every other LED to blue on GPIO3");
 

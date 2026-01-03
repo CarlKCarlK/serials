@@ -1233,12 +1233,10 @@ macro_rules! define_led_strips {
 /// # #![no_main]
 /// # use panic_probe as _;
 /// use embassy_executor::Spawner;
-/// use device_kit::led_strip::define_led_strips;
+/// use device_kit::led_strip::define_led_strip;
 /// use device_kit::led_strip::Current;
-/// use device_kit::led_strip::gamma::Gamma;
-/// use device_kit::pio_split;
 ///
-/// define_led_strips! {
+/// define_led_strip! {
 ///     Gpio2LedStrip {
 ///         pin: PIN_2,
 ///         len: 8,
@@ -1250,11 +1248,8 @@ macro_rules! define_led_strips {
 /// async fn main(spawner: Spawner) {
 ///     let p = embassy_rp::init(Default::default());
 ///     
-///     // Split PIO0 into individual state machines
-///     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
-///     
 ///     let gpio2_led_strip =
-///         Gpio2LedStrip::new(sm0, p.DMA_CH0, p.PIN_2, spawner).unwrap();
+///         Gpio2LedStrip::new(p.PIO0, p.DMA_CH0, p.PIN_2, spawner).unwrap();
 /// }
 ///
 /// ```
@@ -1296,13 +1291,13 @@ macro_rules! define_led_strips {
 /// # Example
 ///
 /// ```ignore
-/// use device_kit::led_strip::{define_led_strip, Current, Gamma};
-/// use embassy_executor::Spawner;};
+/// use device_kit::led_strip::{define_led_strip, Current};
 /// use embassy_executor::Spawner;
 ///
 /// define_led_strip! {
 ///     MyLedStrip {
-///         pio: PIO1,  // Optional, defaults to PIO0_2,
+///         pio: PIO1,  // Optional, defaults to PIO0
+///         pin: PIN_2,
 ///         len: 8,
 ///         max_current: Current::Milliamps(50),
 ///     }

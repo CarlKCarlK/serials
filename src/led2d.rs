@@ -89,18 +89,20 @@
 //! // Define LED strip sharing PIO1
 //! define_led_strips! {
 //!     pio: PIO1,
-//!     Led12x4Strip {
-//!         pin: PIN_3,
-//!         len: 48,
-//!         max_current: Current::Milliamps(500),
-//!         gamma: Gamma::Linear,
+//!     Led12x4Strips {
+//!         strip: {
+//!             pin: PIN_3,
+//!             len: 48,
+//!             max_current: Current::Milliamps(500),
+//!             gamma: Gamma::Linear,
+//!         }
 //!     }
 //! }
 //!
 //! // Generate a complete LED matrix device abstraction
 //! led2d_from_strip! {
 //!     pub led12x4,
-//!     strip_type: Led12x4Strip,
+//!     strip_type: StripLedStrip,
 //!     width: 12,
 //!     height: 4,
 //!     led_layout: serpentine_column_major,
@@ -114,7 +116,7 @@
 //!
 //!     // Split PIO and create strip
 //!     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
-//!     let strip = Led12x4Strip::new(sm0, p.DMA_CH0, p.PIN_3, spawner).unwrap();
+//!     let strip = StripLedStrip::new(sm0, p.DMA_CH0, p.PIN_3, spawner).unwrap();
 //!
 //!     // Create Led2d device from strip
 //!     let led_12x4 = Led12x4::from_strip(strip, spawner).unwrap();
@@ -1233,18 +1235,20 @@ macro_rules! led2d {
 /// // Define multiple strips sharing PIO1
 /// define_led_strips! {
 ///     pio: PIO1,
-///     Led12x4Strip {
-///         pin: PIN_3,
-///         len: 48,
-///         max_current: Current::Milliamps(500),
-///         gamma: Gamma::Linear,
+///     Led12x4Strips {
+///         strip: {
+///             pin: PIN_3,
+///             len: 48,
+///             max_current: Current::Milliamps(500),
+///             gamma: Gamma::Linear,
+///         }
 ///     }
 /// }
 ///
 /// // Wrap the strip as a Led2d surface
 /// led2d_from_strip! {
 ///     pub led12x4,
-///     strip_type: Led12x4Strip,
+///     strip_type: StripLedStrip,
 ///     width: 12,
 ///     height: 4,
 ///     led_layout: serpentine_column_major,
@@ -1256,7 +1260,7 @@ macro_rules! led2d {
 /// # async fn main(spawner: Spawner) {
 /// #     let p = embassy_rp::init(Default::default());
 /// #     let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
-/// #     let strip = Led12x4Strip::new(sm0, p.DMA_CH0, p.PIN_3, spawner).unwrap();
+/// #     let strip = StripLedStrip::new(sm0, p.DMA_CH0, p.PIN_3, spawner).unwrap();
 /// #     let led = Led12x4::from_strip(strip, spawner).unwrap();
 /// # }
 /// ```
