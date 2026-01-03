@@ -1272,20 +1272,19 @@ macro_rules! define_led_strips {
 ///
 /// ```ignore
 /// define_led_strip! {
-///     pio: PIO0,          // PIO peripheral to use
 ///     TypeName {          // Name for the generated strip type
-///         pin: PIN_2,     // GPIO pin for LED data
-///         len: 8,         // Number of LEDs
-///         max_current: Current::Milliamps(500),
-///         gamma: Gamma::Srgb,
+///         pin: PIN_2,     // GPIO pin for LED data (required)
+///         len: 8,         // Number of LEDs (required)
+///         max_current: Current::Milliamps(500), // Current budget (required)
 ///     }
 /// }
 /// ```
 ///
 /// # Optional Fields
 ///
+/// - `pio: PIO1` - PIO peripheral (defaults to PIO0)
 /// - `dma: DMA_CH0` - DMA channel (defaults to DMA_CH0)
-/// - `gamma: Gamma::Srgb` - Gamma correction (defaults to Gamma::Srgb)
+/// - `gamma: Gamma::Gamma2_2` - Gamma correction (defaults to Gamma2_2)
 /// - `max_animation_frames: 16` - Animation frame buffer size (defaults to 16)
 ///
 /// # Generated API
@@ -1298,12 +1297,12 @@ macro_rules! define_led_strips {
 ///
 /// ```ignore
 /// use device_kit::led_strip::{define_led_strip, Current, Gamma};
+/// use embassy_executor::Spawner;};
 /// use embassy_executor::Spawner;
 ///
 /// define_led_strip! {
-///     pio: PIO1,
 ///     MyLedStrip {
-///         pin: PIN_2,
+///         pio: PIO1,  // Optional, defaults to PIO0_2,
 ///         len: 8,
 ///         max_current: Current::Milliamps(50),
 ///     }
@@ -1318,28 +1317,7 @@ macro_rules! define_led_strips {
 /// ```
 #[macro_export]
 macro_rules! define_led_strip {
-    // Entry point with explicit PIO
-    (
-        pio: $pio:ident,
-        $name:ident {
-            $($fields:tt)*
-        }
-    ) => {
-        define_led_strip! {
-            @__fill_defaults
-            pio: $pio,
-            name: $name,
-            pin: _UNSET_,
-            dma: DMA_CH0,
-            len: _UNSET_,
-            max_current: _UNSET_,
-            gamma: $crate::led_strip::gamma::Gamma::Gamma2_2,
-            max_animation_frames: 16,
-            fields: [ $($fields)* ]
-        }
-    };
-
-    // Entry point without PIO (defaults to PIO0)
+    // Entry point - name and fields
     (
         $name:ident {
             $($fields:tt)*
@@ -1356,6 +1334,32 @@ macro_rules! define_led_strip {
             gamma: $crate::led_strip::gamma::Gamma::Gamma2_2,
             max_animation_frames: 16,
             fields: [ $($fields)* ]
+        }
+    };
+
+    // Fill defaults: pio
+    (@__fill_defaults
+        pio: $pio:ident,
+        name: $name:ident,
+        pin: $pin:tt,
+        dma: $dma:ident,
+        len: $len:tt,
+        max_current: $max_current:tt,
+        gamma: $gamma:expr,
+        max_animation_frames: $max_animation_frames:expr,
+        fields: [ pio: $new_pio:ident $(, $($rest:tt)* )? ]
+    ) => {
+        define_led_strip! {
+            @__fill_defaults
+            pio: $new_pio,
+            name: $name,
+            pin: $pin,
+            dma: $dma,
+            len: $len,
+            max_current: $max_current,
+            gamma: $gamma,
+            max_animation_frames: $max_animation_frames,
+            fields: [ $($($rest)*)? ]
         }
     };
 

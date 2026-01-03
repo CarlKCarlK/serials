@@ -14,8 +14,8 @@ const LEN: usize = 8;
 const MAX_CURRENT: Current = Current::Milliamps(50);
 
 define_led_strip! {
-    pio: PIO1,
     MyLedStrip {
+        pio: PIO1,
         pin: PIN_2,
         len: LEN,
         max_current: MAX_CURRENT,
