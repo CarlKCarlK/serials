@@ -7,7 +7,6 @@ use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{Current, Frame, LedStrip, colors};
-use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
@@ -15,20 +14,15 @@ use panic_probe as _;
 const MAX_CURRENT: Current = Current::Milliamps(500);
 
 define_led_strips! {
-    Gpio2LedStrip {
-        pin: PIN_2,
-        len: 8,
-        max_current: MAX_CURRENT,
+    LedStripsPio0 {
+        gpio2: { pin: PIN_2, len: 8, max_current: MAX_CURRENT }
     }
 }
 
 define_led_strips! {
     pio: PIO1,
-    Gpio3LedStrip {
-        dma: DMA_CH1,
-        pin: PIN_3,
-        len: 48,
-        max_current: MAX_CURRENT,
+    LedStripsPio1 {
+        gpio3: { dma: DMA_CH1, pin: PIN_3, len: 48, max_current: MAX_CURRENT }
     }
 }
 
@@ -41,11 +35,8 @@ async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
-    let (pio0_sm0, _pio0_sm1, _pio0_sm2, _pio0_sm3) = pio_split!(p.PIO0);
-    let (pio1_sm0, _pio1_sm1, _pio1_sm2, _pio1_sm3) = pio_split!(p.PIO1);
-
-    let gpio2_led_strip = Gpio2LedStrip::new(pio0_sm0, p.DMA_CH0, p.PIN_2, spawner)?;
-    let gpio3_led_strip = Gpio3LedStrip::new(pio1_sm0, p.DMA_CH1, p.PIN_3, spawner)?;
+    let (gpio2_led_strip,) = LedStripsPio0::new_shared(p.PIO0, p.DMA_CH0, p.PIN_2, spawner)?;
+    let (gpio3_led_strip,) = LedStripsPio1::new_shared(p.PIO1, p.DMA_CH1, p.PIN_3, spawner)?;
 
     info!("LED strip demo starting (GPIO2 & GPIO3, VSYS power)");
 
@@ -87,7 +78,10 @@ impl<const N: usize> BounceState<N> {
         }
     }
 
-    async fn update<const MAX_FRAMES: usize>(&mut self, led_strip: &impl core::ops::Deref<Target = LedStrip<N, MAX_FRAMES>>) -> Result<()> {
+    async fn update<const MAX_FRAMES: usize>(
+        &mut self,
+        led_strip: &impl core::ops::Deref<Target = LedStrip<N, MAX_FRAMES>>,
+    ) -> Result<()> {
         assert!(self.position < N);
         let mut frame = Frame::<N>::new();
         frame[self.position] = colors::WHITE;

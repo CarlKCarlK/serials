@@ -7,7 +7,6 @@ use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{Current, Frame, colors};
-use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
@@ -17,10 +16,8 @@ const MAX_CURRENT: Current = Current::Milliamps(50);
 
 define_led_strips! {
     pio: PIO1,
-    Gpio2LedStrip {
-        pin: PIN_2,
-        len: LEN,
-        max_current: MAX_CURRENT,
+    LedStrips {
+        gpio2: { pin: PIN_2, len: LEN, max_current: MAX_CURRENT }
     }
 }
 
@@ -33,8 +30,7 @@ async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
-    let (pio1_sm0, _pio1_sm1, _pio1_sm2, _pio1_sm3) = pio_split!(p.PIO1);
-    let gpio2_led_strip = Gpio2LedStrip::new(pio1_sm0, p.DMA_CH0, p.PIN_2, spawner)?;
+    let (gpio2_led_strip,) = LedStrips::new_shared(p.PIO1, p.DMA_CH0, p.PIN_2, spawner)?;
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 

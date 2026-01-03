@@ -11,7 +11,6 @@ use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{Current, Frame, Rgb, colors};
 use device_kit::led2d::led2d_from_strip;
-use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use heapless::Vec;
@@ -19,22 +18,10 @@ use panic_probe as _;
 
 define_led_strips! {
     pio: PIO1,
-    Gpio0LedStrip {
-        pin: PIN_0,
-        len: 8,
-        max_current: Current::Milliamps(50),
-    },
-    Gpio3LedStrip {
-        dma: DMA_CH1,
-        pin: PIN_3,
-        len: 48,
-        max_current: Current::Milliamps(500),
-    },
-    Gpio4LedStrip {
-        dma: DMA_CH2,
-        pin: PIN_4,
-        len: 48,
-        max_current: Current::Milliamps(500),
+    LedStrips {
+        gpio0: { pin: PIN_0, len: 8, max_current: Current::Milliamps(50) },
+        gpio3: { dma: DMA_CH1, pin: PIN_3, len: 48, max_current: Current::Milliamps(500) },
+        gpio4: { dma: DMA_CH2, pin: PIN_4, len: 48, max_current: Current::Milliamps(500) }
     }
 }
 
@@ -74,12 +61,10 @@ async fn main(spawner: Spawner) {
 
 async fn inner_main(spawner: Spawner) -> Result<()> {
     let p = embassy_rp::init(Default::default());
-    let (sm0, sm1, sm2, _sm3) = pio_split!(p.PIO1);
 
-    // cmk000 we should have _shared/Shared here
-    let gpio0_led_strip = Gpio0LedStrip::new(sm0, p.DMA_CH0, p.PIN_0, spawner)?;
-    let gpio3_led_strip = Gpio3LedStrip::new(sm1, p.DMA_CH1, p.PIN_3, spawner)?;
-    let gpio4_led_strip = Gpio4LedStrip::new(sm2, p.DMA_CH2, p.PIN_4, spawner)?;
+    let (gpio0_led_strip, gpio3_led_strip, gpio4_led_strip) = LedStrips::new_shared(
+        p.PIO1, p.DMA_CH0, p.PIN_0, p.DMA_CH1, p.PIN_3, p.DMA_CH2, p.PIN_4, spawner,
+    )?;
 
     let led12x4_gpio3 = Led12x4Gpio3::from_strip(gpio3_led_strip, spawner)?;
     let led12x4_gpio4 = Led12x4Gpio4::from_strip(gpio4_led_strip, spawner)?;

@@ -6,24 +6,15 @@ use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{Current, Frame, Rgb, colors};
-use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
 
 // Two WS2812B 4x12 LED matrices (48 pixels each) sharing PIO0
 define_led_strips! {
-    Gpio2LedStrip {
-        pin: PIN_2,
-        len: 48,
-        max_current: Current::Milliamps(100),
-        max_animation_frames: 48,
-    },
-    Gpio3LedStrip {
-        pin: PIN_3,
-        len: 48,
-        max_current: Current::Milliamps(100),
-        max_animation_frames: 48,
+    LedStrips {
+        gpio2: { pin: PIN_2, len: 48, max_current: Current::Milliamps(100), max_animation_frames: 48 },
+        gpio3: { pin: PIN_3, len: 48, max_current: Current::Milliamps(100), max_animation_frames: 48 }
     }
 }
 
@@ -38,11 +29,8 @@ async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<()> {
     let p = embassy_rp::init(Default::default());
 
-    // Initialize PIO0 bus (default)
-    let (sm0, sm1, _sm2, _sm3) = pio_split!(p.PIO0);
-
-    let gpio2_led_strip = Gpio2LedStrip::new(sm0, p.DMA_CH0, p.PIN_2, spawner)?;
-    let gpio3_led_strip = Gpio3LedStrip::new(sm1, p.DMA_CH1, p.PIN_3, spawner)?;
+    let (gpio2_led_strip, gpio3_led_strip) =
+        LedStrips::new_shared(p.PIO0, p.DMA_CH0, p.PIN_2, p.DMA_CH1, p.PIN_3, spawner)?;
 
     info!("Dual WS2812B 4x12 Matrix demo starting");
     info!("Using PIO0, two state machines, GPIO2 & GPIO3");

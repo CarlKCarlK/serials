@@ -9,17 +9,14 @@ use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{Current, Frame, colors};
-use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use panic_probe as _;
 
 // cmk000 is this defaulting to dma0 going to be confusing with wifi?
 define_led_strips! {
-    Gpio3LedStrip {
-        pin: PIN_3,
-        len: 48,
-        max_current: Current::Milliamps(250),
+    LedStrips {
+        gpio3: { pin: PIN_3, len: 48, max_current: Current::Milliamps(250) }
     }
 }
 
@@ -29,14 +26,12 @@ async fn main(spawner: Spawner) -> ! {
     core::panic!("{err}");
 }
 
-// cmk000 the pio_split is ugly when just one strip is used.
-// cmk000 could have the multiple::new generate all of them
-// cmk000 is the spawer input in the standard position?
+// cmk000 much cleaner with new_shared!
+// cmk000 is the spawner input in the standard position?
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
-    let (pio0_sm0, _pio0_sm1, _pio0_sm2, _pio0_sm3) = pio_split!(p.PIO0);
-    let gpio3_led_strip = Gpio3LedStrip::new(pio0_sm0, p.DMA_CH0, p.PIN_3, spawner)?;
+    let (gpio3_led_strip,) = LedStrips::new_shared(p.PIO0, p.DMA_CH0, p.PIN_3, spawner)?;
 
     info!("Setting every other LED to blue on GPIO3");
 

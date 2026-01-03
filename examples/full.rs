@@ -61,17 +61,9 @@ use colors::{BLACK, BLUE, GREEN, RED, YELLOW};
 
 define_led_strips! {
     pio: PIO1,
-    Gpio2LedStrip {
-        dma: DMA_CH1,
-        pin: PIN_2,
-        len: 8,
-        max_current: Current::Milliamps(50),
-    },
-    Gpio14LedStrip {
-        dma: DMA_CH4,
-        pin: PIN_14,
-        len: 48,
-        max_current: Current::Milliamps(100),
+    LedStrips {
+        gpio2: { dma: DMA_CH1, pin: PIN_2, len: 8, max_current: Current::Milliamps(50) },
+        gpio14: { dma: DMA_CH4, pin: PIN_14, len: 48, max_current: Current::Milliamps(100) }
     }
 }
 
@@ -91,15 +83,17 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let mut servo = servo_a!(p.PWM_SLICE0, p.PIN_0, 500, 2500); // min=500µs (0°), max=2500µs (180°)
     servo.set_degrees(90);
 
-    // Initialize PIO1 for LED strips (both strips share PIO1)
-    let (sm0, sm1, _sm2, _sm3) = pio_split!(p.PIO1);
-
-    let gpio2_led_strip = Gpio2LedStrip::new(sm0, p.DMA_CH1, p.PIN_2, spawner)?;
+    // Initialize LED strips (both strips share PIO1)
+    let (gpio2_led_strip, gpio14_led_strip) = LedStrips::new_shared(
+        p.PIO1,
+        p.DMA_CH1, p.PIN_2,
+        p.DMA_CH4, p.PIN_14,
+        spawner,
+    )?;
     let mut led_pixels = Frame::<{ Gpio2LedStrip::LEN }>::filled(BLACK);
     initialize_led_strip(gpio2_led_strip, &mut led_pixels).await?;
     let mut led_progress_index: usize = 0;
 
-    let gpio14_led_strip = Gpio14LedStrip::new(sm1, p.DMA_CH4, p.PIN_14, spawner)?;
     let mut led_24x4 = Led24x4::new(gpio14_led_strip);
     led_24x4
         .write_text(['0', '0', '0', '0'], [RED, GREEN, BLUE, YELLOW])

@@ -8,25 +8,20 @@
 #![allow(dead_code, reason = "Compile-time verification only")]
 
 use device_kit::Result;
-use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::Current;
-use device_kit::pio_split;
+use device_kit::led_strip::define_led_strips;
 use embassy_executor::Spawner;
 use panic_probe as _;
 
 define_led_strips! {
-    Gpio2Pio0LedStrip {
-        pin: PIN_2,
-        len: 8,
-        max_current: Current::Milliamps(50),
+    LedStrips {
+        gpio2_pio0: { pin: PIN_2, len: 8, max_current: Current::Milliamps(50) }
     }
 }
 
 /// Verify that define_led_strips! works with PIO0
 async fn test_pio0_strip(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
-    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
-
-    let _gpio2_pio0_led_strip = Gpio2Pio0LedStrip::new(sm0, p.DMA_CH0, p.PIN_2, spawner)?;
+    let (_gpio2_pio0_led_strip,) = LedStrips::new_shared(p.PIO0, p.DMA_CH0, p.PIN_2, spawner)?;
 
     Ok(())
 }
