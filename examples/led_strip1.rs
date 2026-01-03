@@ -11,6 +11,7 @@ use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{Current, Frame, colors};
 use device_kit::pio_split;
 use embassy_executor::Spawner;
+use embassy_time::{Duration, Timer};
 use panic_probe as _;
 
 // cmk000 is this defaulting to dma0 going to be confusing with wifi?
@@ -30,6 +31,7 @@ async fn main(spawner: Spawner) -> ! {
 
 // cmk000 the pio_split is ugly when just one strip is used.
 // cmk000 could have the multiple::new generate all of them
+// cmk000 is the spawer input in the standard position?
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
@@ -44,5 +46,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     }
     gpio3_led_strip.write_frame(frame).await?;
 
-    loop {}
+    loop {
+        Timer::after(Duration::from_secs(3600)).await;
+    }
 }

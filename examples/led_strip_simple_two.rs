@@ -87,7 +87,7 @@ impl<const N: usize> BounceState<N> {
         }
     }
 
-    async fn update(&mut self, led_strip: &LedStrip<N>) -> Result<()> {
+    async fn update<const MAX_FRAMES: usize>(&mut self, led_strip: &impl core::ops::Deref<Target = LedStrip<N, MAX_FRAMES>>) -> Result<()> {
         assert!(self.position < N);
         let mut frame = Frame::<N>::new();
         frame[self.position] = colors::WHITE;

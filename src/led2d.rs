@@ -605,7 +605,9 @@ pub trait WriteFrame<const N: usize> {
 }
 
 #[cfg(not(feature = "host"))]
-impl<const N: usize> WriteFrame<N> for crate::led_strip::LedStrip<N> {
+impl<const N: usize, const MAX_FRAMES: usize> WriteFrame<N>
+    for crate::led_strip::LedStrip<N, MAX_FRAMES>
+{
     async fn write_frame(&self, frame: StripFrame<N>) -> Result<()> {
         crate::led_strip::LedStrip::write_frame(self, frame).await
     }
