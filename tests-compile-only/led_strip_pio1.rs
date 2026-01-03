@@ -14,7 +14,7 @@ use embassy_executor::Spawner;
 use panic_probe as _;
 
 led_strip! {
-    Gpio16LedStrip {
+    LedStrip {
         pio: PIO1,
         dma: DMA_CH3,
         pin: PIN_16,
@@ -25,7 +25,7 @@ led_strip! {
 
 /// Verify that led_strip! works with PIO1
 async fn test_pio1_strip(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
-    let _gpio16_led_strip = Gpio16LedStrip::new(p.PIO1, p.DMA_CH3, p.PIN_16, spawner)?;
+    let _led_strip = LedStrip::new(p.PIO1, p.DMA_CH3, p.PIN_16, spawner)?;
 
     Ok(())
 }

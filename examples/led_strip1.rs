@@ -15,7 +15,7 @@ use panic_probe as _;
 
 // cmk000 is this defaulting to dma0 going to be confusing with wifi?
 led_strip! {
-    Gpio3LedStrip {
+    LedStrip {
         pin: PIN_3,
         len: 48,
         max_current: Current::Milliamps(250),
@@ -33,7 +33,7 @@ async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
-    let gpio3_led_strip = Gpio3LedStrip::new(p.PIO0, p.DMA_CH0, p.PIN_3, spawner)?;
+    let led_strip = LedStrip::new(p.PIO0, p.DMA_CH0, p.PIN_3, spawner)?;
 
     info!("Setting every other LED to blue on GPIO3");
 
@@ -41,7 +41,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     for pixel_index in (0..frame.len()).step_by(2) {
         frame[pixel_index] = colors::BLUE;
     }
-    gpio3_led_strip.write_frame(frame).await?;
+    led_strip.write_frame(frame).await?;
 
     loop {
         Timer::after(Duration::from_secs(3600)).await;

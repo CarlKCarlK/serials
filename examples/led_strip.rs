@@ -11,7 +11,7 @@ use embassy_time::Timer;
 use panic_probe as _;
 
 led_strip! {
-    Gpio0LedStrip {
+    LedStrip {
         pin: PIN_0,
         len: 8,
         max_current: Current::Milliamps(50),
@@ -29,23 +29,23 @@ async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<()> {
     let p = embassy_rp::init(Default::default());
 
-    let gpio0_led_strip = Gpio0LedStrip::new(p.PIO0, p.DMA_CH0, p.PIN_0, spawner)?;
+    let led_strip = LedStrip::new(p.PIO0, p.DMA_CH0, p.PIN_0, spawner)?;
 
     info!("LED strip demo starting (GPIO0 data, VSYS power)");
 
     let mut hue: u8 = 0;
 
     loop {
-        update_rainbow(gpio2_led_strip, hue).await?;
+        update_rainbow(led_strip, hue).await?;
 
         hue = hue.wrapping_add(3);
         Timer::after_millis(80).await;
     }
 }
 
-async fn update_rainbow(led_strip: &Gpio2LedStrip, base: u8) -> Result<()> {
-    let mut frame = Frame::<{ Gpio2LedStrip::LEN }>::new();
-    for idx in 0..Gpio2LedStrip::LEN {
+async fn update_rainbow(led_strip: &LedStrip, base: u8) -> Result<()> {
+    let mut frame = Frame::<{ LedStrip::LEN }>::new();
+    for idx in 0..LedStrip::LEN {
         let offset = base.wrapping_add((idx as u8).wrapping_mul(16));
         frame[idx] = wheel(offset);
     }
