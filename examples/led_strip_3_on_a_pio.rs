@@ -32,7 +32,7 @@ led2d_from_strip! {
     width: 12,
     height: 4,
     led_layout: LED_LAYOUT_12X4,
-    max_frames: 48,
+    max_frames: 2,
     font: Font3x4Trim,
 }
 
@@ -42,7 +42,7 @@ led2d_from_strip! {
     width: 8,
     height: 12,
     led_layout: LED_LAYOUT_8X12,
-    max_frames: 48,
+    max_frames: 2,
     font: Font4x6Trim,
 }
 
