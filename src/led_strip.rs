@@ -21,12 +21,6 @@ pub enum Current {
 pub use Current::Milliamps;
 pub use Current::Unlimited;
 
-impl Default for Current {
-    fn default() -> Self {
-        Self::Milliamps(250)
-    }
-}
-
 impl Current {
     /// Calculate maximum brightness based on current budget and worst-case current draw.
     ///

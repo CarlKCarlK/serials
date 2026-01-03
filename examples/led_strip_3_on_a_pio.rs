@@ -8,7 +8,8 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_layout::LedLayout;
-use device_kit::led_strip::{Frame, Rgb, colors, led_strips};
+use device_kit::led_strip::led_strips;
+use device_kit::led_strip::{Current, Frame, Rgb, colors};
 use device_kit::led2d::led2d_from_strip;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
@@ -16,10 +17,11 @@ use heapless::Vec;
 use panic_probe as _;
 
 led_strips! {
+    pio: PIO1,
     LedStrips {
-        gpio0: { pin: PIN_0, len: 8},
-        gpio3: { pin: PIN_3, len: 48},
-        gpio4: { pin: PIN_4, len: 96}
+        gpio0: { pin: PIN_0, len: 8, max_current: Current::Milliamps(50) },
+        gpio3: { dma: DMA_CH1, pin: PIN_3, len: 48, max_current: Current::Milliamps(500) },
+        gpio4: { dma: DMA_CH2, pin: PIN_4, len: 96, max_current: Current::Milliamps(500) }
     }
 }
 
@@ -61,7 +63,7 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
     let p = embassy_rp::init(Default::default());
 
     let (gpio0_led_strip, gpio3_led_strip, gpio4_led_strip) = LedStrips::new(
-        p.PIO0, p.DMA_CH0, p.PIN_0, p.DMA_CH1, p.PIN_3, p.DMA_CH2, p.PIN_4, spawner,
+        p.PIO1, p.DMA_CH0, p.PIN_0, p.DMA_CH1, p.PIN_3, p.DMA_CH2, p.PIN_4, spawner,
     )?;
 
     let led12x4_gpio3 = Led12x4Gpio3::from_strip(gpio3_led_strip, spawner)?;

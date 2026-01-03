@@ -11,11 +11,15 @@ use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
 
+const LEN: usize = 8;
+const MAX_CURRENT: Current = Current::Milliamps(50);
+
 led_strip! {
-    LedStrip {
+    Gpio0LedStrip {
+        pio: PIO1,
         pin: PIN_0,
-        len: 8,
-        max_current: Current::Milliamps(50),
+        len: LEN,
+        max_current: MAX_CURRENT,
     }
 }
 
@@ -28,22 +32,22 @@ async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
-    let led_strip = LedStrip::new(p.PIO0, p.DMA_CH0, p.PIN_0, spawner)?;
+    let gpio0_led_strip = Gpio0LedStrip::new(p.PIO1, p.DMA_CH0, p.PIN_0, spawner)?;
 
-    info!("LED strip demo starting (GPIO0 data, VSYS power)");
+    info!("LED strip demo starting (GPIO2 data, VSYS power)");
 
     let mut position: isize = 0;
     let mut direction: isize = 1;
 
     loop {
-        update_bounce(led_strip, position as usize).await?;
+        update_bounce(gpio2_led_strip, position as usize).await?;
 
         position += direction;
         if position <= 0 {
             position = 0;
             direction = 1;
-        } else if position as usize >= LedStrip::LEN - 1 {
-            position = (LedStrip::LEN - 1) as isize;
+        } else if position as usize >= LEN - 1 {
+            position = (LEN - 1) as isize;
             direction = -1;
         }
 
@@ -51,9 +55,9 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     }
 }
 
-async fn update_bounce(led_strip: &LedStrip, position: usize) -> Result<()> {
-    assert!(position < LedStrip::LEN);
-    let mut frame = Frame::<{ LedStrip::LEN }>::new();
+async fn update_bounce(led_strip: &Gpio2LedStrip, position: usize) -> Result<()> {
+    assert!(position < LEN);
+    let mut frame = Frame::<LEN>::new();
     frame[position] = colors::WHITE;
     led_strip.write_frame(frame).await?;
     Ok(())

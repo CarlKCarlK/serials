@@ -427,7 +427,6 @@ fn apply_correction<const N: usize>(frame: &mut Frame<N>, combo_table: &[u8; 256
 /// // Requires target support and macro imports; no_run to avoid hardware access in doctests.
 /// # fn main() {}
 /// ```
-
 #[macro_export]
 macro_rules! led_strips {
     // Internal: full expansion with all fields specified
@@ -722,8 +721,8 @@ macro_rules! led_strips {
             pin: __MISSING_PIN__,
             dma: __DEFAULT_DMA__,
             len: __MISSING_LEN__,
-            max_current: $crate::led_strip::Current::Milliamps(250),
-            gamma: $crate::led_strip::gamma::Gamma::Gamma2_2,
+            max_current: $crate::led_strip::Current::Unlimited,
+            gamma: $crate::led_strip::gamma::Gamma::Linear,
             max_animation_frames: 32,
             led2d: __NONE__,
             fields: [ $($fields)* ]
@@ -1238,7 +1237,7 @@ macro_rules! led_strips {
 /// use device_kit::led_strip::Current;
 ///
 /// led_strip! {
-///     LedStrip {
+///     Gpio0LedStrip {
 ///         pin: PIN_0,
 ///         len: 8,
 ///         max_current: Current::Milliamps(50),
@@ -1249,8 +1248,8 @@ macro_rules! led_strips {
 /// async fn main(spawner: Spawner) {
 ///     let p = embassy_rp::init(Default::default());
 ///     
-///     let led_strip =
-///         LedStrip::new(p.PIO0, p.DMA_CH0, p.PIN_0, spawner).unwrap();
+///     let gpio0_led_strip =
+///         Gpio0LedStrip::new(p.PIO0, p.DMA_CH0, p.PIN_0, spawner).unwrap();
 /// }
 ///
 /// ```
@@ -1271,6 +1270,7 @@ macro_rules! led_strips {
 ///     TypeName {          // Name for the generated strip type
 ///         pin: PIN_0,     // GPIO pin for LED data (required)
 ///         len: 8,         // Number of LEDs (required)
+///         max_current: Current::Milliamps(500), // Current budget (required)
 ///     }
 /// }
 /// ```
@@ -1279,9 +1279,8 @@ macro_rules! led_strips {
 ///
 /// - `pio: PIO1` - PIO peripheral (defaults to PIO0)
 /// - `dma: DMA_CH0` - DMA channel (defaults to DMA_CH0)
-/// - `gamma: Gamma::Gamma2_2` - Gamma correction (defaults to Linear)
+/// - `gamma: Gamma::Gamma2_2` - Gamma correction (defaults to Gamma2_2)
 /// - `max_animation_frames: 16` - Animation frame buffer size (defaults to 16)
-/// - `max_current: Current::Milliamps(500)` - Current budget (defaults to Unlimited)
 ///
 /// # Generated API
 ///
@@ -1326,7 +1325,7 @@ macro_rules! led_strip {
             pin: _UNSET_,
             dma: DMA_CH0,
             len: _UNSET_,
-            max_current: $crate::led_strip::Current::Milliamps(250),
+            max_current: _UNSET_,
             gamma: $crate::led_strip::gamma::Gamma::Gamma2_2,
             max_animation_frames: 16,
             fields: [ $($fields)* ]
