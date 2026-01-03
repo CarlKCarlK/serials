@@ -4,7 +4,6 @@
 use panic_probe as _;
 
 use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::Current;
 use device_kit::Result;
 
@@ -12,45 +11,32 @@ const MAX_CURRENT: Current = Current::Milliamps(250);
 
 define_led_strips! {
     pio: PIO0,
-    strips: [
-        Pio0LedStrip48 {
-            sm: 0,
-            dma: DMA_CH0,
-            pin: PIN_3,
-            len: 48,
-            max_current: MAX_CURRENT,
-            gamma: Gamma::Linear
-        }
-    ]
+    Pio0LedStrip48 {
+        pin: PIN_3,
+        len: 48,
+        max_current: MAX_CURRENT,
+    }
 }
 
 define_led_strips! {
     pio: PIO1,
-    strips: [
-        Pio1LedStrip48 {
-            sm: 0,
-            dma: DMA_CH1,
-            pin: PIN_4,
-            len: 48,
-            max_current: MAX_CURRENT,
-            gamma: Gamma::Linear
-        }
-    ]
+    Pio1LedStrip48 {
+        dma: DMA_CH1,
+        pin: PIN_4,
+        len: 48,
+        max_current: MAX_CURRENT,
+    }
 }
 
 #[cfg(feature = "pico2")]
 define_led_strips! {
     pio: PIO2,
-    strips: [
-        Pio2LedStrip48 {
-            sm: 0,
-            dma: DMA_CH2,
-            pin: PIN_5,
-            len: 48,
-            max_current: MAX_CURRENT,
-            gamma: Gamma::Linear
-        }
-    ]
+    Pio2LedStrip48 {
+        dma: DMA_CH2,
+        pin: PIN_5,
+        len: 48,
+        max_current: MAX_CURRENT,
+    }
 }
 
 /// Compile-only test to verify `define_led_strips!` works with all PIO blocks.

@@ -19,6 +19,7 @@
 //! # use panic_probe as _;
 //! use embassy_executor::Spawner;
 //! use embassy_rp::init;
+//! use device_kit::define_led_strips;
 //! use device_kit::led2d;
 //! use device_kit::led_strip::Current;
 //! use device_kit::led_strip::gamma::Gamma;
@@ -88,16 +89,12 @@
 //! // Define LED strip sharing PIO1
 //! define_led_strips! {
 //!     pio: PIO1,
-//!     strips: [
-//!         Led12x4Strip {
-//!             sm: 0,
-//!             dma: DMA_CH0,
-//!             pin: PIN_3,
-//!             len: 48,
-//!             max_current: Current::Milliamps(500),
-//!             gamma: Gamma::Linear
-//!         }
-//!     ]
+//!     Led12x4Strip {
+//!         pin: PIN_3,
+//!         len: 48,
+//!         max_current: Current::Milliamps(500),
+//!         gamma: Gamma::Linear,
+//!     }
 //! }
 //!
 //! // Generate a complete LED matrix device abstraction
@@ -1002,6 +999,7 @@ pub use led2d_device;
 /// # use panic_probe as _;
 /// use embassy_executor::Spawner;
 /// use embassy_rp::init;
+/// use device_kit::define_led_strips;
 /// use device_kit::led2d;
 /// use device_kit::led_strip::Current;
 /// use device_kit::led_strip::gamma::Gamma;
@@ -1051,18 +1049,15 @@ macro_rules! led2d {
     ) => {
         $crate::led2d::paste::paste! {
             // Generate the LED strip infrastructure with a CamelCase strip type
-            $crate::led_strip::define_led_strips! {
+            define_led_strips! {
                 pio: $pio,
-                strips: [
-                    [<$name:camel Strip>] {
-                        sm: 0,
-                        dma: $dma,
-                        pin: $pin,
-                        len: { $width * $height },
-                        max_current: $max_current,
-                        gamma: $gamma
-                    }
-                ]
+                [<$name:camel Strip>] {
+                    dma: $dma,
+                    pin: $pin,
+                    len: { $width * $height },
+                    max_current: $max_current,
+                    gamma: $gamma,
+                }
             }
 
             // Generate the Led2d device from the strip
@@ -1129,18 +1124,15 @@ macro_rules! led2d {
     ) => {
         $crate::led2d::paste::paste! {
             // Generate the LED strip infrastructure with a CamelCase strip type
-            $crate::led_strip::define_led_strips! {
+            define_led_strips! {
                 pio: $pio,
-                strips: [
-                    [<$name:camel Strip>] {
-                        sm: 0,
-                        dma: $dma,
-                        pin: $pin,
-                        len: $width * $height,
-                        max_current: $max_current,
-                        gamma: $gamma
-                    }
-                ]
+                [<$name:camel Strip>] {
+                    dma: $dma,
+                    pin: $pin,
+                    len: $width * $height,
+                    max_current: $max_current,
+                    gamma: $gamma,
+                }
             }
 
             // Generate the Led2d device from the strip with custom mapping
@@ -1227,16 +1219,12 @@ macro_rules! led2d {
 /// // Define multiple strips sharing PIO1
 /// define_led_strips! {
 ///     pio: PIO1,
-///     strips: [
-///         Led12x4Strip {
-///             sm: 0,
-///             dma: DMA_CH0,
-///             pin: PIN_3,
-///             len: 48,
-///             max_current: Current::Milliamps(500),
-///             gamma: Gamma::Linear
-///         }
-///     ]
+///     Led12x4Strip {
+///         pin: PIN_3,
+///         len: 48,
+///         max_current: Current::Milliamps(500),
+///         gamma: Gamma::Linear,
+///     }
 /// }
 ///
 /// // Wrap the strip as a Led2d surface

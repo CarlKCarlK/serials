@@ -10,10 +10,11 @@
 
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::gamma::Gamma;
-use device_kit::led_strip::Current;
-use device_kit::led2d;
+use device_kit::define_led_strips;
 use device_kit::led_layout::LedLayout;
+use device_kit::led_strip::Current;
+use device_kit::led_strip::gamma::Gamma;
+use device_kit::led2d;
 use embassy_executor::Spawner;
 use embassy_time::Duration;
 use panic_probe as _;
@@ -21,14 +22,8 @@ use smart_leds::colors;
 
 // Example with a custom mapping for a 3x2 display (6 LEDs total)
 // LED indices 0..5 map row-major, rows left-to-right
-const LED2X3_ROW_MAJOR: LedLayout<6, 3, 2> = LedLayout::new([
-    (0, 0),
-    (1, 0),
-    (2, 0),
-    (0, 1),
-    (1, 1),
-    (2, 1),
-]);
+const LED2X3_ROW_MAJOR: LedLayout<6, 3, 2> =
+    LedLayout::new([(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)]);
 
 led2d! {
     pub led2x3,

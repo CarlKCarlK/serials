@@ -6,7 +6,6 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::{Current, LedStrip, colors};
 use device_kit::pio_split;
 use embassy_executor::Spawner;
@@ -18,16 +17,11 @@ const MAX_CURRENT: Current = Current::Milliamps(50);
 
 define_led_strips! {
     pio: PIO1,
-    strips: [
-        Gpio2LedStrip {
-            sm: 0,
-            dma: DMA_CH0,
-            pin: PIN_2,
-            len: LEN,
-            max_current: MAX_CURRENT,
-            gamma: Gamma::Linear
-        }
-    ]
+    Gpio2LedStrip {
+        pin: PIN_2,
+        len: LEN,
+        max_current: MAX_CURRENT,
+    }
 }
 
 #[embassy_executor::main]

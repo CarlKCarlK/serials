@@ -9,24 +9,17 @@
 
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::Current;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use panic_probe as _;
 
 define_led_strips! {
-    pio: PIO0,
-    strips: [
-        Gpio2Pio0LedStrip {
-            sm: 0,
-            dma: DMA_CH0,
-            pin: PIN_2,
-            len: 8,
-            max_current: Current::Milliamps(50),
-            gamma: Gamma::Linear
-        }
-    ]
+    Gpio2Pio0LedStrip {
+        pin: PIN_2,
+        len: 8,
+        max_current: Current::Milliamps(50),
+    }
 }
 
 /// Verify that define_led_strips! works with PIO0

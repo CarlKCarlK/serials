@@ -8,32 +8,27 @@
 #![allow(dead_code, reason = "Compile-time verification only")]
 
 use device_kit::Result;
-use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::Current;
+use device_kit::led_strip::define_led_strips;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use panic_probe as _;
 
 define_led_strips! {
     pio: PIO1,
-    strips: [
-        Gpio16Pio1LedStrip {
-            sm: 1,
-            dma: DMA_CH3,
-            pin: PIN_16,
-            len: 48,
-            max_current: Current::Milliamps(100),
-            gamma: Gamma::Linear
-        }
-    ]
+    Gpio16Pio1LedStrip {
+        dma: DMA_CH3,
+        pin: PIN_16,
+        len: 48,
+        max_current: Current::Milliamps(100),
+    }
 }
 
 /// Verify that define_led_strips! works with PIO1
 async fn test_pio1_strip(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
-    let (_sm0, sm1, _sm2, _sm3) = pio_split!(p.PIO1);
+    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
 
-    let _gpio16_pio1_led_strip = Gpio16Pio1LedStrip::new(sm1, p.DMA_CH3, p.PIN_16, spawner)?;
+    let _gpio16_pio1_led_strip = Gpio16Pio1LedStrip::new(sm0, p.DMA_CH3, p.PIN_16, spawner)?;
 
     Ok(())
 }

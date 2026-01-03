@@ -5,7 +5,6 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::Current;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
@@ -18,16 +17,12 @@ use smart_leds::RGB8;
 // Max 500mA current budget (safe for USB 2.0)
 define_led_strips! {
     pio: PIO1,
-    strips: [
-        Gpio16LedStrip {
-            sm: 0,
-            dma: DMA_CH1,
-            pin: PIN_16,
-            len: 48,
-            max_current: Current::Milliamps(100),
-            gamma: Gamma::Linear
-        }
-    ]
+    Gpio16LedStrip {
+        dma: DMA_CH1,
+        pin: PIN_16,
+        len: 48,
+        max_current: Current::Milliamps(100),
+    }
 }
 
 #[embassy_executor::main]

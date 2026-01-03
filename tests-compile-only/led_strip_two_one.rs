@@ -11,7 +11,6 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::{Current, Rgb, colors};
 use device_kit::led_layout::LedLayout;
 use device_kit::pio_split;
@@ -22,52 +21,41 @@ use panic_probe as _;
 
 define_led_strips! {
     pio: PIO1,
-    strips: [
-        Gpio0LedStrip {
-            sm: 0,
-            dma: DMA_CH0,
-            pin: PIN_0,
-            len: 8,
-            max_current: Current::Milliamps(200),
-            gamma: Gamma::Linear
-        },
-        Gpio3LedStrip {
-            sm: 1,
-            dma: DMA_CH1,
-            pin: PIN_3,
-            len: 48,
-            max_current: Current::Milliamps(500),
-            gamma: Gamma::Linear,
-            led2d: {
-                width: 12,
-                height: 4,
-                led_layout: LED_LAYOUT_12X4,
-                max_frames: 48,
-                font: Font3x4Trim,
-            }
+    Gpio0LedStrip {
+        pin: PIN_0,
+        len: 8,
+        max_current: Current::Milliamps(200),
+    },
+    Gpio3LedStrip {
+        dma: DMA_CH1,
+        pin: PIN_3,
+        len: 48,
+        max_current: Current::Milliamps(500),
+        led2d: {
+            width: 12,
+            height: 4,
+            led_layout: LED_LAYOUT_12X4,
+            max_frames: 48,
+            font: Font3x4Trim,
         }
-    ]
+    }
 }
 
 define_led_strips! {
     pio: PIO0,
-    strips: [
-        Gpio4LedStrip {
-            sm: 0,
-            dma: DMA_CH2,
-            pin: PIN_4,
-            len: 96,
-            max_current: Current::Milliamps(200),
-            gamma: Gamma::Linear,
-            led2d: {
-                width: 8,
-                height: 12,
-                led_layout: LED_LAYOUT_8X12,
-                max_frames: 48,
-                font: Font4x6Trim,
-            }
+    Gpio4LedStrip {
+        dma: DMA_CH2,
+        pin: PIN_4,
+        len: 96,
+        max_current: Current::Milliamps(200),
+        led2d: {
+            width: 8,
+            height: 12,
+            led_layout: LED_LAYOUT_8X12,
+            max_frames: 48,
+            font: Font4x6Trim,
         }
-    ]
+    }
 }
 
 const SNAKE_LENGTH: usize = 4;

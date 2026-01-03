@@ -12,7 +12,6 @@
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::Current;
 use device_kit::led2d::led2d_from_strip;
 use device_kit::led_layout::LedLayout;
@@ -25,30 +24,21 @@ use smart_leds::colors;
 // Define strips for both devices
 define_led_strips! {
     pio: PIO0,
-    strips: [
-        Gpio3LedStrip {
-            sm: 0,
-            dma: DMA_CH0,
-            pin: PIN_3,
-            len: 48,
-            max_current: Current::Milliamps(500),
-            gamma: Gamma::Linear
-        }
-    ]
+    Gpio3LedStrip {
+        pin: PIN_3,
+        len: 48,
+        max_current: Current::Milliamps(500),
+    }
 }
 
 define_led_strips! {
     pio: PIO1,
-    strips: [
-        Gpio4LedStrip {
-            sm: 0,
-            dma: DMA_CH1,
-            pin: PIN_4,
-            len: 64,
-            max_current: Current::Milliamps(300),
-            gamma: Gamma::Linear
-        }
-    ]
+    Gpio4LedStrip {
+        dma: DMA_CH1,
+        pin: PIN_4,
+        len: 64,
+        max_current: Current::Milliamps(300),
+    }
 }
 
 const LED_LAYOUT_4X12: LedLayout<48, 12, 4> = LedLayout::serpentine_column_major();

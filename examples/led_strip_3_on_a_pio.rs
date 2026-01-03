@@ -9,7 +9,6 @@ use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::gamma::Gamma;
 use device_kit::led_strip::{Current, Rgb, colors};
 use device_kit::led2d::led2d_from_strip;
 use device_kit::pio_split;
@@ -20,32 +19,23 @@ use panic_probe as _;
 
 define_led_strips! {
     pio: PIO1,
-    strips: [
-        Gpio0LedStrip {
-            sm: 0,
-            dma: DMA_CH0,
-            pin: PIN_0,
-            len: 8,
-            max_current: Current::Milliamps(50),
-            gamma: Gamma::Linear
-        },
-        Gpio3LedStrip {
-            sm: 1,
-            dma: DMA_CH1,
-            pin: PIN_3,
-            len: 48,
-            max_current: Current::Milliamps(500),
-            gamma: Gamma::Linear
-        },
-        Gpio4LedStrip {
-            sm: 2,
-            dma: DMA_CH2,
-            pin: PIN_4,
-            len: 48,
-            max_current: Current::Milliamps(500),
-            gamma: Gamma::Linear
-        }
-    ]
+    Gpio0LedStrip {
+        pin: PIN_0,
+        len: 8,
+        max_current: Current::Milliamps(50),
+    },
+    Gpio3LedStrip {
+        dma: DMA_CH1,
+        pin: PIN_3,
+        len: 48,
+        max_current: Current::Milliamps(500),
+    },
+    Gpio4LedStrip {
+        dma: DMA_CH2,
+        pin: PIN_4,
+        len: 48,
+        max_current: Current::Milliamps(500),
+    }
 }
 
 // Shared 12x4 serpentine layout for both LED matrices.
