@@ -13,19 +13,23 @@ use core::convert::Infallible;
 use core::pin::pin;
 use defmt::info;
 use defmt_rtt as _;
-use device_kit::button::{Button, PressDuration, PressedTo};
-use device_kit::clock::{Clock, ClockStatic, ONE_DAY, ONE_MINUTE, ONE_SECOND, h12_m_s};
-use device_kit::define_led_strips;
-use device_kit::flash_array::{FlashArray, FlashArrayStatic};
-use device_kit::led_layout::LedLayout;
-use device_kit::led_strip::colors;
-use device_kit::led_strip::gamma::Gamma;
-use device_kit::led_strip::Current;
-use device_kit::led2d;
-use device_kit::time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic};
-use device_kit::wifi_auto::fields::{TimezoneField, TimezoneFieldStatic};
-use device_kit::wifi_auto::{WifiAuto, WifiAutoEvent};
-use device_kit::{Error, Result};
+use device_kit::{
+    define_led_strips,
+    button::{Button, PressDuration, PressedTo},
+    clock::{Clock, ClockStatic, ONE_DAY, ONE_MINUTE, ONE_SECOND, h12_m_s},
+    flash_array::{FlashArray, FlashArrayStatic},
+    led_layout::LedLayout,
+    led_strip::{colors, gamma::Gamma, Current},
+    led2d,
+    time_sync::{TimeSync, TimeSyncEvent, TimeSyncStatic},
+    wifi_auto::{
+        fields::{TimezoneField, TimezoneFieldStatic},
+        WifiAuto,
+        WifiAutoEvent,
+    },
+    Error,
+    Result,
+};
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_time::Duration;
