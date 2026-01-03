@@ -14,14 +14,12 @@ use panic_probe as _;
 // Two WS2812B 4x12 LED matrices (48 pixels each) sharing PIO0
 define_led_strips! {
     Gpio2LedStrip {
-        dma: DMA_CH0,
         pin: PIN_2,
         len: 48,
         max_current: Current::Milliamps(100),
         max_animation_frames: 48,
     },
     Gpio3LedStrip {
-        dma: DMA_CH1,
         pin: PIN_3,
         len: 48,
         max_current: Current::Milliamps(100),

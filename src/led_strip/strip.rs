@@ -1,6 +1,7 @@
 // A device abstraction for WS2812-style LED strips.
 //
 // See [`LedStrip`] for the main usage example.
+// cmk000 why is this file named this?
 
 use core::cell::RefCell;
 use embassy_futures::select::{Either, select};
@@ -660,7 +661,7 @@ macro_rules! define_led_strips {
             strips_remaining: [ $($($rest)*)? ],
             module: $module,
             pin: __MISSING_PIN__,
-            dma: DMA_CH0,
+            dma: __DEFAULT_DMA__,
             len: __MISSING_LEN__,
             max_current: $crate::led_strip::Current::Unlimited,
             gamma: $crate::led_strip::gamma::Gamma::Linear,
@@ -917,6 +918,137 @@ macro_rules! define_led_strips {
     };
 
     // Done parsing fields, add strip to output and continue
+    // Special case: convert __DEFAULT_DMA__ to actual DMA channel based on sm
+    (@__fill_strip_defaults
+        pio: $pio:ident,
+        sm_counter: 0,
+        strips_out: [ $($out:tt)* ],
+        strips_remaining: [ $($remaining:tt)* ],
+        module: $module:ident,
+        pin: $pin:ident,
+        dma: __DEFAULT_DMA__,
+        len: $len:expr,
+        max_current: $max_current:expr,
+        gamma: $gamma:expr,
+        max_animation_frames: $max_animation_frames:expr,
+        led2d: $led2d:tt,
+        fields: []
+    ) => {
+        define_led_strips! {
+            @__fill_strip_defaults
+            pio: $pio,
+            sm_counter: 0,
+            strips_out: [ $($out)* ],
+            strips_remaining: [ $($remaining)* ],
+            module: $module,
+            pin: $pin,
+            dma: DMA_CH0,
+            len: $len,
+            max_current: $max_current,
+            gamma: $gamma,
+            max_animation_frames: $max_animation_frames,
+            led2d: $led2d,
+            fields: []
+        }
+    };
+    (@__fill_strip_defaults
+        pio: $pio:ident,
+        sm_counter: 1,
+        strips_out: [ $($out:tt)* ],
+        strips_remaining: [ $($remaining:tt)* ],
+        module: $module:ident,
+        pin: $pin:ident,
+        dma: __DEFAULT_DMA__,
+        len: $len:expr,
+        max_current: $max_current:expr,
+        gamma: $gamma:expr,
+        max_animation_frames: $max_animation_frames:expr,
+        led2d: $led2d:tt,
+        fields: []
+    ) => {
+        define_led_strips! {
+            @__fill_strip_defaults
+            pio: $pio,
+            sm_counter: 1,
+            strips_out: [ $($out)* ],
+            strips_remaining: [ $($remaining)* ],
+            module: $module,
+            pin: $pin,
+            dma: DMA_CH1,
+            len: $len,
+            max_current: $max_current,
+            gamma: $gamma,
+            max_animation_frames: $max_animation_frames,
+            led2d: $led2d,
+            fields: []
+        }
+    };
+    (@__fill_strip_defaults
+        pio: $pio:ident,
+        sm_counter: 2,
+        strips_out: [ $($out:tt)* ],
+        strips_remaining: [ $($remaining:tt)* ],
+        module: $module:ident,
+        pin: $pin:ident,
+        dma: __DEFAULT_DMA__,
+        len: $len:expr,
+        max_current: $max_current:expr,
+        gamma: $gamma:expr,
+        max_animation_frames: $max_animation_frames:expr,
+        led2d: $led2d:tt,
+        fields: []
+    ) => {
+        define_led_strips! {
+            @__fill_strip_defaults
+            pio: $pio,
+            sm_counter: 2,
+            strips_out: [ $($out)* ],
+            strips_remaining: [ $($remaining)* ],
+            module: $module,
+            pin: $pin,
+            dma: DMA_CH2,
+            len: $len,
+            max_current: $max_current,
+            gamma: $gamma,
+            max_animation_frames: $max_animation_frames,
+            led2d: $led2d,
+            fields: []
+        }
+    };
+    (@__fill_strip_defaults
+        pio: $pio:ident,
+        sm_counter: 3,
+        strips_out: [ $($out:tt)* ],
+        strips_remaining: [ $($remaining:tt)* ],
+        module: $module:ident,
+        pin: $pin:ident,
+        dma: __DEFAULT_DMA__,
+        len: $len:expr,
+        max_current: $max_current:expr,
+        gamma: $gamma:expr,
+        max_animation_frames: $max_animation_frames:expr,
+        led2d: $led2d:tt,
+        fields: []
+    ) => {
+        define_led_strips! {
+            @__fill_strip_defaults
+            pio: $pio,
+            sm_counter: 3,
+            strips_out: [ $($out)* ],
+            strips_remaining: [ $($remaining)* ],
+            module: $module,
+            pin: $pin,
+            dma: DMA_CH3,
+            len: $len,
+            max_current: $max_current,
+            gamma: $gamma,
+            max_animation_frames: $max_animation_frames,
+            led2d: $led2d,
+            fields: []
+        }
+    };
+
+    // Done parsing fields, add strip to output and continue
     (@__fill_strip_defaults
         pio: $pio:ident,
         sm_counter: $sm:tt,
@@ -987,7 +1119,6 @@ macro_rules! define_led_strips {
             strips_in: [ $($remaining)* ]
         }
     };
-
     // Increment counter by expanding to literal numbers
     (@__inc_counter pio: $pio:ident, sm: 0, strips_out: [$($out:tt)*], strips_in: [$($in:tt)*]) => {
         define_led_strips! { @__with_defaults pio: $pio, sm_counter: 1, strips_out: [$($out)*], strips_in: [$($in)*] }
