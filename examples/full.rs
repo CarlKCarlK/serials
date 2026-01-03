@@ -38,8 +38,7 @@ use device_kit::clock::{Clock, ClockStatic, ONE_SECOND};
 #[cfg(feature = "wifi")]
 use device_kit::flash_array::{FlashArray, FlashArrayStatic};
 use device_kit::ir::{Ir, IrEvent, IrStatic};
-use device_kit::led_strip::Current;
-use device_kit::led_strip::Rgb;
+use device_kit::led_strip::{Current, Frame, Rgb};
 use device_kit::led_strip::colors;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{Gpio14LedStrip, Gpio2LedStrip};
@@ -96,7 +95,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let (sm0, sm1, _sm2, _sm3) = pio_split!(p.PIO1);
 
     let gpio2_led_strip = Gpio2LedStrip::new(sm0, p.DMA_CH1, p.PIN_2, spawner)?;
-    let mut led_pixels = [BLACK; Gpio2LedStrip::LEN];
+    let mut led_pixels = Frame::<{ Gpio2LedStrip::LEN }>::filled(BLACK);
     initialize_led_strip(gpio2_led_strip, &mut led_pixels).await?;
     let mut led_progress_index: usize = 0;
 
@@ -311,23 +310,23 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
 async fn initialize_led_strip(
     strip: &Gpio2LedStrip,
-    pixels: &mut [Rgb; Gpio2LedStrip::LEN],
+    pixels: &mut Frame<{ Gpio2LedStrip::LEN }>,
 ) -> Result<()> {
     for idx in 0..Gpio2LedStrip::LEN {
         pixels[idx] = if idx == 0 { RED } else { BLACK };
     }
-    strip.update_pixels(pixels).await?;
+    strip.write_frame(*pixels).await?;
     Ok(())
 }
 
 async fn advance_led_progress(
     strip: &Gpio2LedStrip,
-    pixels: &mut [Rgb; Gpio2LedStrip::LEN],
+    pixels: &mut Frame<{ Gpio2LedStrip::LEN }>,
     current_red: &mut usize,
 ) -> Result<()> {
     info!("Turning {} to green", *current_red);
     pixels[*current_red] = GREEN;
-    strip.update_pixels(pixels).await?;
+    strip.write_frame(*pixels).await?;
     let next = (*current_red + 1) % Gpio2LedStrip::LEN;
     if next == 0 {
         initialize_led_strip(strip, pixels).await?;
@@ -335,7 +334,7 @@ async fn advance_led_progress(
     } else {
         info!("Turning {} to red", next);
         pixels[next] = RED;
-        strip.update_pixels(pixels).await?;
+        strip.write_frame(*pixels).await?;
         *current_red = next;
     }
     Ok(())

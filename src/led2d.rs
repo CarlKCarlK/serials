@@ -156,6 +156,10 @@ use embedded_graphics::{
 use heapless::Vec;
 use smart_leds::RGB8;
 
+#[cfg(not(feature = "host"))]
+use crate::led_strip::Frame as StripFrame;
+#[cfg(feature = "host")]
+type StripFrame<const N: usize> = [RGB8; N];
 use crate::Result;
 
 /// Convert RGB8 (smart-leds) to Rgb888 (embedded-graphics).
@@ -571,8 +575,8 @@ pub type Led2dCompletionSignal = Signal<CriticalSectionRawMutex, ()>;
 /// Command for the LED device loop.
 #[derive(Clone)]
 pub enum Command<const N: usize, const MAX_FRAMES: usize> {
-    DisplayStatic([RGB8; N]),
-    Animate(Vec<([RGB8; N], Duration), MAX_FRAMES>),
+    DisplayStatic(StripFrame<N>),
+    Animate(Vec<(StripFrame<N>, Duration), MAX_FRAMES>),
 }
 
 /// Static type for the [`Led2d`] device abstraction.
@@ -594,26 +598,26 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2dStatic<N, MAX_FRAMES> {
     }
 }
 
-/// Internal trait for types that can update LED pixels.
+/// Internal trait for types that can write full LED strip frames.
 #[doc(hidden)] // Required pub for macro expansion in downstream crates
-pub trait UpdatePixels<const N: usize> {
-    async fn update_pixels(&self, pixels: &[RGB8; N]) -> Result<()>;
+pub trait WriteFrame<const N: usize> {
+    async fn write_frame(&self, frame: StripFrame<N>) -> Result<()>;
 }
 
 #[cfg(not(feature = "host"))]
-impl<const N: usize> UpdatePixels<N> for crate::led_strip::LedStrip<N> {
-    async fn update_pixels(&self, pixels: &[RGB8; N]) -> Result<()> {
-        crate::led_strip::LedStrip::update_pixels(self, pixels).await
+impl<const N: usize> WriteFrame<N> for crate::led_strip::LedStrip<N> {
+    async fn write_frame(&self, frame: StripFrame<N>) -> Result<()> {
+        crate::led_strip::LedStrip::write_frame(self, frame).await
     }
 }
 
 #[cfg(not(feature = "host"))]
-impl<const N: usize, T> UpdatePixels<N> for &T
+impl<const N: usize, T> WriteFrame<N> for &T
 where
-    T: UpdatePixels<N>,
+    T: WriteFrame<N>,
 {
-    async fn update_pixels(&self, pixels: &[RGB8; N]) -> Result<()> {
-        T::update_pixels(self, pixels).await
+    async fn write_frame(&self, frame: StripFrame<N>) -> Result<()> {
+        T::write_frame(self, frame).await
     }
 }
 
@@ -670,7 +674,10 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2d<N, MAX_FRAMES> {
     }
 
     /// Convert 2D frame to 1D array using the LED layout.
-    fn convert_frame<const W: usize, const H: usize>(&self, frame_2d: Frame<W, H>) -> [RGB8; N] {
+    fn convert_frame<const W: usize, const H: usize>(
+        &self,
+        frame_2d: Frame<W, H>,
+    ) -> StripFrame<N> {
         let mut frame_1d = [RGB8::new(0, 0, 0); N];
         for row_index in 0..H {
             for column_index in 0..W {
@@ -678,7 +685,7 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2d<N, MAX_FRAMES> {
                 frame_1d[led_index] = frame_2d[row_index][column_index];
             }
         }
-        frame_1d
+        StripFrame::from(frame_1d)
     }
 
     /// Render a fully defined frame to the display.
@@ -689,8 +696,9 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2d<N, MAX_FRAMES> {
         frame: Frame<W, H>,
     ) -> Result<()> {
         defmt::info!("Led2d::write_frame: sending DisplayStatic command");
-        let frame_1d = self.convert_frame(frame);
-        self.command_signal.signal(Command::DisplayStatic(frame_1d));
+        let strip_frame = self.convert_frame(frame);
+        self.command_signal
+            .signal(Command::DisplayStatic(strip_frame));
         defmt::info!("Led2d::write_frame: waiting for completion");
         self.completion_signal.wait().await;
         defmt::info!("Led2d::write_frame: completed");
@@ -710,15 +718,15 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2d<N, MAX_FRAMES> {
             MAX_FRAMES > 0,
             "max_frames must be positive for Led2d animations"
         );
-        let mut sequence: Vec<([RGB8; N], Duration), MAX_FRAMES> = Vec::new();
+        let mut sequence: Vec<(StripFrame<N>, Duration), MAX_FRAMES> = Vec::new();
         for (frame, duration) in frames {
             assert!(
                 duration.as_micros() > 0,
                 "animation frame duration must be positive"
             );
-            let frame_1d = self.convert_frame(frame);
+            let strip_frame = self.convert_frame(frame);
             sequence
-                .push((frame_1d, duration))
+                .push((strip_frame, duration))
                 .expect("animation sequence fits");
         }
         assert!(
@@ -749,7 +757,7 @@ pub async fn led2d_device_loop<const N: usize, const MAX_FRAMES: usize, S>(
     led_strip: S,
 ) -> Result<Infallible>
 where
-    S: UpdatePixels<N>,
+    S: WriteFrame<N>,
 {
     defmt::info!("led2d_device_loop: task started");
     loop {
@@ -760,7 +768,7 @@ where
         match command {
             Command::DisplayStatic(frame) => {
                 defmt::info!("led2d_device_loop: received DisplayStatic command");
-                led_strip.update_pixels(&frame).await?;
+                led_strip.write_frame(frame).await?;
                 completion_signal.signal(());
                 defmt::info!("led2d_device_loop: DisplayStatic completed");
             }
@@ -778,7 +786,7 @@ where
                         defmt::info!(
                             "led2d_device_loop: processing DisplayStatic from animation interrupt"
                         );
-                        led_strip.update_pixels(&frame).await?;
+                        led_strip.write_frame(frame).await?;
                         completion_signal.signal(());
                     }
                     Command::Animate(new_frames) => {
@@ -794,7 +802,7 @@ where
                         // Handle any command that interrupted this animation
                         match next_command {
                             Command::DisplayStatic(frame) => {
-                                led_strip.update_pixels(&frame).await?;
+                                led_strip.write_frame(frame).await?;
                                 completion_signal.signal(());
                             }
                             Command::Animate(_) => {
@@ -810,22 +818,22 @@ where
 }
 
 async fn run_animation_loop<const N: usize, const MAX_FRAMES: usize, S>(
-    frames: Vec<([RGB8; N], Duration), MAX_FRAMES>,
+    frames: Vec<(StripFrame<N>, Duration), MAX_FRAMES>,
     command_signal: &'static Led2dCommandSignal<N, MAX_FRAMES>,
     completion_signal: &'static Led2dCompletionSignal,
     led_strip: &S,
 ) -> Result<Command<N, MAX_FRAMES>>
 where
-    S: UpdatePixels<N>,
+    S: WriteFrame<N>,
 {
     defmt::info!("run_animation_loop: starting with {} frames", frames.len());
     completion_signal.signal(());
     defmt::debug!("run_animation_loop: signaled completion (animation started)");
 
     loop {
-        for (frame_index, (pixels, duration)) in frames.iter().enumerate() {
+        for (frame_index, (strip_frame, duration)) in frames.iter().enumerate() {
             defmt::trace!("run_animation_loop: displaying frame {}", frame_index);
-            led_strip.update_pixels(pixels).await?;
+            led_strip.write_frame(*strip_frame).await?;
 
             match select(command_signal.wait(), Timer::after(*duration)).await {
                 Either::First(new_command) => {

@@ -16,6 +16,79 @@ use crate::Result;
 /// RGB color representation re-exported from `smart_leds`.
 pub type Rgb = RGB8;
 
+/// Frame of `Rgb` values for a 1D LED strip.
+///
+/// Use [`Frame::new`] for a blank frame or [`Frame::filled`] for a solid color. Frames deref to
+/// `[Rgb; N]`, so you can mutate pixels directly before passing them to [`LedStrip::write_frame`].
+///
+/// ```no_run
+/// # #![no_std]
+/// # #![no_main]
+/// # use panic_probe as _;
+/// # use device_kit::led_strip::Frame;
+/// # use device_kit::led_strip::colors;
+/// # fn example() {
+/// let mut frame = Frame::<8>::new();
+/// frame[0] = colors::RED;
+/// frame[7] = colors::GREEN;
+/// let _ = frame;
+/// # }
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub struct Frame<const N: usize>(pub [Rgb; N]);
+
+impl<const N: usize> Frame<N> {
+    /// Create a new blank (all black) frame.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self([Rgb::new(0, 0, 0); N])
+    }
+
+    /// Create a frame filled with a single color.
+    #[must_use]
+    pub const fn filled(color: Rgb) -> Self {
+        Self([color; N])
+    }
+
+    /// Get the number of LEDs in this frame.
+    #[must_use]
+    pub const fn len() -> usize {
+        N
+    }
+}
+
+impl<const N: usize> core::ops::Deref for Frame<N> {
+    type Target = [Rgb; N];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<const N: usize> core::ops::DerefMut for Frame<N> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<const N: usize> From<[Rgb; N]> for Frame<N> {
+    fn from(array: [Rgb; N]) -> Self {
+        Self(array)
+    }
+}
+
+impl<const N: usize> From<Frame<N>> for [Rgb; N] {
+    fn from(frame: Frame<N>) -> Self {
+        frame.0
+    }
+}
+
+impl<const N: usize> Default for Frame<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // ============================================================================
 // PIO Bus - Shared PIO resource for multiple LED strips
 // ============================================================================
@@ -112,7 +185,8 @@ impl<'d, PIO: Instance> PioBus<'d, PIO> {
 // ============================================================================
 
 #[doc(hidden)] // Required pub for macro expansion in downstream crates
-pub type LedStripCommands<const N: usize> = EmbassyChannel<CriticalSectionRawMutex, [Rgb; N], 2>;
+pub type LedStripCommands<const N: usize> =
+    EmbassyChannel<CriticalSectionRawMutex, Frame<N>, 2>;
 
 /// Static used to construct LED strip instances.
 #[doc(hidden)] // Must be pub for method signatures and macro expansion in downstream crates
@@ -161,10 +235,9 @@ impl<const N: usize> LedStrip<N> {
         })
     }
 
-    /// Updates all LEDs at once from the provided array.
-    pub async fn update_pixels(&self, pixels: &[Rgb; N]) -> Result<()> {
-        // Send entire frame as one message (copy array to send through channel)
-        self.commands.send(*pixels).await;
+    /// Writes a full frame to the LED strip.
+    pub async fn write_frame(&self, frame: Frame<N>) -> Result<()> {
+        self.commands.send(frame).await;
 
         // Wait for the DMA write to complete
         embassy_time::Timer::after(embassy_time::Duration::from_micros(Self::WRITE_DELAY_US)).await;
@@ -214,7 +287,7 @@ where
 /// - One type per strip with `new_static()` and `new()` constructors
 ///
 /// Each generated type dereferences to [`LedStrip`](crate::led_strip::LedStrip)
-/// so you can call `update_pixels` directly. The type name is exactly the identifier
+/// so you can call `write_frame` directly. The type name is exactly the identifier
 /// you supply to the macro; use CamelCase there to satisfy linting and keep types
 /// recognizable (e.g., `Gpio2LedStrip`).
 ///
@@ -353,9 +426,9 @@ macro_rules! define_led_strips {
                 }
 
                 #[cfg(not(feature = "host"))]
-                impl $crate::led2d::UpdatePixels<{ $len }> for $module {
-                    async fn update_pixels(&self, pixels: &[$crate::led_strip::Rgb; { $len }]) -> $crate::Result<()> {
-                        self.strip.update_pixels(pixels).await
+                impl $crate::led2d::WriteFrame<{ $len }> for $module {
+                    async fn write_frame(&self, frame: $crate::led_strip::Frame<{ $len }>) -> $crate::Result<()> {
+                        self.strip.write_frame(frame).await
                     }
                 }
 

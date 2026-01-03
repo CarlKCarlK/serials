@@ -5,12 +5,11 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::Current;
+use device_kit::led_strip::{Current, Frame, Rgb, colors};
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
-use smart_leds::RGB8;
 
 // WS2812B 4x12 LED matrix (48 pixels)
 // Uses PIO1, State Machine 0, DMA_CH1, GPIO16 (pin 21)
@@ -51,11 +50,11 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
     info!("Wiring: Red->VSYS(pin39), White->GND(pin38), Green->GPIO16(pin21)");
 
     const SNAKE_LENGTH: usize = 5;
-    const SNAKE_COLOR: RGB8 = RGB8::new(255, 255, 255); // Full white - will be scaled by max_brightness
-    const BACKGROUND: RGB8 = RGB8::new(0, 0, 0);
+    const SNAKE_COLOR: Rgb = colors::WHITE; // Scaled by max_brightness
+    const BACKGROUND: Rgb = colors::BLACK;
 
     // Snake state: array buffer starts all background
-    let mut frame = [BACKGROUND; Gpio16LedStrip::LEN];
+    let mut frame = Frame::<{ Gpio16LedStrip::LEN }>::filled(BACKGROUND);
 
     let mut position: usize = 0;
 
@@ -69,7 +68,7 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
         frame[tail_pos] = BACKGROUND;
 
         // Send entire frame
-        gpio16_led_strip.update_pixels(&frame).await?;
+        gpio16_led_strip.write_frame(frame).await?;
 
         position = (position + 1) % Gpio16LedStrip::LEN;
         Timer::after_millis(100).await;

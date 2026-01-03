@@ -5,7 +5,7 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::{Current, Rgb, colors};
+use device_kit::led_strip::{Current, Frame, Rgb};
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
@@ -48,12 +48,12 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
 }
 
 async fn update_rainbow(led_strip: &Gpio2LedStrip, base: u8) -> Result<()> {
-    let mut pixels = [colors::BLACK; Gpio2LedStrip::LEN];
+    let mut frame = Frame::<{ Gpio2LedStrip::LEN }>::new();
     for idx in 0..Gpio2LedStrip::LEN {
         let offset = base.wrapping_add((idx as u8).wrapping_mul(16));
-        pixels[idx] = wheel(offset);
+        frame[idx] = wheel(offset);
     }
-    led_strip.update_pixels(&pixels).await?;
+    led_strip.write_frame(frame).await?;
     Ok(())
 }
 

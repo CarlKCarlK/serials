@@ -11,7 +11,7 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::{Current, Rgb, colors};
+use device_kit::led_strip::{Current, Frame, Rgb, colors};
 use device_kit::led_layout::LedLayout;
 use device_kit::pio_split;
 use embassy_executor::Spawner;
@@ -95,7 +95,7 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
     );
 
     // Snake on gpio0 (shared strip)
-    let mut frame_gpio0 = [colors::BLACK; Gpio0LedStrip::LEN];
+    let mut frame_gpio0 = Frame::<{ Gpio0LedStrip::LEN }>::new();
     let mut position_gpio0 = 0usize;
 
     // Prepare two-frame "gogo" animation for gpio3 Led2d
@@ -168,12 +168,12 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
 
     loop {
         step_snake(&mut frame_gpio0, &mut position_gpio0);
-        gpio0_led_strip.update_pixels(&frame_gpio0).await?;
+        gpio0_led_strip.write_frame(frame_gpio0).await?;
         Timer::after(snake_tick).await;
     }
 }
 
-fn step_snake(frame: &mut [Rgb], position: &mut usize) {
+fn step_snake<const N: usize>(frame: &mut Frame<N>, position: &mut usize) {
     let len = frame.len();
     for color in frame.iter_mut() {
         *color = colors::BLACK;

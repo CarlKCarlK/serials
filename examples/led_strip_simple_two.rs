@@ -6,7 +6,7 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::{Current, LedStrip, colors};
+use device_kit::led_strip::{Current, Frame, LedStrip, colors};
 use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
@@ -89,9 +89,9 @@ impl<const N: usize> BounceState<N> {
 
     async fn update(&mut self, led_strip: &LedStrip<N>) -> Result<()> {
         assert!(self.position < N);
-        let mut pixels = [colors::BLACK; N];
-        pixels[self.position] = colors::WHITE;
-        led_strip.update_pixels(&pixels).await?;
+        let mut frame = Frame::<N>::new();
+        frame[self.position] = colors::WHITE;
+        led_strip.write_frame(frame).await?;
         self.advance();
         Ok(())
     }
