@@ -11,11 +11,10 @@
 
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strip::define_led_strips;
-use device_kit::led_strip::Current;
-use device_kit::led2d::led2d_from_strip;
 use device_kit::led_layout::LedLayout;
-use device_kit::pio_split;
+use device_kit::led_strip::Current;
+use device_kit::led_strip::define_led_strips;
+use device_kit::led2d::led2d_from_strip;
 use embassy_executor::Spawner;
 use embassy_time::Duration;
 use panic_probe as _;
@@ -24,20 +23,15 @@ use smart_leds::colors;
 // Define strips for both devices
 define_led_strips! {
     pio: PIO0,
-    Gpio3LedStrip {
-        pin: PIN_3,
-        len: 48,
-        max_current: Current::Milliamps(500),
+    LedStripsPio0 {
+        gpio3: { pin: PIN_3, len: 48, max_current: Current::Milliamps(500) }
     }
 }
 
 define_led_strips! {
     pio: PIO1,
-    Gpio4LedStrip {
-        dma: DMA_CH1,
-        pin: PIN_4,
-        len: 64,
-        max_current: Current::Milliamps(300),
+    LedStripsPio1 {
+        gpio4: { dma: DMA_CH1, pin: PIN_4, len: 64, max_current: Current::Milliamps(300) }
     }
 }
 
@@ -69,14 +63,12 @@ led2d_from_strip! {
 /// Verify both devices can be constructed and used together
 async fn test_multiple_devices(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
     // Construct first device
-    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
-    let gpio3_led_strip = Gpio3LedStrip::new(sm0, p.DMA_CH0, p.PIN_3, spawner)?;
+    let (gpio3_led_strip,) = LedStripsPio0::new_shared(p.PIO0, p.DMA_CH0, p.PIN_3, spawner)?;
     static LED4X12_STATIC: Led4x12Static = Led4x12::new_static();
     let led4x12 = Led4x12::from_strip(gpio3_led_strip, spawner)?;
 
     // Construct second device
-    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
-    let gpio4_led_strip = Gpio4LedStrip::new(sm0, p.DMA_CH1, p.PIN_4, spawner)?;
+    let (gpio4_led_strip,) = LedStripsPio1::new_shared(p.PIO1, p.DMA_CH1, p.PIN_4, spawner)?;
     static LED8X8_STATIC: Led8x8Static = Led8x8::new_static();
     let led8x8 = Led8x8::from_strip(gpio4_led_strip, spawner)?;
 

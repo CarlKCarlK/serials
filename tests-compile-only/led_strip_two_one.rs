@@ -10,10 +10,9 @@
 use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
+use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{Current, Frame, Rgb, colors};
-use device_kit::led_layout::LedLayout;
-use device_kit::pio_split;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use heapless::Vec;
@@ -21,39 +20,39 @@ use panic_probe as _;
 
 define_led_strips! {
     pio: PIO1,
-    Gpio0LedStrip {
-        pin: PIN_0,
-        len: 8,
-        max_current: Current::Milliamps(200),
-    },
-    Gpio3LedStrip {
-        dma: DMA_CH1,
-        pin: PIN_3,
-        len: 48,
-        max_current: Current::Milliamps(500),
-        led2d: {
-            width: 12,
-            height: 4,
-            led_layout: LED_LAYOUT_12X4,
-            max_frames: 48,
-            font: Font3x4Trim,
+    LedStripsPio1 {
+        gpio0: { pin: PIN_0, len: 8, max_current: Current::Milliamps(200) },
+        gpio3: {
+            dma: DMA_CH1,
+            pin: PIN_3,
+            len: 48,
+            max_current: Current::Milliamps(500),
+            led2d: {
+                width: 12,
+                height: 4,
+                led_layout: LED_LAYOUT_12X4,
+                max_frames: 48,
+                font: Font3x4Trim,
+            }
         }
     }
 }
 
 define_led_strips! {
     pio: PIO0,
-    Gpio4LedStrip {
-        dma: DMA_CH2,
-        pin: PIN_4,
-        len: 96,
-        max_current: Current::Milliamps(200),
-        led2d: {
-            width: 8,
-            height: 12,
-            led_layout: LED_LAYOUT_8X12,
-            max_frames: 48,
-            font: Font4x6Trim,
+    LedStripsPio0 {
+        gpio4: {
+            dma: DMA_CH2,
+            pin: PIN_4,
+            len: 96,
+            max_current: Current::Milliamps(200),
+            led2d: {
+                width: 8,
+                height: 12,
+                led_layout: LED_LAYOUT_8X12,
+                max_frames: 48,
+                font: Font4x6Trim,
+            }
         }
     }
 }
@@ -79,13 +78,15 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
     let p = embassy_rp::init(Default::default());
 
     // Shared PIO1: gpio0 (8 LEDs) and gpio3 (12x4 LEDs)
-    let (sm0, sm1, _sm2, _sm3) = pio_split!(p.PIO1);
-    let gpio0_led_strip = Gpio0LedStrip::new(sm0, p.DMA_CH0, p.PIN_0, spawner)?;
-    let gpio3_led_strip = Gpio3LedStrip::new_led2d(sm1, p.DMA_CH1, p.PIN_3, spawner)?;
+    let (gpio0_led_strip, gpio3_led_strip) =
+        LedStripsPio1::new_shared(p.PIO1, p.DMA_CH0, p.PIN_0, p.DMA_CH1, p.PIN_3, spawner)?;
+    // Convert gpio3 to led2d
+    let gpio3_led_strip = Gpio3LedStripLed2d::from_strip(gpio3_led_strip, spawner)?;
 
     // Single-strip on PIO0: gpio4 (12x8 LEDs = 96)
-    let (sm0_pio0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
-    let gpio4_led_strip = Gpio4LedStrip::new_led2d(sm0_pio0, p.DMA_CH2, p.PIN_4, spawner)?;
+    let (gpio4_led_strip,) = LedStripsPio0::new_shared(p.PIO0, p.DMA_CH2, p.PIN_4, spawner)?;
+    // Convert gpio4 to led2d
+    let gpio4_led_strip = Gpio4LedStripLed2d::from_strip(gpio4_led_strip, spawner)?;
 
     let go_frame_duration = Duration::from_millis(600);
     let snake_tick = Duration::from_millis(80);

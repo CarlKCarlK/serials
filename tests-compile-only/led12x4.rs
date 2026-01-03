@@ -13,7 +13,6 @@ use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::define_led_strips;
 use device_kit::led_strip::{Current, colors};
 use device_kit::led2d::led2d_from_strip;
-use device_kit::pio_split;
 use embassy_executor::Spawner;
 use panic_probe as _;
 
@@ -23,20 +22,15 @@ const LED_LAYOUT_12X4: LedLayout<48, 12, 4> = LedLayout::serpentine_column_major
 
 define_led_strips! {
     pio: PIO0,
-    Gpio3Pio0LedStrip {
-        pin: PIN_3,
-        len: 48,
-        max_current: Current::Milliamps(500),
+    LedStripsPio0 {
+        gpio3_pio0: { pin: PIN_3, len: 48, max_current: Current::Milliamps(500) }
     }
 }
 
 define_led_strips! {
     pio: PIO1,
-    Gpio3Pio1LedStrip {
-        dma: DMA_CH1,
-        pin: PIN_3,
-        len: 48,
-        max_current: Current::Milliamps(500),
+    LedStripsPio1 {
+        gpio3_pio1: { dma: DMA_CH1, pin: PIN_3, len: 48, max_current: Current::Milliamps(500) }
     }
 }
 
@@ -62,8 +56,7 @@ led2d_from_strip! {
 
 /// Verify Gpio3Pio0LedStrip with write_text
 async fn test_led12x4_pio0_write_text(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
-    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO0);
-    let gpio3_pio0_led_strip = Gpio3Pio0LedStrip::new(sm0, p.DMA_CH0, p.PIN_3, spawner)?;
+    let (gpio3_pio0_led_strip,) = LedStripsPio0::new_shared(p.PIO0, p.DMA_CH0, p.PIN_3, spawner)?;
 
     static LED_12X4_STATIC: Gpio3Pio0Led2dStatic = Gpio3Pio0Led2d::new_static();
     let led_12x4 = Gpio3Pio0Led2d::from_strip(gpio3_pio0_led_strip, spawner)?;
@@ -80,8 +73,7 @@ async fn test_led12x4_pio0_write_text(p: embassy_rp::Peripherals, spawner: Spawn
 
 /// Verify Gpio3Pio1LedStrip constructor
 async fn test_led12x4_pio1(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
-    let (sm0, _sm1, _sm2, _sm3) = pio_split!(p.PIO1);
-    let gpio3_pio1_led_strip = Gpio3Pio1LedStrip::new(sm0, p.DMA_CH1, p.PIN_3, spawner)?;
+    let (gpio3_pio1_led_strip,) = LedStripsPio1::new_shared(p.PIO1, p.DMA_CH1, p.PIN_3, spawner)?;
 
     static LED_12X4_STATIC: Gpio3Pio1Led2dStatic = Gpio3Pio1Led2d::new_static();
     let _led_12x4 = Gpio3Pio1Led2d::from_strip(gpio3_pio1_led_strip, spawner)?;
