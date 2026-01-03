@@ -40,37 +40,34 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
         100
     );
 
-    const SNAKE_LENGTH: usize = 5;
-    const SNAKE_COLOR: Rgb = colors::WHITE; // Scaled by max_brightness
-    const BACKGROUND: Rgb = colors::BLACK;
-    const FRAME_DURATION: embassy_time::Duration = embassy_time::Duration::from_millis(100);
+    const FRAME_DURATION: embassy_time::Duration = embassy_time::Duration::from_millis(300);
+    const BRIGHT: Rgb = colors::WHITE;
+    const GAP: Rgb = colors::BLACK;
+    const GAP_SPACING: usize = 4;
+    const FRAME_COUNT: usize = GAP_SPACING;
 
-    // Pre-generate all animation frames
-    let mut frames = heapless::Vec::<
-        (Frame<{ Gpio2LedStrip::LEN }>, embassy_time::Duration),
-        { Gpio2LedStrip::LEN },
-    >::new();
+    let mut frames =
+        heapless::Vec::<(Frame<{ Gpio2LedStrip::LEN }>, embassy_time::Duration), FRAME_COUNT>::new(
+        );
 
-    for position in 0..Gpio2LedStrip::LEN {
-        let mut frame = Frame::<{ Gpio2LedStrip::LEN }>::filled(BACKGROUND);
-
-        // Turn on snake pixels
-        for offset in 0..SNAKE_LENGTH {
-            let pixel_index = (position + Gpio2LedStrip::LEN - offset) % Gpio2LedStrip::LEN;
-            frame[pixel_index] = SNAKE_COLOR;
+    for frame_offset in 0..FRAME_COUNT {
+        let mut frame = Frame::<{ Gpio2LedStrip::LEN }>::filled(BRIGHT);
+        for pixel_index in 0..Gpio2LedStrip::LEN {
+            if (pixel_index + frame_offset) % GAP_SPACING == 0 {
+                frame[pixel_index] = GAP;
+            }
         }
-
         frames.push((frame, FRAME_DURATION)).ok();
     }
 
     info!(
-        "Starting snake animation with {} frames on both displays",
+        "Starting Broadway-style animation with {} frames per strip",
         frames.len()
     );
 
     // Start the animation loop on both strips - they will run forever in the background
-    gpio2_led_strip.animate(frames.iter().copied()).await?;
-    gpio3_led_strip.animate(frames.into_iter()).await?;
+    gpio2_led_strip.animate(frames.clone()).await?;
+    gpio3_led_strip.animate(frames).await?;
 
     info!("Snake animations started, entering idle loop");
 
