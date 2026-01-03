@@ -14,9 +14,9 @@ const LEN: usize = 8;
 const MAX_CURRENT: Current = Current::Milliamps(50);
 
 led_strip! {
-    MyLedStrip {
+    LedStrip {
         pio: PIO1,
-        pin: PIN_2,
+        pin: PIN_0,
         len: LEN,
         max_current: MAX_CURRENT,
     }
@@ -32,7 +32,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     // Create strip - no tuple unpacking needed!
-    let led_strip = MyLedStrip::new(p.PIO1, p.DMA_CH0, p.PIN_2, spawner)?;
+    let led_strip = LedStrip::new(p.PIO1, p.DMA_CH0, p.PIN_0, spawner)?;
 
     info!("LED strip initialized with {} LEDs", MyLedStrip::LEN);
 

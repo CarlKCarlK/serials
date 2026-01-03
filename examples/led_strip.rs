@@ -11,8 +11,8 @@ use embassy_time::Timer;
 use panic_probe as _;
 
 led_strip! {
-    Gpio2LedStrip {
-        pin: PIN_2,
+    Gpio0LedStrip {
+        pin: PIN_0,
         len: 8,
         max_current: Current::Milliamps(50),
     }
@@ -29,9 +29,9 @@ async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<()> {
     let p = embassy_rp::init(Default::default());
 
-    let gpio2_led_strip = Gpio2LedStrip::new(p.PIO0, p.DMA_CH0, p.PIN_2, spawner)?;
+    let gpio0_led_strip = Gpio0LedStrip::new(p.PIO0, p.DMA_CH0, p.PIN_0, spawner)?;
 
-    info!("LED strip demo starting (GPIO2 data, VSYS power)");
+    info!("LED strip demo starting (GPIO0 data, VSYS power)");
 
     let mut hue: u8 = 0;
 

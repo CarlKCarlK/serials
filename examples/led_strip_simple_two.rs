@@ -15,7 +15,7 @@ const MAX_CURRENT: Current = Current::Milliamps(500);
 
 led_strips! {
     LedStripsPio0 {
-        gpio2: { pin: PIN_2, len: 8, max_current: MAX_CURRENT }
+        gpio0: { pin: PIN_0, len: 8, max_current: MAX_CURRENT }
     }
 }
 
@@ -35,16 +35,16 @@ async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
-    let (gpio2_led_strip,) = LedStripsPio0::new(p.PIO0, p.DMA_CH0, p.PIN_2, spawner)?;
+    let (gpio0_led_strip,) = LedStripsPio0::new(p.PIO0, p.DMA_CH0, p.PIN_0, spawner)?;
     let (gpio3_led_strip,) = LedStripsPio1::new(p.PIO1, p.DMA_CH1, p.PIN_3, spawner)?;
 
-    info!("LED strip demo starting (GPIO2 & GPIO3, VSYS power)");
+    info!("LED strip demo starting (GPIO0 & GPIO3, VSYS power)");
 
     let mut state0 = BounceState::<8>::new();
     let mut state1 = BounceState::<48>::new();
 
     loop {
-        state0.update(gpio2_led_strip).await?;
+        state0.update(gpio0_led_strip).await?;
         state1.update(gpio3_led_strip).await?;
 
         Timer::after_millis(500).await;
