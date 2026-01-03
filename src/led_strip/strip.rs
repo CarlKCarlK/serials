@@ -1220,8 +1220,6 @@ macro_rules! define_led_strips {
     };
 }
 
-pub use define_led_strips;
-
 /// Used with [`define_led_strips!`] to split a PIO peripheral into 4 state machines.
 ///
 /// cmk000 users don't need to see the name of hidden functions!
@@ -1260,6 +1258,429 @@ pub use define_led_strips;
 /// }
 ///
 /// ```
+
+/// Simplified macro for defining a single LED strip device (always uses SM0).
+///
+/// This macro generates a singleton LED strip type that always uses state machine 0 (SM0).
+/// Unlike [`define_led_strips!`], this macro:
+/// - Generates a single strip type (not a group)
+/// - Always uses SM0 automatically
+/// - Returns the strip directly from `new()` (no tuple unpacking)
+/// - Hides the PIO split logic inside `new()`
+///
+/// # Syntax
+///
+/// ```ignore
+/// define_led_strip! {
+///     pio: PIO0,          // PIO peripheral to use
+///     TypeName {          // Name for the generated strip type
+///         pin: PIN_2,     // GPIO pin for LED data
+///         len: 8,         // Number of LEDs
+///         max_current: Current::Milliamps(500),
+///         gamma: Gamma::Srgb,
+///     }
+/// }
+/// ```
+///
+/// # Optional Fields
+///
+/// - `dma: DMA_CH0` - DMA channel (defaults to DMA_CH0)
+/// - `gamma: Gamma::Srgb` - Gamma correction (defaults to Gamma::Srgb)
+/// - `max_animation_frames: 16` - Animation frame buffer size (defaults to 16)
+///
+/// # Generated API
+///
+/// The macro generates a struct with:
+/// - `new(pio, dma, pin, spawner)` - Constructor that handles PIO splitting internally
+/// - All methods from [`LedStrip`] via `Deref`
+///
+/// # Example
+///
+/// ```ignore
+/// use device_kit::led_strip::{define_led_strip, Current, Gamma};
+/// use embassy_executor::Spawner;
+///
+/// define_led_strip! {
+///     pio: PIO1,
+///     MyLedStrip {
+///         pin: PIN_2,
+///         len: 8,
+///         max_current: Current::Milliamps(50),
+///     }
+/// }
+///
+/// #[embassy_executor::main]
+/// async fn main(spawner: Spawner) {
+///     let p = embassy_rp::init(Default::default());
+///     let strip = MyLedStrip::new(p.PIO1, p.DMA_CH0, p.PIN_2, spawner).unwrap();
+///     // Use strip directly - no tuple unpacking needed
+/// }
+/// ```
+#[macro_export]
+macro_rules! define_led_strip {
+    // Entry point with explicit PIO
+    (
+        pio: $pio:ident,
+        $name:ident {
+            $($fields:tt)*
+        }
+    ) => {
+        define_led_strip! {
+            @__fill_defaults
+            pio: $pio,
+            name: $name,
+            pin: _UNSET_,
+            dma: DMA_CH0,
+            len: _UNSET_,
+            max_current: _UNSET_,
+            gamma: $crate::led_strip::gamma::Gamma::Gamma2_2,
+            max_animation_frames: 16,
+            fields: [ $($fields)* ]
+        }
+    };
+
+    // Entry point without PIO (defaults to PIO0)
+    (
+        $name:ident {
+            $($fields:tt)*
+        }
+    ) => {
+        define_led_strip! {
+            @__fill_defaults
+            pio: PIO0,
+            name: $name,
+            pin: _UNSET_,
+            dma: DMA_CH0,
+            len: _UNSET_,
+            max_current: _UNSET_,
+            gamma: $crate::led_strip::gamma::Gamma::Gamma2_2,
+            max_animation_frames: 16,
+            fields: [ $($fields)* ]
+        }
+    };
+
+    // Fill defaults: pin
+    (@__fill_defaults
+        pio: $pio:ident,
+        name: $name:ident,
+        pin: $pin:tt,
+        dma: $dma:ident,
+        len: $len:tt,
+        max_current: $max_current:tt,
+        gamma: $gamma:expr,
+        max_animation_frames: $max_animation_frames:expr,
+        fields: [ pin: $new_pin:ident $(, $($rest:tt)* )? ]
+    ) => {
+        define_led_strip! {
+            @__fill_defaults
+            pio: $pio,
+            name: $name,
+            pin: $new_pin,
+            dma: $dma,
+            len: $len,
+            max_current: $max_current,
+            gamma: $gamma,
+            max_animation_frames: $max_animation_frames,
+            fields: [ $($($rest)*)? ]
+        }
+    };
+
+    // Fill defaults: dma
+    (@__fill_defaults
+        pio: $pio:ident,
+        name: $name:ident,
+        pin: $pin:tt,
+        dma: $dma:ident,
+        len: $len:tt,
+        max_current: $max_current:tt,
+        gamma: $gamma:expr,
+        max_animation_frames: $max_animation_frames:expr,
+        fields: [ dma: $new_dma:ident $(, $($rest:tt)* )? ]
+    ) => {
+        define_led_strip! {
+            @__fill_defaults
+            pio: $pio,
+            name: $name,
+            pin: $pin,
+            dma: $new_dma,
+            len: $len,
+            max_current: $max_current,
+            gamma: $gamma,
+            max_animation_frames: $max_animation_frames,
+            fields: [ $($($rest)*)? ]
+        }
+    };
+
+    // Fill defaults: len (expression in braces)
+    (@__fill_defaults
+        pio: $pio:ident,
+        name: $name:ident,
+        pin: $pin:tt,
+        dma: $dma:ident,
+        len: $len:tt,
+        max_current: $max_current:tt,
+        gamma: $gamma:expr,
+        max_animation_frames: $max_animation_frames:expr,
+        fields: [ len: { $new_len:expr } $(, $($rest:tt)* )? ]
+    ) => {
+        define_led_strip! {
+            @__fill_defaults
+            pio: $pio,
+            name: $name,
+            pin: $pin,
+            dma: $dma,
+            len: { $new_len },
+            max_current: $max_current,
+            gamma: $gamma,
+            max_animation_frames: $max_animation_frames,
+            fields: [ $($($rest)*)? ]
+        }
+    };
+
+    // Fill defaults: len (plain expression)
+    (@__fill_defaults
+        pio: $pio:ident,
+        name: $name:ident,
+        pin: $pin:tt,
+        dma: $dma:ident,
+        len: $len:tt,
+        max_current: $max_current:tt,
+        gamma: $gamma:expr,
+        max_animation_frames: $max_animation_frames:expr,
+        fields: [ len: $new_len:expr $(, $($rest:tt)* )? ]
+    ) => {
+        define_led_strip! {
+            @__fill_defaults
+            pio: $pio,
+            name: $name,
+            pin: $pin,
+            dma: $dma,
+            len: $new_len,
+            max_current: $max_current,
+            gamma: $gamma,
+            max_animation_frames: $max_animation_frames,
+            fields: [ $($($rest)*)? ]
+        }
+    };
+
+    // Fill defaults: max_current
+    (@__fill_defaults
+        pio: $pio:ident,
+        name: $name:ident,
+        pin: $pin:tt,
+        dma: $dma:ident,
+        len: $len:tt,
+        max_current: $max_current:tt,
+        gamma: $gamma:expr,
+        max_animation_frames: $max_animation_frames:expr,
+        fields: [ max_current: $new_max_current:expr $(, $($rest:tt)* )? ]
+    ) => {
+        define_led_strip! {
+            @__fill_defaults
+            pio: $pio,
+            name: $name,
+            pin: $pin,
+            dma: $dma,
+            len: $len,
+            max_current: $new_max_current,
+            gamma: $gamma,
+            max_animation_frames: $max_animation_frames,
+            fields: [ $($($rest)*)? ]
+        }
+    };
+
+    // Fill defaults: gamma
+    (@__fill_defaults
+        pio: $pio:ident,
+        name: $name:ident,
+        pin: $pin:tt,
+        dma: $dma:ident,
+        len: $len:tt,
+        max_current: $max_current:tt,
+        gamma: $gamma:expr,
+        max_animation_frames: $max_animation_frames:expr,
+        fields: [ gamma: $new_gamma:expr $(, $($rest:tt)* )? ]
+    ) => {
+        define_led_strip! {
+            @__fill_defaults
+            pio: $pio,
+            name: $name,
+            pin: $pin,
+            dma: $dma,
+            len: $len,
+            max_current: $max_current,
+            gamma: $new_gamma,
+            max_animation_frames: $max_animation_frames,
+            fields: [ $($($rest)*)? ]
+        }
+    };
+
+    // Fill defaults: max_animation_frames
+    (@__fill_defaults
+        pio: $pio:ident,
+        name: $name:ident,
+        pin: $pin:tt,
+        dma: $dma:ident,
+        len: $len:tt,
+        max_current: $max_current:tt,
+        gamma: $gamma:expr,
+        max_animation_frames: $max_animation_frames:expr,
+        fields: [ max_animation_frames: $new_max_animation_frames:expr $(, $($rest:tt)* )? ]
+    ) => {
+        define_led_strip! {
+            @__fill_defaults
+            pio: $pio,
+            name: $name,
+            pin: $pin,
+            dma: $dma,
+            len: $len,
+            max_current: $max_current,
+            gamma: $gamma,
+            max_animation_frames: $new_max_animation_frames,
+            fields: [ $($($rest)*)? ]
+        }
+    };
+
+    // All fields processed - expand the type
+    (@__fill_defaults
+        pio: $pio:ident,
+        name: $name:ident,
+        pin: $pin:ident,
+        dma: $dma:ident,
+        len: $len:expr,
+        max_current: $max_current:expr,
+        gamma: $gamma:expr,
+        max_animation_frames: $max_animation_frames:expr,
+        fields: []
+    ) => {
+        ::paste::paste! {
+            // Create the PIO bus (shared across all SM0 strips using this PIO)
+            #[allow(non_upper_case_globals)]
+            static [<$pio _BUS>]: ::static_cell::StaticCell<
+                $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>
+            > = ::static_cell::StaticCell::new();
+
+            /// Split the PIO into bus and state machines.
+            ///
+            /// Returns SM0 only for single-strip usage.
+            #[allow(dead_code)]
+            fn [<$pio:lower _split_sm0>](
+                pio: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pio>,
+            ) -> $crate::led_strip::PioStateMachine<::embassy_rp::peripherals::$pio, 0> {
+                let ::embassy_rp::pio::Pio { common, sm0, .. } =
+                    ::embassy_rp::pio::Pio::new(pio, <::embassy_rp::peripherals::$pio as $crate::led_strip::LedStripPio>::irqs());
+                let pio_bus = [<$pio _BUS>].init_with(|| {
+                    $crate::led_strip::PioBus::new(common)
+                });
+                $crate::led_strip::PioStateMachine::new(pio_bus, sm0)
+            }
+
+            #[doc = concat!(
+                "Singleton LED strip generated by [`define_led_strip!`].\n\n",
+                "Derefs to [`LedStrip`] for all operations. ",
+                "Uses state machine 0 (SM0) automatically."
+            )]
+            pub struct $name {
+                strip: $crate::led_strip::LedStrip<{ $len }, { $max_animation_frames }>,
+            }
+
+            impl $name {
+                pub const LEN: usize = $len;
+                pub const MAX_ANIMATION_FRAMES: usize = $max_animation_frames;
+
+                // Calculate max brightness from current budget
+                const WORST_CASE_MA: u32 = ($len as u32) * 60;
+                pub const MAX_BRIGHTNESS: u8 =
+                    $max_current.max_brightness(Self::WORST_CASE_MA);
+
+                // Combined gamma correction and brightness scaling table
+                const COMBO_TABLE: [u8; 256] = $crate::led_strip::gamma::generate_combo_table($gamma, Self::MAX_BRIGHTNESS);
+
+                /// Create a new LED strip with automatic PIO setup.
+                ///
+                /// This constructor handles PIO splitting and uses SM0 automatically.
+                ///
+                /// # Parameters
+                ///
+                /// - `pio`: PIO peripheral
+                /// - `dma`: DMA channel for LED data transfer
+                /// - `pin`: GPIO pin for LED data signal
+                /// - `spawner`: Task spawner for background operations
+                pub fn new(
+                    pio: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pio>,
+                    dma: impl Into<::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>>,
+                    pin: impl Into<::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>>,
+                    spawner: ::embassy_executor::Spawner,
+                ) -> $crate::Result<&'static Self> {
+                    static STRIP_STATIC: $crate::led_strip::LedStripStatic<{ $len }, { $max_animation_frames }> =
+                        $crate::led_strip::LedStrip::new_static();
+                    static STRIP_CELL: ::static_cell::StaticCell<$name> = ::static_cell::StaticCell::new();
+
+                    let sm0 = [<$pio:lower _split_sm0>](pio);
+                    let (bus, sm) = sm0.into_parts();
+
+                    let token = [<$name:snake _animation_task>](
+                        bus,
+                        sm,
+                        dma.into(),
+                        pin.into(),
+                        STRIP_STATIC.command_signal(),
+                        STRIP_STATIC.completion_signal(),
+                    )
+                    .map_err($crate::Error::TaskSpawn)?;
+                    spawner.spawn(token);
+
+                    let strip = $crate::led_strip::LedStrip::new(&STRIP_STATIC)?;
+                    let instance = STRIP_CELL.init($name { strip });
+                    Ok(instance)
+                }
+            }
+
+            impl ::core::ops::Deref for $name {
+                type Target = $crate::led_strip::LedStrip<{ $len }, { $max_animation_frames }>;
+
+                fn deref(&self) -> &Self::Target {
+                    &self.strip
+                }
+            }
+
+            #[cfg(not(feature = "host"))]
+            impl $crate::led2d::WriteFrame<{ $len }> for $name {
+                async fn write_frame(&self, frame: $crate::led_strip::Frame<{ $len }>) -> $crate::Result<()> {
+                    self.strip.write_frame(frame).await
+                }
+            }
+
+            #[::embassy_executor::task]
+            async fn [<$name:snake _animation_task>](
+                bus: &'static $crate::led_strip::PioBus<'static, ::embassy_rp::peripherals::$pio>,
+                sm: ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, 0>,
+                dma: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>,
+                pin: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>,
+                command_signal: &'static $crate::led_strip::LedStripCommandSignal<{ $len }, { $max_animation_frames }>,
+                completion_signal: &'static $crate::led_strip::LedStripCompletionSignal,
+            ) -> ! {
+                let program = bus.get_program();
+                let driver = bus.with_common(|common| {
+                    ::embassy_rp::pio_programs::ws2812::PioWs2812::<
+                        ::embassy_rp::peripherals::$pio,
+                        0,
+                        { $len },
+                        _
+                    >::new(common, sm, dma, pin, program)
+                });
+                $crate::led_strip::led_strip_animation_loop::<
+                    ::embassy_rp::peripherals::$pio,
+                    0,
+                    { $len },
+                    { $max_animation_frames },
+                    _
+                >(driver, command_signal, completion_signal, &$name::COMBO_TABLE).await
+            }
+        }
+    };
+}
+
 #[macro_export]
 macro_rules! pio_split {
     ($p:ident . PIO0) => {
