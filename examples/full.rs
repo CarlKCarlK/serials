@@ -84,7 +84,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     servo.set_degrees(90);
 
     // Initialize LED strips (both strips share PIO1)
-    let (gpio2_led_strip, gpio14_led_strip) = LedStrips::new_shared(
+    let (gpio2_led_strip, gpio14_led_strip) = LedStrips::new(
         p.PIO1,
         p.DMA_CH1, p.PIN_2,
         p.DMA_CH4, p.PIN_14,

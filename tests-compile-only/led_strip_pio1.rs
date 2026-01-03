@@ -22,7 +22,7 @@ define_led_strips! {
 
 /// Verify that define_led_strips! works with PIO1
 async fn test_pio1_strip(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
-    let (_gpio16_pio1_led_strip,) = LedStrips::new_shared(p.PIO1, p.DMA_CH3, p.PIN_16, spawner)?;
+    let (_gpio16_pio1_led_strip,) = LedStrips::new(p.PIO1, p.DMA_CH3, p.PIN_16, spawner)?;
 
     Ok(())
 }

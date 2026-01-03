@@ -56,7 +56,7 @@ led2d_from_strip! {
 
 /// Verify Gpio3Pio0LedStrip with write_text
 async fn test_led12x4_pio0_write_text(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
-    let (gpio3_pio0_led_strip,) = LedStripsPio0::new_shared(p.PIO0, p.DMA_CH0, p.PIN_3, spawner)?;
+    let (gpio3_pio0_led_strip,) = LedStripsPio0::new(p.PIO0, p.DMA_CH0, p.PIN_3, spawner)?;
 
     static LED_12X4_STATIC: Gpio3Pio0Led2dStatic = Gpio3Pio0Led2d::new_static();
     let led_12x4 = Gpio3Pio0Led2d::from_strip(gpio3_pio0_led_strip, spawner)?;
@@ -73,7 +73,7 @@ async fn test_led12x4_pio0_write_text(p: embassy_rp::Peripherals, spawner: Spawn
 
 /// Verify Gpio3Pio1LedStrip constructor
 async fn test_led12x4_pio1(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
-    let (gpio3_pio1_led_strip,) = LedStripsPio1::new_shared(p.PIO1, p.DMA_CH1, p.PIN_3, spawner)?;
+    let (gpio3_pio1_led_strip,) = LedStripsPio1::new(p.PIO1, p.DMA_CH1, p.PIN_3, spawner)?;
 
     static LED_12X4_STATIC: Gpio3Pio1Led2dStatic = Gpio3Pio1Led2d::new_static();
     let _led_12x4 = Gpio3Pio1Led2d::from_strip(gpio3_pio1_led_strip, spawner)?;

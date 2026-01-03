@@ -26,12 +26,12 @@ async fn main(spawner: Spawner) -> ! {
     core::panic!("{err}");
 }
 
-// cmk000 much cleaner with new_shared!
+// cmk000 much cleaner with new()!
 // cmk000 is the spawner input in the standard position?
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
-    let (gpio3_led_strip,) = LedStrips::new_shared(p.PIO0, p.DMA_CH0, p.PIN_3, spawner)?;
+    let (gpio3_led_strip,) = LedStrips::new(p.PIO0, p.DMA_CH0, p.PIN_3, spawner)?;
 
     info!("Setting every other LED to blue on GPIO3");
 

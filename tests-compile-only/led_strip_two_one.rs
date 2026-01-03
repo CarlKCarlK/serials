@@ -79,12 +79,12 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
 
     // Shared PIO1: gpio0 (8 LEDs) and gpio3 (12x4 LEDs)
     let (gpio0_led_strip, gpio3_led_strip) =
-        LedStripsPio1::new_shared(p.PIO1, p.DMA_CH0, p.PIN_0, p.DMA_CH1, p.PIN_3, spawner)?;
+        LedStripsPio1::new(p.PIO1, p.DMA_CH0, p.PIN_0, p.DMA_CH1, p.PIN_3, spawner)?;
     // Convert gpio3 to led2d
     let gpio3_led_strip = Gpio3LedStripLed2d::from_strip(gpio3_led_strip, spawner)?;
 
     // Single-strip on PIO0: gpio4 (12x8 LEDs = 96)
-    let (gpio4_led_strip,) = LedStripsPio0::new_shared(p.PIO0, p.DMA_CH2, p.PIN_4, spawner)?;
+    let (gpio4_led_strip,) = LedStripsPio0::new(p.PIO0, p.DMA_CH2, p.PIN_4, spawner)?;
     // Convert gpio4 to led2d
     let gpio4_led_strip = Gpio4LedStripLed2d::from_strip(gpio4_led_strip, spawner)?;
 

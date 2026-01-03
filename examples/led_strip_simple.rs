@@ -30,7 +30,7 @@ async fn main(spawner: Spawner) -> ! {
 async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
-    let (gpio2_led_strip,) = LedStrips::new_shared(p.PIO1, p.DMA_CH0, p.PIN_2, spawner)?;
+    let (gpio2_led_strip,) = LedStrips::new(p.PIO1, p.DMA_CH0, p.PIN_2, spawner)?;
 
     info!("LED strip demo starting (GPIO2 data, VSYS power)");
 

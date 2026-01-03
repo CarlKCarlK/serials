@@ -38,13 +38,13 @@ async fn test_all_pios(
     p: embassy_rp::Peripherals,
     spawner: embassy_executor::Spawner,
 ) -> Result<()> {
-    let (_pio0_led_strip_48,) = LedStripsPio0::new_shared(p.PIO0, p.DMA_CH0, p.PIN_3, spawner)?;
-    let (_pio1_led_strip_48,) = LedStripsPio1::new_shared(p.PIO1, p.DMA_CH1, p.PIN_4, spawner)?;
+    let (_pio0_led_strip_48,) = LedStripsPio0::new(p.PIO0, p.DMA_CH0, p.PIN_3, spawner)?;
+    let (_pio1_led_strip_48,) = LedStripsPio1::new(p.PIO1, p.DMA_CH1, p.PIN_4, spawner)?;
 
     // Test PIO2 (Pico 2 only)
     #[cfg(feature = "pico2")]
     {
-        let (_pio2_led_strip_48,) = LedStripsPio2::new_shared(p.PIO2, p.DMA_CH2, p.PIN_5, spawner)?;
+        let (_pio2_led_strip_48,) = LedStripsPio2::new(p.PIO2, p.DMA_CH2, p.PIN_5, spawner)?;
     }
 
     Ok(())
