@@ -5,14 +5,13 @@ use core::convert::Infallible;
 
 use defmt::info;
 use device_kit::Result;
-use device_kit::led_strip::{Current, colors, led_strip};
+use device_kit::led_strip::{Current, Frame, colors, led_strip};
 use embassy_executor::Spawner;
-use embassy_time::Timer;
+use embassy_time::{Duration, Timer};
 use {defmt_rtt as _, panic_probe as _};
 
 led_strip! {
     LedStrip {
-        pio: PIO1,
         pin: PIN_0,
         len: 8,
         max_current: Current::Milliamps(50),
@@ -29,12 +28,13 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     let p = embassy_rp::init(Default::default());
 
     // Create strip - no tuple unpacking needed!
-    let led_strip = LedStrip::new(p.PIO1, p.DMA_CH0, p.PIN_0, spawner)?;
+    let led_strip = LedStrip::new(p.PIO0, p.DMA_CH0, p.PIN_0, spawner)?;
 
     info!("LED strip initialized with {} LEDs", LedStrip::LEN);
 
-    // Create a simple rainbow pattern
-    let frame = [
+    // Create frames for the animation
+
+    let rainbow_frame = Frame::from([
         colors::RED,
         colors::ORANGE,
         colors::YELLOW,
@@ -43,20 +43,20 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         colors::BLUE,
         colors::PURPLE,
         colors::MAGENTA,
-    ];
+    ]);
 
-    led_strip.write_frame(frame.into()).await?;
-    info!("Rainbow displayed!");
+    let black_frame = Frame::new();
 
-    Timer::after_secs(2).await;
-
-    // Turn off
+    info!("Starting rainbow animation...");
+    const FRAME_DURATION: Duration = Duration::from_secs(1);
     led_strip
-        .write_frame([colors::BLACK; LedStrip::LEN].into())
+        .animate([
+            (rainbow_frame, FRAME_DURATION),
+            (black_frame, FRAME_DURATION),
+        ])
         .await?;
-    info!("LEDs off");
 
     loop {
-        Timer::after_secs(1).await;
+        Timer::after_secs(3600).await;
     }
 }

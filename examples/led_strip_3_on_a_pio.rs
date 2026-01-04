@@ -17,7 +17,6 @@ use heapless::Vec;
 use panic_probe as _;
 
 led_strips! {
-    pio: PIO1,
     LedStrips {
         gpio0: { pin: PIN_0, len: 8},
         gpio3: { pin: PIN_3, len: 48},
@@ -63,7 +62,7 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
     let p = embassy_rp::init(Default::default());
 
     let (gpio0_led_strip, gpio3_led_strip, gpio4_led_strip) = LedStrips::new(
-        p.PIO1, p.DMA_CH0, p.PIN_0, p.DMA_CH1, p.PIN_3, p.DMA_CH2, p.PIN_4, spawner,
+        p.PIO0, p.DMA_CH0, p.PIN_0, p.DMA_CH1, p.PIN_3, p.DMA_CH2, p.PIN_4, spawner,
     )?;
 
     let led12x4_gpio3 = Led12x4Gpio3::from_strip(gpio3_led_strip, spawner)?;
