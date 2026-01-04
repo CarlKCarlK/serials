@@ -11,13 +11,12 @@ use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
 
-const MAX_CURRENT: Current = Current::Milliamps(500);
-
 led_strip! {
     Gpio0LedStrip {
         pin: PIN_0,
         len: 8,
-        max_current: MAX_CURRENT
+        max_current: Current::Milliamps(250),
+        gamma: device_kit::led_strip::gamma::Gamma::Gamma2_2,
     }
 }
 
@@ -27,7 +26,8 @@ led_strip! {
         dma: DMA_CH1,
         pin: PIN_3,
         len: 48,
-        max_current: MAX_CURRENT
+        max_current: Current::Milliamps(250),
+        gamma: device_kit::led_strip::gamma::Gamma::Gamma2_2,
     }
 }
 

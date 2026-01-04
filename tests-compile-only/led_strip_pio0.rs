@@ -11,13 +11,12 @@ use device_kit::Result;
 use device_kit::led_strip::Current;
 use device_kit::led_strip::led_strip;
 use embassy_executor::Spawner;
-use panic_probe as _;
 
 led_strip! {
     Gpio0LedStrip {
         pin: PIN_0,
         len: 8,
-        max_current: Current::Milliamps(50)
+        max_current: Current::Milliamps(50),
     }
 }
 
@@ -34,7 +33,8 @@ async fn main(_spawner: Spawner) {
     // The actual verification happens at compile time via the function above.
 }
 
-#[cfg(not(any(target_arch = "arm", target_arch = "riscv32", target_arch = "riscv64")))]
+// panic_probe provides a panic handler for host, but we need one for embedded
+#[cfg(target_arch = "arm")]
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
     loop {}

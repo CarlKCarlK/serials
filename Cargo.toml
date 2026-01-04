@@ -70,7 +70,10 @@ riscv = [
     "dep:embassy-hal-internal",
     "critical-section/restore-state-bool",
 ]
-host = ["dep:png", "dep:tempfile"] # For testing on host platform without hardware dependencies
+host = [
+    "dep:png",
+    "dep:tempfile",
+] # For testing on host platform without hardware dependencies
 wifi = ["dep:cyw43", "dep:cyw43-pio", "dep:cyw43-firmware", "dep:embassy-net"]
 display-trace = []
 
@@ -160,6 +163,16 @@ tempfile = { version = "3.13", optional = true }
 [[test]]
 name = "led2d_text_render"
 path = "tests/led2d_text_render.rs"
+required-features = ["host"]
+
+[[test]]
+name = "mapping"
+path = "tests/mapping.rs"
+required-features = ["host"]
+
+[[test]]
+name = "led2d_mapping_algebra"
+path = "tests/led2d_mapping_algebra.rs"
 required-features = ["host"]
 
 [patch.crates-io]

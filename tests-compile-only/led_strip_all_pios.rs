@@ -1,11 +1,14 @@
+#![cfg(not(feature = "host"))]
 #![no_std]
 #![no_main]
+#![allow(dead_code, reason = "Compile-time verification only")]
 
-use panic_probe as _;
+use defmt_rtt as _;
 
-use device_kit::led_strip::led_strips;
-use device_kit::led_strip::Current;
 use device_kit::Result;
+use device_kit::led_strip::Current;
+use device_kit::led_strip::led_strips;
+use embassy_executor::Spawner;
 
 const MAX_CURRENT: Current = Current::Milliamps(250);
 
@@ -34,10 +37,7 @@ led_strips! {
 /// Compile-only test to verify `led_strips!` works with all PIO blocks.
 /// This prevents type mismatches between generated strip types and PIO splits.
 #[allow(dead_code)]
-async fn test_all_pios(
-    p: embassy_rp::Peripherals,
-    spawner: embassy_executor::Spawner,
-) -> Result<()> {
+async fn test_all_pios(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
     let (_pio0_led_strip_48,) = LedStripsPio0::new(p.PIO0, p.DMA_CH0, p.PIN_3, spawner)?;
     let (_pio1_led_strip_48,) = LedStripsPio1::new(p.PIO1, p.DMA_CH1, p.PIN_4, spawner)?;
 
@@ -48,4 +48,16 @@ async fn test_all_pios(
     }
 
     Ok(())
+}
+
+#[embassy_executor::main]
+async fn main(_spawner: Spawner) {
+    // This main function exists only to satisfy the compiler.
+}
+
+// panic_probe provides a panic handler for host, but we need one for embedded
+#[cfg(target_arch = "arm")]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
+    loop {}
 }

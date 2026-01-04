@@ -10,14 +10,13 @@
 
 use defmt_rtt as _;
 use device_kit::Result;
-use device_kit::led_strips;
 use device_kit::led_layout::LedLayout;
 use device_kit::led_strip::Current;
 use device_kit::led_strip::gamma::Gamma;
+use device_kit::led_strips;
 use device_kit::led2d;
 use embassy_executor::Spawner;
 use embassy_time::Duration;
-use panic_probe as _;
 use smart_leds::colors;
 
 // Example with a custom mapping for a 3x2 display (6 LEDs total)
@@ -71,7 +70,8 @@ async fn main(_spawner: Spawner) {
     // The actual verification happens at compile time via the functions above.
 }
 
-#[cfg(not(any(target_arch = "arm", target_arch = "riscv32", target_arch = "riscv64")))]
+// panic_probe provides a panic handler for host, but we need one for embedded
+#[cfg(target_arch = "arm")]
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
     loop {}

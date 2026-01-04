@@ -12,6 +12,12 @@ pub enum Gamma {
     Gamma2_2,
 }
 
+impl Default for Gamma {
+    fn default() -> Self {
+        Self::Gamma2_2
+    }
+}
+
 /// Gamma 2.2 lookup table for 8-bit values.
 /// Pre-computed to avoid floating point math: corrected = (value/255)^2.2 * 255
 ///

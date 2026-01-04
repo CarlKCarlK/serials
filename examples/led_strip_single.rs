@@ -34,7 +34,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     // Create strip - no tuple unpacking needed!
     let led_strip = LedStrip::new(p.PIO1, p.DMA_CH0, p.PIN_0, spawner)?;
 
-    info!("LED strip initialized with {} LEDs", MyLedStrip::LEN);
+    info!("LED strip initialized with {} LEDs", LedStrip::LEN);
 
     // Create a simple rainbow pattern
     let frame = [

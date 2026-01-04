@@ -36,16 +36,16 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
     let mut hue: u8 = 0;
 
     loop {
-        update_rainbow(gpio2_led_strip, hue).await?;
+        update_rainbow(&gpio0_led_strip, hue).await?;
 
         hue = hue.wrapping_add(3);
         Timer::after_millis(80).await;
     }
 }
 
-async fn update_rainbow(led_strip: &Gpio2LedStrip, base: u8) -> Result<()> {
-    let mut frame = Frame::<{ Gpio2LedStrip::LEN }>::new();
-    for idx in 0..Gpio2LedStrip::LEN {
+async fn update_rainbow(led_strip: &Gpio0LedStrip, base: u8) -> Result<()> {
+    let mut frame = Frame::<{ Gpio0LedStrip::LEN }>::new();
+    for idx in 0..Gpio0LedStrip::LEN {
         let offset = base.wrapping_add((idx as u8).wrapping_mul(16));
         frame[idx] = wheel(offset);
     }

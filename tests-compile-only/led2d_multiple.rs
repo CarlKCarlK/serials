@@ -26,7 +26,7 @@ led_strip! {
         pio: PIO0,
         pin: PIN_3,
         len: 48,
-        max_current: Current::Milliamps(500)
+        max_current: Current::Milliamps(500),
     }
 }
 
@@ -36,7 +36,7 @@ led_strip! {
         dma: DMA_CH1,
         pin: PIN_4,
         len: 64,
-        max_current: Current::Milliamps(300)
+        max_current: Current::Milliamps(300),
     }
 }
 

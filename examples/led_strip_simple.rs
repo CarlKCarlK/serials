@@ -34,13 +34,13 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 
     let gpio0_led_strip = Gpio0LedStrip::new(p.PIO1, p.DMA_CH0, p.PIN_0, spawner)?;
 
-    info!("LED strip demo starting (GPIO2 data, VSYS power)");
+    info!("LED strip demo starting (GPIO0 data, VSYS power)");
 
     let mut position: isize = 0;
     let mut direction: isize = 1;
 
     loop {
-        update_bounce(gpio2_led_strip, position as usize).await?;
+        update_bounce(&gpio0_led_strip, position as usize).await?;
 
         position += direction;
         if position <= 0 {
@@ -55,7 +55,7 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
     }
 }
 
-async fn update_bounce(led_strip: &Gpio2LedStrip, position: usize) -> Result<()> {
+async fn update_bounce(led_strip: &Gpio0LedStrip, position: usize) -> Result<()> {
     assert!(position < LEN);
     let mut frame = Frame::<LEN>::new();
     frame[position] = colors::WHITE;

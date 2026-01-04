@@ -10,7 +10,7 @@
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_layout::LedLayout;
-use device_kit::led_strip::{led_strip, led_strips};
+use device_kit::led_strip::led_strip;
 use device_kit::led_strip::{Current, colors};
 use device_kit::led2d::led2d_from_strip;
 use embassy_executor::Spawner;
@@ -25,7 +25,7 @@ led_strip! {
         pio: PIO0,
         pin: PIN_3,
         len: 48,
-        max_current: Current::Milliamps(500)
+        max_current: Current::Milliamps(500),
     }
 }
 
@@ -35,7 +35,7 @@ led_strip! {
         dma: DMA_CH1,
         pin: PIN_3,
         len: 48,
-        max_current: Current::Milliamps(500)
+        max_current: Current::Milliamps(500),
     }
 }
 

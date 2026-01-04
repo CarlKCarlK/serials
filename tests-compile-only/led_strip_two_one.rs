@@ -1,11 +1,7 @@
+#![cfg(not(feature = "host"))]
 #![no_std]
 #![no_main]
-
-// cmk000 would be nice to make led_strips create 2Ds directly
-// cmk000 names of generated modules/structs seems a mess and names are inconsistent.
-
-// cmk000 we need to document that `led2d_from_strip` can only be used once
-// cmk000 where are are pools? should they be set?
+#![allow(dead_code, reason = "Compile-time verification only")]
 
 use defmt::info;
 use defmt_rtt as _;
@@ -16,7 +12,6 @@ use device_kit::led_strip::{Current, Frame, Rgb, colors};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use heapless::Vec;
-use panic_probe as _;
 
 led_strips! {
     pio: PIO1,
@@ -186,4 +181,11 @@ fn step_snake<const N: usize>(frame: &mut Frame<N>, position: &mut usize) {
     }
 
     *position = position.wrapping_add(1) % len;
+}
+
+// panic_probe provides a panic handler for host, but we need one for embedded
+#[cfg(target_arch = "arm")]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
+    loop {}
 }
