@@ -107,6 +107,7 @@ impl ServoAnimateStatic {
 /// # #![no_std]
 /// # #![no_main]
 /// use device_kit::servo_animate::{concat_steps, linear, ServoAnimate, ServoAnimateStatic, Step, servo_even};
+/// use embassy_time::Duration;
 /// # #[panic_handler]
 /// # fn panic(_info: &core::panic::PanicInfo) -> ! { loop {} }
 ///
@@ -120,8 +121,8 @@ impl ServoAnimateStatic {
 ///     .unwrap();
 ///
 ///     // Sweep down from 180 to 0 over 5 seconds, hold, then repeat.
-///     const FIVE_SECONDS: embassy_time::Duration = embassy_time::Duration::from_secs(5);
-///     const HALF_SECOND: embassy_time::Duration = embassy_time::Duration::from_millis(500);
+///     const FIVE_SECONDS: Duration = Duration::from_secs(5);
+///     const HALF_SECOND: Duration = Duration::from_millis(500);
 ///     let sweep = linear::<11>(180, 0, FIVE_SECONDS);
 ///     let sequence = concat_steps::<16>(&[
 ///         &sweep,

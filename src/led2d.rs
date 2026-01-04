@@ -24,6 +24,7 @@
 //! use device_kit::led_strip::Current;
 //! use device_kit::led_strip::gamma::Gamma;
 //! use device_kit::led_strip::colors;
+//! use embassy_time::Duration;
 //!
 //! led2d! {
 //!     pub led12x4,
@@ -85,6 +86,7 @@
 //! use device_kit::led_strip::gamma::Gamma;
 //! use device_kit::led_strip::colors;
 //! use device_kit::pio_split;
+//! use embassy_time::Duration;
 //!
 //! // Define LED strip sharing PIO1
 //! led_strips! {
@@ -1016,6 +1018,7 @@ pub use led2d_device;
 /// use device_kit::led_strip::Current;
 /// use device_kit::led_strip::gamma::Gamma;
 /// use device_kit::led_strip::colors;
+/// use embassy_time::Duration;
 ///
 /// // Generate a 12×4 LED matrix display
 /// led2d! {
@@ -1231,6 +1234,7 @@ macro_rules! led2d {
 /// use device_kit::led_strip::gamma::Gamma;
 /// use device_kit::pio_split;
 /// use embassy_executor::Spawner;
+/// use embassy_time::Duration;
 ///
 /// // Define multiple strips sharing PIO1
 /// led_strips! {
@@ -1428,7 +1432,7 @@ macro_rules! led2d_from_strip {
                 }
 
                 /// Loop through a sequence of animation frames. Pass arrays by value or Vecs/iters.
-                $vis async fn animate(&self, frames: impl IntoIterator<Item = ($crate::led2d::Frame<$cols_const, $rows_const>, ::embassy_time::Duration)>) -> $crate::Result<()> {
+                $vis async fn animate(&self, frames: impl IntoIterator<Item = ($crate::led2d::Frame<$cols_const, $rows_const>, Duration)>) -> $crate::Result<()> {
                     self.led2d.animate(frames).await
                 }
 

@@ -87,6 +87,8 @@ clock-led8x12-2w = "run --example clock_led8x12 --release --target thumbv8m.main
 clock-led8x12-2w-check = "check --example clock_led8x12 --release --target thumbv8m.main-none-eabihf --features pico2,arm,wifi --no-default-features"
 led-strip-snake-2 = "run --example led_strip_snake --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 led-strip-snake-2-check = "check --example led_strip_snake --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+conway-2 = "run --example conway --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
+conway-2-check = "check --example conway --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 video-2 = "run --example video --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 video-2-check = "check --example video --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
 blinky-2 = "run --example blinky --release --target thumbv8m.main-none-eabihf --features pico2,arm --no-default-features"
@@ -145,6 +147,8 @@ led2d-custom = "run --example led2d_custom_mapping --release --target thumbv6m-n
 led2d-custom-check = "check --example led2d_custom_mapping --release --target thumbv6m-none-eabi --features pico1,arm"
 concat-h = "run --example concat_h --release --target thumbv6m-none-eabi --features pico1,arm"
 concat-h-check = "check --example concat_h --release --target thumbv6m-none-eabi --features pico1,arm"
+conway = "run --example conway --release --target thumbv6m-none-eabi --features pico1,arm"
+conway-check = "check --example conway --release --target thumbv6m-none-eabi --features pico1,arm"
 video = "run --example video --release --target thumbv6m-none-eabi --features pico1,arm"
 video-check = "check --example video --release --target thumbv6m-none-eabi --features pico1,arm"
 

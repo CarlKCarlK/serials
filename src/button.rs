@@ -138,7 +138,7 @@ impl<'a> Button<'a> {
             if !self.is_pressed() {
                 break;
             }
-            embassy_time::Timer::after(embassy_time::Duration::from_millis(1)).await;
+            Timer::after(Duration::from_millis(1)).await;
         }
         self
     }
@@ -149,7 +149,7 @@ impl<'a> Button<'a> {
             if self.is_pressed() {
                 break;
             }
-            embassy_time::Timer::after(embassy_time::Duration::from_millis(1)).await;
+            Timer::after(Duration::from_millis(1)).await;
         }
         self
     }

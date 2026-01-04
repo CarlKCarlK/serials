@@ -5,9 +5,9 @@ use defmt::info;
 use defmt_rtt as _;
 use device_kit::Result;
 use device_kit::led_strip::led_strips;
-use device_kit::led_strip::{Current, Frame, Rgb, colors};
+use device_kit::led_strip::{Frame, Rgb, colors};
 use embassy_executor::Spawner;
-use embassy_time::Timer;
+use embassy_time::{Duration, Timer};
 use panic_probe as _;
 
 // Two WS2812B 4x12 LED matrices (48 pixels each) sharing PIO0
@@ -40,15 +40,14 @@ async fn inner_main(spawner: Spawner) -> Result<()> {
         100
     );
 
-    const FRAME_DURATION: embassy_time::Duration = embassy_time::Duration::from_millis(300);
+    const FRAME_DURATION: Duration = Duration::from_millis(300);
     const BRIGHT: Rgb = colors::WHITE;
     const GAP: Rgb = colors::BLACK;
     const GAP_SPACING: usize = 4;
     const FRAME_COUNT: usize = GAP_SPACING;
 
     let mut frames =
-        heapless::Vec::<(Frame<{ Gpio3LedStrip::LEN }>, embassy_time::Duration), FRAME_COUNT>::new(
-        );
+        heapless::Vec::<(Frame<{ Gpio3LedStrip::LEN }>, Duration), FRAME_COUNT>::new();
 
     for frame_offset in 0..FRAME_COUNT {
         let mut frame = Frame::<{ Gpio3LedStrip::LEN }>::filled(BRIGHT);

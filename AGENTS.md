@@ -357,3 +357,13 @@ Examples use the following standard pin assignments:
 - **PIN_4** – Two 12×4 matrices combined into 12×8 display (96 pixels)
 
 When writing new examples or documentation, follow this convention for consistency.
+
+## Button Pin
+
+The standard button pin across examples is **PIN_13**:
+
+```rust
+let mut button = Button::new(p.PIN_13, PressedTo::Ground);
+```
+
+Use this consistently when adding button input to examples.

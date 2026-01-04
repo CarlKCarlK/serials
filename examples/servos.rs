@@ -8,7 +8,7 @@
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_time::Timer;
+use embassy_time::{Duration, Timer};
 use panic_probe as _;
 use device_kit::servo::servo_even;
 
@@ -27,7 +27,7 @@ pub async fn main(_spawner: Spawner) -> ! {
     info!("Moving servos in opposite directions for 2 seconds");
 
     let start = embassy_time::Instant::now();
-    let duration = embassy_time::Duration::from_secs(2);
+    let duration = Duration::from_secs(2);
 
     loop {
         let elapsed = start.elapsed();

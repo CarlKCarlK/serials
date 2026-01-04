@@ -221,6 +221,7 @@ impl Led4<'_> {
     /// # use embassy_rp::gpio::{Level, Output};
     /// # use embassy_executor::Spawner;
     /// # use device_kit::{Result, led4::{AnimationFrame, Led4, Led4Static, OutputArray}};
+    /// use embassy_time::Duration;
     ///
     /// async fn demo(p: embassy_rp::Peripherals, spawner: Spawner) -> Result<()> {
     ///     let cells = OutputArray::new([
@@ -241,7 +242,7 @@ impl Led4<'_> {
     ///     ]);
     ///     static LED4_STATIC: Led4Static = Led4::new_static();
     ///     let display = Led4::new(&LED4_STATIC, cells, segments, spawner)?;
-    ///     const FRAME_DURATION: embassy_time::Duration = embassy_time::Duration::from_millis(120);
+    ///     const FRAME_DURATION: Duration = Duration::from_millis(120);
     ///     let mut animation: heapless::Vec<AnimationFrame, 16> = heapless::Vec::new();
     ///     animation.push(AnimationFrame::new(['-', '-', '-', '-'], FRAME_DURATION)).unwrap();
     ///     animation.push(AnimationFrame::new([' ', ' ', ' ', ' '], FRAME_DURATION)).unwrap();
