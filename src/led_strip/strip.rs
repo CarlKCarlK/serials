@@ -282,7 +282,7 @@ impl<const N: usize, const MAX_FRAMES: usize> LedStrip<N, MAX_FRAMES> {
     ) -> Result<()> {
         assert!(
             MAX_FRAMES > 0,
-            "max_animation_frames must be positive for LED strip animations"
+            "max_frames must be positive for LED strip animations"
         );
         let mut sequence: Vec<(Frame<N>, Duration), MAX_FRAMES> = Vec::new();
         for (frame, duration) in frames {
@@ -442,7 +442,7 @@ macro_rules! led_strips {
                     len: $len:expr,
                     max_current: $max_current:expr,
                     gamma: $gamma:expr,
-                    max_animation_frames: $max_animation_frames:expr
+                    max_frames: $max_frames:expr
                     $(,
                         led2d: {
                             width: $led2d_width:expr,
@@ -501,12 +501,12 @@ macro_rules! led_strips {
                     "Created with [`", stringify!($group), "::new`]."
                 )]
                 pub struct [<$label:camel LedStrip>] {
-                    strip: $crate::led_strip::LedStrip<{ $len }, { $max_animation_frames }>,
+                    strip: $crate::led_strip::LedStrip<{ $len }, { $max_frames }>,
                 }
 
                 impl [<$label:camel LedStrip>] {
                     pub const LEN: usize = $len;
-                    pub const MAX_ANIMATION_FRAMES: usize = $max_animation_frames;
+                    pub const MAX_FRAMES: usize = $max_frames;
 
                     // Calculate max brightness from current budget
                     // Each WS2812B LED draws ~60mA at full brightness
@@ -518,7 +518,7 @@ macro_rules! led_strips {
                     // Combined gamma correction and brightness scaling table
                     const COMBO_TABLE: [u8; 256] = $crate::led_strip::gamma::generate_combo_table($gamma, Self::MAX_BRIGHTNESS);
 
-                    pub(crate) const fn new_static() -> $crate::led_strip::LedStripStatic<{ $len }, { $max_animation_frames }> {
+                    pub(crate) const fn new_static() -> $crate::led_strip::LedStripStatic<{ $len }, { $max_frames }> {
                         $crate::led_strip::LedStrip::new_static()
                     }
 
@@ -528,7 +528,7 @@ macro_rules! led_strips {
                         pin: impl Into<::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>>,
                         spawner: ::embassy_executor::Spawner,
                     ) -> $crate::Result<&'static Self> {
-                        static STRIP_STATIC: $crate::led_strip::LedStripStatic<{ $len }, { $max_animation_frames }> = [<$label:camel LedStrip>]::new_static();
+                        static STRIP_STATIC: $crate::led_strip::LedStripStatic<{ $len }, { $max_frames }> = [<$label:camel LedStrip>]::new_static();
                         static STRIP_CELL: ::static_cell::StaticCell<[<$label:camel LedStrip>]> = ::static_cell::StaticCell::new();
                         let (bus, sm) = state_machine.into_parts();
                         let token = [<$group:snake _ $label:snake _animation_task>](
@@ -548,7 +548,7 @@ macro_rules! led_strips {
                 }
 
                 impl ::core::ops::Deref for [<$label:camel LedStrip>] {
-                    type Target = $crate::led_strip::LedStrip<{ $len }, { $max_animation_frames }>;
+                    type Target = $crate::led_strip::LedStrip<{ $len }, { $max_frames }>;
 
                     fn deref(&self) -> &Self::Target {
                         &self.strip
@@ -568,7 +568,7 @@ macro_rules! led_strips {
                     sm: ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, $sm_index>,
                     dma: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>,
                     pin: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>,
-                    command_signal: &'static $crate::led_strip::LedStripCommandSignal<{ $len }, { $max_animation_frames }>,
+                    command_signal: &'static $crate::led_strip::LedStripCommandSignal<{ $len }, { $max_frames }>,
                     completion_signal: &'static $crate::led_strip::LedStripCompletionSignal,
                 ) -> ! {
                     let program = bus.get_program();
@@ -584,7 +584,7 @@ macro_rules! led_strips {
                         ::embassy_rp::peripherals::$pio,
                         $sm_index,
                         { $len },
-                        { $max_animation_frames },
+                        { $max_frames },
                         _
                     >(driver, command_signal, completion_signal, &[<$label:camel LedStrip>]::COMBO_TABLE).await
                 }
@@ -723,7 +723,7 @@ macro_rules! led_strips {
             len: __MISSING_LEN__,
             max_current: $crate::led_strip::Current::Unlimited,
             gamma: $crate::led_strip::gamma::Gamma::Linear,
-            max_animation_frames: 32,
+            max_frames: 32,
             led2d: __NONE__,
             fields: [ $($fields)* ]
         }
@@ -758,7 +758,7 @@ macro_rules! led_strips {
         len: $len:tt,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         led2d: $led2d:tt,
         fields: [ pin: $new_pin:ident $(, $($rest:tt)* )? ]
     ) => {
@@ -775,7 +775,7 @@ macro_rules! led_strips {
             len: $len,
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             led2d: $led2d,
             fields: [ $($($rest)*)? ]
         }
@@ -793,7 +793,7 @@ macro_rules! led_strips {
         len: $len:tt,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         led2d: $led2d:tt,
         fields: [ dma: $new_dma:ident $(, $($rest:tt)* )? ]
     ) => {
@@ -810,7 +810,7 @@ macro_rules! led_strips {
             len: $len,
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             led2d: $led2d,
             fields: [ $($($rest)*)? ]
         }
@@ -828,7 +828,7 @@ macro_rules! led_strips {
         len: $len:tt,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         led2d: $led2d:tt,
         fields: [ len: $new_len:expr $(, $($rest:tt)* )? ]
     ) => {
@@ -845,7 +845,7 @@ macro_rules! led_strips {
             len: $new_len,
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             led2d: $led2d,
             fields: [ $($($rest)*)? ]
         }
@@ -863,7 +863,7 @@ macro_rules! led_strips {
         len: $len:tt,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         led2d: $led2d:tt,
         fields: [ max_current: $new_max_current:expr $(, $($rest:tt)* )? ]
     ) => {
@@ -880,7 +880,7 @@ macro_rules! led_strips {
             len: $len,
             max_current: $new_max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             led2d: $led2d,
             fields: [ $($($rest)*)? ]
         }
@@ -898,7 +898,7 @@ macro_rules! led_strips {
         len: $len:tt,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         led2d: $led2d:tt,
         fields: [ gamma: $new_gamma:expr $(, $($rest:tt)* )? ]
     ) => {
@@ -915,7 +915,7 @@ macro_rules! led_strips {
             len: $len,
             max_current: $max_current,
             gamma: $new_gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             led2d: $led2d,
             fields: [ $($($rest)*)? ]
         }
@@ -933,9 +933,9 @@ macro_rules! led_strips {
         len: $len:tt,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         led2d: $led2d:tt,
-        fields: [ max_animation_frames: $new_max_animation_frames:expr $(, $($rest:tt)* )? ]
+        fields: [ max_frames: $new_max_frames:expr $(, $($rest:tt)* )? ]
     ) => {
         led_strips! {
             @__fill_strip_defaults
@@ -950,7 +950,7 @@ macro_rules! led_strips {
             len: $len,
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $new_max_animation_frames,
+            max_frames: $new_max_frames,
             led2d: $led2d,
             fields: [ $($($rest)*)? ]
         }
@@ -968,7 +968,7 @@ macro_rules! led_strips {
         len: $len:tt,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         led2d: __NONE__,
         fields: [ led2d: { $($led2d_fields:tt)* } $(, $($rest:tt)* )? ]
     ) => {
@@ -985,7 +985,7 @@ macro_rules! led_strips {
             len: $len,
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             led2d: __HAS_LED2D__ { $($led2d_fields)* },
             fields: [ $($($rest)*)? ]
         }
@@ -1005,7 +1005,7 @@ macro_rules! led_strips {
         len: $len:expr,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         led2d: $led2d:tt,
         fields: []
     ) => {
@@ -1022,7 +1022,7 @@ macro_rules! led_strips {
             len: $len,
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             led2d: $led2d,
             fields: []
         }
@@ -1039,7 +1039,7 @@ macro_rules! led_strips {
         len: $len:expr,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         led2d: $led2d:tt,
         fields: []
     ) => {
@@ -1056,7 +1056,7 @@ macro_rules! led_strips {
             len: $len,
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             led2d: $led2d,
             fields: []
         }
@@ -1073,7 +1073,7 @@ macro_rules! led_strips {
         len: $len:expr,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         led2d: $led2d:tt,
         fields: []
     ) => {
@@ -1090,7 +1090,7 @@ macro_rules! led_strips {
             len: $len,
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             led2d: $led2d,
             fields: []
         }
@@ -1107,7 +1107,7 @@ macro_rules! led_strips {
         len: $len:expr,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         led2d: $led2d:tt,
         fields: []
     ) => {
@@ -1124,7 +1124,7 @@ macro_rules! led_strips {
             len: $len,
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             led2d: $led2d,
             fields: []
         }
@@ -1143,7 +1143,7 @@ macro_rules! led_strips {
         len: $len:expr,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         led2d: __NONE__,
         fields: []
     ) => {
@@ -1161,7 +1161,7 @@ macro_rules! led_strips {
                     len: $len,
                     max_current: $max_current,
                     gamma: $gamma,
-                    max_animation_frames: $max_animation_frames
+                    max_frames: $max_frames
                 },
             ],
             strips_in: [ $($remaining)* ]
@@ -1180,7 +1180,7 @@ macro_rules! led_strips {
         len: $len:expr,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         led2d: __HAS_LED2D__ { $($led2d_fields:tt)* },
         fields: []
     ) => {
@@ -1198,7 +1198,7 @@ macro_rules! led_strips {
                     len: $len,
                     max_current: $max_current,
                     gamma: $gamma,
-                    max_animation_frames: $max_animation_frames,
+                    max_frames: $max_frames,
                     led2d: { $($led2d_fields)* }
                 },
             ],
@@ -1280,7 +1280,7 @@ macro_rules! led_strips {
 /// - `pio: PIO1` - PIO peripheral (defaults to PIO0)
 /// - `dma: DMA_CH0` - DMA channel (defaults to DMA_CH0)
 /// - `gamma: Gamma::Gamma2_2` - Gamma correction (defaults to Gamma2_2)
-/// - `max_animation_frames: 16` - Animation frame buffer size (defaults to 16)
+/// - `max_frames: 16` - Animation frame buffer size (defaults to 16)
 ///
 /// # Generated API
 ///
@@ -1327,7 +1327,7 @@ macro_rules! led_strip {
             len: _UNSET_,
             max_current: _UNSET_,
             gamma: $crate::led_strip::gamma::Gamma::Gamma2_2,
-            max_animation_frames: 16,
+            max_frames: 16,
             fields: [ $($fields)* ]
         }
     };
@@ -1341,7 +1341,7 @@ macro_rules! led_strip {
         len: $len:tt,
         max_current: $max_current:tt,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         fields: [ pio: $new_pio:ident $(, $($rest:tt)* )? ]
     ) => {
         led_strip! {
@@ -1353,7 +1353,7 @@ macro_rules! led_strip {
             len: $len,
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             fields: [ $($($rest)*)? ]
         }
     };
@@ -1367,7 +1367,7 @@ macro_rules! led_strip {
         len: $len:tt,
         max_current: $max_current:tt,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         fields: [ pin: $new_pin:ident $(, $($rest:tt)* )? ]
     ) => {
         led_strip! {
@@ -1379,7 +1379,7 @@ macro_rules! led_strip {
             len: $len,
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             fields: [ $($($rest)*)? ]
         }
     };
@@ -1393,7 +1393,7 @@ macro_rules! led_strip {
         len: $len:tt,
         max_current: $max_current:tt,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         fields: [ dma: $new_dma:ident $(, $($rest:tt)* )? ]
     ) => {
         led_strip! {
@@ -1405,7 +1405,7 @@ macro_rules! led_strip {
             len: $len,
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             fields: [ $($($rest)*)? ]
         }
     };
@@ -1419,7 +1419,7 @@ macro_rules! led_strip {
         len: $len:tt,
         max_current: $max_current:tt,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         fields: [ len: { $new_len:expr } $(, $($rest:tt)* )? ]
     ) => {
         led_strip! {
@@ -1431,7 +1431,7 @@ macro_rules! led_strip {
             len: { $new_len },
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             fields: [ $($($rest)*)? ]
         }
     };
@@ -1445,7 +1445,7 @@ macro_rules! led_strip {
         len: $len:tt,
         max_current: $max_current:tt,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         fields: [ len: $new_len:expr $(, $($rest:tt)* )? ]
     ) => {
         led_strip! {
@@ -1457,7 +1457,7 @@ macro_rules! led_strip {
             len: $new_len,
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             fields: [ $($($rest)*)? ]
         }
     };
@@ -1471,7 +1471,7 @@ macro_rules! led_strip {
         len: $len:tt,
         max_current: $max_current:tt,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         fields: [ max_current: $new_max_current:expr $(, $($rest:tt)* )? ]
     ) => {
         led_strip! {
@@ -1483,7 +1483,7 @@ macro_rules! led_strip {
             len: $len,
             max_current: $new_max_current,
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             fields: [ $($($rest)*)? ]
         }
     };
@@ -1497,7 +1497,7 @@ macro_rules! led_strip {
         len: $len:tt,
         max_current: $max_current:tt,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         fields: [ gamma: $new_gamma:expr $(, $($rest:tt)* )? ]
     ) => {
         led_strip! {
@@ -1509,12 +1509,12 @@ macro_rules! led_strip {
             len: $len,
             max_current: $max_current,
             gamma: $new_gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             fields: [ $($($rest)*)? ]
         }
     };
 
-    // Fill defaults: max_animation_frames
+    // Fill defaults: max_frames
     (@__fill_defaults
         pio: $pio:ident,
         name: $name:ident,
@@ -1523,8 +1523,8 @@ macro_rules! led_strip {
         len: $len:tt,
         max_current: $max_current:tt,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
-        fields: [ max_animation_frames: $new_max_animation_frames:expr $(, $($rest:tt)* )? ]
+        max_frames: $max_frames:expr,
+        fields: [ max_frames: $new_max_frames:expr $(, $($rest:tt)* )? ]
     ) => {
         led_strip! {
             @__fill_defaults
@@ -1535,7 +1535,7 @@ macro_rules! led_strip {
             len: $len,
             max_current: $max_current,
             gamma: $gamma,
-            max_animation_frames: $new_max_animation_frames,
+            max_frames: $new_max_frames,
             fields: [ $($($rest)*)? ]
         }
     };
@@ -1549,7 +1549,7 @@ macro_rules! led_strip {
         len: $len:expr,
         max_current: _UNSET_,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         fields: []
     ) => {
         led_strip! {
@@ -1561,7 +1561,7 @@ macro_rules! led_strip {
             len: $len,
             max_current: $crate::led_strip::Current::Milliamps(250),
             gamma: $gamma,
-            max_animation_frames: $max_animation_frames,
+            max_frames: $max_frames,
             fields: []
         }
     };
@@ -1575,7 +1575,7 @@ macro_rules! led_strip {
         len: $len:expr,
         max_current: $max_current:expr,
         gamma: $gamma:expr,
-        max_animation_frames: $max_animation_frames:expr,
+        max_frames: $max_frames:expr,
         fields: []
     ) => {
         ::paste::paste! {
@@ -1606,12 +1606,12 @@ macro_rules! led_strip {
                 "Uses state machine 0 (SM0) automatically."
             )]
             pub struct $name {
-                strip: $crate::led_strip::LedStrip<{ $len }, { $max_animation_frames }>,
+                strip: $crate::led_strip::LedStrip<{ $len }, { $max_frames }>,
             }
 
             impl $name {
                 pub const LEN: usize = $len;
-                pub const MAX_ANIMATION_FRAMES: usize = $max_animation_frames;
+                pub const MAX_FRAMES: usize = $max_frames;
 
                 // Calculate max brightness from current budget
                 const WORST_CASE_MA: u32 = ($len as u32) * 60;
@@ -1637,7 +1637,7 @@ macro_rules! led_strip {
                     pin: impl Into<::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>>,
                     spawner: ::embassy_executor::Spawner,
                 ) -> $crate::Result<&'static Self> {
-                    static STRIP_STATIC: $crate::led_strip::LedStripStatic<{ $len }, { $max_animation_frames }> =
+                    static STRIP_STATIC: $crate::led_strip::LedStripStatic<{ $len }, { $max_frames }> =
                         $crate::led_strip::LedStrip::new_static();
                     static STRIP_CELL: ::static_cell::StaticCell<$name> = ::static_cell::StaticCell::new();
 
@@ -1662,7 +1662,7 @@ macro_rules! led_strip {
             }
 
             impl ::core::ops::Deref for $name {
-                type Target = $crate::led_strip::LedStrip<{ $len }, { $max_animation_frames }>;
+                type Target = $crate::led_strip::LedStrip<{ $len }, { $max_frames }>;
 
                 fn deref(&self) -> &Self::Target {
                     &self.strip
@@ -1682,7 +1682,7 @@ macro_rules! led_strip {
                 sm: ::embassy_rp::pio::StateMachine<'static, ::embassy_rp::peripherals::$pio, 0>,
                 dma: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$dma>,
                 pin: ::embassy_rp::Peri<'static, ::embassy_rp::peripherals::$pin>,
-                command_signal: &'static $crate::led_strip::LedStripCommandSignal<{ $len }, { $max_animation_frames }>,
+                command_signal: &'static $crate::led_strip::LedStripCommandSignal<{ $len }, { $max_frames }>,
                 completion_signal: &'static $crate::led_strip::LedStripCompletionSignal,
             ) -> ! {
                 let program = bus.get_program();
@@ -1698,7 +1698,7 @@ macro_rules! led_strip {
                     ::embassy_rp::peripherals::$pio,
                     0,
                     { $len },
-                    { $max_animation_frames },
+                    { $max_frames },
                     _
                 >(driver, command_signal, completion_signal, &$name::COMBO_TABLE).await
             }
