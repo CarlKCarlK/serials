@@ -11,15 +11,12 @@ use embassy_executor::Spawner;
 use embassy_time::Timer;
 use panic_probe as _;
 
-const LEN: usize = 8;
-const MAX_CURRENT: Current = Current::Milliamps(50);
-
 led_strip! {
     Gpio0LedStrip {
         pio: PIO1,
         pin: PIN_0,
-        len: LEN,
-        max_current: MAX_CURRENT,
+        len: 8,
+        max_current: Current::Milliamps(50),
     }
 }
 
@@ -46,8 +43,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
         if position <= 0 {
             position = 0;
             direction = 1;
-        } else if position as usize >= LEN - 1 {
-            position = (LEN - 1) as isize;
+        } else if position as usize >= Gpio0LedStrip::LEN - 1 {
+            position = (Gpio0LedStrip::LEN - 1) as isize;
             direction = -1;
         }
 
@@ -56,8 +53,8 @@ async fn inner_main(spawner: Spawner) -> Result<Infallible> {
 }
 
 async fn update_bounce(led_strip: &Gpio0LedStrip, position: usize) -> Result<()> {
-    assert!(position < LEN);
-    let mut frame = Frame::<LEN>::new();
+    assert!(position < Gpio0LedStrip::LEN);
+    let mut frame = Frame::<{ Gpio0LedStrip::LEN }>::new();
     frame[position] = colors::WHITE;
     led_strip.write_frame(frame).await?;
     Ok(())
