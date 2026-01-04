@@ -1540,6 +1540,32 @@ macro_rules! led_strip {
         }
     };
 
+    // Fill default max_current if still unset
+    (@__fill_defaults
+        pio: $pio:ident,
+        name: $name:ident,
+        pin: $pin:ident,
+        dma: $dma:ident,
+        len: $len:expr,
+        max_current: _UNSET_,
+        gamma: $gamma:expr,
+        max_animation_frames: $max_animation_frames:expr,
+        fields: []
+    ) => {
+        led_strip! {
+            @__fill_defaults
+            pio: $pio,
+            name: $name,
+            pin: $pin,
+            dma: $dma,
+            len: $len,
+            max_current: $crate::led_strip::Current::Milliamps(250),
+            gamma: $gamma,
+            max_animation_frames: $max_animation_frames,
+            fields: []
+        }
+    };
+
     // All fields processed - expand the type
     (@__fill_defaults
         pio: $pio:ident,
