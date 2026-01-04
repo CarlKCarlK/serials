@@ -701,13 +701,10 @@ impl<const N: usize, const MAX_FRAMES: usize> Led2d<N, MAX_FRAMES> {
         &self,
         frame: Frame<W, H>,
     ) -> Result<()> {
-        defmt::info!("Led2d::write_frame: sending DisplayStatic command");
         let strip_frame = self.convert_frame(frame);
         self.command_signal
             .signal(Command::DisplayStatic(strip_frame));
-        defmt::info!("Led2d::write_frame: waiting for completion");
         self.completion_signal.wait().await;
-        defmt::info!("Led2d::write_frame: completed");
         Ok(())
     }
 
@@ -773,10 +770,8 @@ where
 
         match command {
             Command::DisplayStatic(frame) => {
-                defmt::info!("led2d_device_loop: received DisplayStatic command");
                 led_strip.write_frame(frame).await?;
                 completion_signal.signal(());
-                defmt::info!("led2d_device_loop: DisplayStatic completed");
             }
             Command::Animate(frames) => {
                 defmt::info!(
@@ -1367,8 +1362,12 @@ macro_rules! led2d_from_strip {
             impl [<$name:camel>] {
                 /// Number of columns in the display.
                 pub const W: usize = $cols_const;
+                /// Number of columns in the display.
+                pub const WIDTH: usize = $cols_const;
                 /// Number of rows in the display.
                 pub const H: usize = $rows_const;
+                /// Number of rows in the display.
+                pub const HEIGHT: usize = $rows_const;
                 /// Total number of LEDs (W * H).
                 pub const N: usize = $n_const;
                 /// Maximum animation frames supported for this device.
